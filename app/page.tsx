@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { ru } from "@/lib/i18n/ru";
+import StartClientBrief from "./start-client-brief";
 
 export default function Home() {
   return (
@@ -11,6 +12,7 @@ export default function Home() {
           {ru.auth.title}
         </Link>
       </div>
+      <StartClientBrief />
     </main>
   );
 }

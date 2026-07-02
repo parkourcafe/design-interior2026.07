@@ -2,7 +2,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 
 export interface IntakeProject {
   id: string;
-  designer_id: string;
+  designer_id: string | null; // null → клиентский бриф без дизайнера
   client_name: string;
   status: string;
 }

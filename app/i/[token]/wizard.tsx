@@ -2,7 +2,9 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { visibleQuestions, type Question } from "@/lib/brief/questions";
+import { appUrl } from "@/lib/env";
 import { ru } from "@/lib/i18n/ru";
+import ShareBrief from "@/components/share-brief";
 
 type Answers = Record<string, unknown>;
 
@@ -13,7 +15,13 @@ const BUDGET_BRACKETS: { value: string; label: string; range: [number, number] }
   { value: "premium", label: "от 6 млн ₽", range: [6_000_000, 12_000_000] },
 ];
 
-export default function IntakeWizard({ token }: { token: string }) {
+export default function IntakeWizard({
+  token,
+  selfServe = false,
+}: {
+  token: string;
+  selfServe?: boolean;
+}) {
   const [started, setStarted] = useState(false);
   const [answers, setAnswers] = useState<Answers>({});
   const [step, setStep] = useState(0);
@@ -78,6 +86,15 @@ export default function IntakeWizard({ token }: { token: string }) {
   }
 
   if (done) {
+    if (selfServe) {
+      return (
+        <main className="mx-auto flex min-h-screen max-w-lg flex-col justify-center px-6 text-center">
+          <h1 className="text-2xl font-semibold">{ru.client.shareTitle}</h1>
+          <p className="mt-2 text-muted">{ru.client.shareHint}</p>
+          <ShareBrief url={`${appUrl()}/b/${token}`} />
+        </main>
+      );
+    }
     return (
       <main className="mx-auto flex min-h-screen max-w-lg flex-col justify-center px-6 text-center">
         <h1 className="text-2xl font-semibold">{ru.brief.done.title}</h1>
