@@ -1,6 +1,7 @@
 import type { ZodSchema } from "zod";
 import { completeYandex } from "./yandex";
 import { completeGigaChat } from "./gigachat";
+import { completeZai } from "./zai";
 
 // Провайдер спрятан за единственным методом completeJSON(prompt, schema).
 // Смена YandexGPT → GigaChat → западный провайдер (EN-экспансия) не трогает
@@ -15,13 +16,18 @@ export type LlmResult<T> =
 // Низкоуровневый контракт конкретного провайдера: prompt → сырой текст ответа.
 export type RawCompletion = (prompt: string) => Promise<string>;
 
-export type ProviderName = "yandex" | "gigachat";
+// 'zai' — опциональный OpenAI-совместимый провайдер (Zhipu GLM). Включается
+// только через LLM_PROVIDER=zai; по умолчанию продукт остаётся на YandexGPT.
+// См. предупреждение о guardrail/152-ФЗ в lib/llm/zai.ts.
+export type ProviderName = "yandex" | "gigachat" | "zai";
 
 function getRawCompletion(): { name: ProviderName; complete: RawCompletion } {
   const provider = (process.env.LLM_PROVIDER ?? "yandex") as ProviderName;
   switch (provider) {
     case "gigachat":
       return { name: "gigachat", complete: completeGigaChat };
+    case "zai":
+      return { name: "zai", complete: completeZai };
     case "yandex":
     default:
       return { name: "yandex", complete: completeYandex };
