@@ -1,0 +1,47 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  color-scheme: light;
+}
+
+body {
+  @apply bg-paper text-ink;
+  font-feature-settings: "liga" 1, "kern" 1;
+}
+
+@layer components {
+  .btn {
+    @apply inline-flex items-center justify-center rounded-md px-4 py-2 text-sm font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed;
+  }
+  .btn-primary {
+    @apply btn bg-accent text-white hover:bg-accent/90;
+  }
+  .btn-ghost {
+    @apply btn border border-line bg-white text-ink hover:bg-line/40;
+  }
+  .card {
+    @apply rounded-lg border border-line bg-white p-5;
+  }
+  .input {
+    @apply w-full rounded-md border border-line bg-white px-3 py-2 text-sm outline-none focus:border-accent;
+  }
+  .label {
+    @apply block text-sm font-medium text-ink mb-1;
+  }
+}
+
+/* Печатная версия КП — это и есть «PDF» v0.1. */
+@media print {
+  .no-print {
+    display: none !important;
+  }
+  body {
+    background: white;
+  }
+  .card {
+    border: none;
+    padding: 0;
+  }
+}

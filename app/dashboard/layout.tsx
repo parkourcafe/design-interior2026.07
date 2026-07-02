@@ -1,0 +1,34 @@
+import Link from "next/link";
+import { redirect } from "next/navigation";
+import { getOrCreateDesigner } from "@/lib/designer";
+import { ru } from "@/lib/i18n/ru";
+import SignOutButton from "./sign-out-button";
+
+export const dynamic = "force-dynamic";
+
+export default async function DashboardLayout({ children }: { children: React.ReactNode }) {
+  const designer = await getOrCreateDesigner();
+  if (!designer) redirect("/login");
+
+  return (
+    <div className="min-h-screen">
+      <header className="border-b border-line bg-white">
+        <div className="mx-auto flex max-w-5xl items-center justify-between px-6 py-3">
+          <Link href="/dashboard" className="font-semibold">
+            {ru.app.name}
+          </Link>
+          <nav className="flex items-center gap-4 text-sm">
+            <Link href="/dashboard" className="text-muted hover:text-ink">
+              {ru.nav.projects}
+            </Link>
+            <Link href="/dashboard/setup" className="text-muted hover:text-ink">
+              {ru.nav.setup}
+            </Link>
+            <SignOutButton />
+          </nav>
+        </div>
+      </header>
+      <main className="mx-auto max-w-5xl px-6 py-8">{children}</main>
+    </div>
+  );
+}
