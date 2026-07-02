@@ -35,7 +35,14 @@ export type Cooking = "none" | "basic" | "heavy";
 export type ScopePackage = "concept" | "full" | "full_plus_supervision" | null;
 
 export interface Passport {
-  object: { type: ObjectType | null; area_m2: number | null; city: string | null };
+  object: {
+    type: ObjectType | null;
+    area_m2: number | null;
+    city: string | null;
+    district?: string;
+    floor?: number;
+    building?: "new" | "secondary" | "private";
+  };
   asset_horizon: AssetHorizon;
   household: { now: string; in_5y: string; kids: boolean; pets: boolean };
   lifestyle: {

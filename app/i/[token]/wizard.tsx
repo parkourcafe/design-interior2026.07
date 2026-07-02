@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { visibleQuestions, type Question } from "@/lib/brief/questions";
 import { ru } from "@/lib/i18n/ru";
 
@@ -19,6 +19,8 @@ export default function IntakeWizard({ token }: { token: string }) {
   const [step, setStep] = useState(0);
   const [submitting, setSubmitting] = useState(false);
   const [done, setDone] = useState(false);
+  // Свободные комментарии к каждому вопросу (в т.ч. надиктованные голосом).
+  const [comments, setComments] = useState<Record<string, string>>({});
 
   const visible = useMemo(() => visibleQuestions(answers), [answers]);
   const question = visible[step];
@@ -64,7 +66,7 @@ export default function IntakeWizard({ token }: { token: string }) {
     const res = await fetch("/api/intake/submit", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ token, answers }),
+      body: JSON.stringify({ token, answers: { ...answers, comments } }),
     });
     setSubmitting(false);
     if (res.ok) setDone(true);
@@ -120,6 +122,13 @@ export default function IntakeWizard({ token }: { token: string }) {
           onChange={(v) => setAnswer(question.id, v)}
           token={token}
         />
+
+        {question.type !== "files" && (
+          <CommentField
+            value={comments[question.id] ?? ""}
+            onChange={(v) => setComments((prev) => ({ ...prev, [question.id]: v }))}
+          />
+        )}
       </div>
 
       <div className="mt-8 flex items-center justify-between">
@@ -189,11 +198,23 @@ function QuestionInput({
 }
 
 function ObjectInput({ value, onChange }: { value: unknown; onChange: (v: unknown) => void }) {
-  const o = (value ?? {}) as { type?: string; area_m2?: number; city?: string };
+  const o = (value ?? {}) as {
+    type?: string;
+    area_m2?: number;
+    city?: string;
+    district?: string;
+    floor?: number;
+    building?: string;
+  };
   const types = [
     { value: "flat", label: "Квартира" },
     { value: "house", label: "Дом" },
     { value: "apartments", label: "Апартаменты" },
+  ];
+  const buildings = [
+    { value: "new", label: "Новостройка" },
+    { value: "secondary", label: "Вторичка" },
+    { value: "private", label: "Частный дом" },
   ];
   return (
     <div className="space-y-4">
@@ -226,6 +247,39 @@ function ObjectInput({ value, onChange }: { value: unknown; onChange: (v: unknow
           value={o.city ?? ""}
           onChange={(e) => onChange({ ...o, city: e.target.value })}
         />
+      </div>
+      <div>
+        <label className="label">Район <span className="text-muted">(необязательно)</span></label>
+        <input
+          className="input"
+          value={o.district ?? ""}
+          onChange={(e) => onChange({ ...o, district: e.target.value })}
+        />
+      </div>
+      <div>
+        <label className="label">Этаж <span className="text-muted">(необязательно)</span></label>
+        <input
+          type="number"
+          className="input"
+          value={o.floor ?? ""}
+          onChange={(e) =>
+            onChange({ ...o, floor: e.target.value === "" ? undefined : Number(e.target.value) })
+          }
+        />
+      </div>
+      <div>
+        <label className="label">Тип дома <span className="text-muted">(необязательно)</span></label>
+        <div className="flex flex-wrap gap-2">
+          {buildings.map((b) => (
+            <button
+              key={b.value}
+              onClick={() => onChange({ ...o, building: b.value })}
+              className={`btn-ghost ${o.building === b.value ? "border-accent bg-accent/10" : ""}`}
+            >
+              {b.label}
+            </button>
+          ))}
+        </div>
       </div>
     </div>
   );
@@ -400,6 +454,90 @@ function FilesInput({ token }: { token: string }) {
           <li key={n}>✓ {n}</li>
         ))}
       </ul>
+    </div>
+  );
+}
+
+// Минимальный тип браузерного распознавания речи (нет в стандартном lib.dom).
+interface SpeechRecognitionLike {
+  lang: string;
+  interimResults: boolean;
+  continuous: boolean;
+  start: () => void;
+  stop: () => void;
+  onresult: ((e: { results: ArrayLike<ArrayLike<{ transcript: string }>> }) => void) | null;
+  onend: (() => void) | null;
+  onerror: (() => void) | null;
+}
+
+function getSpeechRecognition(): (new () => SpeechRecognitionLike) | null {
+  if (typeof window === "undefined") return null;
+  const w = window as unknown as {
+    SpeechRecognition?: new () => SpeechRecognitionLike;
+    webkitSpeechRecognition?: new () => SpeechRecognitionLike;
+  };
+  return w.SpeechRecognition ?? w.webkitSpeechRecognition ?? null;
+}
+
+// Необязательный комментарий к вопросу + надиктовка голосом (Web Speech API,
+// работает в браузере локально; где не поддерживается — просто текстовое поле).
+function CommentField({ value, onChange }: { value: string; onChange: (v: string) => void }) {
+  const [supported, setSupported] = useState(false);
+  const [listening, setListening] = useState(false);
+  const recRef = useRef<SpeechRecognitionLike | null>(null);
+
+  useEffect(() => {
+    setSupported(getSpeechRecognition() !== null);
+  }, []);
+
+  function toggle() {
+    if (listening) {
+      recRef.current?.stop();
+      return;
+    }
+    const SR = getSpeechRecognition();
+    if (!SR) return;
+    const rec = new SR();
+    rec.lang = "ru-RU";
+    rec.interimResults = false;
+    rec.continuous = false;
+    rec.onresult = (e) => {
+      let text = "";
+      for (let i = 0; i < e.results.length; i++) {
+        const alt = e.results[i]?.[0]?.transcript;
+        if (alt) text += (text ? " " : "") + alt;
+      }
+      if (text) onChange(value ? `${value} ${text}` : text);
+    };
+    rec.onend = () => setListening(false);
+    rec.onerror = () => setListening(false);
+    recRef.current = rec;
+    rec.start();
+    setListening(true);
+  }
+
+  return (
+    <div className="mt-5 border-t border-line pt-4">
+      <div className="mb-1 flex items-center justify-between">
+        <label className="text-xs text-muted">Хотите что-то добавить? (необязательно)</label>
+        {supported && (
+          <button
+            type="button"
+            onClick={toggle}
+            className={`rounded-md border px-2.5 py-1 text-xs ${
+              listening ? "border-accent bg-accent/10 text-accent" : "border-line text-muted hover:text-ink"
+            }`}
+          >
+            {listening ? "● Слушаю… стоп" : "🎤 Надиктовать"}
+          </button>
+        )}
+      </div>
+      <textarea
+        className="input min-h-16"
+        placeholder="Всё, что не вошло в вопрос: детали, пожелания, контекст"
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+      />
     </div>
   );
 }
