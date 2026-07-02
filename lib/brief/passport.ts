@@ -26,6 +26,10 @@ function obj(a: Answers, id: string): Record<string, unknown> {
   const v = a[id];
   return v && typeof v === "object" && !Array.isArray(v) ? (v as Record<string, unknown>) : {};
 }
+// Возвращает значение choice-ответа, только если оно из допустимого набора.
+function oneOf<T extends string>(v: string | undefined, allowed: readonly T[]): T | undefined {
+  return v !== undefined && (allowed as readonly string[]).includes(v) ? (v as T) : undefined;
+}
 
 // ── budget tier (₽/м² total ремонт+комплектация) ─────────
 // budget.risk_level кодирует бюджетный УРОВЕНЬ: low = эконом/тесный,
@@ -153,21 +157,36 @@ export function buildPassport(answers: Answers): Passport {
     notes: typeof styleAns.notes === "string" ? styleAns.notes : "",
   };
 
+  // Новые поля (все необязательные).
+  const condition = oneOf(str(answers, "condition"), ["shell", "rough", "lived"] as const);
+  const replanning = oneOf(str(answers, "replanning"), ["no", "maybe", "yes"] as const);
+  const decisionMakers = oneOf(str(answers, "decision_makers"), ["single", "couple", "family"] as const);
+  const includesFurniture = oneOf(str(answers, "budget_furniture"), ["yes", "no", "unsure"] as const);
+  const furnitureKeep = oneOf(str(answers, "furniture_keep"), ["all_new", "partial", "own"] as const);
+  const requirements = arr(answers, "requirements").filter((r) => r !== "none");
+  const hardDeadline =
+    typeof str(answers, "deadline") === "string" && str(answers, "deadline")!.trim()
+      ? str(answers, "deadline")!.trim()
+      : undefined;
+
   return {
-    object: { type: objectType, area_m2: area, city, district, floor, building },
+    object: { type: objectType, area_m2: area, city, district, floor, building, condition, replanning },
     asset_horizon: assetHorizon,
-    household: householdText(arr(answers, "household")),
+    household: { ...householdText(arr(answers, "household")), decision_makers: decisionMakers },
     lifestyle: {
       morning_load: morning.load,
       bathrooms: morning.bathrooms,
       cooking,
       storage_pressure: storagePressure(arr(answers, "storage")),
+      furniture_keep: furnitureKeep,
+      requirements: requirements.length ? requirements : undefined,
     },
     budget: {
       range,
       risk_level: budgetTier(range, area),
+      includes_furniture: includesFurniture,
     },
-    timeline: timeline(str(answers, "timeline")),
+    timeline: { ...timeline(str(answers, "timeline")), hard_deadline: hardDeadline },
     style,
     pain_points: str(answers, "pain") ?? "",
     scope: { package: null },

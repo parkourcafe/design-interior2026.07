@@ -43,6 +43,30 @@ export const QUESTIONS: Question[] = [
     passport_field: "object",
   },
   {
+    id: "condition",
+    type: "choice",
+    title: "В каком состоянии объект сейчас?",
+    help: "От этого зависит объём демонтажа, сроки и бюджет.",
+    passport_field: "object.condition",
+    options: [
+      { value: "shell", label: "Пустая коробка (новостройка без отделки)" },
+      { value: "rough", label: "Черновая отделка" },
+      { value: "lived", label: "Жилое, с ремонтом — нужен демонтаж" },
+    ],
+  },
+  {
+    id: "replanning",
+    type: "choice",
+    title: "Планируете менять планировку?",
+    help: "Двигать стены, объединять комнаты, переносить кухню/санузел.",
+    passport_field: "object.replanning",
+    options: [
+      { value: "no", label: "Нет, оставляем как есть" },
+      { value: "maybe", label: "Пока думаем" },
+      { value: "yes", label: "Да, хотим менять" },
+    ],
+  },
+  {
     id: "asset_horizon",
     type: "choice",
     title: "Что будет с этим жильём через 3–5 лет?",
@@ -67,6 +91,18 @@ export const QUESTIONS: Question[] = [
       { value: "parents", label: "Родители живут или будут приезжать надолго" },
       { value: "pets", label: "Животные" },
       { value: "alone_or_couple", label: "Только я / пара" },
+    ],
+  },
+  {
+    id: "decision_makers",
+    type: "choice",
+    title: "Кто будет принимать решения по проекту?",
+    help: "Чтобы согласования шли гладко и без переделок.",
+    passport_field: "household.decision_makers",
+    options: [
+      { value: "single", label: "Я один(одна)" },
+      { value: "couple", label: "Вдвоём с партнёром" },
+      { value: "family", label: "Вся семья / несколько человек" },
     ],
   },
   {
@@ -118,11 +154,40 @@ export const QUESTIONS: Question[] = [
     ],
   },
   {
+    id: "furniture_keep",
+    type: "choice",
+    title: "Что с текущей мебелью?",
+    help: "Влияет на планировку и на бюджет комплектации.",
+    passport_field: "lifestyle.furniture_keep",
+    options: [
+      { value: "all_new", label: "Всё новое" },
+      { value: "partial", label: "Часть оставим" },
+      { value: "own", label: "Переезжаем со своей мебелью" },
+    ],
+  },
+  {
     id: "budget",
     type: "budget",
     title: "Бюджетный коридор на ремонт и комплектацию",
     help: "Ориентир, не смета. Можно не называть.",
     passport_field: "budget.range",
+  },
+  {
+    id: "budget_furniture",
+    type: "choice",
+    title: "Названный бюджет включает мебель и технику?",
+    help: "Часто это считают отдельно — уточним сразу, чтобы не было сюрприза.",
+    passport_field: "budget.includes_furniture",
+    // Спрашиваем только если бюджет назвали (не «не готов назвать»).
+    show_if: (a) => {
+      const b = a["budget"];
+      return Boolean(b && typeof b === "object" && Array.isArray((b as { range?: unknown }).range));
+    },
+    options: [
+      { value: "yes", label: "Да, всё включено" },
+      { value: "no", label: "Нет, только ремонт и работы" },
+      { value: "unsure", label: "Не знаю" },
+    ],
   },
   {
     id: "timeline",
@@ -134,6 +199,14 @@ export const QUESTIONS: Question[] = [
       { value: "6_12m", label: "В течение 6–12 месяцев" },
       { value: "urgent", label: "Срочно — до 3–4 месяцев" },
     ],
+  },
+  {
+    id: "deadline",
+    type: "text",
+    title: "Есть жёсткая дата, к которой нужно въехать?",
+    help: "Например: свадьба, рождение ребёнка, конец аренды. Если нет — пропустите.",
+    passport_field: "timeline.hard_deadline",
+    optional: true,
   },
   {
     id: "style",
@@ -148,6 +221,23 @@ export const QUESTIONS: Question[] = [
     title: "Что больше всего раздражает в текущем жилье?",
     help: "Свободный текст.",
     passport_field: "pain_points",
+  },
+  {
+    id: "requirements",
+    type: "multi",
+    title: "Есть особые требования?",
+    help: "Отметьте всё, что актуально.",
+    passport_field: "lifestyle.requirements",
+    optional: true,
+    options: [
+      { value: "warm_floor", label: "Тёплый пол" },
+      { value: "ac", label: "Кондиционирование" },
+      { value: "smart", label: "Умный дом" },
+      { value: "allergy", label: "Аллергии / гипоаллергенные материалы" },
+      { value: "accessibility", label: "Маломобильные члены семьи" },
+      { value: "soundproof", label: "Шумоизоляция" },
+      { value: "none", label: "Нет особых требований" },
+    ],
   },
   {
     id: "attachments",

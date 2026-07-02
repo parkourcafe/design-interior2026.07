@@ -73,4 +73,32 @@ describe("buildPassport", () => {
     expect(p.lifestyle.morning_load).toBe("mid");
     expect(p.lifestyle.bathrooms).toBe(2);
   });
+
+  it("maps the added fields (condition, replanning, decision-makers, etc.)", () => {
+    const p = buildPassport({
+      object: { type: "flat", area_m2: 60, city: "Москва" },
+      condition: "shell",
+      replanning: "yes",
+      decision_makers: "family",
+      furniture_keep: "own",
+      budget: { range: [3_000_000, 5_000_000] },
+      budget_furniture: "yes",
+      requirements: ["warm_floor", "smart", "none"],
+      deadline: "  к свадьбе в мае  ",
+    });
+    expect(p.object.condition).toBe("shell");
+    expect(p.object.replanning).toBe("yes");
+    expect(p.household.decision_makers).toBe("family");
+    expect(p.lifestyle.furniture_keep).toBe("own");
+    expect(p.budget.includes_furniture).toBe("yes");
+    expect(p.lifestyle.requirements).toEqual(["warm_floor", "smart"]); // 'none' отброшен
+    expect(p.timeline.hard_deadline).toBe("к свадьбе в мае");
+  });
+
+  it("leaves added fields undefined when not answered", () => {
+    const p = buildPassport({ object: { type: "flat", area_m2: 60, city: "Москва" } });
+    expect(p.object.replanning).toBeUndefined();
+    expect(p.lifestyle.requirements).toBeUndefined();
+    expect(p.timeline.hard_deadline).toBeUndefined();
+  });
 });

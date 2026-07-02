@@ -15,6 +15,45 @@ const BUILDING_LABEL: Record<string, string> = {
   private: "частный дом",
 };
 
+const CONDITION_LABEL: Record<string, string> = {
+  shell: "пустая коробка",
+  rough: "черновая",
+  lived: "жилое (демонтаж)",
+};
+
+const REPLANNING_LABEL: Record<string, string> = {
+  no: "без перепланировки",
+  maybe: "думают о перепланировке",
+  yes: "перепланировка нужна",
+};
+
+const DECISION_LABEL: Record<string, string> = {
+  single: "решает один",
+  couple: "решают вдвоём",
+  family: "решает вся семья",
+};
+
+const FURNITURE_LABEL: Record<string, string> = {
+  all_new: "вся мебель новая",
+  partial: "часть мебели оставляют",
+  own: "переезжают со своей мебелью",
+};
+
+const INCLUDES_FURNITURE_LABEL: Record<string, string> = {
+  yes: "включает мебель",
+  no: "без мебели",
+  unsure: "не знает, включает ли мебель",
+};
+
+const REQUIREMENT_LABEL: Record<string, string> = {
+  warm_floor: "тёплый пол",
+  ac: "кондиционирование",
+  smart: "умный дом",
+  allergy: "аллергии",
+  accessibility: "маломобильность",
+  soundproof: "шумоизоляция",
+};
+
 function money(range: MoneyRange | "undisclosed"): string {
   if (range === "undisclosed") return pv.undisclosed;
   return `${range[0].toLocaleString("ru-RU")}–${range[1].toLocaleString("ru-RU")} ₽`;
@@ -40,12 +79,17 @@ export default function PassportView({ passport }: { passport: Passport }) {
         {o.district ? `, р-н ${o.district}` : ""}
         {typeof o.floor === "number" ? `, ${o.floor} этаж` : ""}
         {o.building ? `, ${BUILDING_LABEL[o.building]}` : ""}
+        {o.condition ? ` · ${CONDITION_LABEL[o.condition]}` : ""}
+        {o.replanning ? ` · ${REPLANNING_LABEL[o.replanning]}` : ""}
       </Row>
       <Row label={pv.assetHorizon}>{pv.assetHorizonValue[passport.asset_horizon]}</Row>
       <Row label={pv.household}>
         {pv.now}: {passport.household.now}; {pv.in5y}: {passport.household.in_5y}
         {passport.household.kids ? ` · ${pv.kids}` : ""}
         {passport.household.pets ? ` · ${pv.pets}` : ""}
+        {passport.household.decision_makers
+          ? ` · ${DECISION_LABEL[passport.household.decision_makers]}`
+          : ""}
       </Row>
       <Row label={pv.lifestyle}>
         {pv.morningLoad}: {pv.loadValue[passport.lifestyle.morning_load]}
@@ -54,10 +98,24 @@ export default function PassportView({ passport }: { passport: Passport }) {
         {pv.cooking}: {pv.cookingValue[passport.lifestyle.cooking]}
         {" · "}
         {pv.storage}: {pv.loadValue[passport.lifestyle.storage_pressure]}
+        {passport.lifestyle.furniture_keep
+          ? ` · ${FURNITURE_LABEL[passport.lifestyle.furniture_keep]}`
+          : ""}
+        {passport.lifestyle.requirements && passport.lifestyle.requirements.length > 0
+          ? ` · ${passport.lifestyle.requirements
+              .map((r) => REQUIREMENT_LABEL[r] ?? r)
+              .join(", ")}`
+          : ""}
       </Row>
-      <Row label={pv.budget}>{money(passport.budget.range)}</Row>
+      <Row label={pv.budget}>
+        {money(passport.budget.range)}
+        {passport.budget.includes_furniture
+          ? ` · ${INCLUDES_FURNITURE_LABEL[passport.budget.includes_furniture]}`
+          : ""}
+      </Row>
       <Row label={pv.timeline}>
         {passport.timeline.target} · {pv.urgencyValue[passport.timeline.urgency]}
+        {passport.timeline.hard_deadline ? ` · дедлайн: ${passport.timeline.hard_deadline}` : ""}
       </Row>
       <Row label={pv.style}>
         {passport.style.refs.length > 0 && (
