@@ -3,6 +3,18 @@ import { ru } from "@/lib/i18n/ru";
 
 const pv = ru.passportView;
 
+const OBJECT_TYPE_LABEL: Record<string, string> = {
+  flat: "квартира",
+  house: "дом",
+  apartments: "апартаменты",
+};
+
+const BUILDING_LABEL: Record<string, string> = {
+  new: "новостройка",
+  secondary: "вторичка",
+  private: "частный дом",
+};
+
 function money(range: MoneyRange | "undisclosed"): string {
   if (range === "undisclosed") return pv.undisclosed;
   return `${range[0].toLocaleString("ru-RU")}–${range[1].toLocaleString("ru-RU")} ₽`;
@@ -22,9 +34,12 @@ export default function PassportView({ passport }: { passport: Passport }) {
   return (
     <div className="card">
       <Row label={pv.object}>
-        {o.type ? pv.packageValue[o.type] ?? o.type : pv.notFilled}
+        {o.type ? OBJECT_TYPE_LABEL[o.type] ?? o.type : pv.notFilled}
         {o.area_m2 ? `, ${o.area_m2} м²` : ""}
         {o.city ? `, ${o.city}` : ""}
+        {o.district ? `, р-н ${o.district}` : ""}
+        {typeof o.floor === "number" ? `, ${o.floor} этаж` : ""}
+        {o.building ? `, ${BUILDING_LABEL[o.building]}` : ""}
       </Row>
       <Row label={pv.assetHorizon}>{pv.assetHorizonValue[passport.asset_horizon]}</Row>
       <Row label={pv.household}>

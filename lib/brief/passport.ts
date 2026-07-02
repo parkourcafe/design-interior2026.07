@@ -117,6 +117,15 @@ export function buildPassport(answers: Answers): Passport {
     return t === "flat" || t === "house" || t === "apartments" ? t : null;
   })();
   const city = typeof objectAns.city === "string" && objectAns.city.trim() ? objectAns.city.trim() : null;
+  const district =
+    typeof objectAns.district === "string" && objectAns.district.trim()
+      ? objectAns.district.trim()
+      : undefined;
+  const floor = typeof objectAns.floor === "number" ? objectAns.floor : undefined;
+  const building =
+    objectAns.building === "new" || objectAns.building === "secondary" || objectAns.building === "private"
+      ? objectAns.building
+      : undefined;
 
   const assetHorizon = ((): AssetHorizon => {
     const v = str(answers, "asset_horizon");
@@ -145,7 +154,7 @@ export function buildPassport(answers: Answers): Passport {
   };
 
   return {
-    object: { type: objectType, area_m2: area, city },
+    object: { type: objectType, area_m2: area, city, district, floor, building },
     asset_horizon: assetHorizon,
     household: householdText(arr(answers, "household")),
     lifestyle: {
