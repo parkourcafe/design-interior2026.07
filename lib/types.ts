@@ -42,17 +42,31 @@ export interface Passport {
     district?: string;
     floor?: number;
     building?: "new" | "secondary" | "private";
+    condition?: "shell" | "rough" | "lived";
+    replanning?: "no" | "maybe" | "yes";
   };
   asset_horizon: AssetHorizon;
-  household: { now: string; in_5y: string; kids: boolean; pets: boolean };
+  household: {
+    now: string;
+    in_5y: string;
+    kids: boolean;
+    pets: boolean;
+    decision_makers?: "single" | "couple" | "family";
+  };
   lifestyle: {
     morning_load: Load;
     bathrooms: number | null;
     cooking: Cooking;
     storage_pressure: Load;
+    furniture_keep?: "all_new" | "partial" | "own";
+    requirements?: string[];
   };
-  budget: { range: MoneyRange | "undisclosed"; risk_level: Load };
-  timeline: { target: string; urgency: "normal" | "urgent" };
+  budget: {
+    range: MoneyRange | "undisclosed";
+    risk_level: Load;
+    includes_furniture?: "yes" | "no" | "unsure";
+  };
+  timeline: { target: string; urgency: "normal" | "urgent"; hard_deadline?: string };
   style: { refs: string[]; anti: string[]; notes: string };
   pain_points: string;
   scope: { package: ScopePackage };

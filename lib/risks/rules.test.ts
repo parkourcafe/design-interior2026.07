@@ -75,6 +75,27 @@ describe("evaluateRules", () => {
     expect(fn?.evidence.length).toBeGreaterThan(0);
   });
 
+  it("flags replanning under urgency (rule 6)", () => {
+    const answers = {
+      object: { type: "flat", area_m2: 60, city: "Москва" },
+      replanning: "yes",
+      timeline: "urgent",
+      budget: { range: [3_000_000, 5_000_000] },
+    };
+    const cards = evaluateRules(passportFrom(answers), answers);
+    expect(cards.some((c) => c.risk_type === "timeline")).toBe(true);
+  });
+
+  it("flags furniture-in-budget on a low/mid budget (rule 7)", () => {
+    const answers = {
+      object: { type: "flat", area_m2: 60, city: "Пермь" },
+      budget: { range: [800_000, 1_100_000] }, // ~18k ₽/м² → low
+      budget_furniture: "yes",
+    };
+    const cards = evaluateRules(passportFrom(answers), answers);
+    expect(cards.some((c) => c.risk_type === "budget")).toBe(true);
+  });
+
   it("returns no cards for a conflict-free brief", () => {
     const answers = {
       object: { type: "flat", area_m2: 80, city: "Москва" },

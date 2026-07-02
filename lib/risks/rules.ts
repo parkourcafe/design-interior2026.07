@@ -140,5 +140,42 @@ export function evaluateRules(passport: Passport, answers: Answers = {}): RiskCa
     });
   }
 
+  // 6. Перепланировка + срочность → сроки (согласования не совместимы со спешкой).
+  if (passport.object.replanning === "yes" && passport.timeline.urgency === "urgent") {
+    cards.push({
+      risk_type: "timeline",
+      evidence: ["Планируется перепланировка", "Срочные сроки (до 3–4 месяцев)"],
+      impact: "Сроки: согласование перепланировки (БТИ/УК) может занять недели-месяцы",
+      confidence: "high",
+      designer_action:
+        "Объяснить сроки узаконивания перепланировки; обсудить, что можно начать без неё.",
+      proposal_implication:
+        "В сроках зафиксировать зависимость от согласования перепланировки; вынести узаконивание отдельно.",
+      source: "rule",
+    });
+  }
+
+  // 7. Низкий/средний бюджет, в который «включена мебель» → бюджет (тесно).
+  if (
+    passport.budget.range !== "undisclosed" &&
+    (passport.budget.risk_level === "low" || passport.budget.risk_level === "mid") &&
+    passport.budget.includes_furniture === "yes"
+  ) {
+    cards.push({
+      risk_type: "budget",
+      evidence: [
+        `Бюджетный уровень: ${passport.budget.risk_level === "low" ? "эконом" : "средний"}`,
+        "В этот бюджет клиент закладывает и мебель с техникой",
+      ],
+      impact: "Бюджет: на комплектацию после ремонтных работ может не остаться средств",
+      confidence: "high",
+      designer_action:
+        "Развести бюджет на работы и на комплектацию; показать реалистичную долю на мебель.",
+      proposal_implication:
+        "В КП явно разделить стоимость проекта, ремонта и комплектации; в exclusions — закупку мебели.",
+      source: "rule",
+    });
+  }
+
   return cards;
 }
