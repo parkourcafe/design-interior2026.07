@@ -1,13 +1,18 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/browser";
 import { appUrl } from "@/lib/env";
 import { ru } from "@/lib/i18n/ru";
 
 export default function LoginPage() {
+  const router = useRouter();
   const [email, setEmail] = useState("");
+  const [code, setCode] = useState("");
   const [state, setState] = useState<"idle" | "sending" | "sent" | "error">("idle");
+  const [verifying, setVerifying] = useState(false);
+  const [codeError, setCodeError] = useState<string | null>(null);
   const [callbackError, setCallbackError] = useState<string | null>(null);
 
   // Показываем реальную причину, если /auth/callback вернул сюда с ?error=...
@@ -27,6 +32,26 @@ export default function LoginPage() {
     setState(error ? "error" : "sent");
   }
 
+  // Вход по 6-значному коду из письма (не требует клика по ссылке).
+  async function verifyCode(e: React.FormEvent) {
+    e.preventDefault();
+    setVerifying(true);
+    setCodeError(null);
+    const supabase = createClient();
+    const { error } = await supabase.auth.verifyOtp({
+      email,
+      token: code.trim(),
+      type: "email",
+    });
+    setVerifying(false);
+    if (error) {
+      setCodeError(error.message);
+    } else {
+      router.push("/dashboard");
+      router.refresh();
+    }
+  }
+
   return (
     <main className="mx-auto flex min-h-screen max-w-md flex-col justify-center px-6">
       <h1 className="font-display text-3xl font-semibold">{ru.auth.title}</h1>
@@ -39,9 +64,37 @@ export default function LoginPage() {
       )}
 
       {state === "sent" ? (
-        <p className="mt-6 rounded-md border border-accent/30 bg-accent/5 p-4 text-sm">
-          {ru.auth.sent}
-        </p>
+        <div className="mt-6 space-y-5">
+          <p className="rounded-md border border-accent/30 bg-accent/5 p-4 text-sm">{ru.auth.sent}</p>
+
+          <form onSubmit={verifyCode} className="space-y-3">
+            <div>
+              <label className="label" htmlFor="code">
+                Или введите код из письма
+              </label>
+              <input
+                id="code"
+                inputMode="numeric"
+                autoComplete="one-time-code"
+                pattern="[0-9]*"
+                maxLength={6}
+                required
+                value={code}
+                onChange={(e) => setCode(e.target.value.replace(/\D/g, ""))}
+                placeholder="000000"
+                className="input tracking-[0.4em]"
+              />
+            </div>
+            <button type="submit" disabled={verifying || code.length < 6} className="btn-primary w-full">
+              {verifying ? "Проверяем…" : "Войти по коду"}
+            </button>
+            {codeError && <p className="text-sm text-red-600">Неверный или просроченный код.</p>}
+          </form>
+
+          <button onClick={() => setState("idle")} className="text-sm text-muted hover:text-ink">
+            ← Другой email
+          </button>
+        </div>
       ) : (
         <form onSubmit={onSubmit} className="mt-6 space-y-4">
           <div>
