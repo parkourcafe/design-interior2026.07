@@ -33,5 +33,11 @@ export default async function IntakePage({ params }: { params: { token: string }
     );
   }
 
-  return <IntakeWizard token={params.token} selfServe={selfServe} />;
+  return (
+    <IntakeWizard
+      token={params.token}
+      selfServe={selfServe}
+      customQuestions={project.custom_questions}
+    />
+  );
 }

@@ -8,6 +8,21 @@ import type { AnswersMap, RiskCard, RiskStatus } from "@/lib/types";
 // Все действия идут от имени залогиненного дизайнера через RLS (server client):
 // доступ к чужому проекту невозможен — политика projects_owner_all.
 
+// Сохранить свои вопросы дизайнера для проекта (RLS: только владелец).
+export async function saveCustomQuestions(
+  projectId: string,
+  questions: string[],
+): Promise<{ ok: boolean }> {
+  const clean = questions.map((q) => q.trim()).filter((q) => q.length > 0).slice(0, 15);
+  const supabase = createClient();
+  const { error } = await supabase
+    .from("projects")
+    .update({ custom_questions: clean })
+    .eq("id", projectId);
+  if (!error) revalidatePath(`/dashboard/projects/${projectId}`);
+  return { ok: !error };
+}
+
 export async function setCardStatus(cardId: string, status: RiskStatus): Promise<{ ok: boolean }> {
   const supabase = createClient();
   const { error } = await supabase.from("risk_cards").update({ status }).eq("id", cardId);
