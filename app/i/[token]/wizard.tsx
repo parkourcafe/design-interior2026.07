@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { visibleQuestions, type Question } from "@/lib/brief/questions";
+import { quickQuestions, deepQuestions, type Question } from "@/lib/brief/questions";
 import { appUrl } from "@/lib/env";
 import { ru } from "@/lib/i18n/ru";
 import ShareBrief from "@/components/share-brief";
@@ -9,6 +9,14 @@ import DesignerCard from "@/components/designer-card";
 import type { DesignerPublic } from "@/lib/designer";
 
 type Answers = Record<string, unknown>;
+
+function pluralQuestions(n: number): string {
+  const mod10 = n % 10;
+  const mod100 = n % 100;
+  if (mod10 === 1 && mod100 !== 11) return "вопрос";
+  if (mod10 >= 2 && mod10 <= 4 && (mod100 < 10 || mod100 >= 20)) return "вопроса";
+  return "вопросов";
+}
 
 const BUDGET_BRACKETS: { value: string; label: string; range: [number, number] }[] = [
   { value: "economy", label: "до 1,5 млн ₽", range: [500_000, 1_500_000] },
@@ -31,6 +39,8 @@ export default function IntakeWizard({
   const [started, setStarted] = useState(false);
   const [answers, setAnswers] = useState<Answers>({});
   const [step, setStep] = useState(0);
+  // 'quick' — быстрое ядро; 'deep' — клиент решил дозаполнить детали.
+  const [mode, setMode] = useState<"quick" | "deep">("quick");
   const [submitting, setSubmitting] = useState(false);
   const [done, setDone] = useState(false);
   // Свободные комментарии к каждому вопросу (в т.ч. надиктованные голосом).
@@ -49,9 +59,11 @@ export default function IntakeWizard({
           comments?: Record<string, string>;
           step?: number;
           started?: boolean;
+          mode?: "quick" | "deep";
         };
         if (saved.answers) setAnswers(saved.answers);
         if (saved.comments) setComments(saved.comments);
+        if (saved.mode) setMode(saved.mode);
         if (typeof saved.step === "number") setStep(saved.step);
         if (saved.started) setStarted(true);
       }
@@ -65,14 +77,15 @@ export default function IntakeWizard({
   useEffect(() => {
     if (!restored) return;
     try {
-      localStorage.setItem(storageKey, JSON.stringify({ answers, comments, step, started }));
+      localStorage.setItem(storageKey, JSON.stringify({ answers, comments, step, started, mode }));
     } catch {
       /* ignore */
     }
-  }, [restored, storageKey, answers, comments, step, started]);
+  }, [restored, storageKey, answers, comments, step, started, mode]);
 
-  const visible = useMemo(() => {
-    const base = visibleQuestions(answers);
+  const quick = useMemo(() => quickQuestions(answers), [answers]);
+  const deep = useMemo(() => {
+    const base = deepQuestions(answers);
     const custom: Question[] = customQuestions
       .filter((t) => t.trim())
       .map((text, i) => ({
@@ -87,6 +100,10 @@ export default function IntakeWizard({
     if (attachIdx === -1) return [...base, ...custom];
     return [...base.slice(0, attachIdx), ...custom, ...base.slice(attachIdx)];
   }, [answers, customQuestions]);
+
+  const visible = mode === "quick" ? quick : [...quick, ...deep];
+  // Промежуточный экран «отправить / добавить детали» — после ядра.
+  const atInterstitial = mode === "quick" && step >= quick.length;
   const question = visible[step];
 
   useEffect(() => {
@@ -148,8 +165,19 @@ export default function IntakeWizard({
   }
 
   function next() {
-    if (step < visible.length - 1) setStep(step + 1);
-    else finish();
+    if (mode === "quick") {
+      // Дошли до конца ядра → промежуточный экран (отправить / детали).
+      if (step < quick.length - 1) setStep(step + 1);
+      else setStep(quick.length);
+    } else {
+      if (step < visible.length - 1) setStep(step + 1);
+      else finish();
+    }
+  }
+
+  function addDetails() {
+    setMode("deep");
+    setStep(quick.length); // первый deep-вопрос
   }
 
   if (done) {
@@ -189,10 +217,40 @@ export default function IntakeWizard({
     );
   }
 
+  // Промежуточный экран после быстрого ядра.
+  if (atInterstitial) {
+    return (
+      <main className="mx-auto flex min-h-screen max-w-lg flex-col justify-center px-6">
+        <h1 className="font-display text-[clamp(30px,7vw,42px)] font-semibold leading-[1.1]">
+          Основное готово!
+        </h1>
+        <p className="mt-3 text-base leading-relaxed text-muted">
+          Можно отправить дизайнеру уже сейчас. Или добавить детали ещё на {deep.length}{" "}
+          {pluralQuestions(deep.length)} — предложение получится точнее. Черновик сохраняется сам.
+        </p>
+        <div className="mt-8 flex flex-col gap-3">
+          <button onClick={finish} disabled={submitting} className="btn-primary px-6 py-3.5 text-base">
+            {submitting ? ru.brief.saving : "Отправить сейчас"}
+          </button>
+          <button onClick={addDetails} disabled={submitting} className="btn-ghost px-6 py-3.5 text-base">
+            Добавить детали <span className="ml-2">→</span>
+          </button>
+        </div>
+        <button
+          onClick={() => setStep(quick.length - 1)}
+          className="mt-6 self-start text-sm text-muted hover:text-ink"
+        >
+          ← {ru.brief.back}
+        </button>
+      </main>
+    );
+  }
+
   if (!question) return null;
 
   const total = visible.length;
   const progress = Math.round(((step + 1) / total) * 100);
+  const isLast = mode === "deep" && step === total - 1;
 
   return (
     <main className="mx-auto flex min-h-screen max-w-xl flex-col px-6 pb-28">
@@ -248,7 +306,7 @@ export default function IntakeWizard({
             disabled={!canProceed(question) || submitting}
             className="btn-primary px-6"
           >
-            {submitting ? ru.brief.saving : step === total - 1 ? ru.brief.finish : ru.brief.next}
+            {submitting ? ru.brief.saving : isLast ? ru.brief.finish : ru.brief.next}
           </button>
         </div>
       </div>

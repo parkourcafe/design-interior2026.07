@@ -30,6 +30,9 @@ export interface Question {
   help?: string;
   placeholder?: string;
   optional?: boolean;
+  // 'quick' — обязательное ядро (быстрый бриф ~7 вопросов). Иначе — 'deep'
+  // (опциональные детали, которые клиент дозаполняет по желанию).
+  tier?: "quick" | "deep";
   passport_field: string;
   options?: Option[];
   // Ветвление: вопрос показывается, только если предикат от текущих answers истинен.
@@ -47,6 +50,7 @@ function choiceValue(answers: Record<string, unknown>, id: string): string | und
 export const QUESTIONS: Question[] = [
   {
     id: "object",
+    tier: "quick",
     type: "object",
     title: "Что за объект и где он?",
     help: "Тип, площадь и город. Это задаёт масштаб проекта.",
@@ -54,6 +58,7 @@ export const QUESTIONS: Question[] = [
   },
   {
     id: "vision",
+    tier: "quick",
     type: "text",
     title: "Опишите своими словами, как вы видите свою квартиру",
     help: "Как вы живёте и что для вас важно. Не бойтесь деталей — это главное, что помогает дизайнеру.",
@@ -101,6 +106,7 @@ export const QUESTIONS: Question[] = [
   },
   {
     id: "asset_horizon",
+    tier: "quick",
     type: "choice",
     title: "Что будет с этим жильём через 3–5 лет?",
     help: "Самый важный вопрос: он влияет и на бюджет, и на материалы, и на глубину кастомизации.",
@@ -377,6 +383,7 @@ export const QUESTIONS: Question[] = [
   },
   {
     id: "budget",
+    tier: "quick",
     type: "budget",
     title: "Бюджетный коридор на ремонт и комплектацию",
     help: "Ориентир, не смета. Можно не называть.",
@@ -401,6 +408,7 @@ export const QUESTIONS: Question[] = [
   },
   {
     id: "timeline",
+    tier: "quick",
     type: "choice",
     title: "Когда хотите закончить?",
     passport_field: "timeline",
@@ -483,6 +491,7 @@ export const QUESTIONS: Question[] = [
   },
   {
     id: "source",
+    tier: "quick",
     type: "choice",
     title: "Откуда вы узнали о дизайнере?",
     help: "Дизайнеру полезно понимать, какой канал сработал.",
@@ -500,6 +509,7 @@ export const QUESTIONS: Question[] = [
   },
   {
     id: "contact",
+    tier: "quick",
     type: "contact",
     title: "Как с вами связаться?",
     help: "Оставьте имя и контакт — по этой заявке с вами свяжется дизайнер.",
@@ -519,6 +529,14 @@ export const QUESTIONS: Question[] = [
 // Вопросы, видимые при данном наборе ответов (учёт ветвления).
 export function visibleQuestions(answers: Record<string, unknown>): Question[] {
   return QUESTIONS.filter((q) => !q.show_if || q.show_if(answers));
+}
+
+// Быстрое ядро (tier='quick') и опциональные детали (всё остальное).
+export function quickQuestions(answers: Record<string, unknown>): Question[] {
+  return QUESTIONS.filter((q) => q.tier === "quick" && (!q.show_if || q.show_if(answers)));
+}
+export function deepQuestions(answers: Record<string, unknown>): Question[] {
+  return QUESTIONS.filter((q) => q.tier !== "quick" && (!q.show_if || q.show_if(answers)));
 }
 
 export function questionById(id: string): Question | undefined {
