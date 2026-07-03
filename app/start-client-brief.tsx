@@ -4,7 +4,8 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { ru } from "@/lib/i18n/ru";
 
-// Кнопка «Я клиент — собрать бриф»: создаёт проект без дизайнера и ведёт в бриф.
+// Кнопка «Я клиент»: создаёт проект без дизайнера и ведёт в бриф.
+// Стиль — той же весомости, что и кнопка дизайнера, но другим цветом.
 export default function StartClientBrief() {
   const [pending, setPending] = useState(false);
   const router = useRouter();
@@ -21,11 +22,12 @@ export default function StartClientBrief() {
   }
 
   return (
-    <div className="mt-4">
-      <button onClick={start} disabled={pending} className="btn-ghost">
-        {pending ? ru.client.starting : ru.client.cta}
-      </button>
-      <p className="mt-2 max-w-md text-xs text-muted">{ru.client.ctaHint}</p>
-    </div>
+    <button
+      onClick={start}
+      disabled={pending}
+      className="btn mt-6 bg-clientaccent text-white hover:bg-clientaccent/90"
+    >
+      {pending ? ru.client.starting : ru.home.clientCta}
+    </button>
   );
 }
