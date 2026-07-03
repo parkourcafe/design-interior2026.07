@@ -22,6 +22,9 @@ export default async function DashboardLayout({ children }: { children: React.Re
             <Link href="/dashboard" className="text-muted hover:text-ink">
               {ru.nav.projects}
             </Link>
+            <Link href="/dashboard/analytics" className="text-muted hover:text-ink">
+              {ru.nav.analytics}
+            </Link>
             <Link href="/dashboard/setup" className="text-muted hover:text-ink">
               {ru.nav.setup}
             </Link>
