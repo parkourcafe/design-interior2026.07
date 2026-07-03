@@ -12,6 +12,7 @@ const IMAGES = {
   before: `${CDN}/hf_20260703_061031_e3113877-b81b-42cf-a0cf-3826895023ef.png`,
   after: `${CDN}/hf_20260703_061053_995c6a8f-96ce-4228-9ee0-20781ac42918.png`,
   portrait: `${CDN}/hf_20260703_061105_084022de-7e46-4b47-a211-2d1b5e333399.png`,
+  heroVideo: `${CDN}/hf_20260703_072328_a3a141b9-6adf-4351-8ac9-e993b8bed680.mp4`,
 };
 
 export default function Home() {
@@ -52,13 +53,16 @@ export default function Home() {
       {/* Обложка */}
       <Reveal>
         <section className="mx-auto max-w-[1120px] px-6 pb-9">
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img
-            src={IMAGES.hero}
-            alt="Интерьер проекта"
-            loading="lazy"
+          <video
+            autoPlay
+            muted
+            loop
+            playsInline
+            poster={IMAGES.hero}
             className="h-[clamp(280px,42vw,520px)] w-full rounded-xl border border-line object-cover"
-          />
+          >
+            <source src={IMAGES.heroVideo} type="video/mp4" />
+          </video>
         </section>
       </Reveal>
 
