@@ -3,9 +3,23 @@
 import { useState } from "react";
 import { ru } from "@/lib/i18n/ru";
 
-// Блок с публичной ссылкой-брифом, которую клиент рассылает дизайнерам.
+// Блок с публичной ссылкой-брифом. Основное действие — «Отправить» через
+// системное меню (navigator.share): клиент сразу шлёт ссылку в WhatsApp/почту/
+// Telegram. Где share недоступен (десктоп) — фолбэк на копирование.
 export default function ShareBrief({ url }: { url: string }) {
   const [copied, setCopied] = useState(false);
+
+  async function share() {
+    if (typeof navigator !== "undefined" && "share" in navigator) {
+      try {
+        await navigator.share({ title: ru.briefShare.title, url });
+        return;
+      } catch {
+        /* пользователь отменил — попробуем копирование */
+      }
+    }
+    await copy();
+  }
 
   async function copy() {
     try {
@@ -22,12 +36,12 @@ export default function ShareBrief({ url }: { url: string }) {
       <div className="card">
         <input readOnly value={url} className="input font-mono text-xs" />
         <div className="mt-3 flex gap-2">
-          <button onClick={copy} className="btn-primary flex-1">
+          <button onClick={share} className="btn-primary flex-1">
+            {ru.client.send}
+          </button>
+          <button onClick={copy} className="btn-ghost">
             {copied ? ru.client.copied : ru.client.copy}
           </button>
-          <a href={url} target="_blank" rel="noreferrer" className="btn-ghost">
-            {ru.client.openBrief}
-          </a>
         </div>
       </div>
     </div>

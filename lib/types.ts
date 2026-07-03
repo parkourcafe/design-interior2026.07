@@ -67,7 +67,11 @@ export interface Passport {
     includes_furniture?: "yes" | "no" | "unsure";
   };
   timeline: { target: string; urgency: "normal" | "urgent"; hard_deadline?: string };
-  style: { refs: string[]; anti: string[]; notes: string };
+  style: { refs: string[]; anti: string[]; notes: string; directions?: string[]; palette?: string };
+  rooms?: {
+    kitchen?: { layout?: string; bar?: string; dining?: string };
+    bath?: { count?: string; sinks?: string; shower?: string };
+  };
   pain_points: string;
   scope: { package: ScopePackage };
 }

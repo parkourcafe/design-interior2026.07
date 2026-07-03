@@ -151,11 +151,29 @@ export function buildPassport(answers: Answers): Passport {
     Array.isArray(v)
       ? (v as unknown[]).filter((x): x is string => typeof x === "string" && x.trim() !== "")
       : [];
+  const directions = arr(answers, "style_direction").filter((d) => d !== "unknown");
   const style = {
     refs: cleanStrings(styleAns.refs),
     anti: cleanStrings(styleAns.anti),
     notes: typeof styleAns.notes === "string" ? styleAns.notes : "",
+    directions: directions.length ? directions : undefined,
+    palette: oneOf(str(answers, "palette"), ["light", "dark", "warm", "cool", "contrast"] as const),
   };
+
+  // Помещения — детальные пожелания (все поля необязательные).
+  const compact = <T extends Record<string, unknown>>(o: T): T | undefined =>
+    Object.values(o).some((v) => v !== undefined) ? o : undefined;
+  const kitchen = compact({
+    layout: oneOf(str(answers, "kitchen_layout"), ["linear", "corner", "u", "island", "peninsula"] as const),
+    bar: oneOf(str(answers, "kitchen_bar"), ["yes", "no"] as const),
+    dining: oneOf(str(answers, "kitchen_dining"), ["2", "4", "6plus", "separate", "none"] as const),
+  });
+  const bath = compact({
+    count: oneOf(str(answers, "bath_count"), ["one", "two", "separate"] as const),
+    sinks: oneOf(str(answers, "bath_sinks"), ["one", "two"] as const),
+    shower: oneOf(str(answers, "bath_shower"), ["bath", "shower", "both", "two_showers"] as const),
+  });
+  const rooms = kitchen || bath ? { kitchen, bath } : undefined;
 
   // Новые поля (все необязательные).
   const condition = oneOf(str(answers, "condition"), ["shell", "rough", "lived"] as const);
@@ -188,6 +206,7 @@ export function buildPassport(answers: Answers): Passport {
     },
     timeline: { ...timeline(str(answers, "timeline")), hard_deadline: hardDeadline },
     style,
+    rooms,
     pain_points: str(answers, "pain") ?? "",
     scope: { package: null },
   };
