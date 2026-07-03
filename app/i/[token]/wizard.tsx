@@ -32,6 +32,41 @@ export default function IntakeWizard({
   // Свободные комментарии к каждому вопросу (в т.ч. надиктованные голосом).
   const [comments, setComments] = useState<Record<string, string>>({});
 
+  const storageKey = `brief_${token}`;
+  const [restored, setRestored] = useState(false);
+
+  // Восстановление черновика: «ушёл — вернулся на месте».
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem(storageKey);
+      if (raw) {
+        const saved = JSON.parse(raw) as {
+          answers?: Answers;
+          comments?: Record<string, string>;
+          step?: number;
+          started?: boolean;
+        };
+        if (saved.answers) setAnswers(saved.answers);
+        if (saved.comments) setComments(saved.comments);
+        if (typeof saved.step === "number") setStep(saved.step);
+        if (saved.started) setStarted(true);
+      }
+    } catch {
+      /* ignore */
+    }
+    setRestored(true);
+  }, [storageKey]);
+
+  // Автосохранение при каждом изменении.
+  useEffect(() => {
+    if (!restored) return;
+    try {
+      localStorage.setItem(storageKey, JSON.stringify({ answers, comments, step, started }));
+    } catch {
+      /* ignore */
+    }
+  }, [restored, storageKey, answers, comments, step, started]);
+
   const visible = useMemo(() => {
     const base = visibleQuestions(answers);
     const custom: Question[] = customQuestions
@@ -74,6 +109,10 @@ export default function IntakeWizard({
       }
       case "budget":
         return Boolean(v && typeof v === "object" && "range" in (v as object));
+      case "contact": {
+        const c = (v ?? {}) as { name?: string; phone?: string; email?: string };
+        return Boolean(c.name?.trim() && (c.phone?.trim() || c.email?.trim()));
+      }
       case "multi":
         return Array.isArray(v) && v.length > 0;
       case "number":
@@ -94,7 +133,14 @@ export default function IntakeWizard({
       body: JSON.stringify({ token, answers: { ...answers, comments } }),
     });
     setSubmitting(false);
-    if (res.ok) setDone(true);
+    if (res.ok) {
+      try {
+        localStorage.removeItem(storageKey);
+      } catch {
+        /* ignore */
+      }
+      setDone(true);
+    }
   }
 
   function next() {
@@ -181,6 +227,8 @@ export default function IntakeWizard({
               : ru.brief.next}
         </button>
       </div>
+
+      <p className="mt-6 text-center text-xs text-muted">{ru.brief.privacy}</p>
     </main>
   );
 }
@@ -225,6 +273,8 @@ function QuestionInput({
       return <BudgetInput value={value} onChange={onChange} />;
     case "style":
       return <StyleInput value={value} onChange={onChange} />;
+    case "contact":
+      return <ContactInput value={value} onChange={onChange} />;
     case "files":
       return <FilesInput token={token} />;
     default:
@@ -459,6 +509,44 @@ function StyleInput({ value, onChange }: { value: unknown; onChange: (v: unknown
           onChange={(e) => onChange({ ...s, notes: e.target.value })}
         />
       </div>
+    </div>
+  );
+}
+
+function ContactInput({ value, onChange }: { value: unknown; onChange: (v: unknown) => void }) {
+  const c = (value ?? {}) as { name?: string; phone?: string; email?: string };
+  return (
+    <div className="space-y-4">
+      <div>
+        <label className="label">Имя</label>
+        <input
+          className="input"
+          value={c.name ?? ""}
+          onChange={(e) => onChange({ ...c, name: e.target.value })}
+        />
+      </div>
+      <div>
+        <label className="label">Телефон / Telegram</label>
+        <input
+          className="input"
+          inputMode="tel"
+          placeholder="+7… или @username"
+          value={c.phone ?? ""}
+          onChange={(e) => onChange({ ...c, phone: e.target.value })}
+        />
+      </div>
+      <div>
+        <label className="label">Email</label>
+        <input
+          className="input"
+          type="email"
+          inputMode="email"
+          placeholder="you@example.ru"
+          value={c.email ?? ""}
+          onChange={(e) => onChange({ ...c, email: e.target.value })}
+        />
+      </div>
+      <p className="text-xs text-muted">Укажите имя и хотя бы один способ связи.</p>
     </div>
   );
 }

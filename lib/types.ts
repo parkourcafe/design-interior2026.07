@@ -81,6 +81,8 @@ export interface Passport {
     zones?: string[];
   };
   vision?: string;
+  source?: string;
+  contact?: { name: string; phone: string; email: string };
   pain_points: string;
   scope: { package: ScopePackage };
 }

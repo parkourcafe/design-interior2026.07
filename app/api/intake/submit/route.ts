@@ -33,8 +33,12 @@ export async function POST(request: Request) {
   // 2. Полный проход: паспорт + карточки (деградация внутри пайплайна).
   const { passport, cards, llmOk } = await runRiskPipeline(answers);
 
-  // 3. Записать паспорт.
-  await admin.from("projects").update({ passport, status: "brief_completed" }).eq("id", project.id);
+  // 3. Записать паспорт. Имя клиента — из контакта (чтобы дизайнер понимал,
+  // чья это заявка среди множества).
+  const update: Record<string, unknown> = { passport, status: "brief_completed" };
+  const contactName = passport.contact?.name?.trim();
+  if (contactName) update.client_name = contactName;
+  await admin.from("projects").update(update).eq("id", project.id);
 
   // 4. Пересобрать карточки: удалить прежние, вставить новые как 'proposed'.
   await admin.from("risk_cards").delete().eq("project_id", project.id);

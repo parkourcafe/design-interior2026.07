@@ -144,6 +144,16 @@ const NEIGHBORS_LABEL: Record<string, string> = {
   active: "вокруг активная стройка",
 };
 
+const SOURCE_LABEL: Record<string, string> = {
+  recommendation: "рекомендация",
+  instagram: "Instagram",
+  other_social: "соцсети/Telegram",
+  houzz_profi: "Houzz/Профи/каталог",
+  search_site: "поиск/сайт",
+  ad: "реклама",
+  other: "другое",
+};
+
 const ZONE_LABEL: Record<string, string> = {
   kids: "детская",
   office: "кабинет",
@@ -179,6 +189,14 @@ export default function PassportView({ passport }: { passport: Passport }) {
   const o = passport.object;
   return (
     <div className="card">
+      {passport.contact && (
+        <Row label="Контакт клиента">
+          {passport.contact.name}
+          {passport.contact.phone ? ` · ${passport.contact.phone}` : ""}
+          {passport.contact.email ? ` · ${passport.contact.email}` : ""}
+        </Row>
+      )}
+      {passport.source && <Row label="Источник">{SOURCE_LABEL[passport.source] ?? passport.source}</Row>}
       <Row label={pv.object}>
         {o.type ? OBJECT_TYPE_LABEL[o.type] ?? o.type : pv.notFilled}
         {o.area_m2 ? `, ${o.area_m2} м²` : ""}
