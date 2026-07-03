@@ -1,10 +1,17 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import "./globals.css";
 import { ru } from "@/lib/i18n/ru";
+import Pwa from "@/components/pwa";
 
 export const metadata: Metadata = {
   title: ru.app.name,
   description: ru.app.tagline,
+  manifest: "/manifest.webmanifest",
+  appleWebApp: { capable: true, title: ru.app.name, statusBarStyle: "default" },
+};
+
+export const viewport: Viewport = {
+  themeColor: "#9c4a28",
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
@@ -20,7 +27,10 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           rel="stylesheet"
         />
       </head>
-      <body className="min-h-screen antialiased">{children}</body>
+      <body className="min-h-screen antialiased">
+        {children}
+        <Pwa />
+      </body>
     </html>
   );
 }
