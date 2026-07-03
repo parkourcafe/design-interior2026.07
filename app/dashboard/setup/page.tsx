@@ -1,5 +1,5 @@
 import { createClient } from "@/lib/supabase/server";
-import type { PricingConfig, ProposalDefaults } from "@/lib/types";
+import type { PricingConfig, ProposalDefaults, DesignerProfile } from "@/lib/types";
 import SetupForm from "./form";
 
 export const dynamic = "force-dynamic";
@@ -12,7 +12,7 @@ export default async function SetupPage() {
 
   const { data: designer } = await supabase
     .from("designers")
-    .select("name, studio_name, pricing, proposal_defaults")
+    .select("name, studio_name, pricing, proposal_defaults, profile")
     .eq("id", user!.id)
     .maybeSingle();
 
@@ -27,6 +27,7 @@ export default async function SetupPage() {
           revision_limit: 2,
           stage_completion: "",
         }) as ProposalDefaults,
+        profile: (designer?.profile ?? {}) as DesignerProfile,
       }}
     />
   );

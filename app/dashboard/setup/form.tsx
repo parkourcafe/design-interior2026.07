@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import type { PricingConfig, ProposalDefaults } from "@/lib/types";
+import type { PricingConfig, ProposalDefaults, DesignerProfile } from "@/lib/types";
 import { saveSetup, type SetupPayload } from "./actions";
 import { ru } from "@/lib/i18n/ru";
 
@@ -20,8 +20,14 @@ export default function SetupForm({ initial }: { initial: SetupPayload }) {
   const [priceEnabled, setPriceEnabled] = useState(initial.pricing !== null);
   const [pricing, setPricing] = useState<PricingConfig>(initial.pricing ?? DEFAULT_PRICING);
   const [defaults, setDefaults] = useState<ProposalDefaults>(initial.proposal_defaults);
+  const [profile, setProfile] = useState<DesignerProfile>(initial.profile ?? {});
   const [pending, startTransition] = useTransition();
   const [saved, setSaved] = useState(false);
+
+  function setProfileField(k: keyof DesignerProfile, v: string) {
+    setProfile((p) => ({ ...p, [k]: v }));
+    setSaved(false);
+  }
 
   function save() {
     startTransition(async () => {
@@ -30,6 +36,7 @@ export default function SetupForm({ initial }: { initial: SetupPayload }) {
         studio_name: studio,
         pricing: priceEnabled ? pricing : null,
         proposal_defaults: defaults,
+        profile,
       });
       setSaved(res.ok);
     });
@@ -65,6 +72,39 @@ export default function SetupForm({ initial }: { initial: SetupPayload }) {
         <div>
           <label className="label">Студия</label>
           <input className="input" value={studio} onChange={(e) => setStudio(e.target.value)} />
+        </div>
+      </section>
+
+      <section className="card space-y-4">
+        <div>
+          <h2 className="font-semibold">Контакты и соцсети</h2>
+          <p className="mt-1 text-sm text-muted">Клиент увидит это на брифе — «от кого пришла заявка».</p>
+        </div>
+        <div className="grid gap-3 sm:grid-cols-2">
+          <div>
+            <label className="label">Телефон</label>
+            <input className="input" value={profile.phone ?? ""} onChange={(e) => setProfileField("phone", e.target.value)} />
+          </div>
+          <div>
+            <label className="label">Email</label>
+            <input className="input" value={profile.email ?? ""} onChange={(e) => setProfileField("email", e.target.value)} />
+          </div>
+          <div>
+            <label className="label">Instagram</label>
+            <input className="input" placeholder="@username" value={profile.instagram ?? ""} onChange={(e) => setProfileField("instagram", e.target.value)} />
+          </div>
+          <div>
+            <label className="label">Telegram</label>
+            <input className="input" placeholder="@username" value={profile.telegram ?? ""} onChange={(e) => setProfileField("telegram", e.target.value)} />
+          </div>
+          <div>
+            <label className="label">Сайт</label>
+            <input className="input" placeholder="example.ru" value={profile.website ?? ""} onChange={(e) => setProfileField("website", e.target.value)} />
+          </div>
+        </div>
+        <div>
+          <label className="label">О себе (коротко)</label>
+          <textarea className="input min-h-20" value={profile.about ?? ""} onChange={(e) => setProfileField("about", e.target.value)} />
         </div>
       </section>
 

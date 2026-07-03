@@ -192,6 +192,16 @@ export function buildPassport(answers: Answers): Passport {
       ? str(answers, "vision")!.trim()
       : undefined;
 
+  const contactAns = obj(answers, "contact");
+  const cStr = (k: string) => (typeof contactAns[k] === "string" ? (contactAns[k] as string).trim() : "");
+  const contactName = cStr("name");
+  const contactPhone = cStr("phone");
+  const contactEmail = cStr("email");
+  const contact =
+    contactName || contactPhone || contactEmail
+      ? { name: contactName, phone: contactPhone, email: contactEmail }
+      : undefined;
+
   // Новые поля (все необязательные).
   const condition = oneOf(str(answers, "condition"), ["shell", "rough", "lived"] as const);
   const replanning = oneOf(str(answers, "replanning"), ["no", "maybe", "yes"] as const);
@@ -236,6 +246,16 @@ export function buildPassport(answers: Answers): Passport {
     style,
     rooms,
     vision,
+    source: oneOf(str(answers, "source"), [
+      "recommendation",
+      "instagram",
+      "other_social",
+      "houzz_profi",
+      "search_site",
+      "ad",
+      "other",
+    ] as const),
+    contact,
     pain_points: str(answers, "pain") ?? "",
     scope: { package: null },
   };

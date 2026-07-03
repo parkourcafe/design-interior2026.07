@@ -7,7 +7,16 @@
 //   show_if        — условие показа (ветвление)
 //   (правило противоречия живёт отдельно, в lib/risks/rules.ts)
 
-export type QuestionType = "object" | "choice" | "multi" | "number" | "text" | "budget" | "style" | "files";
+export type QuestionType =
+  | "object"
+  | "choice"
+  | "multi"
+  | "number"
+  | "text"
+  | "budget"
+  | "style"
+  | "files"
+  | "contact";
 
 export interface Option {
   value: string;
@@ -471,6 +480,30 @@ export const QUESTIONS: Question[] = [
       { value: "soundproof", label: "Шумоизоляция" },
       { value: "none", label: "Нет особых требований" },
     ],
+  },
+  {
+    id: "source",
+    type: "choice",
+    title: "Откуда вы узнали о дизайнере?",
+    help: "Дизайнеру полезно понимать, какой канал сработал.",
+    passport_field: "source",
+    optional: true,
+    options: [
+      { value: "recommendation", label: "Рекомендация друзей / знакомых" },
+      { value: "instagram", label: "Instagram" },
+      { value: "other_social", label: "Другие соцсети / Telegram" },
+      { value: "houzz_profi", label: "Houzz / Профи.ру / каталог" },
+      { value: "search_site", label: "Поиск / сайт дизайнера" },
+      { value: "ad", label: "Реклама" },
+      { value: "other", label: "Другое" },
+    ],
+  },
+  {
+    id: "contact",
+    type: "contact",
+    title: "Как с вами связаться?",
+    help: "Оставьте имя и контакт — по этой заявке с вами свяжется дизайнер.",
+    passport_field: "contact",
   },
   {
     id: "attachments",

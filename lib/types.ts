@@ -81,6 +81,8 @@ export interface Passport {
     zones?: string[];
   };
   vision?: string;
+  source?: string;
+  contact?: { name: string; phone: string; email: string };
   pain_points: string;
   scope: { package: ScopePackage };
 }
@@ -128,4 +130,14 @@ export interface ProposalDefaults {
   exclusions: string[];
   revision_limit: number;
   stage_completion: string;
+}
+
+// Профиль дизайнера — то, что видит клиент на брифе.
+export interface DesignerProfile {
+  phone?: string;
+  email?: string;
+  instagram?: string;
+  telegram?: string;
+  website?: string;
+  about?: string;
 }

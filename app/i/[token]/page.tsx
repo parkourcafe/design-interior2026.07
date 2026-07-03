@@ -1,5 +1,6 @@
 import { notFound } from "next/navigation";
 import { getProjectByIntakeToken } from "@/lib/intake";
+import { getDesignerPublic, type DesignerPublic } from "@/lib/designer";
 import { appUrl } from "@/lib/env";
 import { ru } from "@/lib/i18n/ru";
 import ShareBrief from "@/components/share-brief";
@@ -12,6 +13,9 @@ export default async function IntakePage({ params }: { params: { token: string }
   if (!project) notFound();
 
   const selfServe = !project.designer_id;
+  const designer: DesignerPublic | null = project.designer_id
+    ? await getDesignerPublic(project.designer_id)
+    : null;
   const completed = ["brief_completed", "proposal_draft", "proposal_sent"].includes(project.status);
 
   if (completed) {
@@ -38,6 +42,7 @@ export default async function IntakePage({ params }: { params: { token: string }
       token={params.token}
       selfServe={selfServe}
       customQuestions={project.custom_questions}
+      designer={designer}
     />
   );
 }
