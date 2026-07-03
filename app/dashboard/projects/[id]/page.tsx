@@ -7,6 +7,7 @@ import type { Passport } from "@/lib/types";
 import { missingFields, firstMeetingQuestions, type RiskCardRow } from "@/lib/review";
 import PassportView from "@/components/passport-view";
 import IntakeLink from "@/components/intake-link";
+import CopyTextButton from "@/components/copy-text-button";
 import ReviewCards from "./review";
 import CustomQuestions from "./custom-questions";
 
@@ -157,7 +158,15 @@ async function ReviewBoard({ project, intakeUrl }: { project: ProjectRow; intake
         </section>
 
         <section>
-          <h2 className="mb-3 font-display text-2xl font-semibold">{ru.review.questions}</h2>
+          <div className="mb-3 flex items-center justify-between gap-3">
+            <h2 className="font-display text-2xl font-semibold">{ru.review.questions}</h2>
+            {questions.length > 0 && (
+              <CopyTextButton
+                text={questions.map((q, i) => `${i + 1}. ${q}`).join("\n")}
+                label="Скопировать"
+              />
+            )}
+          </div>
           {questions.length === 0 ? (
             <p className="text-sm text-muted">{ru.review.questionsEmpty}</p>
           ) : (

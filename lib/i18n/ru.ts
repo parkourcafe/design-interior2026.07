@@ -25,6 +25,7 @@ export const ru = {
   },
   nav: {
     projects: "Проекты",
+    analytics: "Аналитика",
     setup: "Настройки",
     signOut: "Выйти",
   },

@@ -45,55 +45,70 @@ export default function ReviewCards({
     );
   }
 
+  // Группировка по категориям — быстрее принимать решения (деньги/сроки/…).
+  const ORDER: RiskCardRow["risk_type"][] = ["budget", "timeline", "technical", "function", "style"];
+  const groups = ORDER.map((type) => ({ type, cards: local.filter((c) => c.risk_type === type) })).filter(
+    (g) => g.cards.length > 0,
+  );
+
+  function card(c: RiskCardRow) {
+    return (
+      <div key={c.id} className="card">
+        <div className="flex items-start justify-between gap-3">
+          <span className="text-xs text-muted">
+            {r.riskFields.confidence}: {r.confidence[c.confidence]} · {r.source[c.source]}
+          </span>
+          <StatusBadge status={c.status} />
+        </div>
+
+        <p className="mt-2 text-sm">
+          <span className="text-muted">Возможный риск. </span>
+          {c.impact}
+        </p>
+
+        <dl className="mt-3 space-y-2 text-sm">
+          <Field label={r.riskFields.evidence}>
+            <ul className="list-disc pl-5 text-muted">
+              {c.evidence.map((e, i) => (
+                <li key={i}>{e}</li>
+              ))}
+            </ul>
+          </Field>
+          <Field label={r.riskFields.designer_action}>{c.designer_action}</Field>
+          <Field label={r.riskFields.proposal_implication}>{c.proposal_implication}</Field>
+        </dl>
+
+        <div className="mt-4 flex gap-2">
+          <button
+            onClick={() => update(c.id, "accepted")}
+            disabled={pending}
+            className={`btn ${c.status === "accepted" ? "bg-accent text-white" : "btn-ghost"}`}
+          >
+            {r.accept}
+          </button>
+          <button
+            onClick={() => update(c.id, "rejected")}
+            disabled={pending}
+            className={`btn ${c.status === "rejected" ? "bg-ink text-white" : "btn-ghost"}`}
+          >
+            {r.reject}
+          </button>
+        </div>
+      </div>
+    );
+  }
+
   return (
-    <div className="space-y-4">
-      {local.map((c) => (
-        <div key={c.id} className="card">
-          <div className="flex items-start justify-between gap-3">
-            <div className="flex items-center gap-2">
-              <span className="rounded-full bg-accent/10 px-2.5 py-0.5 text-xs font-medium text-accent">
-                {r.riskType[c.risk_type]}
-              </span>
-              <span className="text-xs text-muted">
-                {r.riskFields.confidence}: {r.confidence[c.confidence]} · {r.source[c.source]}
-              </span>
-            </div>
-            <StatusBadge status={c.status} />
+    <div className="space-y-6">
+      {groups.map((g) => (
+        <div key={g.type} className="space-y-3">
+          <div className="flex items-center gap-2">
+            <span className="rounded-full bg-accent/10 px-2.5 py-0.5 text-xs font-semibold text-accent">
+              {r.riskType[g.type]}
+            </span>
+            <span className="text-xs text-muted">{g.cards.length}</span>
           </div>
-
-          <p className="mt-3 text-sm">
-            <span className="text-muted">Возможный риск. </span>
-            {c.impact}
-          </p>
-
-          <dl className="mt-3 space-y-2 text-sm">
-            <Field label={r.riskFields.evidence}>
-              <ul className="list-disc pl-5 text-muted">
-                {c.evidence.map((e, i) => (
-                  <li key={i}>{e}</li>
-                ))}
-              </ul>
-            </Field>
-            <Field label={r.riskFields.designer_action}>{c.designer_action}</Field>
-            <Field label={r.riskFields.proposal_implication}>{c.proposal_implication}</Field>
-          </dl>
-
-          <div className="mt-4 flex gap-2">
-            <button
-              onClick={() => update(c.id, "accepted")}
-              disabled={pending}
-              className={`btn ${c.status === "accepted" ? "bg-accent text-white" : "btn-ghost"}`}
-            >
-              {r.accept}
-            </button>
-            <button
-              onClick={() => update(c.id, "rejected")}
-              disabled={pending}
-              className={`btn ${c.status === "rejected" ? "bg-ink text-white" : "btn-ghost"}`}
-            >
-              {r.reject}
-            </button>
-          </div>
+          {g.cards.map(card)}
         </div>
       ))}
 
