@@ -14,7 +14,7 @@ const config: Config = {
       },
       colors: {
         ink: "#1a1a1a",
-        muted: "#6b6b6b",
+        muted: "#57534e",
         line: "#e5e2dc",
         paper: "#faf9f6",
         // Палитра «Свод» A: терракота + слива.

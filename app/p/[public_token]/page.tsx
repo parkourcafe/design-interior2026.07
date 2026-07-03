@@ -41,11 +41,11 @@ export default async function PublicProposalPage({
         <PrintButton />
       </header>
 
-      <article className="space-y-6">
+      <article className="space-y-5">
         {sections.map((s) => (
           <section key={s.id} className="card">
-            <h2 className="mb-2 text-lg font-semibold">{s.title}</h2>
-            <p className="whitespace-pre-line text-sm leading-relaxed">{s.body}</p>
+            <h2 className="mb-2 font-display text-2xl font-semibold">{s.title}</h2>
+            <p className="whitespace-pre-line text-[15px] leading-[1.7] text-ink/90">{s.body}</p>
           </section>
         ))}
       </article>
