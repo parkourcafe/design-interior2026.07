@@ -2,9 +2,15 @@
 
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { createClient } from "@/lib/supabase/browser";
 import { appUrl } from "@/lib/env";
 import { ru } from "@/lib/i18n/ru";
+
+// Supabase-клиент (~70 КБ) грузим лениво — только когда пользователь реально
+// отправляет форму. Так стартовый бандл страницы входа остаётся лёгким.
+async function supabaseClient() {
+  const { createClient } = await import("@/lib/supabase/browser");
+  return createClient();
+}
 
 export default function LoginPage() {
   const router = useRouter();
@@ -24,7 +30,7 @@ export default function LoginPage() {
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
     setState("sending");
-    const supabase = createClient();
+    const supabase = await supabaseClient();
     const { error } = await supabase.auth.signInWithOtp({
       email,
       options: { emailRedirectTo: `${appUrl()}/auth/callback` },
@@ -37,7 +43,7 @@ export default function LoginPage() {
     e.preventDefault();
     setVerifying(true);
     setCodeError(null);
-    const supabase = createClient();
+    const supabase = await supabaseClient();
     const { error } = await supabase.auth.verifyOtp({
       email,
       token: code.trim(),
