@@ -2,13 +2,14 @@
 
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
-import type { PricingConfig, ProposalDefaults } from "@/lib/types";
+import type { PricingConfig, ProposalDefaults, DesignerProfile } from "@/lib/types";
 
 export interface SetupPayload {
   name: string;
   studio_name: string;
   pricing: PricingConfig | null; // null → режим «без цены»
   proposal_defaults: ProposalDefaults;
+  profile: DesignerProfile;
 }
 
 export async function saveSetup(payload: SetupPayload): Promise<{ ok: boolean }> {
@@ -25,6 +26,7 @@ export async function saveSetup(payload: SetupPayload): Promise<{ ok: boolean }>
       studio_name: payload.studio_name,
       pricing: payload.pricing,
       proposal_defaults: payload.proposal_defaults,
+      profile: payload.profile,
     })
     .eq("id", user.id);
 

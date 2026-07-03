@@ -1,5 +1,6 @@
 import { createClient } from "@/lib/supabase/server";
-import type { PricingConfig, ProposalDefaults } from "@/lib/types";
+import { createAdminClient } from "@/lib/supabase/admin";
+import type { PricingConfig, ProposalDefaults, DesignerProfile } from "@/lib/types";
 
 export interface DesignerRow {
   id: string;
@@ -7,10 +8,12 @@ export interface DesignerRow {
   studio_name: string;
   pricing: PricingConfig | null;
   proposal_defaults: ProposalDefaults;
+  profile: DesignerProfile;
 }
 
-// Возвращает текущего залогиненного дизайнера, создавая строку при первом входе
-// (magic-link создаёт auth.users, но не public.designers).
+const SELECT = "id, name, studio_name, pricing, proposal_defaults, profile";
+
+// Возвращает текущего залогиненного дизайнера, создавая строку при первом входе.
 export async function getOrCreateDesigner(): Promise<DesignerRow | null> {
   const supabase = createClient();
   const {
@@ -20,7 +23,7 @@ export async function getOrCreateDesigner(): Promise<DesignerRow | null> {
 
   const { data: existing } = await supabase
     .from("designers")
-    .select("id, name, studio_name, pricing, proposal_defaults")
+    .select(SELECT)
     .eq("id", user.id)
     .maybeSingle();
 
@@ -32,12 +35,30 @@ export async function getOrCreateDesigner(): Promise<DesignerRow | null> {
     studio_name: "",
     pricing: null,
     proposal_defaults: { exclusions: [], revision_limit: 2, stage_completion: "" },
+    profile: {},
   };
-  const { data: created } = await supabase
-    .from("designers")
-    .insert(seed)
-    .select("id, name, studio_name, pricing, proposal_defaults")
-    .single();
-
+  const { data: created } = await supabase.from("designers").insert(seed).select(SELECT).single();
   return (created as DesignerRow) ?? (seed as DesignerRow);
+}
+
+export interface DesignerPublic {
+  name: string;
+  studio_name: string;
+  profile: DesignerProfile;
+}
+
+// Публичные данные дизайнера для показа клиенту на брифе (service role, без сессии).
+export async function getDesignerPublic(designerId: string): Promise<DesignerPublic | null> {
+  const admin = createAdminClient();
+  const { data } = await admin
+    .from("designers")
+    .select("name, studio_name, profile")
+    .eq("id", designerId)
+    .maybeSingle();
+  if (!data) return null;
+  return {
+    name: (data as { name?: string }).name ?? "",
+    studio_name: (data as { studio_name?: string }).studio_name ?? "",
+    profile: ((data as { profile?: DesignerProfile }).profile ?? {}) as DesignerProfile,
+  };
 }

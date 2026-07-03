@@ -131,3 +131,13 @@ export interface ProposalDefaults {
   revision_limit: number;
   stage_completion: string;
 }
+
+// Профиль дизайнера — то, что видит клиент на брифе.
+export interface DesignerProfile {
+  phone?: string;
+  email?: string;
+  instagram?: string;
+  telegram?: string;
+  website?: string;
+  about?: string;
+}

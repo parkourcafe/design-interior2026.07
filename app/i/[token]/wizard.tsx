@@ -5,6 +5,8 @@ import { visibleQuestions, type Question } from "@/lib/brief/questions";
 import { appUrl } from "@/lib/env";
 import { ru } from "@/lib/i18n/ru";
 import ShareBrief from "@/components/share-brief";
+import DesignerCard from "@/components/designer-card";
+import type { DesignerPublic } from "@/lib/designer";
 
 type Answers = Record<string, unknown>;
 
@@ -19,10 +21,12 @@ export default function IntakeWizard({
   token,
   selfServe = false,
   customQuestions = [],
+  designer = null,
 }: {
   token: string;
   selfServe?: boolean;
   customQuestions?: string[];
+  designer?: DesignerPublic | null;
 }) {
   const [started, setStarted] = useState(false);
   const [answers, setAnswers] = useState<Answers>({});
@@ -169,6 +173,11 @@ export default function IntakeWizard({
   if (!started) {
     return (
       <main className="mx-auto flex min-h-screen max-w-lg flex-col justify-center px-6">
+        {designer && (
+          <div className="mb-6">
+            <DesignerCard designer={designer} />
+          </div>
+        )}
         <h1 className="text-3xl font-semibold">{ru.brief.intro.title}</h1>
         <p className="mt-3 text-muted">{ru.brief.intro.subtitle}</p>
         <button onClick={() => setStarted(true)} className="btn-primary mt-8 w-fit">
