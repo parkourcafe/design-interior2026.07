@@ -183,8 +183,14 @@ export function buildPassport(answers: Answers): Passport {
     balcony: oneOf(str(answers, "balcony"), ["attach", "lounge", "storage", "asis", "none"] as const),
     view: oneOf(str(answers, "view"), ["yard", "city", "nature", "bad"] as const),
     doors: oneOf(str(answers, "doors"), ["standard", "hidden", "sliding", "mixed"] as const),
+    zones: arr(answers, "zones").length ? arr(answers, "zones") : undefined,
   };
   const rooms = Object.values(roomsObj).some((v) => v !== undefined) ? roomsObj : undefined;
+
+  const vision =
+    typeof str(answers, "vision") === "string" && str(answers, "vision")!.trim()
+      ? str(answers, "vision")!.trim()
+      : undefined;
 
   // Новые поля (все необязательные).
   const condition = oneOf(str(answers, "condition"), ["shell", "rough", "lived"] as const);
@@ -229,6 +235,7 @@ export function buildPassport(answers: Answers): Passport {
     timeline: { ...timeline(str(answers, "timeline")), hard_deadline: hardDeadline },
     style,
     rooms,
+    vision,
     pain_points: str(answers, "pain") ?? "",
     scope: { package: null },
   };

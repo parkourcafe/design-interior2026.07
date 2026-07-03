@@ -19,6 +19,7 @@ export interface Question {
   type: QuestionType;
   title: string;
   help?: string;
+  placeholder?: string;
   optional?: boolean;
   passport_field: string;
   options?: Option[];
@@ -41,6 +42,15 @@ export const QUESTIONS: Question[] = [
     title: "Что за объект и где он?",
     help: "Тип, площадь и город. Это задаёт масштаб проекта.",
     passport_field: "object",
+  },
+  {
+    id: "vision",
+    type: "text",
+    title: "Опишите своими словами, как вы видите свою квартиру",
+    help: "Как вы живёте и что для вас важно. Не бойтесь деталей — это главное, что помогает дизайнеру.",
+    placeholder:
+      "Например: «Живу одна. Важна большая спальня, просторная ванная и вместительная гардеробная. Гостиную хочу совместить с кабинетом, чтобы работать из дома. Люблю много света и растения».",
+    passport_field: "vision",
   },
   {
     id: "condition",
@@ -144,6 +154,26 @@ export const QUESTIONS: Question[] = [
       { value: "separate", label: "Отдельная гостиная" },
       { value: "none", label: "Гостиная не нужна" },
       { value: "unknown", label: "Не знаю" },
+    ],
+  },
+  {
+    id: "zones",
+    type: "multi",
+    title: "Какие зоны и комнаты вам нужны?",
+    help: "Отметьте всё, что важно — это каркас будущей планировки.",
+    passport_field: "rooms.zones",
+    optional: true,
+    options: [
+      { value: "kids", label: "Детская" },
+      { value: "office", label: "Кабинет / рабочее место" },
+      { value: "walkin", label: "Гардеробная" },
+      { value: "master_ensuite", label: "Мастер-спальня с личным санузлом" },
+      { value: "guest", label: "Гостевая спальня" },
+      { value: "dining", label: "Столовая" },
+      { value: "laundry", label: "Постирочная / кладовая" },
+      { value: "gym", label: "Спортзона" },
+      { value: "library", label: "Библиотека / много книг" },
+      { value: "hobby", label: "Мастерская / хобби" },
     ],
   },
   {

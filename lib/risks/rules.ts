@@ -177,6 +177,28 @@ export function evaluateRules(passport: Passport, answers: Answers = {}): RiskCa
     });
   }
 
+  // 9. Много отдельных зон при небольшой площади → функция (не всё влезет).
+  if (
+    passport.object.area_m2 !== null &&
+    passport.object.area_m2 < 55 &&
+    (passport.rooms?.zones?.length ?? 0) >= 4
+  ) {
+    cards.push({
+      risk_type: "function",
+      evidence: [
+        `Небольшая площадь (${passport.object.area_m2} м²)`,
+        `Запрошено отдельных зон: ${passport.rooms?.zones?.length}`,
+      ],
+      impact: "Функция: все отдельные зоны могут не поместиться — нужны совмещения",
+      confidence: "high",
+      designer_action:
+        "Расставить приоритеты зон; предложить многофункциональные решения (кабинет в нише, гостевая-трансформер).",
+      proposal_implication:
+        "В состав работ включить проработку многофункционального зонирования вместо отдельных комнат.",
+      source: "rule",
+    });
+  }
+
   // 8. Присоединение балкона → технический/юридический риск.
   if (passport.rooms?.balcony === "attach") {
     cards.push({
