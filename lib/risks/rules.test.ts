@@ -96,6 +96,16 @@ describe("evaluateRules", () => {
     expect(cards.some((c) => c.risk_type === "budget")).toBe(true);
   });
 
+  it("flags balcony attachment as a technical risk (rule 8)", () => {
+    const answers = {
+      object: { type: "flat", area_m2: 60, city: "Москва" },
+      balcony: "attach",
+      budget: { range: [3_000_000, 5_000_000] },
+    };
+    const cards = evaluateRules(passportFrom(answers), answers);
+    expect(cards.some((c) => c.risk_type === "technical")).toBe(true);
+  });
+
   it("returns no cards for a conflict-free brief", () => {
     const answers = {
       object: { type: "flat", area_m2: 80, city: "Москва" },

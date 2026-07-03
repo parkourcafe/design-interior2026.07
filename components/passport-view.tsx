@@ -101,6 +101,49 @@ const BATH_SHOWER_LABEL: Record<string, string> = {
   two_showers: "2 душевые",
 };
 
+const BEDROOMS_LABEL: Record<string, string> = {
+  "1": "1 спальня",
+  "2": "2 спальни",
+  "3": "3 спальни",
+  "4plus": "4+ спальни",
+};
+const LIVING_LABEL: Record<string, string> = {
+  open: "кухня-гостиная",
+  kitchen_living_dining: "кухня-столовая-гостиная",
+  separate: "отдельная гостиная",
+  none: "без гостиной",
+};
+const HALLWAY_LABEL: Record<string, string> = {
+  wardrobe: "шкаф/гардероб",
+  seat: "место присесть",
+  stroller: "коляска/велосипед",
+  mirror: "зеркало",
+};
+const BALCONY_LABEL: Record<string, string> = {
+  attach: "присоединить балкон",
+  lounge: "балкон — зона отдыха",
+  storage: "балкон — хранение",
+  asis: "балкон как есть",
+  none: "без балкона",
+};
+const VIEW_LABEL: Record<string, string> = {
+  yard: "вид во двор",
+  city: "вид на город",
+  nature: "вид на природу",
+  bad: "вид так себе",
+};
+const DOORS_LABEL: Record<string, string> = {
+  standard: "распашные двери",
+  hidden: "скрытые двери",
+  sliding: "раздвижные двери",
+  mixed: "двери по-разному",
+};
+const NEIGHBORS_LABEL: Record<string, string> = {
+  quiet: "дом заселён, тихо",
+  partial: "частично ремонтируют",
+  active: "вокруг активная стройка",
+};
+
 function joinLabels(values: (string | undefined)[]): string {
   return values.filter((v): v is string => Boolean(v)).join(", ");
 }
@@ -132,6 +175,7 @@ export default function PassportView({ passport }: { passport: Passport }) {
         {o.building ? `, ${BUILDING_LABEL[o.building]}` : ""}
         {o.condition ? ` · ${CONDITION_LABEL[o.condition]}` : ""}
         {o.replanning ? ` · ${REPLANNING_LABEL[o.replanning]}` : ""}
+        {o.neighbors_renovation ? ` · ${NEIGHBORS_LABEL[o.neighbors_renovation]}` : ""}
       </Row>
       <Row label={pv.assetHorizon}>{pv.assetHorizonValue[passport.asset_horizon]}</Row>
       <Row label={pv.household}>
@@ -192,6 +236,27 @@ export default function PassportView({ passport }: { passport: Passport }) {
                 passport.rooms.bath.sinks ? BATH_SINKS_LABEL[passport.rooms.bath.sinks] : undefined,
                 passport.rooms.bath.shower ? BATH_SHOWER_LABEL[passport.rooms.bath.shower] : undefined,
               ]) || pv.notFilled}
+            </div>
+          )}
+          {(passport.rooms.bedrooms || passport.rooms.living) && (
+            <div>
+              Планировка:{" "}
+              {joinLabels([
+                passport.rooms.bedrooms ? BEDROOMS_LABEL[passport.rooms.bedrooms] : undefined,
+                passport.rooms.living ? LIVING_LABEL[passport.rooms.living] : undefined,
+              ])}
+            </div>
+          )}
+          {passport.rooms.hallway && passport.rooms.hallway.length > 0 && (
+            <div>Прихожая: {passport.rooms.hallway.map((h) => HALLWAY_LABEL[h] ?? h).join(", ")}</div>
+          )}
+          {(passport.rooms.balcony || passport.rooms.view || passport.rooms.doors) && (
+            <div>
+              {joinLabels([
+                passport.rooms.balcony ? BALCONY_LABEL[passport.rooms.balcony] : undefined,
+                passport.rooms.view ? VIEW_LABEL[passport.rooms.view] : undefined,
+                passport.rooms.doors ? DOORS_LABEL[passport.rooms.doors] : undefined,
+              ])}
             </div>
           )}
         </Row>
