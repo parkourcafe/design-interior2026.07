@@ -36,7 +36,7 @@ export default async function PublicProposalPage({
       <header className="mb-8 flex items-start justify-between">
         <div>
           <p className="text-xs uppercase tracking-widest text-muted">{ru.proposal.title}</p>
-          <h1 className="mt-1 text-2xl font-semibold">{clientName}</h1>
+          <h1 className="mt-1 font-display text-3xl font-semibold">{clientName}</h1>
         </div>
         <PrintButton />
       </header>
