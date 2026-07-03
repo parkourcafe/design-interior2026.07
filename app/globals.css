@@ -7,13 +7,19 @@
 }
 
 body {
-  @apply bg-paper text-ink;
+  @apply bg-paper text-ink font-sans;
   font-feature-settings: "liga" 1, "kern" 1;
+  text-rendering: optimizeLegibility;
+}
+
+/* Заголовки-серифом (Cormorant Garamond). */
+.font-display {
+  font-family: "Cormorant Garamond", Georgia, serif;
 }
 
 @layer components {
   .btn {
-    @apply inline-flex items-center justify-center rounded-md px-4 py-2 text-sm font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed;
+    @apply inline-flex min-h-11 items-center justify-center rounded-md px-4 py-2.5 text-sm font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed;
   }
   .btn-primary {
     @apply btn bg-accent text-white hover:bg-accent/90;
@@ -24,11 +30,36 @@ body {
   .card {
     @apply rounded-lg border border-line bg-white p-5;
   }
+  /* text-base (16px) — иначе iOS зумит экран при фокусе на поле */
   .input {
-    @apply w-full rounded-md border border-line bg-white px-3 py-2 text-sm outline-none focus:border-accent;
+    @apply w-full rounded-md border border-line bg-white px-3 py-2.5 text-base outline-none focus:border-accent;
   }
   .label {
     @apply block text-sm font-medium text-ink mb-1;
+  }
+}
+
+/* Сдержанное движение: появление с лёгким подъёмом. */
+@keyframes fadeRise {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+.animate-rise {
+  animation: fadeRise 0.28s ease-out both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-rise {
+    animation: none;
+  }
+  * {
+    scroll-behavior: auto !important;
   }
 }
 

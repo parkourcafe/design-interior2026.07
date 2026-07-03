@@ -5,8 +5,13 @@ import { useRouter } from "next/navigation";
 import { ru } from "@/lib/i18n/ru";
 
 // Кнопка «Я клиент»: создаёт проект без дизайнера и ведёт в бриф.
-// Стиль — той же весомости, что и кнопка дизайнера, но другим цветом.
-export default function StartClientBrief() {
+export default function StartClientBrief({
+  label,
+  variant = "cli",
+}: {
+  label?: string;
+  variant?: "cli" | "outline";
+}) {
   const [pending, setPending] = useState(false);
   const router = useRouter();
 
@@ -21,13 +26,15 @@ export default function StartClientBrief() {
     }
   }
 
+  const cls =
+    variant === "outline"
+      ? "btn self-start border border-line bg-transparent px-6 py-3.5 text-base text-ink hover:border-ink/40"
+      : "btn self-start bg-clientaccent px-5 py-3 text-white hover:bg-clientaccent/90";
+
   return (
-    <button
-      onClick={start}
-      disabled={pending}
-      className="btn mt-6 w-full bg-clientaccent text-white hover:bg-clientaccent/90"
-    >
-      {pending ? ru.client.starting : ru.home.clientCta}
+    <button onClick={start} disabled={pending} className={cls}>
+      {pending ? ru.client.starting : (label ?? ru.home.clientCta)}
+      <span className="ml-2">→</span>
     </button>
   );
 }

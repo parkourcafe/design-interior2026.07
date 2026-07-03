@@ -8,13 +8,18 @@ const config: Config = {
   ],
   theme: {
     extend: {
+      fontFamily: {
+        display: ["'Cormorant Garamond'", "Georgia", "serif"],
+        sans: ["'Golos Text'", "system-ui", "sans-serif"],
+      },
       colors: {
         ink: "#1a1a1a",
         muted: "#6b6b6b",
         line: "#e5e2dc",
         paper: "#faf9f6",
-        accent: "#3d5a45",
-        clientaccent: "#3a5a7a",
+        // Палитра «Свод» A: терракота + слива.
+        accent: "#9c4a28",
+        clientaccent: "#7a3a5a",
       },
     },
   },
