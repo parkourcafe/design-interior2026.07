@@ -14,6 +14,7 @@ const config: Config = {
         line: "#e5e2dc",
         paper: "#faf9f6",
         accent: "#3d5a45",
+        clientaccent: "#3a5a7a",
       },
     },
   },
