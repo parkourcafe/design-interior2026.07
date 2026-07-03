@@ -25,7 +25,7 @@ export default function StartClientBrief() {
     <button
       onClick={start}
       disabled={pending}
-      className="btn mt-6 bg-clientaccent text-white hover:bg-clientaccent/90"
+      className="btn mt-6 w-full bg-clientaccent text-white hover:bg-clientaccent/90"
     >
       {pending ? ru.client.starting : ru.home.clientCta}
     </button>
