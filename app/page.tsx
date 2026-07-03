@@ -5,15 +5,14 @@ import StartClientBrief from "./start-client-brief";
 
 const h = ru.home;
 
-function Placeholder({ caption, className = "" }: { caption: string; className?: string }) {
-  return (
-    <div
-      className={`flex items-center justify-center rounded-xl border border-line bg-[#f6f5f0] p-6 text-center text-sm text-muted ${className}`}
-    >
-      {caption}
-    </div>
-  );
-}
+// Картинки лендинга сгенерированы (Higgsfield) и хостятся на CDN.
+const CDN = "https://d8j0ntlcm91z4.cloudfront.net/user_3EKntK4EDjG8nay4H1dy1TK30mB";
+const IMAGES = {
+  hero: `${CDN}/hf_20260703_060804_2eaedd7c-c4fd-4322-a2be-8bd5cf1e3c3b.png`,
+  before: `${CDN}/hf_20260703_061031_e3113877-b81b-42cf-a0cf-3826895023ef.png`,
+  after: `${CDN}/hf_20260703_061053_995c6a8f-96ce-4228-9ee0-20781ac42918.png`,
+  portrait: `${CDN}/hf_20260703_061105_084022de-7e46-4b47-a211-2d1b5e333399.png`,
+};
 
 export default function Home() {
   return (
@@ -53,9 +52,12 @@ export default function Home() {
       {/* Обложка */}
       <Reveal>
         <section className="mx-auto max-w-[1120px] px-6 pb-9">
-          <Placeholder
-            caption="Обложка — интерьер вашего проекта или студия за работой"
-            className="h-[clamp(280px,42vw,520px)]"
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src={IMAGES.hero}
+            alt="Интерьер проекта"
+            loading="lazy"
+            className="h-[clamp(280px,42vw,520px)] w-full rounded-xl border border-line object-cover"
           />
         </section>
       </Reveal>
@@ -160,6 +162,38 @@ export default function Home() {
         </section>
       </Reveal>
 
+      {/* До / после */}
+      <Reveal>
+        <section className="mx-auto max-w-[1120px] px-6 py-[clamp(50px,8vw,90px)]">
+          <div className="mb-3.5 text-[13px] uppercase tracking-[0.16em] text-muted">Портфолио</div>
+          <h2 className="font-display mb-10 max-w-[22ch] text-[clamp(30px,4.4vw,44px)] font-semibold leading-[1.08]">
+            До и после — язык, который клиент понимает без слов
+          </h2>
+          <div className="grid gap-5 md:grid-cols-2">
+            <div>
+              <div className="mb-3 text-xs font-semibold uppercase tracking-[0.14em] text-muted">До</div>
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={IMAGES.before}
+                alt="До ремонта"
+                loading="lazy"
+                className="h-[clamp(240px,30vw,380px)] w-full rounded-xl border border-line object-cover"
+              />
+            </div>
+            <div>
+              <div className="mb-3 text-xs font-semibold uppercase tracking-[0.14em] text-accent">После</div>
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={IMAGES.after}
+                alt="После ремонта"
+                loading="lazy"
+                className="h-[clamp(240px,30vw,380px)] w-full rounded-xl border border-line object-cover"
+              />
+            </div>
+          </div>
+        </section>
+      </Reveal>
+
       {/* Доказательство — карточка риска */}
       <Reveal>
         <section className="mx-auto max-w-[1120px] px-6 py-[clamp(50px,8vw,90px)]">
@@ -197,7 +231,13 @@ export default function Home() {
       <Reveal>
         <section className="mx-auto max-w-[1120px] px-6 pb-[clamp(60px,9vw,110px)]">
           <div className="mb-[clamp(44px,7vw,76px)] grid items-center gap-[clamp(28px,5vw,56px)] md:grid-cols-2">
-            <Placeholder caption="Портрет дизайнера или фото студии" className="h-[clamp(280px,34vw,380px)]" />
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={IMAGES.portrait}
+              alt="Дизайнер"
+              loading="lazy"
+              className="h-[clamp(280px,34vw,380px)] w-full rounded-xl border border-line object-cover"
+            />
             <div>
               <div className="mb-5 text-xs font-semibold uppercase tracking-[0.16em] text-accent">Дизайнеры о «Своде»</div>
               <p className="font-display mb-5 text-[clamp(24px,3.2vw,33px)] font-medium leading-[1.3]">
