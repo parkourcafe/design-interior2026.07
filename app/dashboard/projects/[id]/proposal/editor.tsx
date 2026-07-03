@@ -61,10 +61,19 @@ export default function ProposalEditor({
       </div>
 
       <div className="no-print rounded-md border border-line bg-white p-3 text-sm">
-        <span className="text-muted">{ru.proposal.publicLink}: </span>
-        <a href={publicUrl} target="_blank" rel="noreferrer" className="break-all text-accent">
-          {publicUrl}
-        </a>
+        {sent ? (
+          <>
+            <span className="text-muted">{ru.proposal.publicLink}: </span>
+            <a href={publicUrl} target="_blank" rel="noreferrer" className="break-all text-accent">
+              {publicUrl}
+            </a>
+          </>
+        ) : (
+          <span className="text-muted">
+            Ссылка для клиента появится здесь после кнопки «{ru.proposal.send}» — до этого КП виден
+            только вам.
+          </span>
+        )}
       </div>
 
       <div className="space-y-5">
