@@ -18,9 +18,11 @@ const BUDGET_BRACKETS: { value: string; label: string; range: [number, number] }
 export default function IntakeWizard({
   token,
   selfServe = false,
+  customQuestions = [],
 }: {
   token: string;
   selfServe?: boolean;
+  customQuestions?: string[];
 }) {
   const [started, setStarted] = useState(false);
   const [answers, setAnswers] = useState<Answers>({});
@@ -30,7 +32,22 @@ export default function IntakeWizard({
   // Свободные комментарии к каждому вопросу (в т.ч. надиктованные голосом).
   const [comments, setComments] = useState<Record<string, string>>({});
 
-  const visible = useMemo(() => visibleQuestions(answers), [answers]);
+  const visible = useMemo(() => {
+    const base = visibleQuestions(answers);
+    const custom: Question[] = customQuestions
+      .filter((t) => t.trim())
+      .map((text, i) => ({
+        id: `custom_${i}`,
+        type: "text",
+        title: text,
+        optional: true,
+        passport_field: `custom_${i}`,
+      }));
+    // Свои вопросы дизайнера — перед финальной загрузкой фото.
+    const attachIdx = base.findIndex((q) => q.type === "files");
+    if (attachIdx === -1) return [...base, ...custom];
+    return [...base.slice(0, attachIdx), ...custom, ...base.slice(attachIdx)];
+  }, [answers, customQuestions]);
   const question = visible[step];
 
   useEffect(() => {

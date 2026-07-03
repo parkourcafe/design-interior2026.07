@@ -8,6 +8,7 @@ import { missingFields, firstMeetingQuestions, type RiskCardRow } from "@/lib/re
 import PassportView from "@/components/passport-view";
 import IntakeLink from "@/components/intake-link";
 import ReviewCards from "./review";
+import CustomQuestions from "./custom-questions";
 
 export const dynamic = "force-dynamic";
 
@@ -17,6 +18,7 @@ interface ProjectRow {
   status: string;
   intake_token: string;
   passport: Passport | null;
+  custom_questions: string[];
 }
 
 export default async function ProjectPage({ params }: { params: { id: string } }) {
@@ -24,7 +26,7 @@ export default async function ProjectPage({ params }: { params: { id: string } }
 
   const { data: project } = await supabase
     .from("projects")
-    .select("id, client_name, status, intake_token, passport")
+    .select("id, client_name, status, intake_token, passport, custom_questions")
     .eq("id", params.id)
     .maybeSingle();
 
@@ -55,6 +57,10 @@ export default async function ProjectPage({ params }: { params: { id: string } }
       {!briefDone ? (
         <div className="space-y-4">
           <IntakeLink url={intakeUrl} />
+          <CustomQuestions
+            projectId={p.id}
+            initial={Array.isArray(p.custom_questions) ? p.custom_questions : []}
+          />
           <p className="text-sm text-muted">
             Ждём, пока клиент заполнит бриф. Как только он завершит — здесь появятся паспорт
             проекта и карточки рисков.
@@ -81,6 +87,27 @@ async function ReviewBoard({ project, intakeUrl }: { project: ProjectRow; intake
   const questions = firstMeetingQuestions(cards);
   const llmDegraded = cards.length > 0 && cards.every((c) => c.source === "rule");
 
+  // Ответы клиента на свои вопросы дизайнера (question_id = custom_0, custom_1…).
+  const customQ = Array.isArray(project.custom_questions) ? project.custom_questions : [];
+  let customAnswers: { q: string; a: string }[] = [];
+  if (customQ.length > 0) {
+    const { data: answerRows } = await supabase
+      .from("answers")
+      .select("question_id, value")
+      .eq("project_id", project.id)
+      .like("question_id", "custom_%");
+    const byId = new Map(
+      (answerRows ?? []).map((r) => [
+        (r as { question_id: string }).question_id,
+        (r as { value: unknown }).value,
+      ]),
+    );
+    customAnswers = customQ.map((q, i) => ({
+      q,
+      a: typeof byId.get(`custom_${i}`) === "string" ? String(byId.get(`custom_${i}`)) : "",
+    }));
+  }
+
   return (
     <div className="space-y-8">
       <IntakeLink url={intakeUrl} />
@@ -95,6 +122,20 @@ async function ReviewBoard({ project, intakeUrl }: { project: ProjectRow; intake
         <h2 className="mb-3 text-lg font-semibold">{ru.review.passport}</h2>
         <PassportView passport={passport} />
       </section>
+
+      {customAnswers.length > 0 && (
+        <section>
+          <h2 className="mb-3 text-lg font-semibold">Ответы на ваши вопросы</h2>
+          <div className="card space-y-3">
+            {customAnswers.map((qa, i) => (
+              <div key={i}>
+                <p className="text-sm font-medium">{qa.q}</p>
+                <p className="text-sm text-muted">{qa.a || "— клиент не ответил"}</p>
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
 
       <section>
         <h2 className="mb-3 text-lg font-semibold">{ru.review.risks}</h2>
