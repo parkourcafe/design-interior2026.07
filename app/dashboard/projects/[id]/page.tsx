@@ -1,9 +1,11 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { appUrl } from "@/lib/env";
 import { ru } from "@/lib/i18n/ru";
 import type { Passport } from "@/lib/types";
+import { questionById } from "@/lib/brief/questions";
 import { missingFields, firstMeetingQuestions, type RiskCardRow } from "@/lib/review";
 import PassportView from "@/components/passport-view";
 import IntakeLink from "@/components/intake-link";
@@ -109,6 +111,52 @@ async function ReviewBoard({ project, intakeUrl }: { project: ProjectRow; intake
     }));
   }
 
+  // Голосовые/текстовые комментарии клиента к вопросам + загруженные файлы.
+  const { data: extraRows } = await supabase
+    .from("answers")
+    .select("question_id, value")
+    .eq("project_id", project.id)
+    .in("question_id", ["comments", "attachments"]);
+  const extraById = new Map(
+    (extraRows ?? []).map((r) => [
+      (r as { question_id: string }).question_id,
+      (r as { value: unknown }).value,
+    ]),
+  );
+
+  const commentsVal = extraById.get("comments");
+  const comments: { title: string; text: string }[] =
+    commentsVal && typeof commentsVal === "object" && !Array.isArray(commentsVal)
+      ? Object.entries(commentsVal as Record<string, unknown>)
+          .filter(([, t]) => typeof t === "string" && t.trim())
+          .map(([qid, t]) => ({ title: questionById(qid)?.title ?? qid, text: String(t).trim() }))
+      : [];
+
+  const attachVal = extraById.get("attachments");
+  const attachMeta = Array.isArray(attachVal)
+    ? (attachVal as { path?: unknown; name?: unknown }[]).filter(
+        (a) => a && typeof a.path === "string",
+      )
+    : [];
+  let attachments: { name: string; url: string; isImage: boolean }[] = [];
+  if (attachMeta.length > 0) {
+    // Bucket приватный — подписываем ссылки service-role'ом (доступ к проекту
+    // дизайнера уже проверен RLS выше).
+    const admin = createAdminClient();
+    const signed = await Promise.all(
+      attachMeta.map(async (a) => {
+        const path = a.path as string;
+        const name = typeof a.name === "string" ? a.name : path.split("/").pop() ?? "файл";
+        const { data } = await admin.storage.from("client-uploads").createSignedUrl(path, 3600);
+        if (!data?.signedUrl) return null;
+        return { name, url: data.signedUrl, isImage: /\.(png|jpe?g|webp|gif|heic)$/i.test(name) };
+      }),
+    );
+    attachments = signed.filter(
+      (x): x is { name: string; url: string; isImage: boolean } => x !== null,
+    );
+  }
+
   return (
     <div className="space-y-8">
       <IntakeLink url={intakeUrl} />
@@ -123,6 +171,51 @@ async function ReviewBoard({ project, intakeUrl }: { project: ProjectRow; intake
         <h2 className="mb-3 font-display text-2xl font-semibold">{ru.review.passport}</h2>
         <PassportView passport={passport} />
       </section>
+
+      {attachments.length > 0 && (
+        <section>
+          <h2 className="mb-3 font-display text-2xl font-semibold">
+            Файлы клиента <span className="text-base font-normal text-muted">({attachments.length})</span>
+          </h2>
+          <div className="card grid grid-cols-2 gap-3 sm:grid-cols-3">
+            {attachments.map((f) => (
+              <a
+                key={f.url}
+                href={f.url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="group block overflow-hidden rounded-lg border border-line hover:border-ink/30"
+              >
+                {f.isImage ? (
+                  // eslint-disable-next-line @next/next/no-img-element -- подписанный URL из Storage
+                  <img src={f.url} alt={f.name} className="aspect-square w-full object-cover" />
+                ) : (
+                  <div className="flex aspect-square w-full items-center justify-center bg-line/30 text-3xl">
+                    📄
+                  </div>
+                )}
+                <span className="block truncate px-2 py-1.5 text-xs text-muted group-hover:text-ink">
+                  {f.name}
+                </span>
+              </a>
+            ))}
+          </div>
+        </section>
+      )}
+
+      {comments.length > 0 && (
+        <section>
+          <h2 className="mb-3 font-display text-2xl font-semibold">Комментарии клиента</h2>
+          <div className="card space-y-3">
+            {comments.map((c, i) => (
+              <div key={i}>
+                <p className="text-xs uppercase tracking-wide text-muted">{c.title}</p>
+                <p className="mt-0.5 whitespace-pre-line text-sm text-ink/90">{c.text}</p>
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
 
       {customAnswers.length > 0 && (
         <section>

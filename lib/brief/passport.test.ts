@@ -26,7 +26,7 @@ describe("buildPassport", () => {
     expect(p.lifestyle.cooking).toBe("heavy");
     expect(p.lifestyle.storage_pressure).toBe("high"); // 3 реальных пункта
     expect(p.budget.range).toEqual([3_000_000, 5_000_000]);
-    expect(p.budget.risk_level).toBe("high"); // 5M/60 ≈ 83k ₽/м² > 50k
+    expect(p.budget.risk_level).toBe("high"); // середина 4M/60 ≈ 67k ₽/м² > 50k
     expect(p.timeline.urgency).toBe("urgent");
     expect(p.style.anti).toContain("глянец");
     expect(p.pain_points).toBe("мало света");
@@ -45,7 +45,7 @@ describe("buildPassport", () => {
   it("classifies a tight economy budget as low tier", () => {
     const p = buildPassport({
       object: { type: "flat", area_m2: 50, city: "Пермь" },
-      budget: { range: [400_000, 700_000] }, // 700k/50 = 14k ₽/м² < 20k
+      budget: { range: [400_000, 700_000] }, // середина 550k/50 = 11k ₽/м² < 20k
     });
     expect(p.budget.risk_level).toBe("low");
   });

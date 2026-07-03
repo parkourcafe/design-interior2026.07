@@ -39,7 +39,9 @@ const BUDGET_MID_MAX = 50000;
 
 function budgetTier(range: MoneyRange | "undisclosed", area: number | null): Load {
   if (range === "undisclosed" || !area || area <= 0) return "mid";
-  const perM2 = range[1] / area;
+  // Берём середину диапазона, а не верх: верх завышал уровень и «съедал»
+  // budget-риск (клиент с premium-вкусом при среднем бюджете не подсвечивался).
+  const perM2 = (range[0] + range[1]) / 2 / area;
   if (perM2 < BUDGET_LOW_MAX) return "low";
   if (perM2 <= BUDGET_MID_MAX) return "mid";
   return "high";
