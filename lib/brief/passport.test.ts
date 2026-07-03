@@ -124,6 +124,26 @@ describe("buildPassport", () => {
     expect(p.rooms).toBeUndefined();
   });
 
+  it("maps planning/detail fields (bedrooms, living, balcony, neighbors)", () => {
+    const p = buildPassport({
+      object: { type: "flat", area_m2: 75, city: "Москва" },
+      neighbors_renovation: "active",
+      bedrooms: "2",
+      living_type: "open",
+      hallway: ["wardrobe", "stroller", "none"],
+      balcony: "attach",
+      view: "yard",
+      doors: "hidden",
+    });
+    expect(p.object.neighbors_renovation).toBe("active");
+    expect(p.rooms?.bedrooms).toBe("2");
+    expect(p.rooms?.living).toBe("open");
+    expect(p.rooms?.hallway).toEqual(["wardrobe", "stroller"]); // 'none' отброшен
+    expect(p.rooms?.balcony).toBe("attach");
+    expect(p.rooms?.view).toBe("yard");
+    expect(p.rooms?.doors).toBe("hidden");
+  });
+
   it("leaves added fields undefined when not answered", () => {
     const p = buildPassport({ object: { type: "flat", area_m2: 60, city: "Москва" } });
     expect(p.object.replanning).toBeUndefined();

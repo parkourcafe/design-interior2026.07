@@ -173,11 +173,23 @@ export function buildPassport(answers: Answers): Passport {
     sinks: oneOf(str(answers, "bath_sinks"), ["one", "two"] as const),
     shower: oneOf(str(answers, "bath_shower"), ["bath", "shower", "both", "two_showers"] as const),
   });
-  const rooms = kitchen || bath ? { kitchen, bath } : undefined;
+  const hallway = arr(answers, "hallway").filter((h) => h !== "none");
+  const roomsObj = {
+    kitchen,
+    bath,
+    bedrooms: oneOf(str(answers, "bedrooms"), ["1", "2", "3", "4plus"] as const),
+    living: oneOf(str(answers, "living_type"), ["open", "kitchen_living_dining", "separate", "none"] as const),
+    hallway: hallway.length ? hallway : undefined,
+    balcony: oneOf(str(answers, "balcony"), ["attach", "lounge", "storage", "asis", "none"] as const),
+    view: oneOf(str(answers, "view"), ["yard", "city", "nature", "bad"] as const),
+    doors: oneOf(str(answers, "doors"), ["standard", "hidden", "sliding", "mixed"] as const),
+  };
+  const rooms = Object.values(roomsObj).some((v) => v !== undefined) ? roomsObj : undefined;
 
   // Новые поля (все необязательные).
   const condition = oneOf(str(answers, "condition"), ["shell", "rough", "lived"] as const);
   const replanning = oneOf(str(answers, "replanning"), ["no", "maybe", "yes"] as const);
+  const neighborsRenovation = oneOf(str(answers, "neighbors_renovation"), ["quiet", "partial", "active"] as const);
   const decisionMakers = oneOf(str(answers, "decision_makers"), ["single", "couple", "family"] as const);
   const includesFurniture = oneOf(str(answers, "budget_furniture"), ["yes", "no", "unsure"] as const);
   const furnitureKeep = oneOf(str(answers, "furniture_keep"), ["all_new", "partial", "own"] as const);
@@ -188,7 +200,17 @@ export function buildPassport(answers: Answers): Passport {
       : undefined;
 
   return {
-    object: { type: objectType, area_m2: area, city, district, floor, building, condition, replanning },
+    object: {
+      type: objectType,
+      area_m2: area,
+      city,
+      district,
+      floor,
+      building,
+      condition,
+      replanning,
+      neighbors_renovation: neighborsRenovation,
+    },
     asset_horizon: assetHorizon,
     household: { ...householdText(arr(answers, "household")), decision_makers: decisionMakers },
     lifestyle: {

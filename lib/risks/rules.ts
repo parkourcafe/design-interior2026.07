@@ -177,5 +177,20 @@ export function evaluateRules(passport: Passport, answers: Answers = {}): RiskCa
     });
   }
 
+  // 8. Присоединение балкона → технический/юридический риск.
+  if (passport.rooms?.balcony === "attach") {
+    cards.push({
+      risk_type: "technical",
+      evidence: ["Клиент хочет присоединить/утеплить балкон как жилую комнату"],
+      impact: "Согласование: снос порога и вынос отопления на балкон обычно не узаконивается",
+      confidence: "high",
+      designer_action:
+        "Объяснить ограничения: французское остекление и тёплый пол вместо радиатора; что можно узаконить.",
+      proposal_implication:
+        "В КП зафиксировать, что присоединение балкона — по согласованию; вынести узаконивание отдельно.",
+      source: "rule",
+    });
+  }
+
   return cards;
 }

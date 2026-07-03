@@ -44,6 +44,7 @@ export interface Passport {
     building?: "new" | "secondary" | "private";
     condition?: "shell" | "rough" | "lived";
     replanning?: "no" | "maybe" | "yes";
+    neighbors_renovation?: "quiet" | "partial" | "active";
   };
   asset_horizon: AssetHorizon;
   household: {
@@ -71,6 +72,12 @@ export interface Passport {
   rooms?: {
     kitchen?: { layout?: string; bar?: string; dining?: string };
     bath?: { count?: string; sinks?: string; shower?: string };
+    bedrooms?: string;
+    living?: string;
+    hallway?: string[];
+    balcony?: string;
+    view?: string;
+    doors?: string;
   };
   pain_points: string;
   scope: { package: ScopePackage };

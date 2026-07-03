@@ -450,21 +450,23 @@ function FilesInput({ token }: { token: string }) {
   const [busy, setBusy] = useState(false);
 
   async function onFile(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0];
-    if (!file) return;
+    const files = Array.from(e.target.files ?? []);
+    if (files.length === 0) return;
     setBusy(true);
-    const form = new FormData();
-    form.append("token", token);
-    form.append("file", file);
-    const res = await fetch("/api/intake/upload", { method: "POST", body: form });
+    for (const file of files) {
+      const form = new FormData();
+      form.append("token", token);
+      form.append("file", file);
+      const res = await fetch("/api/intake/upload", { method: "POST", body: form });
+      if (res.ok) setUploaded((prev) => [...prev, file.name]);
+    }
     setBusy(false);
-    if (res.ok) setUploaded((prev) => [...prev, file.name]);
   }
 
   return (
     <div className="space-y-3">
       <p className="text-sm text-muted">{ru.brief.uploadHint}</p>
-      <input type="file" onChange={onFile} disabled={busy} accept="image/*,.pdf" />
+      <input type="file" multiple onChange={onFile} disabled={busy} accept="image/*,.pdf" />
       {busy && <p className="text-sm text-muted">{ru.brief.saving}</p>}
       <ul className="text-sm text-muted">
         {uploaded.map((n) => (
