@@ -8,11 +8,11 @@ const h = ru.home;
 // Картинки лендинга сгенерированы (Higgsfield) и хостятся на CDN.
 const CDN = "https://d8j0ntlcm91z4.cloudfront.net/user_3EKntK4EDjG8nay4H1dy1TK30mB";
 const IMAGES = {
-  hero: `${CDN}/hf_20260703_060804_2eaedd7c-c4fd-4322-a2be-8bd5cf1e3c3b.png`,
+  hero: `${CDN}/hf_20260703_075007_9a6ec60b-58b6-4d8a-a8b3-3ebaa80f5016.png`,
   before: `${CDN}/hf_20260703_061031_e3113877-b81b-42cf-a0cf-3826895023ef.png`,
   after: `${CDN}/hf_20260703_061053_995c6a8f-96ce-4228-9ee0-20781ac42918.png`,
   portrait: `${CDN}/hf_20260703_061105_084022de-7e46-4b47-a211-2d1b5e333399.png`,
-  heroVideo: `${CDN}/hf_20260703_072328_a3a141b9-6adf-4351-8ac9-e993b8bed680.mp4`,
+  heroVideo: `${CDN}/hf_20260703_080430_a9423e3f-803f-491f-bf4e-fee5c140e115.mp4`,
 };
 
 export default function Home() {
