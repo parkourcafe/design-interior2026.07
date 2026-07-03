@@ -38,7 +38,7 @@ export default function Home() {
           <h1 className="font-display max-w-[16ch] text-[clamp(38px,6.2vw,64px)] font-semibold leading-[1.04] tracking-[-0.5px]">
             {ru.app.hero}
           </h1>
-          <p className="mt-6 max-w-[52ch] text-[clamp(17px,2vw,20px)] leading-relaxed text-muted">
+          <p className="mt-6 max-w-[52ch] text-[clamp(17px,2vw,20px)] leading-relaxed text-ink/80">
             {ru.app.heroSub}
           </p>
           <div className="mt-9 flex flex-wrap gap-3">
