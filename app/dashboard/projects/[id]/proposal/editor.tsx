@@ -3,7 +3,7 @@
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import type { ProposalSection } from "@/lib/types";
-import { saveProposal, sendProposal } from "./actions";
+import { saveProposal, sendProposal, rebuildProposal } from "./actions";
 import { ru } from "@/lib/i18n/ru";
 
 export default function ProposalEditor({
@@ -46,12 +46,36 @@ export default function ProposalEditor({
     });
   }
 
+  function rebuild() {
+    if (
+      !window.confirm(
+        "Пересобрать предложение из актуальных данных (цена, принятые риски)?\n\nВаши ручные правки текста будут заменены заново собранным вариантом.",
+      )
+    ) {
+      return;
+    }
+    startTransition(async () => {
+      const res = await rebuildProposal(projectId);
+      if (res.ok && res.sections) {
+        setSections(res.sections);
+        setSaved(true);
+      } else if (res.reason === "sent") {
+        window.alert("КП уже отправлено — пересборка недоступна.");
+      }
+    });
+  }
+
   return (
     <div className="space-y-6">
       <div className="no-print flex flex-wrap items-center gap-3">
         <button onClick={save} disabled={pending} className="btn-ghost">
           {pending ? ru.proposal.saving : saved ? ru.proposal.saved : ru.proposal.save}
         </button>
+        {!sent && (
+          <button onClick={rebuild} disabled={pending} className="btn-ghost">
+            Пересобрать
+          </button>
+        )}
         <button onClick={() => window.print()} className="btn-ghost">
           {ru.proposal.print}
         </button>
