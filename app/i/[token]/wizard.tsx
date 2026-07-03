@@ -199,6 +199,7 @@ function QuestionInput({
       return (
         <textarea
           className="input min-h-28"
+          placeholder={question.placeholder}
           value={typeof value === "string" ? value : ""}
           onChange={(e) => onChange(e.target.value)}
         />

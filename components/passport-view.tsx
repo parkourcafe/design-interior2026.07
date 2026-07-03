@@ -144,6 +144,19 @@ const NEIGHBORS_LABEL: Record<string, string> = {
   active: "вокруг активная стройка",
 };
 
+const ZONE_LABEL: Record<string, string> = {
+  kids: "детская",
+  office: "кабинет",
+  walkin: "гардеробная",
+  master_ensuite: "мастер-спальня с санузлом",
+  guest: "гостевая",
+  dining: "столовая",
+  laundry: "постирочная/кладовая",
+  gym: "спортзона",
+  library: "библиотека",
+  hobby: "мастерская/хобби",
+};
+
 function joinLabels(values: (string | undefined)[]): string {
   return values.filter((v): v is string => Boolean(v)).join(", ");
 }
@@ -177,6 +190,11 @@ export default function PassportView({ passport }: { passport: Passport }) {
         {o.replanning ? ` · ${REPLANNING_LABEL[o.replanning]}` : ""}
         {o.neighbors_renovation ? ` · ${NEIGHBORS_LABEL[o.neighbors_renovation]}` : ""}
       </Row>
+      {passport.vision && (
+        <Row label="Видение клиента">
+          <span className="italic">«{passport.vision}»</span>
+        </Row>
+      )}
       <Row label={pv.assetHorizon}>{pv.assetHorizonValue[passport.asset_horizon]}</Row>
       <Row label={pv.household}>
         {pv.now}: {passport.household.now}; {pv.in5y}: {passport.household.in_5y}
@@ -246,6 +264,9 @@ export default function PassportView({ passport }: { passport: Passport }) {
                 passport.rooms.living ? LIVING_LABEL[passport.rooms.living] : undefined,
               ])}
             </div>
+          )}
+          {passport.rooms.zones && passport.rooms.zones.length > 0 && (
+            <div>Зоны: {passport.rooms.zones.map((z) => ZONE_LABEL[z] ?? z).join(", ")}</div>
           )}
           {passport.rooms.hallway && passport.rooms.hallway.length > 0 && (
             <div>Прихожая: {passport.rooms.hallway.map((h) => HALLWAY_LABEL[h] ?? h).join(", ")}</div>

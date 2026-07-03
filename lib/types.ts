@@ -78,7 +78,9 @@ export interface Passport {
     balcony?: string;
     view?: string;
     doors?: string;
+    zones?: string[];
   };
+  vision?: string;
   pain_points: string;
   scope: { package: ScopePackage };
 }
