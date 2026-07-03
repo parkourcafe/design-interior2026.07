@@ -95,6 +95,35 @@ describe("buildPassport", () => {
     expect(p.timeline.hard_deadline).toBe("к свадьбе в мае");
   });
 
+  it("maps structured style and room details", () => {
+    const p = buildPassport({
+      object: { type: "flat", area_m2: 60, city: "Москва" },
+      style_direction: ["scandi", "minimal", "unknown"],
+      palette: "light",
+      kitchen_layout: "island",
+      kitchen_bar: "yes",
+      kitchen_dining: "4",
+      bath_count: "two",
+      bath_sinks: "two",
+      bath_shower: "both",
+    });
+    expect(p.style.directions).toEqual(["scandi", "minimal"]); // 'unknown' отброшен
+    expect(p.style.palette).toBe("light");
+    expect(p.rooms?.kitchen?.layout).toBe("island");
+    expect(p.rooms?.kitchen?.bar).toBe("yes");
+    expect(p.rooms?.bath?.sinks).toBe("two");
+    expect(p.rooms?.bath?.shower).toBe("both");
+  });
+
+  it("leaves rooms undefined when nothing chosen or all 'unknown'", () => {
+    const p = buildPassport({
+      object: { type: "flat", area_m2: 60, city: "Москва" },
+      kitchen_layout: "unknown",
+      bath_count: "unknown",
+    });
+    expect(p.rooms).toBeUndefined();
+  });
+
   it("leaves added fields undefined when not answered", () => {
     const p = buildPassport({ object: { type: "flat", area_m2: 60, city: "Москва" } });
     expect(p.object.replanning).toBeUndefined();

@@ -54,6 +54,57 @@ const REQUIREMENT_LABEL: Record<string, string> = {
   soundproof: "шумоизоляция",
 };
 
+const DIRECTION_LABEL: Record<string, string> = {
+  modern: "современный",
+  scandi: "скандинавский",
+  minimal: "минимализм",
+  neoclassic: "неоклассика",
+  classic: "классика",
+  loft: "лофт",
+  japandi: "джапанди/эко",
+  provence: "прованс/кантри",
+};
+
+const PALETTE_LABEL: Record<string, string> = {
+  light: "светлая",
+  dark: "тёмная",
+  warm: "тёплая нейтральная",
+  cool: "холодная",
+  contrast: "контрастная",
+};
+
+const KITCHEN_LAYOUT_LABEL: Record<string, string> = {
+  linear: "линейная",
+  corner: "угловая",
+  u: "П-образная",
+  island: "с островом",
+  peninsula: "с полуостровом",
+};
+const KITCHEN_BAR_LABEL: Record<string, string> = { yes: "барная стойка", no: "без бара" };
+const KITCHEN_DINING_LABEL: Record<string, string> = {
+  "2": "обед. зона на 2",
+  "4": "обед. зона на 4",
+  "6plus": "обед. зона на 6+",
+  separate: "отдельная столовая",
+  none: "без обед. зоны",
+};
+const BATH_COUNT_LABEL: Record<string, string> = {
+  one: "1 санузел",
+  two: "2 санузла",
+  separate: "раздельный",
+};
+const BATH_SINKS_LABEL: Record<string, string> = { one: "1 раковина", two: "2 раковины" };
+const BATH_SHOWER_LABEL: Record<string, string> = {
+  bath: "ванна",
+  shower: "душ",
+  both: "ванна и душ",
+  two_showers: "2 душевые",
+};
+
+function joinLabels(values: (string | undefined)[]): string {
+  return values.filter((v): v is string => Boolean(v)).join(", ");
+}
+
 function money(range: MoneyRange | "undisclosed"): string {
   if (range === "undisclosed") return pv.undisclosed;
   return `${range[0].toLocaleString("ru-RU")}–${range[1].toLocaleString("ru-RU")} ₽`;
@@ -117,7 +168,45 @@ export default function PassportView({ passport }: { passport: Passport }) {
         {passport.timeline.target} · {pv.urgencyValue[passport.timeline.urgency]}
         {passport.timeline.hard_deadline ? ` · дедлайн: ${passport.timeline.hard_deadline}` : ""}
       </Row>
+      {passport.rooms && (
+        <Row label="Помещения">
+          {passport.rooms.kitchen && (
+            <div>
+              Кухня:{" "}
+              {joinLabels([
+                passport.rooms.kitchen.layout
+                  ? KITCHEN_LAYOUT_LABEL[passport.rooms.kitchen.layout]
+                  : undefined,
+                passport.rooms.kitchen.bar ? KITCHEN_BAR_LABEL[passport.rooms.kitchen.bar] : undefined,
+                passport.rooms.kitchen.dining
+                  ? KITCHEN_DINING_LABEL[passport.rooms.kitchen.dining]
+                  : undefined,
+              ]) || pv.notFilled}
+            </div>
+          )}
+          {passport.rooms.bath && (
+            <div>
+              Санузел:{" "}
+              {joinLabels([
+                passport.rooms.bath.count ? BATH_COUNT_LABEL[passport.rooms.bath.count] : undefined,
+                passport.rooms.bath.sinks ? BATH_SINKS_LABEL[passport.rooms.bath.sinks] : undefined,
+                passport.rooms.bath.shower ? BATH_SHOWER_LABEL[passport.rooms.bath.shower] : undefined,
+              ]) || pv.notFilled}
+            </div>
+          )}
+        </Row>
+      )}
       <Row label={pv.style}>
+        {(passport.style.directions?.length || passport.style.palette) && (
+          <div>
+            {passport.style.directions?.length
+              ? passport.style.directions.map((d) => DIRECTION_LABEL[d] ?? d).join(", ")
+              : ""}
+            {passport.style.palette
+              ? `${passport.style.directions?.length ? " · " : ""}палитра: ${PALETTE_LABEL[passport.style.palette] ?? passport.style.palette}`
+              : ""}
+          </div>
+        )}
         {passport.style.refs.length > 0 && (
           <div>
             {pv.refs}:{" "}
@@ -138,6 +227,8 @@ export default function PassportView({ passport }: { passport: Passport }) {
         {passport.style.refs.length === 0 &&
           passport.style.anti.length === 0 &&
           !passport.style.notes &&
+          !passport.style.directions?.length &&
+          !passport.style.palette &&
           pv.notFilled}
       </Row>
       <Row label={pv.pain}>{passport.pain_points || pv.notFilled}</Row>
