@@ -47,7 +47,7 @@ export default async function ProjectPage({ params }: { params: { id: string } }
           <Link href="/dashboard" className="text-sm text-muted hover:text-ink">
             ← {ru.projects.title}
           </Link>
-          <h1 className="mt-1 text-2xl font-semibold">{p.client_name}</h1>
+          <h1 className="mt-1 font-display text-3xl font-semibold">{p.client_name}</h1>
         </div>
         <span className="rounded-full bg-line/50 px-3 py-1 text-xs text-muted">
           {ru.projects.statusLabel[p.status] ?? p.status}
@@ -119,13 +119,13 @@ async function ReviewBoard({ project, intakeUrl }: { project: ProjectRow; intake
       )}
 
       <section>
-        <h2 className="mb-3 text-lg font-semibold">{ru.review.passport}</h2>
+        <h2 className="mb-3 font-display text-2xl font-semibold">{ru.review.passport}</h2>
         <PassportView passport={passport} />
       </section>
 
       {customAnswers.length > 0 && (
         <section>
-          <h2 className="mb-3 text-lg font-semibold">Ответы на ваши вопросы</h2>
+          <h2 className="mb-3 font-display text-2xl font-semibold">Ответы на ваши вопросы</h2>
           <div className="card space-y-3">
             {customAnswers.map((qa, i) => (
               <div key={i}>
@@ -138,13 +138,13 @@ async function ReviewBoard({ project, intakeUrl }: { project: ProjectRow; intake
       )}
 
       <section>
-        <h2 className="mb-3 text-lg font-semibold">{ru.review.risks}</h2>
+        <h2 className="mb-3 font-display text-2xl font-semibold">{ru.review.risks}</h2>
         <ReviewCards projectId={project.id} cards={cards} />
       </section>
 
       <div className="grid gap-6 sm:grid-cols-2">
         <section>
-          <h2 className="mb-3 text-lg font-semibold">{ru.review.missing}</h2>
+          <h2 className="mb-3 font-display text-2xl font-semibold">{ru.review.missing}</h2>
           {missing.length === 0 ? (
             <p className="text-sm text-muted">{ru.review.missingEmpty}</p>
           ) : (
@@ -157,7 +157,7 @@ async function ReviewBoard({ project, intakeUrl }: { project: ProjectRow; intake
         </section>
 
         <section>
-          <h2 className="mb-3 text-lg font-semibold">{ru.review.questions}</h2>
+          <h2 className="mb-3 font-display text-2xl font-semibold">{ru.review.questions}</h2>
           {questions.length === 0 ? (
             <p className="text-sm text-muted">{ru.review.questionsEmpty}</p>
           ) : (

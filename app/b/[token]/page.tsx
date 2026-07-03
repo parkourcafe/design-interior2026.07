@@ -28,7 +28,7 @@ export default async function BriefSharePage({ params }: { params: { token: stri
       <header className="mb-8 flex items-start justify-between">
         <div>
           <p className="text-xs uppercase tracking-widest text-muted">{ru.briefShare.title}</p>
-          <h1 className="mt-1 text-2xl font-semibold">
+          <h1 className="mt-1 font-display text-3xl font-semibold">
             {clientName || ru.briefShare.subtitle}
           </h1>
         </div>

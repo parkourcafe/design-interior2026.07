@@ -114,7 +114,7 @@ export default async function ProposalPage({ params }: { params: { id: string } 
         <Link href={`/dashboard/projects/${p.id}`} className="text-sm text-muted hover:text-ink">
           ← {ru.review.title}
         </Link>
-        <h1 className="mt-1 text-2xl font-semibold">{ru.proposal.draftTitle}</h1>
+        <h1 className="mt-1 font-display text-3xl font-semibold">{ru.proposal.draftTitle}</h1>
         <p className="mt-1 text-sm text-muted">{ru.proposal.editHint}</p>
         {!pricing && <p className="mt-1 text-sm text-amber-800">{ru.proposal.noPrice}</p>}
       </div>

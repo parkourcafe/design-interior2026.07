@@ -156,7 +156,7 @@ export default function IntakeWizard({
     if (selfServe) {
       return (
         <main className="mx-auto flex min-h-screen max-w-lg flex-col justify-center px-6 text-center">
-          <h1 className="text-2xl font-semibold">{ru.client.shareTitle}</h1>
+          <h1 className="font-display text-3xl font-semibold">{ru.client.shareTitle}</h1>
           <p className="mt-2 text-muted">{ru.client.shareHint}</p>
           <ShareBrief url={`${appUrl()}/b/${token}`} />
         </main>
@@ -164,7 +164,7 @@ export default function IntakeWizard({
     }
     return (
       <main className="mx-auto flex min-h-screen max-w-lg flex-col justify-center px-6 text-center">
-        <h1 className="text-2xl font-semibold">{ru.brief.done.title}</h1>
+        <h1 className="font-display text-3xl font-semibold">{ru.brief.done.title}</h1>
         <p className="mt-2 text-muted">{ru.brief.done.subtitle}</p>
       </main>
     );
@@ -178,10 +178,12 @@ export default function IntakeWizard({
             <DesignerCard designer={designer} />
           </div>
         )}
-        <h1 className="text-3xl font-semibold">{ru.brief.intro.title}</h1>
+        <h1 className="font-display text-[clamp(32px,7vw,44px)] font-semibold leading-[1.08]">
+          {ru.brief.intro.title}
+        </h1>
         <p className="mt-3 text-muted">{ru.brief.intro.subtitle}</p>
-        <button onClick={() => setStarted(true)} className="btn-primary mt-8 w-fit">
-          {ru.brief.intro.start}
+        <button onClick={() => setStarted(true)} className="btn-primary mt-8 w-fit px-6 py-3.5 text-base">
+          {ru.brief.intro.start} <span className="ml-2">→</span>
         </button>
       </main>
     );
@@ -193,51 +195,63 @@ export default function IntakeWizard({
   const progress = Math.round(((step + 1) / total) * 100);
 
   return (
-    <main className="mx-auto flex min-h-screen max-w-lg flex-col px-6 py-10">
-      <div className="mb-6 h-1 w-full rounded bg-line">
-        <div className="h-1 rounded bg-accent transition-all" style={{ width: `${progress}%` }} />
-      </div>
-      <p className="text-xs uppercase tracking-widest text-muted">
-        {step + 1} / {total}
-      </p>
-      <h2 className="mt-2 text-2xl font-semibold">{question.title}</h2>
-      {question.help && <p className="mt-2 text-sm text-muted">{question.help}</p>}
-      {question.optional && <p className="mt-1 text-xs text-muted">({ru.brief.optional})</p>}
-
-      <div className="mt-6 flex-1">
-        <QuestionInput
-          question={question}
-          value={answers[question.id]}
-          onChange={(v) => setAnswer(question.id, v)}
-          token={token}
+    <main className="mx-auto flex min-h-screen max-w-xl flex-col px-6 pb-28">
+      {/* Тонкий прогресс-бар сверху (пружинящий). */}
+      <div className="fixed inset-x-0 top-0 z-20 h-[3px] bg-[#eceae4]">
+        <div
+          className="h-full bg-clientaccent"
+          style={{ width: `${progress}%`, transition: "width 460ms cubic-bezier(0.34,1.56,0.64,1)" }}
         />
+      </div>
 
-        {question.type !== "files" && (
-          <CommentField
-            value={comments[question.id] ?? ""}
-            onChange={(v) => setComments((prev) => ({ ...prev, [question.id]: v }))}
+      <div key={step} className="animate-rise flex-1 pt-12">
+        <div className="mb-4 text-xs font-semibold uppercase tracking-[0.14em] text-clientaccent">
+          Вопрос {step + 1} из {total}
+        </div>
+        <h2 className="font-display text-[clamp(28px,7vw,40px)] font-semibold leading-[1.1] tracking-[-0.3px]">
+          {question.title}
+        </h2>
+        {question.help && <p className="mt-3 text-base leading-relaxed text-muted">{question.help}</p>}
+        {question.optional && <p className="mt-1 text-xs text-muted">({ru.brief.optional})</p>}
+
+        <div className="mt-7">
+          <QuestionInput
+            question={question}
+            value={answers[question.id]}
+            onChange={(v) => setAnswer(question.id, v)}
+            token={token}
           />
-        )}
+
+          {question.type !== "files" && (
+            <CommentField
+              value={comments[question.id] ?? ""}
+              onChange={(v) => setComments((prev) => ({ ...prev, [question.id]: v }))}
+            />
+          )}
+        </div>
+
+        <p className="mt-6 text-xs text-muted">{ru.brief.privacy}</p>
       </div>
 
-      <div className="mt-8 flex items-center justify-between">
-        <button
-          onClick={() => setStep(Math.max(0, step - 1))}
-          disabled={step === 0}
-          className="btn-ghost"
-        >
-          {ru.brief.back}
-        </button>
-        <button onClick={next} disabled={!canProceed(question) || submitting} className="btn-primary">
-          {submitting
-            ? ru.brief.saving
-            : step === total - 1
-              ? ru.brief.finish
-              : ru.brief.next}
-        </button>
+      {/* Липкая навигация в зоне большого пальца. */}
+      <div className="fixed inset-x-0 bottom-0 z-20 border-t border-line bg-paper/95 backdrop-blur">
+        <div className="mx-auto flex max-w-xl items-center justify-between gap-3 px-6 py-3">
+          <button
+            onClick={() => setStep(Math.max(0, step - 1))}
+            disabled={step === 0}
+            className="btn-ghost"
+          >
+            {ru.brief.back}
+          </button>
+          <button
+            onClick={next}
+            disabled={!canProceed(question) || submitting}
+            className="btn-primary px-6"
+          >
+            {submitting ? ru.brief.saving : step === total - 1 ? ru.brief.finish : ru.brief.next}
+          </button>
+        </div>
       </div>
-
-      <p className="mt-6 text-center text-xs text-muted">{ru.brief.privacy}</p>
     </main>
   );
 }
@@ -389,13 +403,15 @@ function ChoiceInput({
   onChange: (v: unknown) => void;
 }) {
   return (
-    <div className="space-y-2">
+    <div className="flex flex-col gap-2.5">
       {question.options?.map((opt) => (
         <button
           key={opt.value}
           onClick={() => onChange(opt.value)}
-          className={`block w-full rounded-md border px-4 py-3 text-left text-sm transition-colors ${
-            value === opt.value ? "border-accent bg-accent/10" : "border-line bg-white hover:bg-line/40"
+          className={`flex min-h-14 w-full items-center rounded-lg px-5 py-4 text-left text-[17px] transition-colors ${
+            value === opt.value
+              ? "border-[1.5px] border-clientaccent bg-clientaccent/[0.08] font-medium"
+              : "border border-line bg-paper hover:border-ink/20"
           }`}
         >
           {opt.label}
@@ -419,15 +435,15 @@ function MultiInput({
     onChange(selected.includes(v) ? selected.filter((s) => s !== v) : [...selected, v]);
   }
   return (
-    <div className="space-y-2">
+    <div className="flex flex-wrap gap-2.5">
       {question.options?.map((opt) => (
         <button
           key={opt.value}
           onClick={() => toggle(opt.value)}
-          className={`block w-full rounded-md border px-4 py-3 text-left text-sm transition-colors ${
+          className={`min-h-11 rounded-full px-4 py-3 text-[16px] transition-colors ${
             selected.includes(opt.value)
-              ? "border-accent bg-accent/10"
-              : "border-line bg-white hover:bg-line/40"
+              ? "border-[1.5px] border-clientaccent bg-clientaccent/[0.08] font-medium text-ink"
+              : "border border-line bg-paper text-muted hover:border-ink/20"
           }`}
         >
           {opt.label}
