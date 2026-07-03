@@ -21,11 +21,16 @@ export default function Home() {
       {/* Шапка */}
       <header className="sticky top-0 z-40 border-b border-line bg-paper/85 backdrop-blur">
         <div className="mx-auto flex max-w-[1120px] items-center justify-between px-6 py-3">
-          <Link href="/" className="flex items-baseline gap-3">
+          <Link href="/" className="-my-2 flex items-baseline gap-3 py-2">
             <span className="font-display text-2xl font-semibold leading-none">{ru.app.name}</span>
-            <span className="text-[11px] uppercase tracking-[0.16em] text-muted">{ru.app.tagline}</span>
+            <span className="hidden text-[11px] uppercase tracking-[0.16em] text-muted sm:inline">
+              {ru.app.tagline}
+            </span>
           </Link>
-          <Link href="/login" className="text-sm text-muted hover:text-ink">
+          <Link
+            href="/login"
+            className="-mr-2 inline-flex min-h-11 items-center rounded-lg px-4 text-sm text-muted hover:text-ink"
+          >
             Войти
           </Link>
         </div>

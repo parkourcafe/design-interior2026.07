@@ -29,22 +29,22 @@ export default function DesignerCard({ designer }: { designer: DesignerPublic })
       <div className="mt-3 flex flex-wrap gap-x-4 gap-y-1 text-sm">
         {profile.phone && <span className="text-muted">{profile.phone}</span>}
         {profile.email && (
-          <a href={`mailto:${profile.email}`} className="text-accent">
+          <a href={`mailto:${profile.email}`} className="inline-flex min-h-11 items-center text-accent">
             {profile.email}
           </a>
         )}
         {profile.instagram && (
-          <a href={instagramHref(profile.instagram)} target="_blank" rel="noreferrer" className="text-accent">
+          <a href={instagramHref(profile.instagram)} target="_blank" rel="noreferrer" className="inline-flex min-h-11 items-center text-accent">
             Instagram
           </a>
         )}
         {profile.telegram && (
-          <a href={telegramHref(profile.telegram)} target="_blank" rel="noreferrer" className="text-accent">
+          <a href={telegramHref(profile.telegram)} target="_blank" rel="noreferrer" className="inline-flex min-h-11 items-center text-accent">
             Telegram
           </a>
         )}
         {profile.website && (
-          <a href={normalizeUrl(profile.website)} target="_blank" rel="noreferrer" className="text-accent">
+          <a href={normalizeUrl(profile.website)} target="_blank" rel="noreferrer" className="inline-flex min-h-11 items-center text-accent">
             Сайт
           </a>
         )}
