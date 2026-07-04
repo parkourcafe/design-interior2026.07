@@ -83,7 +83,12 @@ export default function IntakeWizard({
     }
   }, [restored, storageKey, answers, comments, step, started, mode]);
 
-  const quick = useMemo(() => quickQuestions(answers), [answers]);
+  const quick = useMemo(() => {
+    const qs = quickQuestions(answers);
+    // В self-serve (клиент сам начал бриф) дизайнера ещё нет — вопрос
+    // «откуда узнали о дизайнере» здесь бессмыслен.
+    return selfServe ? qs.filter((q) => q.id !== "source") : qs;
+  }, [answers, selfServe]);
   const deep = useMemo(() => {
     const base = deepQuestions(answers);
     const custom: Question[] = customQuestions
@@ -105,6 +110,14 @@ export default function IntakeWizard({
   // Промежуточный экран «отправить / добавить детали» — после ядра.
   const atInterstitial = mode === "quick" && step >= quick.length;
   const question = visible[step];
+
+  // Защита от пустого экрана: восстановленный из localStorage шаг мог выйти
+  // за границы (список вопросов изменился, self-serve убрал вопрос и т.п.).
+  useEffect(() => {
+    if (!restored) return;
+    const max = mode === "quick" ? quick.length : Math.max(0, visible.length - 1);
+    if (step > max) setStep(max);
+  }, [restored, mode, quick.length, visible.length, step]);
 
   useEffect(() => {
     if (started) {

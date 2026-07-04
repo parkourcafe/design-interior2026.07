@@ -1,0 +1,43 @@
+<!--
+  Свод — шаблон письма «Confirm signup» для Supabase.
+  Куда вставить: Supabase → Authentication → Emails → Templates → Confirm signup.
+  Переменные Supabase: {{ .Token }} — 6-значный код, {{ .ConfirmationURL }} — ссылка подтверждения.
+  Тема письма (Subject): Подтвердите вход в Свод
+-->
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#f6f1ec;margin:0;padding:32px 0;font-family:'Golos Text',-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;color:#2b2622;">
+  <tr>
+    <td align="center">
+      <table role="presentation" width="480" cellpadding="0" cellspacing="0" style="width:480px;max-width:92%;background:#ffffff;border-radius:14px;overflow:hidden;border:1px solid #eadfd5;">
+        <tr>
+          <td style="padding:28px 32px 8px;">
+            <div style="font-family:'Cormorant Garamond',Georgia,'Times New Roman',serif;font-size:30px;font-weight:600;color:#9c4a28;letter-spacing:0.5px;">Свод</div>
+          </td>
+        </tr>
+        <tr>
+          <td style="padding:8px 32px 0;">
+            <h1 style="font-family:'Cormorant Garamond',Georgia,serif;font-size:24px;font-weight:600;margin:0 0 6px;color:#2b2622;">Подтвердите вход</h1>
+            <p style="font-size:15px;line-height:1.55;color:#5c5249;margin:0 0 22px;">Введите этот код на странице входа, чтобы завершить регистрацию.</p>
+          </td>
+        </tr>
+        <tr>
+          <td style="padding:0 32px;">
+            <div style="background:#faf4ee;border:1px solid #e7d6c8;border-radius:12px;padding:20px;text-align:center;">
+              <div style="font-family:'Golos Text',monospace;font-size:36px;font-weight:700;letter-spacing:10px;color:#9c4a28;">{{ .Token }}</div>
+            </div>
+          </td>
+        </tr>
+        <tr>
+          <td style="padding:24px 32px 4px;text-align:center;">
+            <p style="font-size:13px;color:#8a7f74;margin:0 0 14px;">или подтвердите одним нажатием:</p>
+            <a href="{{ .ConfirmationURL }}" style="display:inline-block;background:#9c4a28;color:#ffffff;text-decoration:none;font-size:15px;font-weight:600;padding:12px 28px;border-radius:10px;">Подтвердить и войти</a>
+          </td>
+        </tr>
+        <tr>
+          <td style="padding:24px 32px 30px;">
+            <p style="font-size:12px;line-height:1.5;color:#a49a8f;margin:0;border-top:1px solid #efe7de;padding-top:16px;">Если вы не создавали аккаунт в Своде — просто проигнорируйте это письмо.</p>
+          </td>
+        </tr>
+      </table>
+    </td>
+  </tr>
+</table>

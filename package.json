@@ -10,7 +10,8 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
-    "seed": "tsx scripts/seed.ts"
+    "seed": "tsx scripts/seed.ts",
+    "fetch:media": "node scripts/fetch-landing-media.mjs"
   },
   "dependencies": {
     "@supabase/ssr": "^0.5.2",
