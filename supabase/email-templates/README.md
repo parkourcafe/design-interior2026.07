@@ -16,21 +16,35 @@
 
 Больше для демо ничего не нужно: встроенной почты Supabase хватает.
 
-## Часть Б — свой SMTP через Resend (позже, когда будет домен)
+## Часть Б — свой SMTP через Resend (для боевой рассылки клиентам)
 
-Нужно только для «боевой» рассылки клиентам (встроенная почта Supabase лимитирована).
+**Конфигурация проекта:** домен `arhodom.space` (куплен на **Vercel** → DNS настраивается в Vercel).
+Отправитель: `noreply@arhodom.space`, имя `Свод`.
 
-**Сначала ответьте на вопрос: есть ли свой домен для почты?**
-- **Нет домена** → отложить эту часть. Для демо и первых тестов встроенной почты достаточно. Купить домен (≈ 200–1500 ₽/год) можно позже.
-- **Есть домен** → делаем:
-  1. Resend.com → зарегистрироваться → **Domains** → **Add Domain** → ввести домен.
-  2. Resend покажет DNS-записи (SPF, DKIM). Добавить их у регистратора домена → в Resend дождаться статуса **Verified**.
-  3. Resend → **API Keys** → создать ключ (начинается с `re_…`).
-  4. Supabase → **Project Settings** → **Authentication** → **SMTP Settings** → включить Custom SMTP:
-     - Host: `smtp.resend.com`
-     - Port: `465`
-     - Username: `resend`
-     - Password: ключ `re_…`
-     - Sender email: `noreply@ваш-домен`
-     - Sender name: `Свод`
-  5. Сохранить, отправить тестовое письмо.
+### Шаг 1. Resend: добавить домен
+1. **resend.com** → Sign up (можно через Google).
+2. Слева **Domains** → **Add Domain** → ввести `arhodom.space` → Add.
+3. Resend покажет **3 DNS-записи** (MX/TXT — SPF, TXT — DKIM, TXT — DMARC). Не закрывать эту страницу.
+
+### Шаг 2. Vercel: добавить эти 3 записи в DNS
+1. **vercel.com** → аккаунт → вкладка **Domains** → выбрать **arhodom.space** → раздел **DNS Records**.
+2. Для каждой записи из Resend нажать **Add** и перенести Type / Name / Value.
+   - ⚠️ В поле **Name** вписывать только префикс без домена: Resend показывает `send.arhodom.space` → в Vercel ввести `send`; `resend._domainkey.arhodom.space` → `resend._domainkey`; `_dmarc.arhodom.space` → `_dmarc`. Для корня — оставить `@`.
+   - Значение (Value) копировать целиком, особенно длинный DKIM (`p=...`).
+3. Сохранить каждую.
+
+### Шаг 3. Resend: подтвердить
+- Вернуться в Resend → на странице домена нажать **Verify DNS Records**. Через несколько минут (иногда до часа) статус станет **Verified**.
+
+### Шаг 4. Resend: создать ключ
+- Resend → **API Keys** → **Create API Key** → скопировать `re_…` (показывается один раз).
+
+### Шаг 5. Supabase: включить Custom SMTP
+Supabase → проект **design2026** → **Project Settings** → **Authentication** → **SMTP Settings** → Enable Custom SMTP:
+- Host: `smtp.resend.com`
+- Port: `465`
+- Username: `resend`
+- Password: ключ `re_…`
+- Sender email: `noreply@arhodom.space`
+- Sender name: `Свод`
+- Сохранить → отправить себе тестовое письмо (попробовать войти).
