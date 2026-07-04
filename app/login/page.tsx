@@ -20,6 +20,9 @@ export default function LoginPage() {
   const [verifying, setVerifying] = useState(false);
   const [codeError, setCodeError] = useState<string | null>(null);
   const [callbackError, setCallbackError] = useState<string | null>(null);
+  // Реальный текст ошибки Supabase (SMTP/лимит/конфиг) — под общим сообщением,
+  // чтобы причина сбоя отправки была видна, а не пряталась (QA BUG #2).
+  const [sendErrorDetail, setSendErrorDetail] = useState<string | null>(null);
 
   // Показываем реальную причину, если /auth/callback вернул сюда с ?error=...
   useEffect(() => {
@@ -35,6 +38,7 @@ export default function LoginPage() {
       email,
       options: { emailRedirectTo: `${appUrl()}/auth/callback` },
     });
+    setSendErrorDetail(error ? error.message : null);
     setState(error ? "error" : "sent");
   }
 
@@ -120,7 +124,16 @@ export default function LoginPage() {
           <button type="submit" disabled={state === "sending"} className="btn-primary w-full">
             {state === "sending" ? ru.auth.sending : ru.auth.submit}
           </button>
-          {state === "error" && <p className="text-sm text-red-600">{ru.auth.error}</p>}
+          {state === "error" && (
+            <div className="space-y-1">
+              <p className="text-sm text-red-600">{ru.auth.error}</p>
+              {sendErrorDetail && (
+                <p className="rounded-md border border-red-200 bg-red-50 p-2 text-xs text-red-700">
+                  {sendErrorDetail}
+                </p>
+              )}
+            </div>
+          )}
         </form>
       )}
     </main>
