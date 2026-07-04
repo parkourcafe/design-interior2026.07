@@ -42,6 +42,16 @@ export default function LoginPage() {
     setState(error ? "error" : "sent");
   }
 
+  // Вход через Google (OAuth) — без писем вообще. Redirect на /auth/callback,
+  // который уже умеет обменять ?code на сессию (PKCE).
+  async function google() {
+    const supabase = await supabaseClient();
+    await supabase.auth.signInWithOAuth({
+      provider: "google",
+      options: { redirectTo: `${appUrl()}/auth/callback` },
+    });
+  }
+
   // Вход по 6-значному коду из письма (не требует клика по ссылке).
   async function verifyCode(e: React.FormEvent) {
     e.preventDefault();
@@ -71,6 +81,41 @@ export default function LoginPage() {
         <p className="mt-4 rounded-md border border-red-300 bg-red-50 p-3 text-xs text-red-700">
           Не удалось войти по ссылке: {callbackError}
         </p>
+      )}
+
+      {state !== "sent" && (
+        <div className="mt-6 space-y-4">
+          <button
+            type="button"
+            onClick={google}
+            className="btn flex w-full items-center justify-center gap-3 border border-line bg-white py-3 text-ink hover:border-ink/40"
+          >
+            <svg width="18" height="18" viewBox="0 0 18 18" aria-hidden="true">
+              <path
+                fill="#4285F4"
+                d="M17.64 9.2c0-.64-.06-1.25-.16-1.84H9v3.48h4.84a4.14 4.14 0 0 1-1.8 2.72v2.26h2.92c1.71-1.57 2.68-3.89 2.68-6.62z"
+              />
+              <path
+                fill="#34A853"
+                d="M9 18c2.43 0 4.47-.8 5.96-2.18l-2.92-2.26c-.8.54-1.84.86-3.04.86-2.34 0-4.32-1.58-5.02-3.7H.96v2.34A9 9 0 0 0 9 18z"
+              />
+              <path
+                fill="#FBBC05"
+                d="M3.98 10.72a5.4 5.4 0 0 1 0-3.44V4.94H.96a9 9 0 0 0 0 8.12l3.02-2.34z"
+              />
+              <path
+                fill="#EA4335"
+                d="M9 3.58c1.32 0 2.5.45 3.44 1.35l2.58-2.58C13.46.89 11.43 0 9 0A9 9 0 0 0 .96 4.94l3.02 2.34C4.68 5.16 6.66 3.58 9 3.58z"
+              />
+            </svg>
+            {ru.auth.google}
+          </button>
+          <div className="flex items-center gap-3 text-xs text-muted">
+            <span className="h-px flex-1 bg-line" />
+            {ru.auth.or}
+            <span className="h-px flex-1 bg-line" />
+          </div>
+        </div>
       )}
 
       {state === "sent" ? (
