@@ -1,11 +1,11 @@
 import Link from "next/link";
 import { ru } from "@/lib/i18n/ru";
+import { supportEmail } from "@/lib/env";
 
 const f = ru.landing.footer;
 const n = ru.landing.nav;
 
-// Контакт поддержки: env позволяет заменить без релиза кода.
-const SUPPORT_EMAIL = process.env.NEXT_PUBLIC_SUPPORT_EMAIL || "parkourcafe@gmail.com";
+const SUPPORT_EMAIL = supportEmail();
 
 export default function LandingFooter() {
   return (

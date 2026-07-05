@@ -6,9 +6,10 @@
 
 import { useMemo, useState } from "react";
 import { ru } from "@/lib/i18n/ru";
+import { supportEmail } from "@/lib/env";
 
 const p = ru.landing.pagePilot;
-const SUPPORT_EMAIL = process.env.NEXT_PUBLIC_SUPPORT_EMAIL || "parkourcafe@gmail.com";
+const SUPPORT_EMAIL = supportEmail();
 
 const FIELD_KEYS = [
   "name",
