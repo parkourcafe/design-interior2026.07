@@ -11,17 +11,14 @@ async function supabaseClient() {
   return createClient();
 }
 
+type Tab = "password" | "code";
+
 export default function LoginPage() {
   const router = useRouter();
+
+  const [tab, setTab] = useState<Tab>("password");
   const [email, setEmail] = useState("");
-  const [code, setCode] = useState("");
-  const [state, setState] = useState<"idle" | "sending" | "sent" | "error">("idle");
-  const [verifying, setVerifying] = useState(false);
-  const [codeError, setCodeError] = useState<string | null>(null);
   const [callbackError, setCallbackError] = useState<string | null>(null);
-  // Реальный текст ошибки Supabase (SMTP/лимит/конфиг) — под общим сообщением,
-  // чтобы причина сбоя отправки была видна, а не пряталась (QA BUG #2).
-  const [sendErrorDetail, setSendErrorDetail] = useState<string | null>(null);
 
   // Показываем реальную причину, если /auth/callback вернул сюда с ?error=...
   useEffect(() => {
@@ -29,51 +26,87 @@ export default function LoginPage() {
     if (err) setCallbackError(err);
   }, []);
 
-  async function onSubmit(e: React.FormEvent) {
-    e.preventDefault();
-    setState("sending");
-    const supabase = await supabaseClient();
-    const { error } = await supabase.auth.signInWithOtp({
-      email,
-      // Адрес возврата берём из текущего origin (а не из env): он всегда
-      // совпадает с тем, где реально открыт сайт, и есть в allow-list Supabase.
-      options: { emailRedirectTo: `${window.location.origin}/auth/callback` },
-    });
-    setSendErrorDetail(error ? error.message : null);
-    setState(error ? "error" : "sent");
+  function goToDashboard() {
+    router.push("/dashboard");
+    router.refresh();
   }
 
-  // Вход через Google (OAuth) — без писем вообще. Redirect на /auth/callback,
-  // который уже умеет обменять ?code на сессию (PKCE).
+  // ── Вход через Google (OAuth) ──────────────────────────────
   async function google() {
     const supabase = await supabaseClient();
     await supabase.auth.signInWithOAuth({
       provider: "google",
       // Возврат на текущий origin (не из env) — иначе Supabase не найдёт адрес
-      // в allow-list и увезёт на Site URL (главную). Это и был баг «на главную».
+      // в allow-list и увезёт на Site URL (главную).
       options: { redirectTo: `${window.location.origin}/auth/callback` },
     });
   }
 
-  // Вход по 6-значному коду из письма (не требует клика по ссылке).
+  // ── Вход/регистрация по паролю ─────────────────────────────
+  const [password, setPassword] = useState("");
+  const [signup, setSignup] = useState(false);
+  const [pwBusy, setPwBusy] = useState(false);
+  const [pwError, setPwError] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
+
+  async function passwordSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    setPwBusy(true);
+    setPwError(null);
+    setNotice(null);
+    const supabase = await supabaseClient();
+
+    if (signup) {
+      const { data, error } = await supabase.auth.signUp({
+        email,
+        password,
+        options: { emailRedirectTo: `${window.location.origin}/auth/callback` },
+      });
+      setPwBusy(false);
+      if (error) return setPwError(error.message);
+      // Если подтверждение email выключено — сессия сразу, входим.
+      if (data.session) return goToDashboard();
+      // Иначе Supabase отправил письмо подтверждения.
+      return setNotice(ru.auth.confirmSent);
+    }
+
+    const { error } = await supabase.auth.signInWithPassword({ email, password });
+    setPwBusy(false);
+    if (error) return setPwError(error.message);
+    goToDashboard();
+  }
+
+  // ── Вход по коду на почту (passwordless OTP) ───────────────
+  const [code, setCode] = useState("");
+  const [otp, setOtp] = useState<"idle" | "sending" | "sent" | "error">("idle");
+  const [otpDetail, setOtpDetail] = useState<string | null>(null);
+  const [verifying, setVerifying] = useState(false);
+  const [codeError, setCodeError] = useState<string | null>(null);
+
+  async function sendCode(e: React.FormEvent) {
+    e.preventDefault();
+    setOtp("sending");
+    const supabase = await supabaseClient();
+    const { error } = await supabase.auth.signInWithOtp({
+      email,
+      options: { emailRedirectTo: `${window.location.origin}/auth/callback` },
+    });
+    setOtpDetail(error ? error.message : null);
+    setOtp(error ? "error" : "sent");
+  }
+
   async function verifyCode(e: React.FormEvent) {
     e.preventDefault();
     setVerifying(true);
     setCodeError(null);
     const supabase = await supabaseClient();
-    const { error } = await supabase.auth.verifyOtp({
-      email,
-      token: code.trim(),
-      type: "email",
-    });
+    const { error } = await supabase.auth.verifyOtp({ email, token: code.trim(), type: "email" });
     setVerifying(false);
-    if (error) {
-      setCodeError(error.message);
-    } else {
-      router.push("/dashboard");
-      router.refresh();
-    }
+    if (error) return setCodeError(error.message);
+    goToDashboard();
   }
+
+  const inCodeEntry = tab === "code" && otp === "sent";
 
   return (
     <main className="mx-auto flex min-h-screen max-w-md flex-col justify-center px-6">
@@ -86,7 +119,8 @@ export default function LoginPage() {
         </p>
       )}
 
-      {state !== "sent" && (
+      {/* Google + разделитель — всегда сверху, кроме экрана ввода кода */}
+      {!inCodeEntry && (
         <div className="mt-6 space-y-4">
           <button
             type="button"
@@ -94,22 +128,10 @@ export default function LoginPage() {
             className="btn flex w-full items-center justify-center gap-3 border border-line bg-white py-3 text-ink hover:border-ink/40"
           >
             <svg width="18" height="18" viewBox="0 0 18 18" aria-hidden="true">
-              <path
-                fill="#4285F4"
-                d="M17.64 9.2c0-.64-.06-1.25-.16-1.84H9v3.48h4.84a4.14 4.14 0 0 1-1.8 2.72v2.26h2.92c1.71-1.57 2.68-3.89 2.68-6.62z"
-              />
-              <path
-                fill="#34A853"
-                d="M9 18c2.43 0 4.47-.8 5.96-2.18l-2.92-2.26c-.8.54-1.84.86-3.04.86-2.34 0-4.32-1.58-5.02-3.7H.96v2.34A9 9 0 0 0 9 18z"
-              />
-              <path
-                fill="#FBBC05"
-                d="M3.98 10.72a5.4 5.4 0 0 1 0-3.44V4.94H.96a9 9 0 0 0 0 8.12l3.02-2.34z"
-              />
-              <path
-                fill="#EA4335"
-                d="M9 3.58c1.32 0 2.5.45 3.44 1.35l2.58-2.58C13.46.89 11.43 0 9 0A9 9 0 0 0 .96 4.94l3.02 2.34C4.68 5.16 6.66 3.58 9 3.58z"
-              />
+              <path fill="#4285F4" d="M17.64 9.2c0-.64-.06-1.25-.16-1.84H9v3.48h4.84a4.14 4.14 0 0 1-1.8 2.72v2.26h2.92c1.71-1.57 2.68-3.89 2.68-6.62z" />
+              <path fill="#34A853" d="M9 18c2.43 0 4.47-.8 5.96-2.18l-2.92-2.26c-.8.54-1.84.86-3.04.86-2.34 0-4.32-1.58-5.02-3.7H.96v2.34A9 9 0 0 0 9 18z" />
+              <path fill="#FBBC05" d="M3.98 10.72a5.4 5.4 0 0 1 0-3.44V4.94H.96a9 9 0 0 0 0 8.12l3.02-2.34z" />
+              <path fill="#EA4335" d="M9 3.58c1.32 0 2.5.45 3.44 1.35l2.58-2.58C13.46.89 11.43 0 9 0A9 9 0 0 0 .96 4.94l3.02 2.34C4.68 5.16 6.66 3.58 9 3.58z" />
             </svg>
             {ru.auth.google}
           </button>
@@ -118,71 +140,111 @@ export default function LoginPage() {
             {ru.auth.or}
             <span className="h-px flex-1 bg-line" />
           </div>
+
+          {/* Переключатель способа: пароль / код на почту */}
+          <div className="flex rounded-lg border border-line p-1 text-sm">
+            <button
+              type="button"
+              onClick={() => setTab("password")}
+              className={`flex-1 rounded-md py-1.5 ${tab === "password" ? "bg-line/60 font-medium" : "text-muted"}`}
+            >
+              {ru.auth.tabPassword}
+            </button>
+            <button
+              type="button"
+              onClick={() => setTab("code")}
+              className={`flex-1 rounded-md py-1.5 ${tab === "code" ? "bg-line/60 font-medium" : "text-muted"}`}
+            >
+              {ru.auth.tabCode}
+            </button>
+          </div>
         </div>
       )}
 
-      {state === "sent" ? (
-        <div className="mt-6 space-y-5">
-          <p className="rounded-md border border-accent/30 bg-accent/5 p-4 text-sm">{ru.auth.sent}</p>
-
-          <form onSubmit={verifyCode} className="space-y-3">
-            <div>
-              <label className="label" htmlFor="code">
-                Или введите код из письма
-              </label>
-              <input
-                id="code"
-                inputMode="numeric"
-                autoComplete="one-time-code"
-                pattern="[0-9]*"
-                maxLength={6}
-                required
-                value={code}
-                onChange={(e) => setCode(e.target.value.replace(/\D/g, ""))}
-                placeholder="000000"
-                className="input tracking-[0.4em]"
-              />
-            </div>
-            <button type="submit" disabled={verifying || code.length < 6} className="btn-primary w-full">
-              {verifying ? "Проверяем…" : "Войти по коду"}
-            </button>
-            {codeError && <p className="text-sm text-red-600">Неверный или просроченный код.</p>}
-          </form>
-
-          <button onClick={() => setState("idle")} className="text-sm text-muted hover:text-ink">
-            ← Другой email
-          </button>
-        </div>
-      ) : (
-        <form onSubmit={onSubmit} className="mt-6 space-y-4">
+      {/* ── Вкладка: почта и пароль ── */}
+      {tab === "password" && (
+        <form onSubmit={passwordSubmit} className="mt-5 space-y-4">
           <div>
-            <label className="label" htmlFor="email">
-              {ru.auth.emailLabel}
-            </label>
+            <label className="label" htmlFor="email">{ru.auth.emailLabel}</label>
             <input
-              id="email"
-              type="email"
-              required
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              placeholder={ru.auth.emailPlaceholder}
-              className="input"
+              id="email" type="email" required autoComplete="email"
+              value={email} onChange={(e) => setEmail(e.target.value)}
+              placeholder={ru.auth.emailPlaceholder} className="input"
             />
           </div>
-          <button type="submit" disabled={state === "sending"} className="btn-primary w-full">
-            {state === "sending" ? ru.auth.sending : ru.auth.submit}
+          <div>
+            <label className="label" htmlFor="password">{ru.auth.passwordLabel}</label>
+            <input
+              id="password" type="password" required minLength={6}
+              autoComplete={signup ? "new-password" : "current-password"}
+              value={password} onChange={(e) => setPassword(e.target.value)}
+              placeholder={ru.auth.passwordPlaceholder} className="input"
+            />
+          </div>
+          <button type="submit" disabled={pwBusy} className="btn-primary w-full">
+            {pwBusy ? (signup ? ru.auth.signingUp : ru.auth.signingIn) : signup ? ru.auth.signUp : ru.auth.signIn}
           </button>
-          {state === "error" && (
+          {pwError && <p className="text-sm text-red-600">{pwError}</p>}
+          {notice && (
+            <p className="rounded-md border border-accent/30 bg-accent/5 p-3 text-sm">{notice}</p>
+          )}
+          <button
+            type="button"
+            onClick={() => { setSignup(!signup); setPwError(null); setNotice(null); }}
+            className="text-sm text-muted hover:text-ink"
+          >
+            {signup ? ru.auth.haveAccount : ru.auth.noAccount}
+          </button>
+        </form>
+      )}
+
+      {/* ── Вкладка: код на почту ── */}
+      {tab === "code" && otp !== "sent" && (
+        <form onSubmit={sendCode} className="mt-5 space-y-4">
+          <div>
+            <label className="label" htmlFor="email-code">{ru.auth.emailLabel}</label>
+            <input
+              id="email-code" type="email" required autoComplete="email"
+              value={email} onChange={(e) => setEmail(e.target.value)}
+              placeholder={ru.auth.emailPlaceholder} className="input"
+            />
+          </div>
+          <button type="submit" disabled={otp === "sending"} className="btn-primary w-full">
+            {otp === "sending" ? ru.auth.sending : ru.auth.sendCode}
+          </button>
+          {otp === "error" && (
             <div className="space-y-1">
               <p className="text-sm text-red-600">{ru.auth.error}</p>
-              {sendErrorDetail && (
-                <p className="rounded-md border border-red-200 bg-red-50 p-2 text-xs text-red-700">
-                  {sendErrorDetail}
-                </p>
+              {otpDetail && (
+                <p className="rounded-md border border-red-200 bg-red-50 p-2 text-xs text-red-700">{otpDetail}</p>
               )}
             </div>
           )}
         </form>
+      )}
+
+      {inCodeEntry && (
+        <div className="mt-6 space-y-5">
+          <p className="rounded-md border border-accent/30 bg-accent/5 p-4 text-sm">{ru.auth.sent}</p>
+          <form onSubmit={verifyCode} className="space-y-3">
+            <div>
+              <label className="label" htmlFor="code">{ru.auth.codeLabel}</label>
+              <input
+                id="code" inputMode="numeric" autoComplete="one-time-code" pattern="[0-9]*"
+                maxLength={6} required value={code}
+                onChange={(e) => setCode(e.target.value.replace(/\D/g, ""))}
+                placeholder="000000" className="input tracking-[0.4em]"
+              />
+            </div>
+            <button type="submit" disabled={verifying || code.length < 6} className="btn-primary w-full">
+              {verifying ? ru.auth.codeChecking : ru.auth.codeSubmit}
+            </button>
+            {codeError && <p className="text-sm text-red-600">{ru.auth.codeInvalid}</p>}
+          </form>
+          <button onClick={() => setOtp("idle")} className="text-sm text-muted hover:text-ink">
+            {ru.auth.otherEmail}
+          </button>
+        </div>
       )}
     </main>
   );
