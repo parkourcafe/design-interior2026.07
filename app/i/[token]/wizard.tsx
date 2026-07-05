@@ -219,10 +219,13 @@ export default function IntakeWizard({
             <DesignerCard designer={designer} />
           </div>
         )}
-        <h1 className="font-display text-[clamp(32px,7vw,44px)] font-semibold leading-[1.08]">
+        <div className="mb-3 text-xs font-semibold uppercase tracking-[0.16em] text-clientaccent">
+          {ru.brief.intro.eyebrow}
+        </div>
+        <h1 className="font-display text-[clamp(30px,6.5vw,42px)] font-semibold leading-[1.1]">
           {ru.brief.intro.title}
         </h1>
-        <p className="mt-3 text-muted">{ru.brief.intro.subtitle}</p>
+        <p className="mt-4 text-base leading-relaxed text-muted">{ru.brief.intro.subtitle}</p>
         <button onClick={() => setStarted(true)} className="btn-primary mt-8 w-fit px-6 py-3.5 text-base">
           {ru.brief.intro.start} <span className="ml-2">→</span>
         </button>
