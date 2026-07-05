@@ -16,7 +16,14 @@ type Answers = Record<string, unknown>;
 // ── typed getters ────────────────────────────────────────
 function str(a: Answers, id: string): string | undefined {
   const v = a[id];
-  return typeof v === "string" ? v : undefined;
+  if (typeof v === "string") return v;
+  // Защита от инверсии: choice-ответ может прийти как { value: "..." }
+  // (как читает choiceValue в ветвлении). Иначе значение молча падало в дефолт.
+  if (v && typeof v === "object" && !Array.isArray(v) && "value" in v) {
+    const inner = (v as { value: unknown }).value;
+    return typeof inner === "string" ? inner : undefined;
+  }
+  return undefined;
 }
 function arr(a: Answers, id: string): string[] {
   const v = a[id];

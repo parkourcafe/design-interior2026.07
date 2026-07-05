@@ -42,6 +42,22 @@ describe("buildPassport", () => {
     expect(p.budget.risk_level).toBe("mid");
   });
 
+  it("reads choice answers as both bare string and { value } shape (no inversion)", () => {
+    const asString = buildPassport({
+      object: { type: "flat", area_m2: 60, city: "Москва" },
+      cooking: "heavy",
+    });
+    const asObject = buildPassport({
+      object: { type: "flat", area_m2: 60, city: "Москва" },
+      cooking: { value: "heavy" },
+      asset_horizon: { value: "rent" },
+    });
+    expect(asString.lifestyle.cooking).toBe("heavy");
+    // Раньше { value } падало в дефолт "none" → «не готовит» (инверсия). Теперь верно.
+    expect(asObject.lifestyle.cooking).toBe("heavy");
+    expect(asObject.asset_horizon).toBe("rent");
+  });
+
   it("classifies a tight economy budget as low tier", () => {
     const p = buildPassport({
       object: { type: "flat", area_m2: 50, city: "Пермь" },
