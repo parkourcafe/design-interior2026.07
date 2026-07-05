@@ -3,7 +3,7 @@ import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { getStudio } from "@/lib/studio";
 import { makeToken } from "@/lib/tokens";
-import { appUrl } from "@/lib/env";
+import { requestBaseUrl } from "@/lib/base-url";
 import { ru } from "@/lib/i18n/ru";
 import type { Passport, PricingConfig, ProposalDefaults, ProposalSection } from "@/lib/types";
 import { calcPrice, type PriceResult } from "@/lib/pricing/calc";
@@ -99,7 +99,7 @@ export default async function ProposalPage({ params }: { params: { id: string } 
     }
   }
 
-  const publicUrl = `${appUrl()}/p/${publicToken}`;
+  const publicUrl = `${requestBaseUrl()}/p/${publicToken}`;
 
   return (
     <div>

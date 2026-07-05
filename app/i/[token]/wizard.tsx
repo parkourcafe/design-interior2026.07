@@ -2,7 +2,6 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { quickQuestions, deepQuestions, type Question } from "@/lib/brief/questions";
-import { appUrl } from "@/lib/env";
 import { ru } from "@/lib/i18n/ru";
 import ShareBrief from "@/components/share-brief";
 import DesignerCard from "@/components/designer-card";
@@ -30,11 +29,13 @@ export default function IntakeWizard({
   selfServe = false,
   customQuestions = [],
   designer = null,
+  baseUrl = "",
 }: {
   token: string;
   selfServe?: boolean;
   customQuestions?: string[];
   designer?: DesignerPublic | null;
+  baseUrl?: string;
 }) {
   const [started, setStarted] = useState(false);
   const [answers, setAnswers] = useState<Answers>({});
@@ -199,7 +200,7 @@ export default function IntakeWizard({
         <main className="mx-auto flex min-h-screen max-w-lg flex-col justify-center px-6 text-center">
           <h1 className="font-display text-3xl font-semibold">{ru.client.shareTitle}</h1>
           <p className="mt-2 text-muted">{ru.client.shareHint}</p>
-          <ShareBrief url={`${appUrl()}/b/${token}`} />
+          <ShareBrief url={`${baseUrl}/b/${token}`} />
         </main>
       );
     }
