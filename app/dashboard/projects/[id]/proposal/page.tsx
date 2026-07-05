@@ -8,6 +8,7 @@ import { ru } from "@/lib/i18n/ru";
 import type { Passport, PricingConfig, ProposalDefaults, ProposalSection } from "@/lib/types";
 import { calcPrice, type PriceResult } from "@/lib/pricing/calc";
 import { buildProposalSections } from "@/lib/proposal/build";
+import { RESPONSE_TYPES } from "@/lib/proposal/respond";
 import type { RiskCardRow } from "@/lib/review";
 import ProposalEditor from "./editor";
 
@@ -101,6 +102,15 @@ export default async function ProposalPage({ params }: { params: { id: string } 
 
   const publicUrl = `${requestBaseUrl()}/p/${publicToken}`;
 
+  // Петля обратной связи (audit S4): открывал ли клиент КП и его ответ.
+  const { data: feedbackEvents } = await supabase
+    .from("events")
+    .select("type")
+    .eq("project_id", p.id)
+    .in("type", [...RESPONSE_TYPES, "proposal_viewed"]);
+  const feedback = new Set((feedbackEvents ?? []).map((e) => (e as { type: string }).type));
+  const clientResponse = RESPONSE_TYPES.find((t) => feedback.has(t)) ?? null;
+
   return (
     <div>
       <div className="mb-6">
@@ -110,6 +120,20 @@ export default async function ProposalPage({ params }: { params: { id: string } 
         <h1 className="mt-1 font-display text-3xl font-semibold">{ru.proposal.draftTitle}</h1>
         <p className="mt-1 text-sm text-muted">{ru.proposal.editHint}</p>
         {!pricing && <p className="mt-1 text-sm text-amber-800">{ru.proposal.noPrice}</p>}
+        {(clientResponse || feedback.has("proposal_viewed")) && (
+          <div className="mt-3 flex flex-wrap gap-2">
+            {feedback.has("proposal_viewed") && (
+              <span className="rounded-full border border-line bg-white px-3 py-1 text-xs text-muted">
+                {ru.proposal.clientViewed}
+              </span>
+            )}
+            {clientResponse && (
+              <span className="rounded-full border border-accent/30 bg-accent/10 px-3 py-1 text-xs font-medium text-accent">
+                {ru.proposal.clientResponse}: {ru.proposal.clientResponseValue[clientResponse]}
+              </span>
+            )}
+          </div>
+        )}
       </div>
 
       <ProposalEditor

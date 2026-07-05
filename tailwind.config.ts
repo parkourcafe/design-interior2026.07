@@ -20,6 +20,17 @@ const config: Config = {
         // Палитра «Свод» A: терракота + слива.
         accent: "#9c4a28",
         clientaccent: "#7a3a5a",
+        // Кинематографичная тёмная палитра лендинга: уголь + слоновая кость +
+        // бронза + приглушённая олива (см. components/landing/*).
+        coal: "#14110d",
+        coal2: "#1d1914",
+        coal3: "#26211a",
+        ivory: "#ece4d4",
+        ivorymuted: "#a89e8c",
+        bronze: "#c08b5c",
+        bronzedeep: "#8f6039",
+        olive: "#9aa07b",
+        linedark: "rgba(236,228,212,0.14)",
       },
     },
   },
