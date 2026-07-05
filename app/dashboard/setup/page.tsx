@@ -1,6 +1,8 @@
 import { redirect } from "next/navigation";
 import type { PricingConfig, ProposalDefaults, DesignerProfile } from "@/lib/types";
 import { getStudio, listStudioMembers } from "@/lib/studio";
+import { ru } from "@/lib/i18n/ru";
+import DesignerCard from "@/components/designer-card";
 import SetupForm from "./form";
 import SetPassword from "./set-password";
 import TeamMembers from "./team";
@@ -16,6 +18,18 @@ export default async function SetupPage() {
 
   return (
     <>
+      <section className="mb-6">
+        <h2 className="mb-2 font-display text-xl font-semibold">{ru.profilePreview.title}</h2>
+        <p className="mb-3 text-sm text-muted">{ru.profilePreview.hint}</p>
+        <DesignerCard
+          designer={{
+            name: designer.name ?? "",
+            studio_name: designer.studio_name ?? "",
+            email: studio.email,
+            profile: (designer.profile ?? {}) as DesignerProfile,
+          }}
+        />
+      </section>
       <SetupForm
         initial={{
           name: designer.name ?? "",

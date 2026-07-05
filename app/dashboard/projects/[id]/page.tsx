@@ -6,6 +6,8 @@ import { requestBaseUrl } from "@/lib/base-url";
 import { ru } from "@/lib/i18n/ru";
 import type { Passport } from "@/lib/types";
 import { questionById } from "@/lib/brief/questions";
+import { isProfileComplete } from "@/lib/designer";
+import { getStudio } from "@/lib/studio";
 import { missingFields, firstMeetingQuestions, type RiskCardRow } from "@/lib/review";
 import PassportView from "@/components/passport-view";
 import IntakeLink from "@/components/intake-link";
@@ -43,6 +45,11 @@ export default async function ProjectPage({ params }: { params: { id: string } }
 
   const intakeUrl = `${requestBaseUrl()}/i/${p.intake_token}`;
 
+  // Гейт: ссылку на бриф показываем только с заполненным профилем — клиент
+  // должен видеть, от кого пришёл бриф (имя/студия + телефон + email).
+  const studio = await getStudio();
+  const profileReady = studio ? isProfileComplete(studio.designer) : false;
+
   return (
     <div>
       <div className="mb-6 flex items-center justify-between">
@@ -59,7 +66,7 @@ export default async function ProjectPage({ params }: { params: { id: string } }
 
       {!briefDone ? (
         <div className="space-y-4">
-          <IntakeLink url={intakeUrl} />
+          {profileReady ? <IntakeLink url={intakeUrl} /> : <ProfileGate />}
           <CustomQuestions
             projectId={p.id}
             initial={Array.isArray(p.custom_questions) ? p.custom_questions : []}
@@ -70,13 +77,21 @@ export default async function ProjectPage({ params }: { params: { id: string } }
           </p>
         </div>
       ) : (
-        <ReviewBoard project={p} intakeUrl={intakeUrl} />
+        <ReviewBoard project={p} intakeUrl={intakeUrl} profileReady={profileReady} />
       )}
     </div>
   );
 }
 
-async function ReviewBoard({ project, intakeUrl }: { project: ProjectRow; intakeUrl: string }) {
+async function ReviewBoard({
+  project,
+  intakeUrl,
+  profileReady,
+}: {
+  project: ProjectRow;
+  intakeUrl: string;
+  profileReady: boolean;
+}) {
   const supabase = createClient();
   const { data: cardRows } = await supabase
     .from("risk_cards")
@@ -159,7 +174,7 @@ async function ReviewBoard({ project, intakeUrl }: { project: ProjectRow; intake
 
   return (
     <div className="space-y-8">
-      <IntakeLink url={intakeUrl} />
+      {profileReady ? <IntakeLink url={intakeUrl} /> : <ProfileGate />}
 
       {llmDegraded && (
         <p className="rounded-md border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900">
@@ -277,6 +292,19 @@ async function ReviewBoard({ project, intakeUrl }: { project: ProjectRow; intake
           {ru.review.buildProposal}
         </Link>
       </div>
+    </div>
+  );
+}
+
+// Гейт: пока профиль не заполнен, вместо ссылки на бриф — призыв заполнить.
+function ProfileGate() {
+  return (
+    <div className="rounded-2xl border border-amber-300 bg-amber-50 p-5">
+      <h3 className="font-medium text-amber-900">{ru.profileGate.title}</h3>
+      <p className="mt-1 text-sm text-amber-900/80">{ru.profileGate.text}</p>
+      <Link href="/dashboard/setup" className="btn-primary mt-3 inline-flex">
+        {ru.profileGate.cta}
+      </Link>
     </div>
   );
 }
