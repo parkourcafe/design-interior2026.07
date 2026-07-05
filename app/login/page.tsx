@@ -47,27 +47,26 @@ export default function LoginPage() {
   const [signup, setSignup] = useState(false);
   const [pwBusy, setPwBusy] = useState(false);
   const [pwError, setPwError] = useState<string | null>(null);
-  const [notice, setNotice] = useState<string | null>(null);
 
   async function passwordSubmit(e: React.FormEvent) {
     e.preventDefault();
     setPwBusy(true);
     setPwError(null);
-    setNotice(null);
     const supabase = await supabaseClient();
 
     if (signup) {
-      const { data, error } = await supabase.auth.signUp({
-        email,
-        password,
-        options: { emailRedirectTo: `${window.location.origin}/auth/callback` },
+      // Регистрация через серверный роут: аккаунт создаётся сразу подтверждённым
+      // (без письма). Потом — обычный вход по паролю.
+      const res = await fetch("/api/auth/register", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, password }),
       });
-      setPwBusy(false);
-      if (error) return setPwError(error.message);
-      // Если подтверждение email выключено — сессия сразу, входим.
-      if (data.session) return goToDashboard();
-      // Иначе Supabase отправил письмо подтверждения.
-      return setNotice(ru.auth.confirmSent);
+      const json = (await res.json().catch(() => ({}))) as { error?: string };
+      if (!res.ok) {
+        setPwBusy(false);
+        return setPwError(json.error ?? "Не удалось создать аккаунт.");
+      }
     }
 
     const { error } = await supabase.auth.signInWithPassword({ email, password });
@@ -185,12 +184,9 @@ export default function LoginPage() {
             {pwBusy ? (signup ? ru.auth.signingUp : ru.auth.signingIn) : signup ? ru.auth.signUp : ru.auth.signIn}
           </button>
           {pwError && <p className="text-sm text-red-600">{pwError}</p>}
-          {notice && (
-            <p className="rounded-md border border-accent/30 bg-accent/5 p-3 text-sm">{notice}</p>
-          )}
           <button
             type="button"
-            onClick={() => { setSignup(!signup); setPwError(null); setNotice(null); }}
+            onClick={() => { setSignup(!signup); setPwError(null); }}
             className="text-sm text-muted hover:text-ink"
           >
             {signup ? ru.auth.haveAccount : ru.auth.noAccount}
