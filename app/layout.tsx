@@ -4,8 +4,8 @@ import { ru } from "@/lib/i18n/ru";
 import Pwa from "@/components/pwa";
 
 export const metadata: Metadata = {
-  title: ru.app.name,
-  description: ru.app.tagline,
+  title: `${ru.app.name} — ${ru.app.tagline}`,
+  description: ru.app.heroSub,
   manifest: "/manifest.webmanifest",
   appleWebApp: { capable: true, title: ru.app.name, statusBarStyle: "default" },
 };

@@ -39,6 +39,141 @@ body {
   }
 }
 
+/* ────────────────────────────────────────────────────────────
+   Кинематографичный тёмный лендинг (components/landing/*).
+   Свет: тёплый янтарь на угле; движение управляется CSS-переменной
+   --p (0..1), которую пишет rAF-скролл из cinema.tsx.
+   ──────────────────────────────────────────────────────────── */
+
+.landing {
+  background-color: #14110d;
+  color: #ece4d4;
+  font-feature-settings: "liga" 1, "kern" 1;
+}
+
+.landing ::selection {
+  background: rgba(192, 139, 92, 0.35);
+}
+
+/* Архитектурная сетка на угле — едва различимые линии. */
+.grid-arch {
+  background-image:
+    linear-gradient(rgba(236, 228, 212, 0.045) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(236, 228, 212, 0.045) 1px, transparent 1px);
+  background-size: 72px 72px;
+}
+
+/* Тёплое студийное свечение сверху. */
+.glow-amber {
+  background:
+    radial-gradient(1200px 640px at 70% -10%, rgba(192, 139, 92, 0.16), transparent 65%),
+    radial-gradient(900px 520px at 15% 8%, rgba(154, 160, 123, 0.07), transparent 60%);
+}
+
+/* Стеклянная карточка на тёмном. */
+.glass {
+  background: linear-gradient(160deg, rgba(236, 228, 212, 0.07), rgba(236, 228, 212, 0.03));
+  border: 1px solid rgba(236, 228, 212, 0.14);
+  backdrop-filter: blur(10px);
+  border-radius: 16px;
+}
+.glass-strong {
+  background: linear-gradient(160deg, rgba(29, 25, 20, 0.92), rgba(20, 17, 13, 0.88));
+  border: 1px solid rgba(236, 228, 212, 0.16);
+  backdrop-filter: blur(14px);
+  border-radius: 16px;
+  box-shadow: 0 32px 80px -32px rgba(0, 0, 0, 0.7);
+}
+
+/* Кнопки лендинга. */
+.btn-bronze {
+  @apply inline-flex min-h-12 items-center justify-center gap-2 rounded-lg px-6 py-3 text-[15px] font-medium transition-all;
+  background: linear-gradient(160deg, #c08b5c, #8f6039);
+  color: #14110d;
+  box-shadow: 0 12px 32px -12px rgba(192, 139, 92, 0.5);
+}
+.btn-bronze:hover {
+  filter: brightness(1.08);
+  box-shadow: 0 16px 40px -12px rgba(192, 139, 92, 0.65);
+}
+.btn-dark-ghost {
+  @apply inline-flex min-h-12 items-center justify-center gap-2 rounded-lg border px-6 py-3 text-[15px] font-medium transition-colors;
+  border-color: rgba(236, 228, 212, 0.22);
+  color: #ece4d4;
+  background: transparent;
+}
+.btn-dark-ghost:hover {
+  border-color: rgba(236, 228, 212, 0.5);
+  background: rgba(236, 228, 212, 0.05);
+}
+
+/* Reveal при входе в вьюпорт (IntersectionObserver вешает .is-in). */
+.cine {
+  opacity: 0;
+  transform: translateY(26px);
+  transition:
+    opacity 0.9s cubic-bezier(0.16, 1, 0.3, 1),
+    transform 0.9s cubic-bezier(0.16, 1, 0.3, 1),
+    filter 0.9s cubic-bezier(0.16, 1, 0.3, 1);
+  transition-delay: var(--d, 0s);
+  will-change: opacity, transform;
+}
+.cine-blur {
+  filter: blur(10px);
+}
+.cine-scale {
+  transform: translateY(14px) scale(0.96);
+}
+.is-in > .cine,
+.cine.is-in {
+  opacity: 1;
+  transform: none;
+  filter: none;
+}
+
+/* Медленное «дыхание» плавающих карточек героя. */
+@keyframes floatSlow {
+  0%, 100% { transform: translateY(0) rotate(var(--r, 0deg)); }
+  50% { transform: translateY(-12px) rotate(var(--r, 0deg)); }
+}
+.float-slow {
+  animation: floatSlow 7s ease-in-out infinite;
+  animation-delay: var(--d, 0s);
+}
+
+/* Туманные фразы клиента в герое. */
+@keyframes fogDrift {
+  0%, 100% { opacity: 0.5; transform: translate(0, 0); filter: blur(1.5px); }
+  50% { opacity: 0.85; transform: translate(6px, -8px); filter: blur(0.5px); }
+}
+.fog-phrase {
+  animation: fogDrift 9s ease-in-out infinite;
+  animation-delay: var(--d, 0s);
+}
+
+/* Тонкая полоса прогресса чтения. */
+.scroll-progress {
+  transform-origin: 0 50%;
+  transform: scaleX(var(--sp, 0));
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .cine,
+  .is-in > .cine {
+    opacity: 1;
+    transform: none;
+    filter: none;
+    transition: none;
+  }
+  .float-slow,
+  .fog-phrase {
+    animation: none;
+  }
+  .landing video {
+    display: none;
+  }
+}
+
 /* Сдержанное движение: появление с лёгким подъёмом. */
 @keyframes fadeRise {
   from {

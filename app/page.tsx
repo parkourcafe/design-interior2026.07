@@ -1,359 +1,617 @@
-import Link from "next/link";
 import Image from "next/image";
+import Link from "next/link";
 import { ru } from "@/lib/i18n/ru";
-import Reveal from "@/components/reveal";
-import StartClientBrief from "./start-client-brief";
+import LandingNav from "@/components/landing/nav";
+import LandingFooter from "@/components/landing/footer";
+import Hero from "@/components/landing/hero";
+import FogScene from "@/components/landing/fog-scene";
+import LoopScene from "@/components/landing/loop-scene";
+import { Cine, Parallax } from "@/components/landing/cinema";
+import { delay } from "@/components/landing/delay";
+import { MEDIA } from "@/components/landing/media";
 
-const h = ru.home;
+const L = ru.landing;
 
-// Картинки лендинга сгенерированы (Higgsfield). По умолчанию — CDN.
-// Чтобы захостить у себя: скачать файлы (`npm run fetch:media` → public/landing)
-// и выставить NEXT_PUBLIC_MEDIA_BASE=/landing. Имена файлов совпадают.
-const CDN = "https://d8j0ntlcm91z4.cloudfront.net/user_3EKntK4EDjG8nay4H1dy1TK30mB";
-const MEDIA_BASE = process.env.NEXT_PUBLIC_MEDIA_BASE || CDN;
-const IMAGES = {
-  hero: `${MEDIA_BASE}/hf_20260703_075007_9a6ec60b-58b6-4d8a-a8b3-3ebaa80f5016.png`,
-  before: `${MEDIA_BASE}/hf_20260703_061031_e3113877-b81b-42cf-a0cf-3826895023ef.png`,
-  after: `${MEDIA_BASE}/hf_20260703_061053_995c6a8f-96ce-4228-9ee0-20781ac42918.png`,
-  portrait: `${MEDIA_BASE}/hf_20260703_061105_084022de-7e46-4b47-a211-2d1b5e333399.png`,
-  heroVideo: `${MEDIA_BASE}/hf_20260703_080430_a9423e3f-803f-491f-bf4e-fee5c140e115.mp4`,
-};
+// ── Утилиты секций ───────────────────────────────────────────
+
+function Head({
+  eyebrow,
+  title,
+  copy,
+  center = false,
+}: {
+  eyebrow: string;
+  title: string;
+  copy?: string;
+  center?: boolean;
+}) {
+  return (
+    <Cine className={`mb-12 max-w-[780px] ${center ? "mx-auto text-center" : ""}`}>
+      <p className="cine mb-4 text-[12px] uppercase tracking-[0.24em] text-bronze" style={delay(0)}>
+        {eyebrow}
+      </p>
+      <h2
+        className="cine font-display text-[clamp(30px,4.2vw,52px)] font-semibold leading-[1.06] text-ivory"
+        style={delay(1)}
+      >
+        {title}
+      </h2>
+      {copy && (
+        <p className={`cine mt-5 text-[15.5px] leading-relaxed text-ivory/70 ${center ? "mx-auto" : ""} max-w-[62ch]`} style={delay(2)}>
+          {copy}
+        </p>
+      )}
+    </Cine>
+  );
+}
+
+function Shot({ src, alt, ratio = "aspect-[16/9]" }: { src: string; alt: string; ratio?: string }) {
+  return (
+    <div className={`relative overflow-hidden rounded-2xl border border-linedark ${ratio} shadow-[0_40px_100px_-40px_rgba(0,0,0,0.8)]`}>
+      <Image src={src} alt={alt} fill sizes="(max-width: 1024px) 100vw, 1100px" className="object-cover" />
+      <div className="pointer-events-none absolute inset-0 rounded-2xl ring-1 ring-inset ring-ivory/5" />
+    </div>
+  );
+}
+
+function Section({ id, children, className = "" }: { id?: string; children: React.ReactNode; className?: string }) {
+  return (
+    <section id={id} className={`landing relative px-5 py-[clamp(72px,10vw,140px)] md:px-8 ${className}`}>
+      <div className="mx-auto max-w-[1280px]">{children}</div>
+    </section>
+  );
+}
+
+// ── Главная ──────────────────────────────────────────────────
 
 export default function Home() {
   return (
-    <div className="min-h-screen">
-      {/* Шапка */}
-      <header className="sticky top-0 z-40 border-b border-line bg-paper/85 backdrop-blur">
-        <div className="mx-auto flex max-w-[1120px] items-center justify-between px-6 py-3">
-          <Link href="/" className="-my-2 flex items-baseline gap-3 py-2">
-            <span className="font-display text-2xl font-semibold leading-none">{ru.app.name}</span>
-            <span className="hidden text-[11px] uppercase tracking-[0.16em] text-muted sm:inline">
-              {ru.app.tagline}
-            </span>
-          </Link>
-          <Link
-            href="/login"
-            className="-mr-2 inline-flex min-h-11 items-center rounded-lg px-4 text-sm text-muted hover:text-ink"
-          >
-            Войти
-          </Link>
-        </div>
-      </header>
+    <div className="landing min-h-screen">
+      <LandingNav />
+      <main>
+        <Hero />
+        <FogScene />
+        <LoopScene />
+        <HowItWorks />
+        <ForDesigners />
+        <ForStudios />
+        <BriefEngine />
+        <RiskCards />
+        <PricingLogic />
+        <ProposalBuilder />
+        <ClientExperience />
+        <Ownership />
+        <DataSafety />
+        <WhatItCreates />
+        <MeetingAgenda />
+        <Comparison />
+        <NotThis />
+        <FinalCta />
+      </main>
+      <LandingFooter />
+    </div>
+  );
+}
 
-      {/* Hero */}
-      <Reveal>
-        <section className="mx-auto max-w-[1120px] px-6 pb-12 pt-[clamp(56px,9vw,110px)]">
-          <div className="mb-6 text-[13px] uppercase tracking-[0.16em] text-muted">{h.eyebrow}</div>
-          <h1 className="font-display max-w-[16ch] text-[clamp(38px,6.2vw,64px)] font-semibold leading-[1.04] tracking-[-0.5px]">
-            {ru.app.hero}
-          </h1>
-          <p className="mt-6 max-w-[52ch] text-[clamp(17px,2vw,20px)] leading-relaxed text-ink/80">
-            {ru.app.heroSub}
-          </p>
-          <div className="mt-9 flex flex-wrap gap-3">
-            <Link href="/login" className="btn bg-accent px-6 py-3.5 text-base text-white hover:bg-accent/90">
-              Открыть кабинет дизайнера <span className="ml-2">→</span>
-            </Link>
-            <StartClientBrief label="Посмотреть бриф глазами клиента" variant="outline" />
-          </div>
-        </section>
-      </Reveal>
-
-      {/* Обложка */}
-      <Reveal>
-        <section className="mx-auto max-w-[1120px] px-6 pb-9">
-          <video
-            autoPlay
-            muted
-            loop
-            playsInline
-            poster={IMAGES.hero}
-            className="h-[clamp(280px,42vw,520px)] w-full rounded-xl border border-line object-cover"
-          >
-            <source src={IMAGES.heroVideo} type="video/mp4" />
-          </video>
-        </section>
-      </Reveal>
-
-      {/* Развилка */}
-      <Reveal>
-        <section className="mx-auto grid max-w-[1120px] gap-5 px-6 py-11 md:grid-cols-2">
-          <ForkCard
-            color="accent"
-            eyebrow={h.designerTitle}
-            head={h.designerHead}
-            desc={h.designerDesc}
-            cta={<Link href="/login" className="btn self-start bg-accent px-5 py-3 text-white hover:bg-accent/90">{h.designerCta} <span className="ml-2">→</span></Link>}
-          />
-          <ForkCard
-            color="clientaccent"
-            eyebrow={h.clientTitle}
-            head={h.clientHead}
-            desc={h.clientDesc}
-            cta={<StartClientBrief label={h.clientCta} variant="cli" />}
-          />
-        </section>
-      </Reveal>
-
-      {/* Как это работает */}
-      <Reveal>
-        <section className="mx-auto max-w-[1120px] px-6 pb-6 pt-[clamp(50px,8vw,90px)]">
-          <div className="mb-3.5 text-[13px] uppercase tracking-[0.16em] text-muted">Как это работает</div>
-          <h2 className="font-display mb-11 max-w-[20ch] text-[clamp(30px,4.4vw,44px)] font-semibold leading-[1.08]">
-            Три шага от переписки до предложения
-          </h2>
-          <div className="grid gap-6 md:grid-cols-3">
-            <Step n="01" title="Бриф" desc="Клиент отвечает на один вопрос за раз. Крупно, спокойно, по-человечески.">
-              <div className="card bg-paper">
-                <div className="mb-4 flex gap-1.5">
-                  <Bar on /><Bar on /><Bar /><Bar />
-                </div>
-                <div className="font-display mb-4 text-xl leading-tight">Как проходит обычный вечер дома?</div>
-                <div className="rounded-md border border-line px-3 py-2.5 text-[13px] text-muted">Готовим вместе, потом кино…</div>
-              </div>
-            </Step>
-            <Step n="02" title="Паспорт и риски" desc="Система собирает паспорт проекта и подсвечивает противоречия до встречи.">
-              <div className="card bg-paper">
-                <div className="flex justify-between border-b border-line pb-2.5 text-xs text-muted"><span>Площадь</span><span className="text-ink">120 м²</span></div>
-                <div className="flex justify-between pb-3 pt-2.5 text-xs text-muted"><span>Бюджет</span><span className="text-ink">2 000 000 ₽</span></div>
-                <div className="rounded-md border border-line border-l-[3px] border-l-accent bg-[#f6f5f0] px-3 py-2.5">
-                  <div className="mb-1 text-[10.5px] font-semibold uppercase tracking-wider text-accent">Риск · деньги</div>
-                  <div className="text-xs text-ink">Бюджет не согласуется с площадью</div>
-                </div>
-              </div>
-            </Step>
-            <Step n="03" title="КП" desc="Собранное предложение с этапами и вилкой цены — готово к отправке.">
-              <div className="card bg-paper">
-                <div className="font-display mb-3.5 text-lg">Коммерческое предложение</div>
-                <div className="mb-2 h-1.5 w-[90%] rounded bg-[#eceae4]" />
-                <div className="mb-2 h-1.5 w-[75%] rounded bg-[#eceae4]" />
-                <div className="mb-4 h-1.5 w-[82%] rounded bg-[#eceae4]" />
-                <div className="flex items-baseline justify-between border-t border-line pt-3">
-                  <span className="text-xs text-muted">Итого, вилка</span>
-                  <span className="font-display text-xl text-accent">3,4–4,1 млн ₽</span>
-                </div>
-              </div>
-            </Step>
-          </div>
-        </section>
-      </Reveal>
-
-      {/* Из сумбура в структуру */}
-      <Reveal>
-        <section className="mx-auto max-w-[1120px] px-6 py-[clamp(50px,8vw,90px)]">
-          <div className="mb-3.5 text-[13px] uppercase tracking-[0.16em] text-muted">Живой пример</div>
-          <h2 className="font-display mb-3 max-w-[20ch] text-[clamp(30px,4.4vw,44px)] font-semibold leading-[1.08]">
-            Из сумбура — в структуру
-          </h2>
-          <p className="mb-10 max-w-[56ch] leading-relaxed text-muted">
-            Клиент говорит как умеет. Свод превращает свободный рассказ в бриф, с которым можно работать и считать.
-          </p>
-          <div className="grid items-start gap-5 md:grid-cols-2">
-            <div className="rounded-2xl rounded-tl-md border border-clientaccent/25 bg-clientaccent/5 px-7 py-6">
-              <div className="mb-4 text-[11.5px] font-semibold uppercase tracking-[0.14em] text-clientaccent">Как клиент описал</div>
-              <p className="font-display text-[clamp(19px,2.4vw,23px)] font-medium leading-[1.45]">
-                «Ну хотим квартиру, чтобы уютно, но не как у всех. Свет прям очень важен — я по утрам работаю из дома. Кухня большая обязательно, любим готовить и звать гостей. Ребёнку нужна своя комната. Бюджет… ну миллиона два, наверное? И въехать бы к осени.»
-              </p>
+// 4. Как работает
+function HowItWorks() {
+  const s = L.how;
+  return (
+    <Section id="how" className="glow-amber">
+      <Head eyebrow={s.eyebrow} title={s.title} />
+      <Cine className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
+        {s.steps.map(([t, c], i) => (
+          <div key={t} className="cine glass group p-7 transition-colors hover:border-bronze/40" style={delay(i)}>
+            <div className="font-display mb-5 text-[38px] leading-none text-bronze/70 transition-colors group-hover:text-bronze">
+              {String(i + 1).padStart(2, "0")}
             </div>
-            <div className="card">
-              <div className="mb-4 text-[11.5px] font-semibold uppercase tracking-[0.14em] text-accent">Что понял Свод</div>
-              {[
-                ["Объект", "Квартира"],
-                ["Приоритет №1", "Естественный свет · домашний офис"],
-                ["Кухня", "Большая · готовим и зовём гостей"],
-                ["Комнаты", "Отдельная детская"],
-                ["Бюджет", "~2 000 000 ₽ · уточнить"],
-                ["Сроки", "Въезд к осени"],
-              ].map(([k, v], i, arr) => (
-                <div key={k} className={`flex justify-between gap-4 py-2.5 text-[15px] ${i < arr.length - 1 ? "border-b border-[#f0eee8]" : ""}`}>
-                  <span className="text-muted">{k}</span>
-                  <span className="text-right">{v}</span>
+            <div className="mb-2.5 text-[16.5px] font-semibold text-ivory">{t}</div>
+            <p className="text-[14px] leading-relaxed text-ivory/65">{c}</p>
+          </div>
+        ))}
+      </Cine>
+    </Section>
+  );
+}
+
+// 5. Для дизайнеров
+function ForDesigners() {
+  const s = L.designers;
+  const shots = [MEDIA.clientBrief, MEDIA.risks, MEDIA.agenda, MEDIA.proposal];
+  const hrefs = ["/demo/brief", "/demo", "/demo", "/demo/proposal"];
+  return (
+    <Section id="designers">
+      <Head eyebrow={s.eyebrow} title={s.title} />
+      <div className="grid gap-6 md:grid-cols-2">
+        {s.cards.map((card, i) => (
+          <Cine key={card.title}>
+            <div className="cine group overflow-hidden rounded-2xl border border-linedark bg-coal2 transition-colors hover:border-bronze/40" style={delay(i % 2)}>
+              <div className="relative aspect-[16/9] overflow-hidden">
+                <Image
+                  src={shots[i] ?? MEDIA.clientBrief}
+                  alt={card.title}
+                  fill
+                  sizes="(max-width: 768px) 100vw, 620px"
+                  className="object-cover transition-transform duration-700 group-hover:scale-[1.04]"
+                />
+                <div className="absolute inset-0 bg-gradient-to-t from-coal2 via-transparent to-transparent" />
+                <span className="absolute left-5 top-5 rounded-full border border-linedark bg-coal/70 px-3 py-1 text-[11px] uppercase tracking-[0.16em] text-ivory/85 backdrop-blur">
+                  {card.tag}
+                </span>
+              </div>
+              <div className="p-7">
+                <h3 className="font-display mb-2.5 text-[24px] font-semibold leading-tight text-ivory">{card.title}</h3>
+                <p className="mb-5 text-[14.5px] leading-relaxed text-ivory/65">{card.copy}</p>
+                <Link href={hrefs[i] ?? "/demo"} className="inline-flex items-center gap-2 text-[14px] text-bronze underline-offset-4 hover:underline">
+                  {card.cta} <span aria-hidden>→</span>
+                </Link>
+              </div>
+            </div>
+          </Cine>
+        ))}
+      </div>
+      <Cine className="mt-10 text-center">
+        <Link href="/designers" className="cine btn-dark-ghost">
+          {L.nav.designers} <span aria-hidden>→</span>
+        </Link>
+      </Cine>
+    </Section>
+  );
+}
+
+// 6. Для студий
+function ForStudios() {
+  const s = L.studios;
+  return (
+    <Section id="studios" className="border-y border-linedark bg-coal2/50">
+      <div className="grid items-center gap-12 lg:grid-cols-[1fr_1fr]">
+        <div>
+          <Head eyebrow={s.eyebrow} title={s.title} copy={s.copy} />
+          <Cine className="grid gap-4 sm:grid-cols-2">
+            {s.cards.map(([t, c], i) => (
+              <div key={t} className="cine rounded-xl border border-linedark bg-coal/60 p-5" style={delay(i)}>
+                <div className="mb-2 text-[14.5px] font-semibold text-ivory">{t}</div>
+                <p className="text-[13px] leading-relaxed text-ivory/60">{c}</p>
+              </div>
+            ))}
+          </Cine>
+          <Cine className="mt-8">
+            <Link href="/pilot" className="cine btn-bronze">
+              {s.cta} <span aria-hidden>→</span>
+            </Link>
+          </Cine>
+        </div>
+        <Cine>
+          <Parallax amount={26} className="cine">
+            <Shot src={MEDIA.review} alt="Review Board дизайнера — демонстрационный интерфейс" />
+          </Parallax>
+        </Cine>
+      </div>
+    </Section>
+  );
+}
+
+// 7. Движок брифа
+function BriefEngine() {
+  const s = L.engine;
+  return (
+    <Section className="glow-amber">
+      <Head eyebrow={s.eyebrow} title={s.title} copy={s.copy} />
+      <Cine className="grid gap-5 md:grid-cols-2 xl:grid-cols-4">
+        {s.blocks.map(([t, c], i) => (
+          <div key={t} className="cine glass p-6" style={delay(i)}>
+            <div className="mb-3 h-8 w-8 rounded-lg border border-bronze/40 bg-bronze/10" aria-hidden />
+            <div className="mb-2 text-[15.5px] font-semibold text-ivory">{t}</div>
+            <p className="text-[13.5px] leading-relaxed text-ivory/60">{c}</p>
+          </div>
+        ))}
+      </Cine>
+      <Cine className="mt-8 flex flex-wrap items-center gap-2.5">
+        <span className="cine text-[12.5px] text-ivorymuted">{s.metaNote}</span>
+        {s.meta.map((m, i) => (
+          <span key={m} className="cine rounded-full border border-olive/40 bg-olive/10 px-3 py-1 text-[12px] text-olive" style={delay(i + 1)}>
+            {m}
+          </span>
+        ))}
+      </Cine>
+    </Section>
+  );
+}
+
+// 8. Риск-карточки / доверие к AI
+function RiskCards() {
+  const s = L.risks;
+  return (
+    <Section id="risks">
+      <div className="grid items-start gap-12 lg:grid-cols-[0.9fr_1.1fr]">
+        <div className="lg:sticky lg:top-28">
+          <Head eyebrow={s.eyebrow} title={s.title} copy={s.copy} />
+          <Cine>
+            <p className="cine font-display text-[22px] italic text-bronze">{s.principle}</p>
+            <p className="cine mt-5 max-w-[52ch] rounded-xl border border-linedark bg-coal2/70 p-4 text-[13px] leading-relaxed text-ivory/60" style={delay(1)}>
+              {s.fallback}
+            </p>
+            <Link href="/demo" className="cine mt-6 inline-flex items-center gap-2 text-[14.5px] text-bronze underline-offset-4 hover:underline" style={delay(2)}>
+              {s.cta} <span aria-hidden>→</span>
+            </Link>
+          </Cine>
+        </div>
+        <div className="space-y-5">
+          <Cine>
+            <Parallax amount={20} className="cine">
+              <Shot src={MEDIA.risks} alt="Риск-карточки вокруг плана квартиры — стилизованная демонстрация" />
+            </Parallax>
+          </Cine>
+          {s.cards.map((c, i) => (
+            <Cine key={c.type}>
+              <div className="cine glass-strong p-6" style={delay(i % 2)}>
+                <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
+                  <span className="text-[11px] font-semibold uppercase tracking-[0.16em] text-bronze">
+                    Риск · {c.type}
+                  </span>
+                  <span className="flex items-center gap-2">
+                    <span className="rounded-full border border-olive/40 bg-olive/10 px-2.5 py-0.5 text-[11px] text-olive">
+                      {s.labels.source}: {c.source}
+                    </span>
+                    <span className="rounded-full bg-bronze/15 px-2.5 py-0.5 text-[11px] text-bronze">
+                      {s.labels.confidence}: {c.confidence}
+                    </span>
+                  </span>
+                </div>
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <div>
+                    <div className="text-[10.5px] uppercase tracking-[0.16em] text-ivorymuted">{s.labels.evidence}</div>
+                    <p className="mt-1 font-display text-[18px] leading-snug text-ivory">{c.evidence}</p>
+                  </div>
+                  <div>
+                    <div className="text-[10.5px] uppercase tracking-[0.16em] text-ivorymuted">{s.labels.impact}</div>
+                    <p className="mt-1 text-[13.5px] leading-relaxed text-ivory/70">{c.impact}</p>
+                  </div>
+                </div>
+              </div>
+            </Cine>
+          ))}
+        </div>
+      </div>
+    </Section>
+  );
+}
+
+// 9. Логика цены
+function PricingLogic() {
+  const s = L.pricing;
+  return (
+    <Section className="border-y border-linedark bg-coal2/50">
+      <div className="grid items-center gap-12 lg:grid-cols-2">
+        <div>
+          <Head eyebrow={s.eyebrow} title={s.title} copy={s.copy} />
+          <Cine className="glass-strong overflow-hidden">
+            {s.rows.map(([k, v], i) => (
+              <div key={k} className="cine flex items-baseline justify-between gap-4 border-b border-linedark px-6 py-3.5" style={delay(i)}>
+                <span className="text-[13.5px] text-ivorymuted">{k}</span>
+                <span className="text-[14px] text-ivory">{v}</span>
+              </div>
+            ))}
+            <div className="cine flex items-baseline justify-between gap-4 bg-bronze/10 px-6 py-4" style={delay(5)}>
+              <span className="text-[13.5px] font-medium text-bronze">{s.total[0]}</span>
+              <span className="font-display text-[24px] text-bronze">{s.total[1]}</span>
+            </div>
+          </Cine>
+          <Cine className="mt-3">
+            <p className="cine text-[11.5px] text-ivorymuted/70">{s.demoNote}</p>
+          </Cine>
+        </div>
+        <div>
+          <Cine>
+            <Parallax amount={24} className="cine">
+              <Shot src={MEDIA.pricing} alt="Конструктор логики цены — демонстрационный интерфейс" />
+            </Parallax>
+          </Cine>
+          <Cine className="cine glass mt-6 p-6">
+            <div className="mb-3 text-[14.5px] font-semibold text-ivory">{s.onboarding.q}</div>
+            <div className="space-y-2">
+              {s.onboarding.options.map((o, i) => (
+                <div key={o} className="flex items-center gap-3 rounded-lg border border-linedark px-4 py-2.5 text-[13.5px] text-ivory/75">
+                  <span className={`h-3.5 w-3.5 rounded-full border ${i === 0 ? "border-bronze bg-bronze" : "border-linedark"}`} aria-hidden />
+                  {o}
                 </div>
               ))}
             </div>
-          </div>
-        </section>
-      </Reveal>
-
-      {/* До / после */}
-      <Reveal>
-        <section className="mx-auto max-w-[1120px] px-6 py-[clamp(50px,8vw,90px)]">
-          <div className="mb-3.5 text-[13px] uppercase tracking-[0.16em] text-muted">Портфолио</div>
-          <h2 className="font-display mb-10 max-w-[22ch] text-[clamp(30px,4.4vw,44px)] font-semibold leading-[1.08]">
-            До и после — язык, который клиент понимает без слов
-          </h2>
-          <div className="grid gap-5 md:grid-cols-2">
-            <div>
-              <div className="mb-3 text-xs font-semibold uppercase tracking-[0.14em] text-muted">До</div>
-              <div className="relative h-[clamp(240px,30vw,380px)] w-full overflow-hidden rounded-xl border border-line">
-                <Image
-                  src={IMAGES.before}
-                  alt="До ремонта"
-                  fill
-                  sizes="(max-width: 768px) 100vw, 560px"
-                  className="object-cover"
-                />
-              </div>
-            </div>
-            <div>
-              <div className="mb-3 text-xs font-semibold uppercase tracking-[0.14em] text-accent">После</div>
-              <div className="relative h-[clamp(240px,30vw,380px)] w-full overflow-hidden rounded-xl border border-line">
-                <Image
-                  src={IMAGES.after}
-                  alt="После ремонта"
-                  fill
-                  sizes="(max-width: 768px) 100vw, 560px"
-                  className="object-cover"
-                />
-              </div>
-            </div>
-          </div>
-        </section>
-      </Reveal>
-
-      {/* Доказательство — карточка риска */}
-      <Reveal>
-        <section className="mx-auto max-w-[1120px] px-6 py-[clamp(50px,8vw,90px)]">
-          <div className="grid items-center gap-[clamp(28px,5vw,56px)] rounded-2xl border border-line bg-[#f6f5f0] p-[clamp(28px,5vw,56px)] md:grid-cols-2">
-            <div>
-              <div className="mb-4 text-[13px] uppercase tracking-[0.16em] text-muted">Оно думает за вас</div>
-              <h2 className="font-display mb-4 text-[clamp(28px,4vw,40px)] font-semibold leading-[1.1]">
-                Ловит противоречия, которые всплыли бы на монтаже
-              </h2>
-              <p className="leading-relaxed text-muted">
-                Каждая карточка помечена источником: жёсткое правило или гипотеза системы. Вы решаете, что принять.
-              </p>
-            </div>
-            <div className="rounded-xl border border-line bg-paper p-6 shadow-[0_12px_40px_-24px_rgba(26,26,26,0.28)]">
-              <div className="mb-4 flex items-center justify-between gap-3">
-                <span className="text-[11px] font-semibold uppercase tracking-[0.14em] text-accent">Риск · деньги</span>
-                <span className="rounded-full border border-accent/30 bg-accent/10 px-2.5 py-1 text-xs font-medium text-accent">Правило · высокая уверенность</span>
-              </div>
-              <p className="font-display mb-3.5 text-[23px] leading-[1.28]">
-                Бюджет 2 000 000 ₽ противоречит площади 120 м² — уточните вилку.
-              </p>
-              <p className="mb-5 text-sm leading-relaxed text-muted">
-                Средняя стоимость реализации в этом сегменте — 28–34 тыс ₽/м². Реалистичная вилка: 3,4–4,1 млн ₽.
-              </p>
-              <div className="flex gap-2.5">
-                <span className="btn flex-1 bg-accent text-white">Принять</span>
-                <span className="btn flex-1 border border-line bg-white text-ink">Отклонить</span>
-              </div>
-            </div>
-          </div>
-        </section>
-      </Reveal>
-
-      {/* Безопасность */}
-      <Reveal>
-        <section className="mx-auto max-w-[1120px] px-6 py-[clamp(50px,8vw,90px)]">
-          <div className="mb-3.5 text-[13px] uppercase tracking-[0.16em] text-muted">{h.securityEyebrow}</div>
-          <h2 className="font-display mb-10 max-w-[20ch] text-[clamp(30px,4.4vw,44px)] font-semibold leading-[1.08]">
-            {h.securityTitle}
-          </h2>
-          <div className="grid gap-5 md:grid-cols-3">
-            {h.security.map((s, i) => (
-              <div key={i} className="card">
-                <div className="font-display mb-3 text-2xl text-accent">{String(i + 1).padStart(2, "0")}</div>
-                <p className="text-[15px] leading-relaxed text-ink/85">{s}</p>
-              </div>
-            ))}
-          </div>
-        </section>
-      </Reveal>
-
-      {/* FAQ */}
-      <Reveal>
-        <section className="mx-auto max-w-[1120px] px-6 py-[clamp(50px,8vw,90px)]">
-          <div className="mb-3.5 text-[13px] uppercase tracking-[0.16em] text-muted">{h.faqEyebrow}</div>
-          <h2 className="font-display mb-10 max-w-[20ch] text-[clamp(30px,4.4vw,44px)] font-semibold leading-[1.08]">
-            {h.faqTitle}
-          </h2>
-          <div className="mx-auto grid max-w-[820px] gap-3">
-            {h.faq.map((item, i) => (
-              <details key={i} className="card group">
-                <summary className="flex cursor-pointer list-none items-center justify-between gap-4 font-medium">
-                  {item.q}
-                  <span className="text-xl text-muted transition group-open:rotate-45">+</span>
-                </summary>
-                <p className="mt-3 text-[15px] leading-relaxed text-muted">{item.a}</p>
-              </details>
-            ))}
-          </div>
-        </section>
-      </Reveal>
-
-      {/* Отзыв + футер */}
-      <Reveal>
-        <section className="mx-auto max-w-[1120px] px-6 pb-[clamp(60px,9vw,110px)]">
-          <div className="mb-[clamp(44px,7vw,76px)] grid items-center gap-[clamp(28px,5vw,56px)] md:grid-cols-2">
-            <div className="relative h-[clamp(280px,34vw,380px)] w-full overflow-hidden rounded-xl border border-line">
-              <Image
-                src={IMAGES.portrait}
-                alt="Дизайнер"
-                fill
-                sizes="(max-width: 768px) 100vw, 560px"
-                className="object-cover"
-              />
-            </div>
-            <div>
-              <div className="mb-5 text-xs font-semibold uppercase tracking-[0.16em] text-accent">Дизайнеры о «Своде»</div>
-              <p className="font-display mb-5 text-[clamp(24px,3.2vw,33px)] font-medium leading-[1.3]">
-                «Клиент приходит на встречу, уже понимая вилку цены. Мы обсуждаем проект, а не выбиваем бюджет.»
-              </p>
-              <div className="text-[15px] font-semibold">Анна Ковалёва</div>
-              <div className="text-sm text-muted">Дизайн-бюро «Формула», Москва</div>
-            </div>
-          </div>
-          <div className="flex flex-wrap items-center justify-between gap-4 border-t border-line pt-7">
-            <p className="m-0 max-w-[64ch] text-sm leading-relaxed text-muted">{h.trust}</p>
-            <span className="font-display text-[22px]">{ru.app.name}</span>
-          </div>
-        </section>
-      </Reveal>
-    </div>
-  );
-}
-
-function ForkCard({
-  color,
-  eyebrow,
-  head,
-  desc,
-  cta,
-}: {
-  color: "accent" | "clientaccent";
-  eyebrow: string;
-  head: string;
-  desc: string;
-  cta: React.ReactNode;
-}) {
-  const bar = color === "accent" ? "bg-accent" : "bg-clientaccent";
-  const text = color === "accent" ? "text-accent" : "text-clientaccent";
-  return (
-    <div className="relative flex flex-col overflow-hidden rounded-xl border border-line bg-paper px-8 py-9">
-      <div className={`absolute inset-y-0 left-0 w-1 ${bar}`} />
-      <div className={`mb-4 text-xs font-semibold uppercase tracking-[0.16em] ${text}`}>{eyebrow}</div>
-      <h3 className="font-display mb-3 text-[30px] font-semibold leading-[1.1]">{head}</h3>
-      <p className="mb-6 flex-1 text-[15.5px] leading-relaxed text-muted">{desc}</p>
-      {cta}
-    </div>
-  );
-}
-
-function Step({ n, title, desc, children }: { n: string; title: string; desc: string; children: React.ReactNode }) {
-  return (
-    <div>
-      <div className="mb-4 flex items-baseline gap-3">
-        <span className="font-display text-[34px] leading-none text-accent">{n}</span>
-        <span className="text-[17px] font-semibold">{title}</span>
+            <p className="mt-4 text-[12.5px] leading-relaxed text-ivorymuted">{s.onboarding.note}</p>
+          </Cine>
+        </div>
       </div>
-      <p className="mb-5 min-h-[44px] text-[14.5px] leading-relaxed text-muted">{desc}</p>
-      {children}
-    </div>
+    </Section>
   );
 }
 
-function Bar({ on = false }: { on?: boolean }) {
-  return <div className={`h-1 flex-1 rounded-full ${on ? "bg-clientaccent" : "bg-line"}`} />;
+// 10. Конструктор КП
+function ProposalBuilder() {
+  const s = L.proposalS;
+  return (
+    <Section className="glow-amber">
+      <Head eyebrow={s.eyebrow} title={s.title} copy={s.copy} />
+      <div className="grid items-start gap-12 lg:grid-cols-2">
+        <Cine>
+          <Parallax amount={22} className="cine">
+            <Shot src={MEDIA.proposal} alt="КП собирается из структурированных блоков — стилизованная демонстрация" />
+          </Parallax>
+        </Cine>
+        <div>
+          <Cine className="flex flex-wrap gap-2">
+            {s.sections.map((sec, i) => (
+              <span key={sec} className="cine rounded-lg border border-linedark bg-coal2/80 px-3.5 py-2 text-[13px] text-ivory/80" style={delay(i, 0.05)}>
+                {sec}
+              </span>
+            ))}
+          </Cine>
+          <Cine className="mt-8">
+            <div className="cine mb-2 text-[11px] uppercase tracking-[0.2em] text-ivorymuted">{s.statusesLabel}</div>
+            <div className="cine flex flex-wrap items-center gap-2" style={delay(1)}>
+              {s.statuses.map((st, i) => (
+                <span key={st} className="flex items-center gap-2">
+                  <span className={`rounded-full px-3 py-1 text-[12px] ${i >= 3 ? "border border-olive/40 bg-olive/10 text-olive" : "border border-linedark text-ivorymuted"}`}>
+                    {st}
+                  </span>
+                  {i < s.statuses.length - 1 && <span aria-hidden className="text-ivorymuted/40">→</span>}
+                </span>
+              ))}
+            </div>
+          </Cine>
+          <Cine className="mt-8 space-y-3">
+            <p className="cine text-[14.5px] text-ivory/80">{s.clientCta}</p>
+            <p className="cine text-[13px] leading-relaxed text-ivorymuted" style={delay(1)}>{s.honest}</p>
+            <Link href="/demo/proposal" className="cine btn-bronze mt-2" style={delay(2)}>
+              {s.cta} <span aria-hidden>→</span>
+            </Link>
+          </Cine>
+        </div>
+      </div>
+    </Section>
+  );
+}
+
+// 11. Опыт клиента
+function ClientExperience() {
+  const s = L.clientx;
+  return (
+    <Section>
+      <div className="grid items-center gap-12 lg:grid-cols-2">
+        <div className="order-2 lg:order-1">
+          <Cine>
+            <Parallax amount={20} className="cine">
+              <Shot src={MEDIA.clientBrief} alt="Клиентский бриф с брендингом студии — демонстрационный интерфейс" />
+            </Parallax>
+          </Cine>
+        </div>
+        <div className="order-1 lg:order-2">
+          <Head eyebrow={s.eyebrow} title={s.title} copy={s.copy} />
+          <Cine className="space-y-2.5">
+            {s.points.map((p, i) => (
+              <div key={p} className="cine flex items-start gap-3 text-[14.5px] text-ivory/80" style={delay(i)}>
+                <span className="mt-1 flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-olive/20 text-[10px] text-olive">✓</span>
+                {p}
+              </div>
+            ))}
+          </Cine>
+          <Cine className="cine glass mt-8 max-w-[420px] p-6">
+            <div className="font-display mb-2 text-[20px] text-ivory">{s.finalTitle}</div>
+            {s.finalLines.map((l) => (
+              <p key={l} className="text-[13.5px] leading-relaxed text-ivory/65">{l}</p>
+            ))}
+          </Cine>
+        </div>
+      </div>
+    </Section>
+  );
+}
+
+// 12. Дизайнер владеет отношением
+function Ownership() {
+  const s = L.ownership;
+  return (
+    <Section className="border-y border-linedark bg-coal2/50">
+      <div className="grid items-center gap-12 lg:grid-cols-2">
+        <div>
+          <Head eyebrow={s.eyebrow} title={s.title} copy={s.copy} />
+          <Cine className="space-y-4">
+            {s.cards.map(([t, c], i) => (
+              <div key={t} className="cine rounded-xl border border-linedark bg-coal/60 p-5" style={delay(i)}>
+                <div className="mb-1.5 text-[14.5px] font-semibold text-ivory">{t}</div>
+                <p className="text-[13px] leading-relaxed text-ivory/60">{c}</p>
+              </div>
+            ))}
+          </Cine>
+          <Cine className="mt-8">
+            <p className="cine font-display text-[24px] italic leading-snug text-bronze">{s.trust}</p>
+          </Cine>
+        </div>
+        <Cine>
+          <Parallax amount={26} className="cine">
+            <Shot src={MEDIA.ownership} alt="Одна ссылка на бриф — одна студия: без маркетплейса" />
+          </Parallax>
+        </Cine>
+      </div>
+    </Section>
+  );
+}
+
+// 13. Данные
+function DataSafety() {
+  const s = L.safety;
+  return (
+    <Section id="safety" className="glow-amber">
+      <div className="grid items-start gap-12 lg:grid-cols-[1.05fr_0.95fr]">
+        <div>
+          <Head eyebrow={s.eyebrow} title={s.title} />
+          <Cine className="grid gap-4 sm:grid-cols-2">
+            {s.cards.map(([t, c], i) => (
+              <div key={t} className="cine glass p-6" style={delay(i)}>
+                <div className="mb-2 text-[14.5px] font-semibold text-ivory">{t}</div>
+                <p className="text-[13px] leading-relaxed text-ivory/60">{c}</p>
+              </div>
+            ))}
+          </Cine>
+          <Cine className="mt-6">
+            <p className="cine max-w-[70ch] text-[13px] leading-relaxed text-ivorymuted">{s.note}</p>
+            <Link href="/security" className="cine mt-4 inline-flex items-center gap-2 text-[14.5px] text-bronze underline-offset-4 hover:underline" style={delay(1)}>
+              {s.cta} <span aria-hidden>→</span>
+            </Link>
+          </Cine>
+        </div>
+        <Cine>
+          <Parallax amount={24} className="cine">
+            <Shot src={MEDIA.safety} alt="Данные клиента собраны в одном рабочем пространстве студии" ratio="aspect-[16/10]" />
+          </Parallax>
+        </Cine>
+      </div>
+    </Section>
+  );
+}
+
+// 14. Что создаёт ARHIDOM
+function WhatItCreates() {
+  const s = L.creates;
+  return (
+    <Section>
+      <Head eyebrow={s.eyebrow} title={s.title} center />
+      <Cine className="grid gap-5 md:grid-cols-2 xl:grid-cols-5">
+        {s.cats.map((cat, i) => (
+          <div key={cat.title} className="cine glass p-6 transition-colors hover:border-bronze/40" style={delay(i)}>
+            <div className="font-display mb-4 text-[20px] font-semibold text-ivory">{cat.title}</div>
+            <div className="flex flex-wrap gap-1.5">
+              {cat.items.map((it) => (
+                <span key={it} className="rounded-md border border-linedark px-2 py-1 text-[11.5px] text-ivory/60">
+                  {it}
+                </span>
+              ))}
+            </div>
+          </div>
+        ))}
+      </Cine>
+    </Section>
+  );
+}
+
+// 15. Повестка первой встречи
+function MeetingAgenda() {
+  const s = L.agenda;
+  return (
+    <Section className="border-y border-linedark bg-coal2/50">
+      <div className="grid items-center gap-12 lg:grid-cols-2">
+        <Cine>
+          <Parallax amount={24} className="cine">
+            <Shot src={MEDIA.agenda} alt="Повестка первой встречи — карточки вопросов" />
+          </Parallax>
+        </Cine>
+        <div>
+          <Head eyebrow={s.eyebrow} title={s.title} copy={s.copy} />
+          <Cine className="space-y-2">
+            {s.items.map((it, i) => (
+              <div key={it} className="cine flex items-center gap-3 rounded-lg border border-linedark bg-coal/60 px-4 py-3 text-[14px] text-ivory/80" style={delay(i, 0.06)}>
+                <span className="font-display text-[15px] text-bronze/80">{String(i + 1).padStart(2, "0")}</span>
+                {it}
+              </div>
+            ))}
+          </Cine>
+          <Cine className="mt-7">
+            <Link href="/demo" className="cine inline-flex items-center gap-2 text-[14.5px] text-bronze underline-offset-4 hover:underline">
+              {s.cta} <span aria-hidden>→</span>
+            </Link>
+          </Cine>
+        </div>
+      </div>
+    </Section>
+  );
+}
+
+// 16. Сравнение
+function Comparison() {
+  const s = L.compare;
+  return (
+    <Section>
+      <Head eyebrow={s.eyebrow} title={s.title} center />
+      <div className="mx-auto max-w-[980px] space-y-3">
+        {s.rows.map(([who, problem, ours], i) => (
+          <Cine key={who}>
+            <div className="cine grid gap-3 rounded-xl border border-linedark bg-coal2/70 p-5 md:grid-cols-[180px_1fr_1fr] md:gap-6 md:p-6" style={delay(i % 3, 0.07)}>
+              <div className="font-display text-[18px] font-semibold leading-tight text-ivory">{who}</div>
+              <div>
+                <div className="mb-1 text-[10.5px] uppercase tracking-[0.16em] text-ivorymuted/70 md:hidden">{s.colProblem}</div>
+                <p className="text-[13.5px] leading-relaxed text-ivory/55">{problem}</p>
+              </div>
+              <div className="border-linedark md:border-l md:pl-6">
+                <div className="mb-1 text-[10.5px] uppercase tracking-[0.16em] text-bronze/80">{s.colOurs}</div>
+                <p className="text-[13.5px] leading-relaxed text-ivory/85">{ours}</p>
+              </div>
+            </div>
+          </Cine>
+        ))}
+      </div>
+    </Section>
+  );
+}
+
+// 17. Фокус (что мы — не)
+function NotThis() {
+  const s = L.notthis;
+  return (
+    <Section className="glow-amber">
+      <Head eyebrow={s.eyebrow} title={s.title} center />
+      <Cine className="mx-auto grid max-w-[980px] gap-4 sm:grid-cols-2 xl:grid-cols-3">
+        {s.cards.map(([t, c], i) => (
+          <div key={t} className="cine rounded-xl border border-linedark bg-coal2/60 p-5" style={delay(i, 0.06)}>
+            <div className="mb-1.5 text-[14px] font-semibold text-ivory/90">{t}</div>
+            <p className="text-[12.5px] leading-relaxed text-ivory/55">{c}</p>
+          </div>
+        ))}
+      </Cine>
+    </Section>
+  );
+}
+
+// 18. Финальный CTA
+function FinalCta() {
+  const s = L.cta;
+  return (
+    <Section className="relative overflow-hidden">
+      <div className="grid-arch absolute inset-0 opacity-50" aria-hidden />
+      <div className="glow-amber absolute inset-0" aria-hidden />
+      <div className="relative mx-auto max-w-[900px] text-center">
+        <Cine>
+          <div className="cine mx-auto mb-10 flex flex-wrap items-center justify-center gap-2.5">
+            {s.orbit.map((o, i) => (
+              <span
+                key={o}
+                className="float-slow rounded-full border border-bronze/30 bg-coal2/80 px-4 py-1.5 text-[12.5px] text-bronze/90"
+                style={{ ...delay(i, 0.9), "--r": `${(i % 2 ? 1 : -1) * 0.8}deg` } as React.CSSProperties}
+              >
+                {o}
+              </span>
+            ))}
+          </div>
+          <h2 className="cine font-display text-[clamp(34px,5vw,64px)] font-semibold leading-[1.04] text-ivory" style={delay(1)}>
+            {s.title}
+          </h2>
+          <p className="cine mx-auto mt-6 max-w-[62ch] text-[15.5px] leading-relaxed text-ivory/70" style={delay(2)}>
+            {s.sub}
+          </p>
+          <div className="cine mt-10 flex flex-wrap items-center justify-center gap-3" style={delay(3)}>
+            <Link href="/demo/brief" className="btn-bronze">
+              {s.c1} <span aria-hidden>→</span>
+            </Link>
+            <Link href="/login" className="btn-dark-ghost">
+              {s.c2}
+            </Link>
+            <Link href="/demo/proposal" className="inline-flex min-h-12 items-center px-2 text-[15px] text-ivorymuted underline-offset-4 hover:text-ivory hover:underline">
+              {s.c3}
+            </Link>
+          </div>
+          <p className="cine mt-8 text-[12.5px] tracking-wide text-ivorymuted" style={delay(4)}>
+            {s.trust}
+          </p>
+        </Cine>
+      </div>
+    </Section>
+  );
 }
