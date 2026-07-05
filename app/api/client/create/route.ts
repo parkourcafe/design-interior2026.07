@@ -1,12 +1,21 @@
 import { NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { makeToken } from "@/lib/tokens";
+import { checkRateLimit, clientIp } from "@/lib/rate-limit";
 
 export const dynamic = "force-dynamic";
 
 // Клиентский бриф (вариант 2): создаём проект БЕЗ дизайнера. Клиент проходит
 // бриф по возвращённому токену и потом сам рассылает публичную ссылку-бриф.
-export async function POST() {
+export async function POST(request: Request) {
+  // Не более 10 новых клиентских брифов с одного IP в час.
+  if (!(await checkRateLimit("client_create", clientIp(request), 10, 60 * 60 * 1000))) {
+    return NextResponse.json(
+      { error: "Слишком много попыток. Попробуйте позже." },
+      { status: 429 },
+    );
+  }
+
   const admin = createAdminClient();
   const intakeToken = makeToken();
 

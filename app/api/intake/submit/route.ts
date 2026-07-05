@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getProjectByIntakeToken } from "@/lib/intake";
 import { runRiskPipeline } from "@/lib/brief/pipeline";
+import { checkRateLimit, clientIp } from "@/lib/rate-limit";
 import type { AnswersMap, RiskCard } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
@@ -10,6 +11,14 @@ export const dynamic = "force-dynamic";
 // (rules + LLM с деградацией), выставить статус brief_completed,
 // событие brief_completed.
 export async function POST(request: Request) {
+  // Защита стоимости LLM: не более 30 завершений брифа с одного IP в час.
+  if (!(await checkRateLimit("intake_submit", clientIp(request), 30, 60 * 60 * 1000))) {
+    return NextResponse.json(
+      { error: "Слишком много попыток. Попробуйте позже." },
+      { status: 429 },
+    );
+  }
+
   const body = (await request.json().catch(() => ({}))) as {
     token?: string;
     answers?: AnswersMap;

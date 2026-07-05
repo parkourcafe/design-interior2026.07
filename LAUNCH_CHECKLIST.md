@@ -16,7 +16,7 @@
 | Код Фазы 4 (Вход Б) не влит раньше времени | ✅ |
 | Отладочный мусор / лишние зависимости | ✅ нет |
 | Открытый редирект в `/auth/callback` | ✅ закрыт (валидация `next`) |
-| **Rate-limit на публичных роутах** (`intake`, `auth/register`) | ⚠️ нет — для пилота ок, до широкого запуска добавить (в `BACKLOG.md`) |
+| **Rate-limit на публичных роутах** (`auth/register`, `client/create`, `intake/submit`) | ✅ реализован (лимит по IP, fail-open). Активируется после применения миграции `0005_rate_limits.sql`. Капча — на будущее. |
 
 **Вывод аудита:** критичных проблем нет. Для пилота — можно запускать.
 
@@ -42,6 +42,7 @@
 - [ ] Кликнуть «Войти через Google» — убедиться, что заводит в кабинет.
 
 **По желанию / на потом:**
+- [ ] **Активировать rate-limit:** применить миграцию `supabase/migrations/0005_rate_limits.sql` в Supabase (SQL Editor → вставить → Run). До этого лимит просто неактивен, продукт работает (fail-open).
 - [ ] Доделать **Resend** (надёжная почта): Resend → API key → Supabase → Emails → SMTP (host `smtp.resend.com`, port `587`, user `resend`, пароль = ключ, sender `noreply@arhidom.space`) → Save. Инструкция: `supabase/email-templates/README.md`. Для пилота не обязательно (вход по Google/паролю писем не требует).
 
 *Тумблеры «Confirm email» и «Leaked password» в Supabase трогать НЕ нужно — обойдены в коде.*

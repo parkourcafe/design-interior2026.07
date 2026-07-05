@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { checkRateLimit, clientIp } from "@/lib/rate-limit";
 
 export const dynamic = "force-dynamic";
 
@@ -8,6 +9,14 @@ export const dynamic = "force-dynamic";
 // (`email_confirm: true`). Клиент затем входит по паролю. Так регистрация не
 // упирается ни в SMTP, ни в настройку «Confirm email».
 export async function POST(request: Request) {
+  // Не более 10 регистраций с одного IP в час.
+  if (!(await checkRateLimit("register", clientIp(request), 10, 60 * 60 * 1000))) {
+    return NextResponse.json(
+      { error: "Слишком много попыток. Попробуйте позже." },
+      { status: 429 },
+    );
+  }
+
   const body = (await request.json().catch(() => ({}))) as {
     email?: unknown;
     password?: unknown;
