@@ -3,13 +3,9 @@
 import { useState } from "react";
 import { ru } from "@/lib/i18n/ru";
 
-async function supabaseClient() {
-  const { createClient } = await import("@/lib/supabase/browser");
-  return createClient();
-}
-
 // Задать/сменить пароль для уже залогиненного дизайнера. Включает вход по
 // почте+паролю с любого устройства (и передачу доступа общим логином/паролем).
+// Через серверный роут (service role) — в обход проверки «слабый пароль».
 export default function SetPassword({ email }: { email: string }) {
   const [password, setPassword] = useState("");
   const [busy, setBusy] = useState(false);
@@ -21,11 +17,15 @@ export default function SetPassword({ email }: { email: string }) {
     setBusy(true);
     setError(null);
     setOk(false);
-    const supabase = await supabaseClient();
-    const { error } = await supabase.auth.updateUser({ password });
+    const res = await fetch("/api/auth/set-password", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ password }),
+    });
+    const json = (await res.json().catch(() => ({}))) as { error?: string };
     setBusy(false);
-    if (error) {
-      setError(error.message);
+    if (!res.ok) {
+      setError(json.error ?? "Не удалось сохранить пароль.");
     } else {
       setOk(true);
       setPassword("");
