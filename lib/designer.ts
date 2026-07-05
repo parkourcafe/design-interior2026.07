@@ -48,6 +48,20 @@ export interface DesignerPublic {
   profile: DesignerProfile;
 }
 
+// Профиль заполнен достаточно, чтобы отправлять бриф клиенту: есть имя/студия
+// И телефон И email (соцсети — по желанию). Клиент должен видеть, от кого бриф.
+export function isProfileComplete(d: {
+  name?: string;
+  studio_name?: string;
+  profile?: DesignerProfile;
+}): boolean {
+  const hasName = Boolean((d.name ?? "").trim() || (d.studio_name ?? "").trim());
+  const p = d.profile ?? {};
+  const hasPhone = Boolean((p.phone ?? "").trim());
+  const hasEmail = Boolean((p.email ?? "").trim());
+  return hasName && hasPhone && hasEmail;
+}
+
 // Публичные данные дизайнера для показа клиенту на брифе (service role, без сессии).
 // email берём из auth.users как запасной идентификатор — чтобы клиент ВСЕГДА
 // знал, от кого пришёл бриф, даже если дизайнер не заполнил имя/студию.
