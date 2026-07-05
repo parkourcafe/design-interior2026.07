@@ -2,7 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { appUrl } from "@/lib/env";
+import { requestBaseUrl } from "@/lib/base-url";
 import { ru } from "@/lib/i18n/ru";
 import type { Passport } from "@/lib/types";
 import { questionById } from "@/lib/brief/questions";
@@ -41,7 +41,7 @@ export default async function ProjectPage({ params }: { params: { id: string } }
       ["brief_completed", "proposal_draft", "proposal_sent"].includes(p.status),
   );
 
-  const intakeUrl = `${appUrl()}/i/${p.intake_token}`;
+  const intakeUrl = `${requestBaseUrl()}/i/${p.intake_token}`;
 
   return (
     <div>
