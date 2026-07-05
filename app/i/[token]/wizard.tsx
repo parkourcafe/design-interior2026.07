@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { quickQuestions, deepQuestions, type Question } from "@/lib/brief/questions";
 import { ru } from "@/lib/i18n/ru";
+import { supportEmail } from "@/lib/env";
 import ShareBrief from "@/components/share-brief";
 import DesignerCard from "@/components/designer-card";
 import type { DesignerPublic } from "@/lib/designer";
@@ -145,8 +146,10 @@ export default function IntakeWizard({
       case "budget":
         return Boolean(v && typeof v === "object" && "range" in (v as object));
       case "contact": {
-        const c = (v ?? {}) as { name?: string; phone?: string; email?: string };
-        return Boolean(c.name?.trim() && (c.phone?.trim() || c.email?.trim()));
+        const c = (v ?? {}) as { name?: string; phone?: string; email?: string; consent?: boolean };
+        return Boolean(
+          c.name?.trim() && (c.phone?.trim() || c.email?.trim()) && c.consent === true,
+        );
       }
       case "multi":
         return Array.isArray(v) && v.length > 0;
@@ -295,6 +298,11 @@ export default function IntakeWizard({
             value={answers[question.id]}
             onChange={(v) => setAnswer(question.id, v)}
             token={token}
+            supportLine={
+              designer
+                ? ru.brief.supportViaDesigner
+                : `${ru.brief.supportEmail} ${supportEmail()}`
+            }
           />
 
           {question.type !== "files" && (
@@ -336,11 +344,13 @@ function QuestionInput({
   value,
   onChange,
   token,
+  supportLine,
 }: {
   question: Question;
   value: unknown;
   onChange: (v: unknown) => void;
   token: string;
+  supportLine?: string;
 }) {
   switch (question.type) {
     case "object":
@@ -372,7 +382,7 @@ function QuestionInput({
     case "style":
       return <StyleInput value={value} onChange={onChange} />;
     case "contact":
-      return <ContactInput value={value} onChange={onChange} />;
+      return <ContactInput value={value} onChange={onChange} supportLine={supportLine} />;
     case "files":
       return <FilesInput token={token} />;
     default:
@@ -613,8 +623,16 @@ function StyleInput({ value, onChange }: { value: unknown; onChange: (v: unknown
   );
 }
 
-function ContactInput({ value, onChange }: { value: unknown; onChange: (v: unknown) => void }) {
-  const c = (value ?? {}) as { name?: string; phone?: string; email?: string };
+function ContactInput({
+  value,
+  onChange,
+  supportLine,
+}: {
+  value: unknown;
+  onChange: (v: unknown) => void;
+  supportLine?: string;
+}) {
+  const c = (value ?? {}) as { name?: string; phone?: string; email?: string; consent?: boolean };
   return (
     <div className="space-y-4">
       <div>
@@ -647,6 +665,18 @@ function ContactInput({ value, onChange }: { value: unknown; onChange: (v: unkno
         />
       </div>
       <p className="text-xs text-muted">Укажите имя и хотя бы один способ связи.</p>
+
+      <label className="flex items-start gap-2.5 pt-2 text-sm">
+        <input
+          type="checkbox"
+          className="mt-0.5 h-4 w-4 shrink-0"
+          checked={c.consent === true}
+          onChange={(e) => onChange({ ...c, consent: e.target.checked })}
+        />
+        <span>{ru.brief.consent}</span>
+      </label>
+      {c.consent !== true && <p className="text-xs text-muted">{ru.brief.consentRequired}</p>}
+      {supportLine && <p className="text-xs text-muted">{supportLine}</p>}
     </div>
   );
 }
