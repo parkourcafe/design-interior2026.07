@@ -244,6 +244,45 @@ export default function Home() {
         </section>
       </Reveal>
 
+      {/* Безопасность */}
+      <Reveal>
+        <section className="mx-auto max-w-[1120px] px-6 py-[clamp(50px,8vw,90px)]">
+          <div className="mb-3.5 text-[13px] uppercase tracking-[0.16em] text-muted">{h.securityEyebrow}</div>
+          <h2 className="font-display mb-10 max-w-[20ch] text-[clamp(30px,4.4vw,44px)] font-semibold leading-[1.08]">
+            {h.securityTitle}
+          </h2>
+          <div className="grid gap-5 md:grid-cols-3">
+            {h.security.map((s, i) => (
+              <div key={i} className="card">
+                <div className="font-display mb-3 text-2xl text-accent">{String(i + 1).padStart(2, "0")}</div>
+                <p className="text-[15px] leading-relaxed text-ink/85">{s}</p>
+              </div>
+            ))}
+          </div>
+        </section>
+      </Reveal>
+
+      {/* FAQ */}
+      <Reveal>
+        <section className="mx-auto max-w-[1120px] px-6 py-[clamp(50px,8vw,90px)]">
+          <div className="mb-3.5 text-[13px] uppercase tracking-[0.16em] text-muted">{h.faqEyebrow}</div>
+          <h2 className="font-display mb-10 max-w-[20ch] text-[clamp(30px,4.4vw,44px)] font-semibold leading-[1.08]">
+            {h.faqTitle}
+          </h2>
+          <div className="mx-auto grid max-w-[820px] gap-3">
+            {h.faq.map((item, i) => (
+              <details key={i} className="card group">
+                <summary className="flex cursor-pointer list-none items-center justify-between gap-4 font-medium">
+                  {item.q}
+                  <span className="text-xl text-muted transition group-open:rotate-45">+</span>
+                </summary>
+                <p className="mt-3 text-[15px] leading-relaxed text-muted">{item.a}</p>
+              </details>
+            ))}
+          </div>
+        </section>
+      </Reveal>
+
       {/* Отзыв + футер */}
       <Reveal>
         <section className="mx-auto max-w-[1120px] px-6 pb-[clamp(60px,9vw,110px)]">
