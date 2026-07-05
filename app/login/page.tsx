@@ -2,7 +2,6 @@
 
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { appUrl } from "@/lib/env";
 import { ru } from "@/lib/i18n/ru";
 
 // Supabase-клиент (~70 КБ) грузим лениво — только когда пользователь реально
@@ -36,7 +35,9 @@ export default function LoginPage() {
     const supabase = await supabaseClient();
     const { error } = await supabase.auth.signInWithOtp({
       email,
-      options: { emailRedirectTo: `${appUrl()}/auth/callback` },
+      // Адрес возврата берём из текущего origin (а не из env): он всегда
+      // совпадает с тем, где реально открыт сайт, и есть в allow-list Supabase.
+      options: { emailRedirectTo: `${window.location.origin}/auth/callback` },
     });
     setSendErrorDetail(error ? error.message : null);
     setState(error ? "error" : "sent");
@@ -48,7 +49,9 @@ export default function LoginPage() {
     const supabase = await supabaseClient();
     await supabase.auth.signInWithOAuth({
       provider: "google",
-      options: { redirectTo: `${appUrl()}/auth/callback` },
+      // Возврат на текущий origin (не из env) — иначе Supabase не найдёт адрес
+      // в allow-list и увезёт на Site URL (главную). Это и был баг «на главную».
+      options: { redirectTo: `${window.location.origin}/auth/callback` },
     });
   }
 
