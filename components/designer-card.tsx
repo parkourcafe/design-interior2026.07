@@ -14,9 +14,10 @@ function normalizeUrl(u: string): string {
 
 // Карточка «от кого пришёл бриф» — клиент видит дизайнера, соцсети, контакты.
 export default function DesignerCard({ designer }: { designer: DesignerPublic }) {
-  const { name, studio_name, profile } = designer;
-  const title = name || studio_name;
-  if (!title && !profile.about && !profile.phone && !profile.email) return null;
+  const { name, studio_name, email, profile } = designer;
+  // Всегда показываем, от кого бриф: имя/студия, иначе — email как fallback.
+  const title = name || studio_name || email;
+  const contactEmail = profile.email || email;
 
   return (
     <div className="rounded-xl border border-line bg-white p-5">
@@ -28,9 +29,9 @@ export default function DesignerCard({ designer }: { designer: DesignerPublic })
       {profile.about && <p className="mt-2 text-sm text-ink/80">{profile.about}</p>}
       <div className="mt-3 flex flex-wrap gap-x-4 gap-y-1 text-sm">
         {profile.phone && <span className="text-muted">{profile.phone}</span>}
-        {profile.email && (
-          <a href={`mailto:${profile.email}`} className="inline-flex min-h-11 items-center text-accent">
-            {profile.email}
+        {contactEmail && (
+          <a href={`mailto:${contactEmail}`} className="inline-flex min-h-11 items-center text-accent">
+            {contactEmail}
           </a>
         )}
         {profile.instagram && (
