@@ -18,7 +18,10 @@ export async function GET(request: Request) {
   const code = searchParams.get("code");
   const tokenHash = searchParams.get("token_hash");
   const type = searchParams.get("type") as EmailOtpType | null;
-  const next = searchParams.get("next") ?? "/dashboard";
+  // Только внутренний путь ("/dashboard", "/dashboard/..."), никаких внешних
+  // редиректов: next должен начинаться с одной "/" (не "//" и не "/\").
+  const nextParam = searchParams.get("next");
+  const next = nextParam && /^\/(?![/\\])/.test(nextParam) ? nextParam : "/dashboard";
 
   const supabase = createClient();
 

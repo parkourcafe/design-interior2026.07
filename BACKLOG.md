@@ -27,6 +27,6 @@
 
 ## Технический долг / идеи улучшений
 - Дашборд метрик по таблице `events` (сейчас только сырые данные).
-- Rate-limit на публичные server routes (intake).
+- Rate-limit на публичные server routes: `intake/*`, `client/create` и **`auth/register`** (публичное создание аккаунтов без капчи — абьюз-вектор; для пилота приемлемо, до широкого запуска добавить лимит по IP + капчу).
 - Retry/backoff вокруг LLM-вызова помимо repair-retry.
 - Индексы под частые запросы (designer_id, intake_token, public_token) — базовые заведены в миграции.
