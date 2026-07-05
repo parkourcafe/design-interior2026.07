@@ -1,14 +1,14 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { getOrCreateDesigner } from "@/lib/designer";
+import { getStudio } from "@/lib/studio";
 import { ru } from "@/lib/i18n/ru";
 import SignOutButton from "./sign-out-button";
 
 export const dynamic = "force-dynamic";
 
 export default async function DashboardLayout({ children }: { children: React.ReactNode }) {
-  const designer = await getOrCreateDesigner();
-  if (!designer) redirect("/login");
+  const studio = await getStudio();
+  if (!studio) redirect("/login");
 
   return (
     <div className="min-h-screen">
