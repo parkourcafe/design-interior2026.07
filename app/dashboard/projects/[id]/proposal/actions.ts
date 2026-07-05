@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
+import { getStudio } from "@/lib/studio";
 import type {
   Passport,
   PricingConfig,
@@ -34,10 +35,8 @@ export async function rebuildProposal(
   projectId: string,
 ): Promise<{ ok: boolean; sections?: ProposalSection[]; reason?: string }> {
   const supabase = createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) return { ok: false };
+  const studio = await getStudio();
+  if (!studio) return { ok: false };
 
   const { data: proposal } = await supabase
     .from("proposals")
@@ -58,13 +57,8 @@ export async function rebuildProposal(
   const passport = (project as { passport: Passport | null } | null)?.passport;
   if (!passport) return { ok: false };
 
-  const { data: designer } = await supabase
-    .from("designers")
-    .select("pricing, proposal_defaults")
-    .eq("id", user.id)
-    .maybeSingle();
-  const pricing = (designer?.pricing ?? null) as PricingConfig | null;
-  const defaults = (designer?.proposal_defaults ?? {
+  const pricing = (studio.designer.pricing ?? null) as PricingConfig | null;
+  const defaults = (studio.designer.proposal_defaults ?? {
     exclusions: [],
     revision_limit: 2,
     stage_completion: "",
@@ -108,10 +102,8 @@ export async function rebuildProposal(
 
 export async function sendProposal(projectId: string): Promise<{ ok: boolean }> {
   const supabase = createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) return { ok: false };
+  const studio = await getStudio();
+  if (!studio) return { ok: false };
 
   const { data: proposal, error } = await supabase
     .from("proposals")
@@ -125,7 +117,7 @@ export async function sendProposal(projectId: string): Promise<{ ok: boolean }> 
 
   await supabase.from("projects").update({ status: "proposal_sent" }).eq("id", projectId);
   await supabase.from("events").insert({
-    designer_id: user.id,
+    designer_id: studio.studioId,
     project_id: projectId,
     type: "proposal_sent",
   });

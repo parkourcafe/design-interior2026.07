@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
+import { getStudio } from "@/lib/studio";
 import { makeToken } from "@/lib/tokens";
 import { appUrl } from "@/lib/env";
 import { ru } from "@/lib/i18n/ru";
@@ -32,17 +33,9 @@ export default async function ProposalPage({ params }: { params: { id: string } 
   if (!p.passport) notFound();
   const passport = p.passport;
 
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
-  const { data: designer } = await supabase
-    .from("designers")
-    .select("pricing, proposal_defaults")
-    .eq("id", user!.id)
-    .maybeSingle();
-  const pricing = (designer?.pricing ?? null) as PricingConfig | null;
-  const defaults = (designer?.proposal_defaults ?? {
+  const studio = await getStudio();
+  const pricing = (studio?.designer.pricing ?? null) as PricingConfig | null;
+  const defaults = (studio?.designer.proposal_defaults ?? {
     exclusions: [],
     revision_limit: 2,
     stage_completion: "",
@@ -99,7 +92,7 @@ export default async function ProposalPage({ params }: { params: { id: string } 
       });
       await supabase.from("projects").update({ status: "proposal_draft" }).eq("id", p.id);
       await supabase.from("events").insert({
-        designer_id: user!.id,
+        designer_id: studio!.studioId,
         project_id: p.id,
         type: "proposal_created",
       });
