@@ -44,10 +44,13 @@ export async function getOrCreateDesigner(): Promise<DesignerRow | null> {
 export interface DesignerPublic {
   name: string;
   studio_name: string;
+  email: string; // запасной идентификатор, если имя/студия не заполнены
   profile: DesignerProfile;
 }
 
 // Публичные данные дизайнера для показа клиенту на брифе (service role, без сессии).
+// email берём из auth.users как запасной идентификатор — чтобы клиент ВСЕГДА
+// знал, от кого пришёл бриф, даже если дизайнер не заполнил имя/студию.
 export async function getDesignerPublic(designerId: string): Promise<DesignerPublic | null> {
   const admin = createAdminClient();
   const { data } = await admin
@@ -56,9 +59,15 @@ export async function getDesignerPublic(designerId: string): Promise<DesignerPub
     .eq("id", designerId)
     .maybeSingle();
   if (!data) return null;
+
+  let email = "";
+  const { data: userRes } = await admin.auth.admin.getUserById(designerId);
+  email = userRes?.user?.email ?? "";
+
   return {
     name: (data as { name?: string }).name ?? "",
     studio_name: (data as { studio_name?: string }).studio_name ?? "",
+    email,
     profile: ((data as { profile?: DesignerProfile }).profile ?? {}) as DesignerProfile,
   };
 }
