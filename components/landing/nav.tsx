@@ -7,6 +7,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { ru } from "@/lib/i18n/ru";
 import { ReadingProgress } from "./cinema";
+import CursorGlow from "./cursor-glow";
 
 const n = ru.landing.nav;
 
@@ -41,6 +42,7 @@ export default function LandingNav() {
 
   return (
     <>
+      <CursorGlow />
       <ReadingProgress />
       <header
         className={`fixed inset-x-0 top-0 z-50 transition-colors duration-500 ${

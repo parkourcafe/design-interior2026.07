@@ -49,6 +49,9 @@ body {
   background-color: #14110d;
   color: #ece4d4;
   font-feature-settings: "liga" 1, "kern" 1;
+  /* Светлый текст на тёмном: сглаживание убирает «жирность» засечек. */
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
 .landing ::selection {
@@ -155,6 +158,30 @@ body {
 .scroll-progress {
   transform-origin: 0 50%;
   transform: scaleX(var(--sp, 0));
+}
+
+/* Мягкое тёплое свечение за курсором (микровзаимодействие премиум-класса).
+   Монтируется только на десктопе с мышью; следит за --x/--y из cursor-glow.tsx. */
+.cursor-glow {
+  position: fixed;
+  top: 0;
+  left: 0;
+  z-index: 30;
+  height: 460px;
+  width: 460px;
+  transform: translate3d(calc(var(--x, 50vw) - 230px), calc(var(--y, 50vh) - 230px), 0);
+  border-radius: 9999px;
+  background: radial-gradient(
+    circle,
+    rgba(192, 139, 92, 0.13),
+    rgba(192, 139, 92, 0.05) 42%,
+    transparent 68%
+  );
+  opacity: 0;
+  pointer-events: none;
+  mix-blend-mode: screen;
+  transition: opacity 0.5s ease;
+  will-change: transform;
 }
 
 @media (prefers-reduced-motion: reduce) {
