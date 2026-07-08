@@ -11,7 +11,8 @@ export const metadata: Metadata = {
 };
 
 export const viewport: Viewport = {
-  themeColor: "#9c4a28",
+  // Совпадает с manifest.theme_color: приложение открывается на тёмной главной.
+  themeColor: "#14110d",
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
