@@ -11,6 +11,13 @@ const nextConfig = {
       },
     ],
   },
+  async rewrites() {
+    return [
+      // Digital Asset Links для TWA (Google Play / RuStore) —
+      // стандартный путь /.well-known/... обслуживает env-driven роут.
+      { source: "/.well-known/assetlinks.json", destination: "/api/assetlinks" },
+    ];
+  },
 };
 
 export default nextConfig;
