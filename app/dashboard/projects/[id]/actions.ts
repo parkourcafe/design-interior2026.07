@@ -29,6 +29,38 @@ export async function setCardStatus(cardId: string, status: RiskStatus): Promise
   return { ok: !error };
 }
 
+export interface RiskCardEditPayload {
+  evidence: string[];
+  impact: string;
+  designer_action: string;
+  proposal_implication: string;
+}
+
+export async function updateRiskCard(
+  projectId: string,
+  cardId: string,
+  payload: RiskCardEditPayload,
+): Promise<{ ok: boolean }> {
+  const cleanEvidence = payload.evidence.map((e) => e.trim()).filter(Boolean);
+  const supabase = await createClient();
+  const { error } = await supabase
+    .from("risk_cards")
+    .update({
+      evidence: cleanEvidence,
+      impact: payload.impact.trim(),
+      designer_action: payload.designer_action.trim(),
+      proposal_implication: payload.proposal_implication.trim(),
+    })
+    .eq("id", cardId)
+    .eq("project_id", projectId);
+
+  if (!error) {
+    revalidatePath(`/dashboard/projects/${projectId}`);
+    revalidatePath(`/dashboard/projects/${projectId}/proposal`);
+  }
+  return { ok: !error };
+}
+
 // Пересобрать карточки (AI): перечитать ответы, прогнать пайплайн, заменить.
 export async function rerunRisks(projectId: string): Promise<{ ok: boolean; llmOk: boolean }> {
   const supabase = await createClient();

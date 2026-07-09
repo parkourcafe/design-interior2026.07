@@ -8,6 +8,7 @@ import { ru } from "@/lib/i18n/ru";
 import type { Passport, PricingConfig, ProposalDefaults, ProposalSection } from "@/lib/types";
 import { calcPrice, type PriceResult } from "@/lib/pricing/calc";
 import { buildProposalSections } from "@/lib/proposal/build";
+import { recommendPackage } from "@/lib/proposal/package";
 import { RESPONSE_TYPES } from "@/lib/proposal/respond";
 import type { RiskCardRow } from "@/lib/review";
 import ProposalEditor from "./editor";
@@ -51,7 +52,8 @@ export default async function ProposalPage({ params }: { params: Promise<{ id: s
   const acceptedCards = (cardRows ?? []) as RiskCardRow[];
 
   // Цена: считаем, если есть pricing и площадь. Иначе — режим «без цены».
-  const packageChoice = passport.scope.package ?? "full";
+  const packageRecommendation = recommendPackage(passport, acceptedCards);
+  const packageChoice = passport.scope.package ?? packageRecommendation.package;
   let price: PriceResult | null = null;
   if (pricing && passport.object.area_m2) {
     price = calcPrice(pricing, {
@@ -121,6 +123,22 @@ export default async function ProposalPage({ params }: { params: Promise<{ id: s
         <h1 className="mt-1 font-display text-3xl font-semibold">{ru.proposal.draftTitle}</h1>
         <p className="mt-1 text-sm text-muted">{ru.proposal.editHint}</p>
         {!pricing && <p className="mt-1 text-sm text-amber-800">{ru.proposal.noPrice}</p>}
+        <div className="mt-3 rounded-md border border-line bg-white p-3 text-sm">
+          <div>
+            <span className="text-muted">{ru.proposal.packageRecommendation}: </span>
+            <span className="font-medium">{ru.passportView.packageValue[packageChoice]}</span>
+            <span className="text-muted">
+              {" "}
+              {passport.scope.package ? ru.proposal.packageExplicit : ru.proposal.packageAuto}
+            </span>
+          </div>
+          <ul className="mt-2 list-disc space-y-1 pl-5 text-muted">
+            {packageRecommendation.reasons.map((reason) => (
+              <li key={reason}>{reason}</li>
+            ))}
+          </ul>
+          <p className="mt-2 text-xs text-muted">{ru.proposal.packageRecommendationHint}</p>
+        </div>
         {(clientResponse || feedback.has("proposal_viewed")) && (
           <div className="mt-3 flex flex-wrap gap-2">
             {feedback.has("proposal_viewed") && (

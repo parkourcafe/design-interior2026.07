@@ -11,6 +11,7 @@ import type {
 } from "@/lib/types";
 import { calcPrice, type PriceResult } from "@/lib/pricing/calc";
 import { buildProposalSections } from "@/lib/proposal/build";
+import { recommendPackage } from "@/lib/proposal/package";
 import type { RiskCardRow } from "@/lib/review";
 
 export async function saveProposal(
@@ -71,7 +72,7 @@ export async function rebuildProposal(
     .eq("status", "accepted");
   const acceptedCards = (cardRows ?? []) as RiskCardRow[];
 
-  const packageChoice = passport.scope.package ?? "full";
+  const packageChoice = passport.scope.package ?? recommendPackage(passport, acceptedCards).package;
   let price: PriceResult | null = null;
   if (pricing && passport.object.area_m2) {
     price = calcPrice(pricing, {
