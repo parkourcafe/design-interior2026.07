@@ -5,7 +5,7 @@ type CookieToSet = { name: string; value: string; options?: CookieOptions };
 
 // Обновляет сессию Supabase на каждом запросе к кабинету дизайнера и
 // защищает /dashboard: без сессии — редирект на /login.
-export async function middleware(request: NextRequest) {
+export async function proxy(request: NextRequest) {
   let response = NextResponse.next({ request });
 
   const supabase = createServerClient(

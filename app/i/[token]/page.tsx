@@ -8,11 +8,12 @@ import IntakeWizard from "./wizard";
 
 export const dynamic = "force-dynamic";
 
-export default async function IntakePage({ params }: { params: { token: string } }) {
-  const project = await getProjectByIntakeToken(params.token);
+export default async function IntakePage({ params }: { params: Promise<{ token: string }> }) {
+  const { token } = await params;
+  const project = await getProjectByIntakeToken(token);
   if (!project) notFound();
 
-  const baseUrl = requestBaseUrl();
+  const baseUrl = await requestBaseUrl();
 
   const selfServe = !project.designer_id;
   const designer: DesignerPublic | null = project.designer_id
@@ -27,7 +28,7 @@ export default async function IntakePage({ params }: { params: { token: string }
         <main className="mx-auto flex min-h-screen max-w-lg flex-col justify-center px-6 text-center">
           <h1 className="text-2xl font-semibold">{ru.client.shareTitle}</h1>
           <p className="mt-2 text-muted">{ru.client.shareHint}</p>
-          <ShareBrief url={`${baseUrl}/b/${params.token}`} />
+          <ShareBrief url={`${baseUrl}/b/${token}`} />
         </main>
       );
     }
@@ -41,7 +42,7 @@ export default async function IntakePage({ params }: { params: { token: string }
 
   return (
     <IntakeWizard
-      token={params.token}
+      token={token}
       selfServe={selfServe}
       customQuestions={project.custom_questions}
       designer={designer}

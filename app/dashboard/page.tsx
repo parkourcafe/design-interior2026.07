@@ -13,7 +13,7 @@ interface ProjectRow {
 }
 
 export default async function DashboardPage() {
-  const supabase = createClient();
+  const supabase = await createClient();
   const { data: projects } = await supabase
     .from("projects")
     .select("id, client_name, status, created_at")

@@ -14,7 +14,7 @@ export async function saveCustomQuestions(
   questions: string[],
 ): Promise<{ ok: boolean }> {
   const clean = questions.map((q) => q.trim()).filter((q) => q.length > 0).slice(0, 15);
-  const supabase = createClient();
+  const supabase = await createClient();
   const { error } = await supabase
     .from("projects")
     .update({ custom_questions: clean })
@@ -24,14 +24,14 @@ export async function saveCustomQuestions(
 }
 
 export async function setCardStatus(cardId: string, status: RiskStatus): Promise<{ ok: boolean }> {
-  const supabase = createClient();
+  const supabase = await createClient();
   const { error } = await supabase.from("risk_cards").update({ status }).eq("id", cardId);
   return { ok: !error };
 }
 
 // Пересобрать карточки (AI): перечитать ответы, прогнать пайплайн, заменить.
 export async function rerunRisks(projectId: string): Promise<{ ok: boolean; llmOk: boolean }> {
-  const supabase = createClient();
+  const supabase = await createClient();
 
   const { data: project } = await supabase
     .from("projects")

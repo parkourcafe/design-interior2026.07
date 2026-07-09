@@ -15,7 +15,7 @@ function pct(a: number, b: number): string {
 }
 
 export default async function AnalyticsPage() {
-  const supabase = createClient();
+  const supabase = await createClient();
   const { data } = await supabase
     .from("events")
     .select("type, project_id, created_at")

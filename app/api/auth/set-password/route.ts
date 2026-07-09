@@ -8,7 +8,7 @@ export const dynamic = "force-dynamic";
 // (`updateUserById`) — в обход клиентской проверки «слабый/утёкший пароль».
 // Пользователь может задать любой пароль от 6 символов.
 export async function POST(request: Request) {
-  const supabase = createClient();
+  const supabase = await createClient();
   const {
     data: { user },
   } = await supabase.auth.getUser();
