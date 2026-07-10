@@ -1,7 +1,14 @@
 import { deflateSync } from "node:zlib";
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { derivePlanAssistedDraft } from "./plan-assist";
-import { extractPdfTextFromBuffer, extractPlanFileText } from "./plan-file-text";
+import { extractPdfTextFromBuffer, extractPlanFileText, yandexVisionOcr } from "./plan-file-text";
+
+const originalFetch = globalThis.fetch;
+
+afterEach(() => {
+  globalThis.fetch = originalFetch;
+  vi.restoreAllMocks();
+});
 
 function pdfWithStream(stream: Buffer, flate = false): Buffer {
   const dict = flate
@@ -82,5 +89,56 @@ describe("plan file text extraction", () => {
     expect(values).toContain("летняя кухня");
     expect(values).toContain("вентиляция");
     expect(evidence).toContain("Текст файла");
+  });
+
+  it("runs OCR for images through an injected client", async () => {
+    const file = new File([new Uint8Array([1, 2, 3])], "plan.png", { type: "image/png" });
+
+    const result = await extractPlanFileText(file, {
+      ocrClient: async () => ({
+        status: "text_extracted",
+        source: "vision_ocr",
+        chars: 44,
+        excerpt: "План участка 15 x 16.6 м, летняя кухня",
+      }),
+    });
+
+    expect(result).toMatchObject({
+      status: "text_extracted",
+      source: "vision_ocr",
+    });
+    expect(result.excerpt).toContain("летняя кухня");
+  });
+
+  it("sends OCR requests to Yandex Vision OCR", async () => {
+    const fetchMock = vi.fn<(input: RequestInfo | URL, init?: RequestInit) => Promise<Response>>(async () =>
+      new Response(JSON.stringify({ textAnnotation: { fullText: "Летняя кухня 25 м2" } }), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      }),
+    );
+    globalThis.fetch = fetchMock as typeof fetch;
+    const file = new File(["fake-image"], "plan.png", { type: "image/png" });
+
+    const result = await yandexVisionOcr(file, {
+      folderId: "folder",
+      apiKey: "api-key",
+      model: "page",
+      languageCodes: ["ru", "en"],
+    });
+
+    expect(result).toMatchObject({
+      status: "text_extracted",
+      source: "vision_ocr",
+    });
+    const [url, init] = fetchMock.mock.calls[0] as [RequestInfo | URL, RequestInit];
+    expect(url).toBe("https://ocr.api.cloud.yandex.net/ocr/v1/recognizeText");
+    expect((init?.headers as Record<string, string>).Authorization).toBe("Api-Key api-key");
+    const body = JSON.parse(String(init?.body)) as { mimeType: string; model: string; languageCodes: string[] };
+    expect(body).toMatchObject({
+      mimeType: "image/png",
+      model: "page",
+      languageCodes: ["ru", "en"],
+    });
   });
 });

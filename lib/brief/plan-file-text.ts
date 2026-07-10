@@ -1,7 +1,7 @@
 import { inflateSync } from "node:zlib";
 
 export type PlanTextExtractionStatus = "text_extracted" | "no_text" | "unsupported" | "failed";
-export type PlanTextExtractionSource = "pdf_text" | "plain_text" | "none";
+export type PlanTextExtractionSource = "pdf_text" | "plain_text" | "vision_ocr" | "none";
 
 export interface PlanTextExtraction {
   status: PlanTextExtractionStatus;
@@ -14,7 +14,22 @@ export interface PlanTextExtraction {
 const EXCERPT_LIMIT = 3000;
 const MAX_TEXT_BYTES = 15 * 1024 * 1024;
 const MAX_STREAM_TEXT_BYTES = 1_500_000;
+const YANDEX_OCR_URL = "https://ocr.api.cloud.yandex.net/ocr/v1/recognizeText";
 type ToUnicodeMap = Map<string, string>;
+
+export interface PlanOcrOptions {
+  folderId?: string;
+  apiKey?: string;
+  model?: string;
+  languageCodes?: string[];
+}
+
+export type PlanOcrClient = (file: File, options?: PlanOcrOptions) => Promise<PlanTextExtraction>;
+
+export interface PlanTextExtractionOptions {
+  ocrClient?: PlanOcrClient | null;
+  ocr?: PlanOcrOptions;
+}
 
 function cleanExtractedText(value: string): string {
   return value
@@ -282,6 +297,10 @@ function isPdf(file: File): boolean {
   return file.type === "application/pdf" || /\.pdf$/i.test(file.name);
 }
 
+function isImage(file: File): boolean {
+  return /^image\/(png|jpe?g)$/i.test(file.type) || /\.(png|jpe?g)$/i.test(file.name);
+}
+
 function isPlainText(file: File): boolean {
   return (
     file.type.startsWith("text/") ||
@@ -289,7 +308,85 @@ function isPlainText(file: File): boolean {
   );
 }
 
-export async function extractPlanFileText(file: File): Promise<PlanTextExtraction> {
+function normalizedOcrMimeType(file: File): string | null {
+  if (isPdf(file)) return "application/pdf";
+  if (/^image\/png$/i.test(file.type) || /\.png$/i.test(file.name)) return "image/png";
+  if (/^image\/jpe?g$/i.test(file.type) || /\.jpe?g$/i.test(file.name)) return "image/jpeg";
+  return null;
+}
+
+function shouldTryOcr(file: File, local: PlanTextExtraction): boolean {
+  if (local.status === "text_extracted") return false;
+  return Boolean(normalizedOcrMimeType(file));
+}
+
+function extractionFromText(text: string, source: PlanTextExtractionSource): PlanTextExtraction {
+  const clean = cleanExtractedText(text);
+  return clean
+    ? { status: "text_extracted", source, chars: clean.length, excerpt: clean.slice(0, EXCERPT_LIMIT) }
+    : { status: "no_text", source, chars: 0, message: "empty_ocr_result" };
+}
+
+interface YandexOcrResponse {
+  textAnnotation?: {
+    fullText?: string;
+    blocks?: Array<{ lines?: Array<{ text?: string }> }>;
+  };
+}
+
+function textFromYandexOcrResponse(json: YandexOcrResponse): string {
+  const fullText = json.textAnnotation?.fullText;
+  if (typeof fullText === "string" && fullText.trim()) return fullText;
+  return (
+    json.textAnnotation?.blocks
+      ?.flatMap((block) => block.lines ?? [])
+      .map((line) => line.text)
+      .filter((line): line is string => Boolean(line?.trim()))
+      .join("\n") ?? ""
+  );
+}
+
+export async function yandexVisionOcr(file: File, options: PlanOcrOptions = {}): Promise<PlanTextExtraction> {
+  const folderId = options.folderId ?? process.env.YC_FOLDER_ID;
+  const apiKey = options.apiKey ?? process.env.YC_API_KEY;
+  const mimeType = normalizedOcrMimeType(file);
+
+  if (!mimeType) return { status: "unsupported", source: "none", chars: 0, message: "ocr_unsupported_file_type" };
+  if (!folderId || !apiKey) return { status: "unsupported", source: "none", chars: 0, message: "ocr_not_configured" };
+
+  const res = await fetch(YANDEX_OCR_URL, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Api-Key ${apiKey}`,
+      "x-folder-id": folderId,
+    },
+    body: JSON.stringify({
+      content: Buffer.from(await file.arrayBuffer()).toString("base64"),
+      mimeType,
+      languageCodes: options.languageCodes ?? ["ru", "en"],
+      model: options.model ?? process.env.YC_OCR_MODEL ?? "page",
+    }),
+  });
+
+  if (!res.ok) {
+    const body = await res.text().catch(() => "");
+    return {
+      status: "failed",
+      source: "vision_ocr",
+      chars: 0,
+      message: `ocr_http_${res.status}: ${body.slice(0, 80)}`,
+    };
+  }
+
+  const json = (await res.json()) as YandexOcrResponse;
+  return extractionFromText(textFromYandexOcrResponse(json), "vision_ocr");
+}
+
+export async function extractPlanFileText(
+  file: File,
+  options: PlanTextExtractionOptions = {},
+): Promise<PlanTextExtraction> {
   if (file.size > MAX_TEXT_BYTES) {
     return { status: "unsupported", source: "none", chars: 0, message: "file_too_large_for_text_extraction" };
   }
@@ -304,9 +401,15 @@ export async function extractPlanFileText(file: File): Promise<PlanTextExtractio
 
     if (isPdf(file)) {
       const text = extractPdfTextFromBuffer(Buffer.from(await file.arrayBuffer()));
-      return text
+      const local: PlanTextExtraction = text
         ? { status: "text_extracted", source: "pdf_text", chars: text.length, excerpt: text.slice(0, EXCERPT_LIMIT) }
         : { status: "no_text", source: "pdf_text", chars: 0, message: "pdf_text_layer_not_found" };
+      if (!shouldTryOcr(file, local)) return local;
+      return await (options.ocrClient ?? yandexVisionOcr)(file, options.ocr);
+    }
+
+    if (isImage(file)) {
+      return await (options.ocrClient ?? yandexVisionOcr)(file, options.ocr);
     }
 
     return { status: "unsupported", source: "none", chars: 0, message: "unsupported_file_type" };
