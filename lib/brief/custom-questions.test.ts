@@ -48,7 +48,7 @@ describe("custom brief questions", () => {
     const questions = normalizeCustomQuestions([
       "Первый вопрос?",
       "Первый вопрос?",
-      ...Array.from({ length: 40 }, (_, index) => `Вопрос ${index}?`),
+      ...Array.from({ length: 140 }, (_, index) => `Вопрос ${index}?`),
     ]);
 
     expect(questions).toHaveLength(CUSTOM_QUESTIONS_LIMIT);

@@ -13,7 +13,7 @@ export type BriefPackProjectType =
   | "hospitality"
   | "other";
 
-export const CUSTOM_QUESTIONS_LIMIT = 30;
+export const CUSTOM_QUESTIONS_LIMIT = 100;
 export const BRIEF_PACK_PROJECT_TYPES = [
   "residential",
   "commercial",
