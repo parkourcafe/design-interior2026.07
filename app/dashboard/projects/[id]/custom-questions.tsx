@@ -105,7 +105,18 @@ function requestPlanFiles(files: BriefPackPlanFile[]): BriefPackPlanFile[] {
     size: file.size,
     type: file.type,
     path: file.path,
+    text_excerpt: file.text_excerpt,
+    text_extraction: file.text_extraction,
   }));
+}
+
+function planFileExtractionLabel(file: BriefPackPlanFile): string {
+  const extraction = file.text_extraction;
+  if (!extraction) return ru.briefBuilder.planTextUnknown;
+  if (extraction.status === "text_extracted") return ru.briefBuilder.planTextExtracted(extraction.chars);
+  if (extraction.status === "no_text") return ru.briefBuilder.planTextNoText;
+  if (extraction.status === "unsupported") return ru.briefBuilder.planTextUnsupported;
+  return ru.briefBuilder.planTextFailed;
 }
 
 // Редактор своих вопросов дизайнера. Они добавляются в конец брифа клиента.
@@ -470,9 +481,14 @@ export default function CustomQuestions({
           </label>
         </div>
         {packFiles.length > 0 && (
-          <p className="mt-2 text-xs text-muted">
-            {ru.briefBuilder.attachedPlans}: {packFiles.map((file) => file.name).join(", ")}
-          </p>
+          <div className="mt-2 space-y-1 text-xs text-muted">
+            <p>{ru.briefBuilder.attachedPlans}:</p>
+            {packFiles.map((file) => (
+              <p key={`${file.path ?? file.name}-${file.size ?? 0}`}>
+                {file.name} · {planFileExtractionLabel(file)}
+              </p>
+            ))}
+          </div>
         )}
 
         <div className="mt-3 rounded-md border border-line bg-line/10 p-3">

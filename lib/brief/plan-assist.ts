@@ -74,7 +74,7 @@ const ZONE_PATTERNS: Array<{ value: string; pattern: RegExp }> = [
 ];
 
 const SYSTEM_PATTERNS: Array<{ value: string; pattern: RegExp }> = [
-  { value: "вентиляция / вытяжка", pattern: /вентиляц|вытяж|exhaust|fresh\s+air|duct/i },
+  { value: "вентиляция / вытяжка", pattern: /вентиляц|вытяж|ventilation|exhaust|fresh\s+air|duct/i },
   { value: "кондиционирование", pattern: /кондицион|hvac|\bac\b|air\s+condition/i },
   { value: "вода и канализация", pattern: /водоснаб|канализац|waste\s*water|grey\s*waste|black\s*water|clean\s*water|septic|stp/i },
   { value: "электрика", pattern: /электр|розет|lighting|power|led/i },
@@ -109,6 +109,8 @@ function sourceLabel(source: PlanAssistedFactSource): string {
       return "Заметки к плану";
     case "file_name":
       return "Имя файла";
+    case "file_text":
+      return "Текст файла";
     case "metadata":
       return "Метаданные проекта";
     case "description":
@@ -132,6 +134,10 @@ function textSources(context: PlanAssistContext): TextSource[] {
   return [
     description ? { source: "description", text: description } : null,
     planNotes ? { source: "plan_notes", text: planNotes } : null,
+    ...(context.plan_files ?? [])
+      .map((file) => compact(file.text_excerpt, 3000))
+      .filter((text): text is string => Boolean(text))
+      .map((text) => ({ source: "file_text" as const, text })),
     ...(context.plan_files ?? []).map((file) => ({
       source: "file_name" as const,
       text: [file.name, file.type].filter(Boolean).join(" "),

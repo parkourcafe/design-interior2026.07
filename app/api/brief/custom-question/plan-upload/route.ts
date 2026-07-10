@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
+import { extractPlanFileText } from "@/lib/brief/plan-file-text";
 import { checkRateLimit, clientIp } from "@/lib/rate-limit";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
@@ -52,6 +53,7 @@ export async function POST(request: Request) {
     .upload(path, file, { contentType: file.type || "application/octet-stream", upsert: false });
   if (uploadError) return NextResponse.json({ error: uploadError.message }, { status: 500 });
 
+  const textExtraction = await extractPlanFileText(file);
   const meta = {
     path,
     name: file.name,
@@ -59,6 +61,13 @@ export async function POST(request: Request) {
     type: file.type || "application/octet-stream",
     uploaded_at: new Date().toISOString(),
     source: "designer_brief_builder",
+    text_excerpt: textExtraction.excerpt,
+    text_extraction: {
+      status: textExtraction.status,
+      source: textExtraction.source,
+      chars: textExtraction.chars,
+      message: textExtraction.message,
+    },
   };
 
   const { data: existing } = await admin

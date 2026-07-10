@@ -11,7 +11,9 @@ export type PlanAssistedFactDiscipline =
   | "facade"
   | "signage"
   | "constraints";
-export type PlanAssistedFactSource = "description" | "plan_notes" | "file_name" | "metadata";
+export type PlanAssistedFactSource = "description" | "plan_notes" | "file_name" | "file_text" | "metadata";
+export type PlanTextExtractionStatus = "text_extracted" | "no_text" | "unsupported" | "failed";
+export type PlanTextExtractionSource = "pdf_text" | "plain_text" | "none";
 export type PlanAssistedFactStatus = "proposed" | "confirmed" | "rejected";
 export type BriefPackProjectType =
   | "residential"
@@ -57,6 +59,13 @@ export interface BriefPackPlanFile {
   size?: number;
   type?: string;
   path?: string;
+  text_excerpt?: string;
+  text_extraction?: {
+    status: PlanTextExtractionStatus;
+    source: PlanTextExtractionSource;
+    chars: number;
+    message?: string;
+  };
 }
 
 export interface PlanAssistedFact {
@@ -90,8 +99,10 @@ const PLAN_ASSISTED_FACT_DISCIPLINES = [
   "signage",
   "constraints",
 ] as const;
-const PLAN_ASSISTED_FACT_SOURCES = ["description", "plan_notes", "file_name", "metadata"] as const;
+const PLAN_ASSISTED_FACT_SOURCES = ["description", "plan_notes", "file_name", "file_text", "metadata"] as const;
 const PLAN_ASSISTED_FACT_STATUSES = ["proposed", "confirmed", "rejected"] as const;
+const PLAN_TEXT_EXTRACTION_STATUSES = ["text_extracted", "no_text", "unsupported", "failed"] as const;
+const PLAN_TEXT_EXTRACTION_SOURCES = ["pdf_text", "plain_text", "none"] as const;
 
 export const customBriefQuestionSchema = z
   .object({
@@ -143,6 +154,16 @@ export const briefPackPlanFileSchema = z
     size: z.number().int().nonnegative().max(25 * 1024 * 1024).optional(),
     type: z.string().trim().max(120).optional(),
     path: z.string().trim().max(300).optional(),
+    text_excerpt: z.string().trim().max(3000).optional(),
+    text_extraction: z
+      .object({
+        status: z.enum(PLAN_TEXT_EXTRACTION_STATUSES),
+        source: z.enum(PLAN_TEXT_EXTRACTION_SOURCES),
+        chars: z.number().int().nonnegative().max(1_000_000),
+        message: z.string().trim().max(120).optional(),
+      })
+      .strict()
+      .optional(),
   })
   .strict();
 
@@ -390,6 +411,15 @@ function sanitizeBriefPackContext(context: BriefPackContext): BriefPackContext {
       size: typeof file.size === "number" ? file.size : undefined,
       type: compactString(file.type)?.slice(0, 120),
       path: compactString(file.path)?.slice(0, 300),
+      text_excerpt: compactString(file.text_excerpt)?.slice(0, 3000),
+      text_extraction: file.text_extraction
+        ? {
+            status: file.text_extraction.status,
+            source: file.text_extraction.source,
+            chars: file.text_extraction.chars,
+            message: compactString(file.text_extraction.message)?.slice(0, 120),
+          }
+        : undefined,
     })),
     plan_facts: context.plan_facts
       ?.filter((fact) => fact.status !== "rejected")
