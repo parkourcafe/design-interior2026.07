@@ -5,10 +5,10 @@ import { getStudio } from "@/lib/studio";
 import { makeToken } from "@/lib/tokens";
 import { requestBaseUrl } from "@/lib/base-url";
 import { ru } from "@/lib/i18n/ru";
-import type { Passport, PricingConfig, ProposalDefaults, ProposalSection } from "@/lib/types";
+import type { AnswersMap, Passport, PricingConfig, ProposalDefaults, ProposalSection } from "@/lib/types";
 import { calcPrice, type PriceResult } from "@/lib/pricing/calc";
 import { buildProposalSections } from "@/lib/proposal/build";
-import { recommendPackage } from "@/lib/proposal/package";
+import { derivePackageRecommendation } from "@/lib/proposal/package";
 import { RESPONSE_TYPES } from "@/lib/proposal/respond";
 import type { RiskCardRow } from "@/lib/review";
 import ProposalEditor from "./editor";
@@ -51,9 +51,18 @@ export default async function ProposalPage({ params }: { params: Promise<{ id: s
     .eq("status", "accepted");
   const acceptedCards = (cardRows ?? []) as RiskCardRow[];
 
+  const { data: answerRows } = await supabase
+    .from("answers")
+    .select("question_id, value")
+    .eq("project_id", p.id);
+  const answers: AnswersMap = {};
+  for (const row of answerRows ?? []) {
+    answers[(row as { question_id: string }).question_id] = (row as { value: unknown }).value as never;
+  }
+
   // Цена: считаем, если есть pricing и площадь. Иначе — режим «без цены».
-  const packageRecommendation = recommendPackage(passport, acceptedCards);
-  const packageChoice = passport.scope.package ?? packageRecommendation.package;
+  const packageRecommendation = derivePackageRecommendation({ passport, answers, riskCards: acceptedCards });
+  const packageChoice = packageRecommendation.package_key;
   let price: PriceResult | null = null;
   if (pricing && passport.object.area_m2) {
     price = calcPrice(pricing, {
@@ -81,7 +90,14 @@ export default async function ProposalPage({ params }: { params: Promise<{ id: s
     publicToken = existing.public_token as string;
     sent = existing.status === "sent";
   } else {
-    sections = buildProposalSections({ passport, acceptedCards, defaults, price, packageChoice });
+    sections = buildProposalSections({
+      passport,
+      acceptedCards,
+      defaults,
+      price,
+      packageChoice,
+      packageRecommendation,
+    });
     if (existing) {
       publicToken = existing.public_token as string;
       await supabase.from("proposals").update({ sections }).eq("id", existing.id);
@@ -126,14 +142,11 @@ export default async function ProposalPage({ params }: { params: Promise<{ id: s
         <div className="mt-3 rounded-md border border-line bg-white p-3 text-sm">
           <div>
             <span className="text-muted">{ru.proposal.packageRecommendation}: </span>
-            <span className="font-medium">{ru.passportView.packageValue[packageChoice]}</span>
-            <span className="text-muted">
-              {" "}
-              {passport.scope.package ? ru.proposal.packageExplicit : ru.proposal.packageAuto}
-            </span>
+            <span className="font-medium">{packageRecommendation.package_label}</span>
+            <span className="text-muted"> {ru.proposal.packageAuto}</span>
           </div>
           <ul className="mt-2 list-disc space-y-1 pl-5 text-muted">
-            {packageRecommendation.reasons.map((reason) => (
+            {packageRecommendation.pricing_explanation_points.map((reason) => (
               <li key={reason}>{reason}</li>
             ))}
           </ul>

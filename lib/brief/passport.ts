@@ -6,6 +6,7 @@ import type {
   Cooking,
   MoneyRange,
 } from "@/lib/types";
+import { deriveInitialScopePackage } from "@/lib/proposal/package";
 
 // buildPassport(answers) — детерминированное отображение сырых ответов в
 // машиночитаемый shadow-паспорт. Никаких сетевых вызовов, никакого LLM.
@@ -224,7 +225,7 @@ export function buildPassport(answers: Answers): Passport {
       ? str(answers, "deadline")!.trim()
       : undefined;
 
-  return {
+  const passport: Passport = {
     object: {
       type: objectType,
       area_m2: area,
@@ -268,4 +269,6 @@ export function buildPassport(answers: Answers): Passport {
     pain_points: str(answers, "pain") ?? "",
     scope: { package: null },
   };
+  passport.scope.package = deriveInitialScopePackage(passport, answers);
+  return passport;
 }

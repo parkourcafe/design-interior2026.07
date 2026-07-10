@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { getStudio } from "@/lib/studio";
 import type {
+  AnswersMap,
   Passport,
   PricingConfig,
   ProposalDefaults,
@@ -11,7 +12,7 @@ import type {
 } from "@/lib/types";
 import { calcPrice, type PriceResult } from "@/lib/pricing/calc";
 import { buildProposalSections } from "@/lib/proposal/build";
-import { recommendPackage } from "@/lib/proposal/package";
+import { derivePackageRecommendation } from "@/lib/proposal/package";
 import type { RiskCardRow } from "@/lib/review";
 
 export async function saveProposal(
@@ -72,7 +73,21 @@ export async function rebuildProposal(
     .eq("status", "accepted");
   const acceptedCards = (cardRows ?? []) as RiskCardRow[];
 
-  const packageChoice = passport.scope.package ?? recommendPackage(passport, acceptedCards).package;
+  const { data: answerRows } = await supabase
+    .from("answers")
+    .select("question_id, value")
+    .eq("project_id", projectId);
+  const answers: AnswersMap = {};
+  for (const row of answerRows ?? []) {
+    answers[(row as { question_id: string }).question_id] = (row as { value: unknown }).value as never;
+  }
+
+  const packageRecommendation = derivePackageRecommendation({
+    passport,
+    answers,
+    riskCards: acceptedCards,
+  });
+  const packageChoice = packageRecommendation.package_key;
   let price: PriceResult | null = null;
   if (pricing && passport.object.area_m2) {
     price = calcPrice(pricing, {
@@ -89,6 +104,7 @@ export async function rebuildProposal(
     defaults,
     price,
     packageChoice,
+    packageRecommendation,
   });
 
   const { error } = await supabase
