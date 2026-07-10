@@ -12,6 +12,7 @@ import { derivePackageRecommendation } from "@/lib/proposal/package";
 import { RESPONSE_TYPES } from "@/lib/proposal/respond";
 import type { RiskCardRow } from "@/lib/review";
 import ProposalEditor from "./editor";
+import CreateRoomButton from "../room/create-button";
 
 export const dynamic = "force-dynamic";
 
@@ -88,7 +89,7 @@ export default async function ProposalPage({ params }: { params: Promise<{ id: s
   if (existing && Array.isArray(existing.sections) && (existing.sections as ProposalSection[]).length > 0) {
     sections = existing.sections as ProposalSection[];
     publicToken = existing.public_token as string;
-    sent = existing.status === "sent";
+    sent = existing.status === "sent" || existing.status === "accepted";
   } else {
     sections = buildProposalSections({
       passport,
@@ -129,6 +130,11 @@ export default async function ProposalPage({ params }: { params: Promise<{ id: s
     .in("type", [...RESPONSE_TYPES, "proposal_viewed"]);
   const feedback = new Set((feedbackEvents ?? []).map((e) => (e as { type: string }).type));
   const clientResponse = RESPONSE_TYPES.find((t) => feedback.has(t)) ?? null;
+  const { data: existingRoom } = await supabase
+    .from("project_rooms")
+    .select("id")
+    .eq("project_id", p.id)
+    .maybeSingle();
 
   return (
     <div>
@@ -174,6 +180,17 @@ export default async function ProposalPage({ params }: { params: Promise<{ id: s
         publicUrl={publicUrl}
         alreadySent={sent}
       />
+      {clientResponse === "proposal_accepted" && (
+        <section className="card mt-6 border-accent/30">
+          <h2 className="font-display text-2xl font-semibold">{ru.projectRoom.acceptedTitle}</h2>
+          <p className="mb-4 text-sm text-muted">{ru.projectRoom.acceptedHint}</p>
+          {existingRoom ? (
+            <Link href={`/dashboard/projects/${p.id}/room`} className="btn-primary">{ru.projectRoom.open}</Link>
+          ) : (
+            <CreateRoomButton projectId={p.id} />
+          )}
+        </section>
+      )}
     </div>
   );
 }

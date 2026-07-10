@@ -14,6 +14,7 @@ import IntakeLink from "@/components/intake-link";
 import CopyTextButton from "@/components/copy-text-button";
 import ReviewCards from "./review";
 import CustomQuestions from "./custom-questions";
+import CreateConceptPackButton from "./concept-pack/create-button";
 
 export const dynamic = "force-dynamic";
 
@@ -41,7 +42,7 @@ export default async function ProjectPage({ params }: { params: Promise<{ id: st
 
   const briefDone = Boolean(
     p.passport &&
-      ["brief_completed", "proposal_draft", "proposal_sent"].includes(p.status),
+      ["brief_completed", "proposal_draft", "proposal_sent", "proposal_accepted", "active_project"].includes(p.status),
   );
 
   const intakeUrl = `${await requestBaseUrl()}/i/${p.intake_token}`;
@@ -101,6 +102,12 @@ async function ReviewBoard({
     .order("source", { ascending: true });
 
   const cards = (cardRows ?? []) as RiskCardRow[];
+  const { data: conceptPackRow } = await supabase
+    .from("concept_packs")
+    .select("project_id")
+    .eq("project_id", project.id)
+    .maybeSingle();
+  const conceptPackExists = Boolean(conceptPackRow);
   const passport = project.passport!;
   const missing = missingFields(passport);
   const questions = firstMeetingQuestions(cards);
@@ -288,10 +295,32 @@ async function ReviewBoard({
         </section>
       </div>
 
+      <section className="card flex flex-col gap-5 sm:flex-row sm:items-center sm:justify-between">
+        <div className="max-w-2xl">
+          <div className="flex flex-wrap items-center gap-2">
+            <h2 className="font-display text-2xl font-semibold">{ru.conceptPack.entryTitle}</h2>
+            <span className="rounded-full bg-line/50 px-3 py-1 text-[11px] text-muted">
+              {ru.conceptPack.studioOnly}
+            </span>
+          </div>
+          <p className="mt-2 text-sm leading-relaxed text-muted">{ru.conceptPack.entryHint}</p>
+        </div>
+        <div className="shrink-0">
+          {conceptPackExists ? (
+            <Link
+              href={`/dashboard/projects/${project.id}/concept-pack`}
+              className="btn-ghost inline-flex"
+            >
+              {ru.conceptPack.open}
+            </Link>
+          ) : (
+            <CreateConceptPackButton projectId={project.id} />
+          )}
+        </div>
+      </section>
+
       <div>
-        <Link href={`/dashboard/projects/${project.id}/proposal`} className="btn-primary">
-          {ru.review.buildProposal}
-        </Link>
+        {project.status === "active_project" ? <Link href={`/dashboard/projects/${project.id}/room`} className="btn-primary">{ru.projectRoom.open}</Link> : <Link href={`/dashboard/projects/${project.id}/proposal`} className="btn-primary">{ru.review.buildProposal}</Link>}
       </div>
     </div>
   );

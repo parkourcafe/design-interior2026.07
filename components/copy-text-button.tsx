@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { ru } from "@/lib/i18n/ru";
 
 // Кнопка «скопировать» произвольный текст (напр. вопросы к встрече).
 export default function CopyTextButton({ text, label }: { text: string; label: string }) {
@@ -16,7 +17,7 @@ export default function CopyTextButton({ text, label }: { text: string; label: s
   }
   return (
     <button onClick={copy} className="btn-ghost text-xs">
-      {copied ? "Скопировано" : label}
+      {copied ? ru.common.copied : label}
     </button>
   );
 }

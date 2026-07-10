@@ -27,7 +27,7 @@ export default async function PublicProposalPage({
 
   // Публичная страница живёт только после «Отправить». Черновик клиент видеть
   // не должен — notFound() не раскрывает даже сам факт существования КП.
-  if ((proposal as { status?: string }).status !== "sent") notFound();
+  if (!["sent", "accepted"].includes((proposal as { status?: string }).status ?? "")) notFound();
 
   const projectId = (proposal as { project_id: string }).project_id;
   const { data: project } = await admin
