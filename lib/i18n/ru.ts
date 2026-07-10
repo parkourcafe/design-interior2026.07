@@ -197,7 +197,7 @@ export const ru = {
     planUploadError: "Не удалось загрузить план. Можно продолжить без файла и описать ограничения текстом.",
     planTextExtracted: (chars: number) => `текстовый слой прочитан (${chars} зн.)`,
     planOcrExtracted: (chars: number) => `OCR прочитал текст (${chars} зн.)`,
-    planOcrNotConfigured: "OCR не настроен: заполните YC_FOLDER_ID и YC_API_KEY",
+    planOcrNotConfigured: "OCR не настроен: заполните ZAI_API_KEY",
     planTextNoText: "текстовый слой не найден",
     planTextUnsupported: "авточтение текста для формата недоступно",
     planTextFailed: "текст не удалось извлечь",

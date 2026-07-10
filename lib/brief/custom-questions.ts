@@ -13,7 +13,7 @@ export type PlanAssistedFactDiscipline =
   | "constraints";
 export type PlanAssistedFactSource = "description" | "plan_notes" | "file_name" | "file_text" | "metadata";
 export type PlanTextExtractionStatus = "text_extracted" | "no_text" | "unsupported" | "failed";
-export type PlanTextExtractionSource = "pdf_text" | "plain_text" | "vision_ocr" | "none";
+export type PlanTextExtractionSource = "pdf_text" | "plain_text" | "vision_ocr" | "zai_ocr" | "none";
 export type PlanAssistedFactStatus = "proposed" | "confirmed" | "rejected";
 export type BriefPackProjectType =
   | "residential"
@@ -102,7 +102,7 @@ const PLAN_ASSISTED_FACT_DISCIPLINES = [
 const PLAN_ASSISTED_FACT_SOURCES = ["description", "plan_notes", "file_name", "file_text", "metadata"] as const;
 const PLAN_ASSISTED_FACT_STATUSES = ["proposed", "confirmed", "rejected"] as const;
 const PLAN_TEXT_EXTRACTION_STATUSES = ["text_extracted", "no_text", "unsupported", "failed"] as const;
-const PLAN_TEXT_EXTRACTION_SOURCES = ["pdf_text", "plain_text", "vision_ocr", "none"] as const;
+const PLAN_TEXT_EXTRACTION_SOURCES = ["pdf_text", "plain_text", "vision_ocr", "zai_ocr", "none"] as const;
 
 export const customBriefQuestionSchema = z
   .object({

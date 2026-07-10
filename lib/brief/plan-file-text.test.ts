@@ -1,7 +1,7 @@
 import { deflateSync } from "node:zlib";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { derivePlanAssistedDraft } from "./plan-assist";
-import { extractPdfTextFromBuffer, extractPlanFileText, yandexVisionOcr } from "./plan-file-text";
+import { extractPdfTextFromBuffer, extractPlanFileText, zaiGlmOcr } from "./plan-file-text";
 
 const originalFetch = globalThis.fetch;
 
@@ -97,7 +97,7 @@ describe("plan file text extraction", () => {
     const result = await extractPlanFileText(file, {
       ocrClient: async () => ({
         status: "text_extracted",
-        source: "vision_ocr",
+        source: "zai_ocr",
         chars: 44,
         excerpt: "План участка 15 x 16.6 м, летняя кухня",
       }),
@@ -105,14 +105,14 @@ describe("plan file text extraction", () => {
 
     expect(result).toMatchObject({
       status: "text_extracted",
-      source: "vision_ocr",
+      source: "zai_ocr",
     });
     expect(result.excerpt).toContain("летняя кухня");
   });
 
-  it("sends OCR requests to Yandex Vision OCR", async () => {
+  it("sends OCR requests to ZAI GLM-OCR", async () => {
     const fetchMock = vi.fn<(input: RequestInfo | URL, init?: RequestInit) => Promise<Response>>(async () =>
-      new Response(JSON.stringify({ textAnnotation: { fullText: "Летняя кухня 25 м2" } }), {
+      new Response(JSON.stringify({ md_results: "# План\nЛетняя кухня 25 м2" }), {
         status: 200,
         headers: { "Content-Type": "application/json" },
       }),
@@ -120,25 +120,29 @@ describe("plan file text extraction", () => {
     globalThis.fetch = fetchMock as typeof fetch;
     const file = new File(["fake-image"], "plan.png", { type: "image/png" });
 
-    const result = await yandexVisionOcr(file, {
-      folderId: "folder",
+    const result = await zaiGlmOcr(file, {
       apiKey: "api-key",
-      model: "page",
-      languageCodes: ["ru", "en"],
+      model: "glm-ocr",
     });
 
     expect(result).toMatchObject({
       status: "text_extracted",
-      source: "vision_ocr",
+      source: "zai_ocr",
     });
     const [url, init] = fetchMock.mock.calls[0] as [RequestInfo | URL, RequestInit];
-    expect(url).toBe("https://ocr.api.cloud.yandex.net/ocr/v1/recognizeText");
-    expect((init?.headers as Record<string, string>).Authorization).toBe("Api-Key api-key");
-    const body = JSON.parse(String(init?.body)) as { mimeType: string; model: string; languageCodes: string[] };
+    expect(url).toBe("https://api.z.ai/api/paas/v4/layout_parsing");
+    expect((init?.headers as Record<string, string>).Authorization).toBe("Bearer api-key");
+    const body = JSON.parse(String(init?.body)) as {
+      model: string;
+      file: string;
+      return_crop_images: boolean;
+      need_layout_visualization: boolean;
+    };
     expect(body).toMatchObject({
-      mimeType: "image/png",
-      model: "page",
-      languageCodes: ["ru", "en"],
+      model: "glm-ocr",
+      file: Buffer.from("fake-image").toString("base64"),
+      return_crop_images: false,
+      need_layout_visualization: false,
     });
   });
 });

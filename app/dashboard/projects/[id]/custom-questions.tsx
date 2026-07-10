@@ -113,12 +113,15 @@ function requestPlanFiles(files: BriefPackPlanFile[]): BriefPackPlanFile[] {
 function planFileExtractionLabel(file: BriefPackPlanFile): string {
   const extraction = file.text_extraction;
   if (!extraction) return ru.briefBuilder.planTextUnknown;
-  if (extraction.status === "text_extracted" && extraction.source === "vision_ocr") {
+  if (extraction.status === "text_extracted" && ["vision_ocr", "zai_ocr"].includes(extraction.source)) {
     return ru.briefBuilder.planOcrExtracted(extraction.chars);
   }
   if (extraction.status === "text_extracted") return ru.briefBuilder.planTextExtracted(extraction.chars);
   if (extraction.status === "no_text") return ru.briefBuilder.planTextNoText;
-  if (extraction.status === "unsupported" && extraction.message === "ocr_not_configured") {
+  if (
+    extraction.status === "unsupported" &&
+    ["ocr_not_configured", "zai_ocr_not_configured"].includes(extraction.message ?? "")
+  ) {
     return ru.briefBuilder.planOcrNotConfigured;
   }
   if (extraction.status === "unsupported") return ru.briefBuilder.planTextUnsupported;
