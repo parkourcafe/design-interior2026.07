@@ -12,6 +12,7 @@ import {
   type BriefPackProjectType,
   type CustomBriefQuestion,
   type CustomQuestionType,
+  type PlanAssistedFact,
 } from "@/lib/brief/custom-questions";
 import { ru } from "@/lib/i18n/ru";
 import { saveCustomQuestions } from "./actions";
@@ -39,6 +40,14 @@ interface GeneratePackResponse {
   ok?: boolean;
   llmOk?: boolean;
   questions?: CustomBriefQuestion[];
+}
+
+interface PlanAssistResponse {
+  ok?: boolean;
+  draft?: {
+    summary: string;
+    facts: PlanAssistedFact[];
+  };
 }
 
 interface PlanUploadResponse {
@@ -90,6 +99,15 @@ function cleanForSave(items: CustomBriefQuestion[]): CustomBriefQuestion[] {
   return normalizeCustomQuestions(items);
 }
 
+function requestPlanFiles(files: BriefPackPlanFile[]): BriefPackPlanFile[] {
+  return files.map((file) => ({
+    name: file.name,
+    size: file.size,
+    type: file.type,
+    path: file.path,
+  }));
+}
+
 // Редактор своих вопросов дизайнера. Они добавляются в конец брифа клиента.
 export default function CustomQuestions({
   projectId,
@@ -111,6 +129,9 @@ export default function CustomQuestions({
   const [packLocation, setPackLocation] = useState("");
   const [packPlanNotes, setPackPlanNotes] = useState("");
   const [packFiles, setPackFiles] = useState<BriefPackPlanFile[]>([]);
+  const [planFacts, setPlanFacts] = useState<PlanAssistedFact[]>([]);
+  const [planAssistSummary, setPlanAssistSummary] = useState<string | null>(null);
+  const [planAssisting, setPlanAssisting] = useState(false);
   const [packGenerating, setPackGenerating] = useState(false);
   const [packUploading, setPackUploading] = useState(false);
   const [packMessage, setPackMessage] = useState<string | null>(null);
@@ -196,11 +217,66 @@ export default function CustomQuestions({
     if (response?.ok && json?.file) {
       const uploaded = json.file;
       setPackFiles((prev) => [...prev, uploaded].slice(-5));
+      setPlanFacts([]);
+      setPlanAssistSummary(null);
       setPackMessage(ru.briefBuilder.planUploaded(uploaded.name));
     } else {
       setPackMessage(ru.briefBuilder.planUploadError);
     }
     setPackUploading(false);
+  }
+
+  function parsedPackArea(): { ok: true; value: number | null } | { ok: false } {
+    const rawArea = packArea.trim();
+    const normalizedArea = rawArea ? Number(rawArea.replace(",", ".")) : null;
+    if (normalizedArea !== null && (!Number.isFinite(normalizedArea) || normalizedArea <= 0)) return { ok: false };
+    return { ok: true, value: normalizedArea };
+  }
+
+  async function derivePlanFacts() {
+    const area = parsedPackArea();
+    if (!area.ok) {
+      setPackMessage(ru.briefBuilder.packAreaError);
+      return;
+    }
+    const description = packDescription.trim() || "Файл плана без подробного описания";
+    if (!packDescription.trim() && !packPlanNotes.trim() && packFiles.length === 0) {
+      setPackMessage(ru.briefBuilder.planAssistNeedsContext);
+      return;
+    }
+
+    setPlanAssisting(true);
+    setPackMessage(null);
+    const response = await fetch("/api/brief/custom-question/plan-assist", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        projectId,
+        project_type: packProjectType,
+        description,
+        area_m2: area.value,
+        location: packLocation,
+        plan_notes: packPlanNotes,
+        plan_files: requestPlanFiles(packFiles),
+      }),
+    }).catch(() => null);
+    const json = (await response?.json().catch(() => null)) as PlanAssistResponse | null;
+    if (response?.ok && json?.draft) {
+      setPlanFacts(json.draft.facts);
+      setPlanAssistSummary(json.draft.summary);
+      setPackMessage(ru.briefBuilder.planAssistReady(json.draft.facts.length));
+    } else {
+      setPackMessage(ru.briefBuilder.planAssistError);
+    }
+    setPlanAssisting(false);
+  }
+
+  function updatePlanFact(index: number, patch: Partial<PlanAssistedFact>) {
+    setPlanFacts((prev) => prev.map((fact, i) => (i === index ? { ...fact, ...patch } : fact)));
+  }
+
+  function confirmAllPlanFacts() {
+    setPlanFacts((prev) => prev.map((fact) => ({ ...fact, status: "confirmed" })));
   }
 
   async function generateBriefPack() {
@@ -209,12 +285,15 @@ export default function CustomQuestions({
       setPackMessage(ru.briefBuilder.packDescriptionRequired);
       return;
     }
-    const rawArea = packArea.trim();
-    const normalizedArea = rawArea ? Number(rawArea.replace(",", ".")) : null;
-    if (normalizedArea !== null && (!Number.isFinite(normalizedArea) || normalizedArea <= 0)) {
+    const area = parsedPackArea();
+    if (!area.ok) {
       setPackMessage(ru.briefBuilder.packAreaError);
       return;
     }
+    const confirmedFacts = planFacts
+      .filter((fact) => fact.status === "confirmed" && fact.value.trim())
+      .map((fact) => ({ ...fact, value: fact.value.trim(), status: "confirmed" as const }));
+
     setPackGenerating(true);
     setPackMessage(null);
     const response = await fetch("/api/brief/custom-question/generate", {
@@ -224,10 +303,11 @@ export default function CustomQuestions({
         projectId,
         projectType: packProjectType,
         description,
-        areaM2: normalizedArea,
+        areaM2: area.value,
         location: packLocation,
         planNotes: packPlanNotes,
-        planFiles: packFiles,
+        planFiles: requestPlanFiles(packFiles),
+        planFacts: confirmedFacts,
       }),
     }).catch(() => null);
     const json = (await response?.json().catch(() => null)) as GeneratePackResponse | null;
@@ -394,6 +474,63 @@ export default function CustomQuestions({
             {ru.briefBuilder.attachedPlans}: {packFiles.map((file) => file.name).join(", ")}
           </p>
         )}
+
+        <div className="mt-3 rounded-md border border-line bg-line/10 p-3">
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+            <div>
+              <p className="text-sm font-medium">{ru.briefBuilder.planAssistTitle}</p>
+              <p className="mt-1 text-xs leading-relaxed text-muted">{ru.briefBuilder.planAssistHint}</p>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              {planFacts.length > 0 && (
+                <button type="button" onClick={confirmAllPlanFacts} className="btn-ghost text-xs">
+                  {ru.briefBuilder.planAssistConfirmAll}
+                </button>
+              )}
+              <button
+                type="button"
+                onClick={derivePlanFacts}
+                disabled={planAssisting || packUploading}
+                className="btn-ghost text-xs"
+              >
+                {planAssisting ? ru.briefBuilder.planAssisting : ru.briefBuilder.planAssistExtract}
+              </button>
+            </div>
+          </div>
+          {planAssistSummary && <p className="mt-2 text-xs text-muted">{planAssistSummary}</p>}
+          {planFacts.length > 0 && (
+            <div className="mt-3 space-y-2">
+              {planFacts.map((fact, index) => (
+                <div key={`${fact.id}-${index}`} className="rounded-md border border-line bg-white p-2">
+                  <label className="flex items-start gap-2 text-sm">
+                    <input
+                      type="checkbox"
+                      className="mt-1"
+                      checked={fact.status === "confirmed"}
+                      onChange={(event) =>
+                        updatePlanFact(index, { status: event.target.checked ? "confirmed" : "proposed" })
+                      }
+                    />
+                    <span className="min-w-0 flex-1">
+                      <span className="block text-xs uppercase text-muted">
+                        {fact.label} · {ru.briefBuilder.planAssistConfidence[fact.confidence]}
+                      </span>
+                      <input
+                        className="input mt-1"
+                        value={fact.value}
+                        onChange={(event) =>
+                          updatePlanFact(index, { value: event.target.value, status: "confirmed" })
+                        }
+                      />
+                      <span className="mt-1 block text-xs leading-relaxed text-muted">{fact.evidence}</span>
+                    </span>
+                  </label>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
         <div className="mt-3 flex flex-wrap items-center gap-2">
           <button
             type="button"

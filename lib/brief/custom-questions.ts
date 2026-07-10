@@ -3,6 +3,16 @@ import { QUESTIONS, type Option, type Question } from "@/lib/brief/questions";
 
 export type CustomQuestionType = "text" | "choice" | "multi" | "number";
 export type CustomQuestionSource = "manual" | "voice" | "llm" | "preset";
+export type PlanAssistedFactDiscipline =
+  | "metadata"
+  | "site"
+  | "planning"
+  | "engineering"
+  | "facade"
+  | "signage"
+  | "constraints";
+export type PlanAssistedFactSource = "description" | "plan_notes" | "file_name" | "metadata";
+export type PlanAssistedFactStatus = "proposed" | "confirmed" | "rejected";
 export type BriefPackProjectType =
   | "residential"
   | "commercial"
@@ -49,6 +59,17 @@ export interface BriefPackPlanFile {
   path?: string;
 }
 
+export interface PlanAssistedFact {
+  id: string;
+  label: string;
+  value: string;
+  discipline: PlanAssistedFactDiscipline;
+  confidence: "low" | "medium" | "high";
+  evidence: string;
+  source: PlanAssistedFactSource;
+  status?: PlanAssistedFactStatus;
+}
+
 export interface BriefPackContext {
   project_type: BriefPackProjectType;
   description: string;
@@ -56,9 +77,21 @@ export interface BriefPackContext {
   location?: string;
   plan_notes?: string;
   plan_files?: BriefPackPlanFile[];
+  plan_facts?: PlanAssistedFact[];
 }
 
 const CUSTOM_QUESTION_TYPES = ["text", "choice", "multi", "number"] as const;
+const PLAN_ASSISTED_FACT_DISCIPLINES = [
+  "metadata",
+  "site",
+  "planning",
+  "engineering",
+  "facade",
+  "signage",
+  "constraints",
+] as const;
+const PLAN_ASSISTED_FACT_SOURCES = ["description", "plan_notes", "file_name", "metadata"] as const;
+const PLAN_ASSISTED_FACT_STATUSES = ["proposed", "confirmed", "rejected"] as const;
 
 export const customBriefQuestionSchema = z
   .object({
@@ -113,6 +146,26 @@ export const briefPackPlanFileSchema = z
   })
   .strict();
 
+export const planAssistedFactSchema = z
+  .object({
+    id: z.string().trim().min(1).max(80),
+    label: z.string().trim().min(2).max(120),
+    value: z.string().trim().min(1).max(260),
+    discipline: z.enum(PLAN_ASSISTED_FACT_DISCIPLINES),
+    confidence: z.enum(["low", "medium", "high"]),
+    evidence: z.string().trim().min(1).max(260),
+    source: z.enum(PLAN_ASSISTED_FACT_SOURCES),
+    status: z.enum(PLAN_ASSISTED_FACT_STATUSES).optional(),
+  })
+  .strict();
+
+export const planAssistedDraftSchema = z
+  .object({
+    summary: z.string().trim().max(500),
+    facts: z.array(planAssistedFactSchema).max(30),
+  })
+  .strict();
+
 export const briefPackContextSchema = z
   .object({
     project_type: z.enum(BRIEF_PACK_PROJECT_TYPES),
@@ -121,6 +174,7 @@ export const briefPackContextSchema = z
     location: z.string().trim().max(120).optional(),
     plan_notes: z.string().trim().max(1000).optional(),
     plan_files: z.array(briefPackPlanFileSchema).max(5).optional(),
+    plan_facts: z.array(planAssistedFactSchema).max(30).optional(),
   })
   .strict();
 
@@ -337,6 +391,18 @@ function sanitizeBriefPackContext(context: BriefPackContext): BriefPackContext {
       type: compactString(file.type)?.slice(0, 120),
       path: compactString(file.path)?.slice(0, 300),
     })),
+    plan_facts: context.plan_facts
+      ?.filter((fact) => fact.status !== "rejected")
+      .map((fact) => ({
+        id: compactString(fact.id)?.slice(0, 80) ?? "fact",
+        label: compactString(fact.label)?.slice(0, 120) ?? "Факт",
+        value: compactString(fact.value)?.slice(0, 260) ?? "",
+        discipline: fact.discipline,
+        confidence: fact.confidence,
+        evidence: compactString(fact.evidence)?.slice(0, 260) ?? "Подтверждено дизайнером",
+        source: fact.source,
+        status: fact.status ?? "confirmed",
+      })),
   });
   if (parsed.success) return parsed.data;
   return {
@@ -348,6 +414,7 @@ function sanitizeBriefPackContext(context: BriefPackContext): BriefPackContext {
 export function buildBriefPackPrompt(context: BriefPackContext): string {
   const clean = sanitizeBriefPackContext(context);
   const hasPlans = Boolean(clean.plan_files?.length || clean.plan_notes);
+  const confirmedFacts = (clean.plan_facts ?? []).filter((fact) => fact.status !== "rejected");
   return [
     "Ты помогаешь интерьерному дизайнеру подготовить дополнительные вопросы для клиентского брифа по описанию проекта.",
     "Верни только JSON по схеме:",
@@ -363,9 +430,11 @@ export function buildBriefPackPrompt(context: BriefPackContext): string {
     "- не добавляй вопросы, которые полностью дублируют стандартный бриф: тип объекта, площадь, город, бюджетный коридор, срок, стиль, боли;",
     "- если проект коммерческий, уточняй операционную модель, путь клиента, зоны, персонал, хранение, инженерные ограничения, акустику/приватность, материалы, согласования и запуск;",
     "- если данных мало, добавь вопросы, которые помогут снять неопределенность, а не придумывай факты;",
-    hasPlans
-      ? "- план/файлы переданы только как метаданные и заметки; не утверждай, что прочитал или распознал чертеж, вместо этого задай проверочные вопросы по входам, мокрым точкам, несущим стенам, высотам и масштабу."
-      : "- если план не передан, можно спросить, что уже известно по планировочным и инженерным ограничениям.",
+    confirmedFacts.length
+      ? "- используй plan_facts как подтверждённые дизайнером факты по плану; не делай выводов сверх этих фактов, а превращай их в уточняющие вопросы."
+      : hasPlans
+        ? "- план/файлы переданы как метаданные и заметки; не утверждай, что прочитал чертёж, задай проверочные вопросы по входам, мокрым точкам, несущим стенам, высотам и масштабу."
+        : "- если план не передан, можно спросить, что уже известно по планировочным и инженерным ограничениям.",
     "- не добавляй markdown и пояснения.",
     "",
     `Контекст проекта: ${JSON.stringify(clean)}`,
@@ -390,6 +459,44 @@ export function flattenBriefPack(pack: BriefPack): CustomBriefQuestion[] {
 }
 
 function planVerificationQuestions(context: BriefPackContext): CustomBriefQuestion[] {
+  const facts = (context.plan_facts ?? []).filter((fact) => fact.status !== "rejected");
+  const factQuestions = facts
+    .flatMap((fact): CustomBriefQuestion[] => {
+      if (fact.discipline === "site" || fact.discipline === "constraints") {
+        return [
+          {
+            title: `Как факт «${fact.value}» должен повлиять на планировку, приватность или сценарии использования?`,
+            type: "text",
+            help: `Из плана/заметок: ${fact.evidence}`,
+            source: "llm",
+          },
+        ];
+      }
+      if (fact.discipline === "engineering") {
+        return [
+          {
+            title: `Какие ограничения по инженерии нужно проверить для зоны или системы «${fact.value}»?`,
+            type: "text",
+            help: `Из плана/заметок: ${fact.evidence}`,
+            source: "llm",
+          },
+        ];
+      }
+      if (fact.discipline === "planning") {
+        return [
+          {
+            title: `Как клиент планирует использовать зону «${fact.value}» в обычный день и при гостях?`,
+            type: "text",
+            help: `Из плана/заметок: ${fact.evidence}`,
+            source: "llm",
+          },
+        ];
+      }
+      return [];
+    })
+    .slice(0, 6);
+
+  if (factQuestions.length > 0) return factQuestions;
   if (!context.plan_files?.length && !context.plan_notes) return [];
   return [
     {

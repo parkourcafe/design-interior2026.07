@@ -8,6 +8,7 @@ import {
   buildBriefPackPrompt,
   fallbackBriefPackFromContext,
   flattenBriefPack,
+  planAssistedFactSchema,
 } from "@/lib/brief/custom-questions";
 import { completeJSON } from "@/lib/llm/provider";
 import { checkRateLimit, clientIp } from "@/lib/rate-limit";
@@ -35,6 +36,7 @@ const Body = z
     location: optionalText(120),
     planNotes: optionalText(1000),
     planFiles: z.array(briefPackPlanFileSchema).max(5).optional(),
+    planFacts: z.array(planAssistedFactSchema).max(30).optional(),
   })
   .strict();
 
@@ -66,6 +68,7 @@ export async function POST(request: Request) {
     location: parsed.data.location,
     plan_notes: parsed.data.planNotes,
     plan_files: parsed.data.planFiles,
+    plan_facts: parsed.data.planFacts,
   });
   if (!context.success) return NextResponse.json({ error: "bad_request" }, { status: 400 });
 

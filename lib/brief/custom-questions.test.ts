@@ -121,8 +121,30 @@ describe("custom brief questions", () => {
       plan_files: [{ name: "plan.pdf", size: 1200, type: "application/pdf", path: "designer-plans/p/plan.pdf" }],
     });
 
-    expect(prompt).toContain("не утверждай, что прочитал");
+    expect(prompt).toContain("не утверждай, что прочитал чертёж");
     expect(prompt).toContain("plan.pdf");
+  });
+
+  it("uses confirmed plan facts in the brief pack prompt", () => {
+    const prompt = buildBriefPackPrompt({
+      project_type: "residential",
+      description: "Дом для семьи",
+      plan_facts: [
+        {
+          id: "outdoor_kitchen",
+          label: "Зона",
+          value: "летняя кухня",
+          discipline: "planning",
+          confidence: "medium",
+          evidence: "Заметки к плану: летняя кухня",
+          source: "plan_notes",
+          status: "confirmed",
+        },
+      ],
+    });
+
+    expect(prompt).toContain("подтверждённые дизайнером факты");
+    expect(prompt).toContain("летняя кухня");
   });
 
   it("flattens grouped LLM brief pack questions into editable custom questions", () => {
