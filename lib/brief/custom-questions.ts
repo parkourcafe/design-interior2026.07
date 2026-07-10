@@ -3,6 +3,27 @@ import { QUESTIONS, type Option, type Question } from "@/lib/brief/questions";
 
 export type CustomQuestionType = "text" | "choice" | "multi" | "number";
 export type CustomQuestionSource = "manual" | "voice" | "llm" | "preset";
+export type BriefPackProjectType =
+  | "residential"
+  | "commercial"
+  | "wellness"
+  | "restaurant"
+  | "office"
+  | "retail"
+  | "hospitality"
+  | "other";
+
+export const CUSTOM_QUESTIONS_LIMIT = 30;
+export const BRIEF_PACK_PROJECT_TYPES = [
+  "residential",
+  "commercial",
+  "wellness",
+  "restaurant",
+  "office",
+  "retail",
+  "hospitality",
+  "other",
+] as const;
 
 export interface CustomBriefQuestion {
   title: string;
@@ -19,6 +40,22 @@ export interface QuestionPreset {
   label: string;
   description: string;
   questions: CustomBriefQuestion[];
+}
+
+export interface BriefPackPlanFile {
+  name: string;
+  size?: number;
+  type?: string;
+  path?: string;
+}
+
+export interface BriefPackContext {
+  project_type: BriefPackProjectType;
+  description: string;
+  area_m2?: number | null;
+  location?: string;
+  plan_notes?: string;
+  plan_files?: BriefPackPlanFile[];
 }
 
 const CUSTOM_QUESTION_TYPES = ["text", "choice", "multi", "number"] as const;
@@ -66,6 +103,44 @@ export const llmStructuredQuestionSchema = z
   .strict();
 
 export type LlmStructuredQuestion = z.infer<typeof llmStructuredQuestionSchema>;
+
+export const briefPackPlanFileSchema = z
+  .object({
+    name: z.string().trim().min(1).max(180),
+    size: z.number().int().nonnegative().max(25 * 1024 * 1024).optional(),
+    type: z.string().trim().max(120).optional(),
+    path: z.string().trim().max(300).optional(),
+  })
+  .strict();
+
+export const briefPackContextSchema = z
+  .object({
+    project_type: z.enum(BRIEF_PACK_PROJECT_TYPES),
+    description: z.string().trim().min(5).max(1000),
+    area_m2: z.number().positive().max(100000).nullable().optional(),
+    location: z.string().trim().max(120).optional(),
+    plan_notes: z.string().trim().max(1000).optional(),
+    plan_files: z.array(briefPackPlanFileSchema).max(5).optional(),
+  })
+  .strict();
+
+export const briefPackSchema = z
+  .object({
+    groups: z
+      .array(
+        z
+          .object({
+            title: z.string().trim().min(3).max(90),
+            questions: z.array(llmStructuredQuestionSchema).min(1).max(6),
+          })
+          .strict(),
+      )
+      .min(2)
+      .max(8),
+  })
+  .strict();
+
+export type BriefPack = z.infer<typeof briefPackSchema>;
 
 function compactString(value: unknown): string | undefined {
   return typeof value === "string" && value.trim() ? value.trim().replace(/\s+/g, " ") : undefined;
@@ -179,7 +254,7 @@ export function normalizeCustomQuestions(value: unknown): CustomBriefQuestion[] 
     seen.add(key);
     result.push(question);
   }
-  return result.slice(0, 15);
+  return result.slice(0, CUSTOM_QUESTIONS_LIMIT);
 }
 
 export function customQuestionToRuntimeQuestion(question: CustomBriefQuestion, index: number): Question {
@@ -248,6 +323,345 @@ export function buildCustomQuestionPrompt(phrase: string): string {
     "",
     `Заметка дизайнера: ${clean}`,
   ].join("\n");
+}
+
+function sanitizeBriefPackContext(context: BriefPackContext): BriefPackContext {
+  const parsed = briefPackContextSchema.safeParse({
+    ...context,
+    description: sanitizeDesignerPrompt(context.description).slice(0, 1000),
+    location: compactString(context.location)?.slice(0, 120),
+    plan_notes: context.plan_notes ? sanitizeDesignerPrompt(context.plan_notes).slice(0, 1000) : undefined,
+    plan_files: context.plan_files?.map((file) => ({
+      name: compactString(file.name)?.slice(0, 180) ?? "файл",
+      size: typeof file.size === "number" ? file.size : undefined,
+      type: compactString(file.type)?.slice(0, 120),
+      path: compactString(file.path)?.slice(0, 300),
+    })),
+  });
+  if (parsed.success) return parsed.data;
+  return {
+    project_type: "other",
+    description: sanitizeDesignerPrompt(context.description || "Проект без подробного описания"),
+  };
+}
+
+export function buildBriefPackPrompt(context: BriefPackContext): string {
+  const clean = sanitizeBriefPackContext(context);
+  const hasPlans = Boolean(clean.plan_files?.length || clean.plan_notes);
+  return [
+    "Ты помогаешь интерьерному дизайнеру подготовить дополнительные вопросы для клиентского брифа по описанию проекта.",
+    "Верни только JSON по схеме:",
+    '{"groups":[{"title":"string","questions":[{"title":"string","type":"text|choice|multi|number","help":"string optional","placeholder":"string optional","options":[{"value":"slug","label":"string"}] optional}]}]}',
+    "",
+    "Правила:",
+    "- язык: русский;",
+    "- всего 8-14 вопросов, сгруппированных в 3-6 блоков;",
+    "- вопросы должны быть понятными клиенту, нейтральными и поведенческими;",
+    "- используй только типы text, choice, multi, number;",
+    "- для choice/multi дай 2-5 коротких options, value — латинский slug без пробелов;",
+    "- не спрашивай про доход, паспортные данные, точный адрес, документы, оплату или договор;",
+    "- не добавляй вопросы, которые полностью дублируют стандартный бриф: тип объекта, площадь, город, бюджетный коридор, срок, стиль, боли;",
+    "- если проект коммерческий, уточняй операционную модель, путь клиента, зоны, персонал, хранение, инженерные ограничения, акустику/приватность, материалы, согласования и запуск;",
+    "- если данных мало, добавь вопросы, которые помогут снять неопределенность, а не придумывай факты;",
+    hasPlans
+      ? "- план/файлы переданы только как метаданные и заметки; не утверждай, что прочитал или распознал чертеж, вместо этого задай проверочные вопросы по входам, мокрым точкам, несущим стенам, высотам и масштабу."
+      : "- если план не передан, можно спросить, что уже известно по планировочным и инженерным ограничениям.",
+    "- не добавляй markdown и пояснения.",
+    "",
+    `Контекст проекта: ${JSON.stringify(clean)}`,
+  ].join("\n");
+}
+
+function groupHelp(groupTitle: string, help?: string): string {
+  const value = compactString(help);
+  return value ? `Блок: ${groupTitle}. ${value}`.slice(0, 320) : `Блок: ${groupTitle}.`;
+}
+
+export function flattenBriefPack(pack: BriefPack): CustomBriefQuestion[] {
+  return normalizeCustomQuestions(
+    pack.groups.flatMap((group) =>
+      group.questions.map((question) => ({
+        ...question,
+        help: groupHelp(group.title, question.help),
+        source: "llm",
+      })),
+    ),
+  );
+}
+
+function planVerificationQuestions(context: BriefPackContext): CustomBriefQuestion[] {
+  if (!context.plan_files?.length && !context.plan_notes) return [];
+  return [
+    {
+      title: "Что на плане уже точно зафиксировано и не подлежит изменению?",
+      type: "text",
+      help: "Например: входы, мокрые точки, несущие стены, окна, технические шахты.",
+      placeholder: "Опишите ограничения по плану своими словами.",
+      source: "llm",
+    },
+    {
+      title: "Какие размеры, высоты или инженерные точки на плане нужно проверить до планировочного решения?",
+      type: "text",
+      help: "Файл хранится как контекст, без автоматического распознавания чертежа.",
+      placeholder: "Например: высота потолка, выводы воды, вентиляция, электрика, уклоны.",
+      source: "llm",
+    },
+  ];
+}
+
+function wellnessFallbackQuestions(): CustomBriefQuestion[] {
+  return [
+    {
+      title: "Какие типы процедур должна поддерживать студия на первом запуске?",
+      type: "multi",
+      options: [
+        { value: "massage", label: "Массаж" },
+        { value: "spa", label: "SPA-процедуры" },
+        { value: "face_body", label: "Уход за лицом и телом" },
+        { value: "retail", label: "Продажа косметики" },
+        { value: "other", label: "Другое" },
+      ],
+      source: "llm",
+    },
+    {
+      title: "Сколько процедурных кабинетов или рабочих мест нужно одновременно?",
+      type: "number",
+      help: "Помогает оценить плотность планировки и нагрузку на инженерные системы.",
+      source: "llm",
+    },
+    {
+      title: "Каким должен быть путь гостя от входа до выхода?",
+      type: "text",
+      placeholder: "Например: ресепшен, ожидание, переодевание, процедура, душ, чайная зона, оплата.",
+      source: "llm",
+    },
+    {
+      title: "Какие зоны обязательны для работы студии?",
+      type: "multi",
+      options: [
+        { value: "reception", label: "Ресепшен" },
+        { value: "waiting", label: "Зона ожидания" },
+        { value: "treatment_rooms", label: "Кабинеты" },
+        { value: "showers", label: "Душевые" },
+        { value: "staff", label: "Комната персонала" },
+        { value: "laundry_storage", label: "Прачечная и хранение" },
+      ],
+      source: "llm",
+    },
+    {
+      title: "Сколько сотрудников одновременно находится в смене?",
+      type: "number",
+      help: "Нужно для бытовых зон, хранения, раздевалки и графика движения.",
+      source: "llm",
+    },
+    {
+      title: "Какие инженерные ограничения уже известны по объекту?",
+      type: "multi",
+      options: [
+        { value: "plumbing", label: "Вода и канализация" },
+        { value: "hvac", label: "Вентиляция и кондиционирование" },
+        { value: "electricity", label: "Электрика" },
+        { value: "acoustics", label: "Акустика" },
+        { value: "unknown", label: "Пока неизвестно" },
+      ],
+      source: "llm",
+    },
+    {
+      title: "Какой уровень приватности и звукоизоляции нужен между кабинетами?",
+      type: "choice",
+      options: [
+        { value: "basic", label: "Базовый" },
+        { value: "comfortable", label: "Комфортный" },
+        { value: "high", label: "Высокий" },
+        { value: "unknown", label: "Нужно обсудить" },
+      ],
+      source: "llm",
+    },
+    {
+      title: "Какие материалы или поверхности должны быть особенно износостойкими и простыми в уборке?",
+      type: "text",
+      placeholder: "Например: полы, стены кабинетов, мокрые зоны, ресепшен, мебель.",
+      source: "llm",
+    },
+    {
+      title: "Какое ощущение бренда должен получить гость в первые 30 секунд?",
+      type: "text",
+      placeholder: "Например: премиально, спокойно, тропически, медицински чисто, камерно.",
+      source: "llm",
+    },
+    {
+      title: "Кто будет принимать решения по операционным и визуальным вопросам?",
+      type: "choice",
+      options: [
+        { value: "owner", label: "Собственник" },
+        { value: "manager", label: "Операционный управляющий" },
+        { value: "team", label: "Несколько участников" },
+        { value: "unknown", label: "Пока не определено" },
+      ],
+      source: "llm",
+    },
+  ];
+}
+
+function commercialFallbackQuestions(): CustomBriefQuestion[] {
+  return [
+    {
+      title: "Какая бизнес-задача у пространства на первый год работы?",
+      type: "text",
+      placeholder: "Например: быстрый запуск, премиальный образ, высокая пропускная способность.",
+      source: "llm",
+    },
+    {
+      title: "Какие группы пользователей будут находиться в пространстве одновременно?",
+      type: "multi",
+      options: [
+        { value: "clients", label: "Клиенты" },
+        { value: "staff", label: "Персонал" },
+        { value: "partners", label: "Партнёры" },
+        { value: "delivery", label: "Доставка/сервис" },
+      ],
+      source: "llm",
+    },
+    {
+      title: "Какие зоны критичны для запуска, а какие можно отложить?",
+      type: "text",
+      source: "llm",
+    },
+    {
+      title: "Какие процессы должны быть незаметны для клиента?",
+      type: "text",
+      placeholder: "Например: хранение, уборка, доставка, персонал, техническое обслуживание.",
+      source: "llm",
+    },
+    {
+      title: "Какие инженерные вопросы нужно проверить до концепции?",
+      type: "multi",
+      options: [
+        { value: "ventilation", label: "Вентиляция" },
+        { value: "water", label: "Вода/канализация" },
+        { value: "power", label: "Мощность электрики" },
+        { value: "fire", label: "Пожарные требования" },
+        { value: "unknown", label: "Пока неизвестно" },
+      ],
+      source: "llm",
+    },
+    {
+      title: "Какой уровень готовности нужен от дизайнера: концепция, рабочая документация или сопровождение запуска?",
+      type: "choice",
+      options: [
+        { value: "concept", label: "Концепция" },
+        { value: "documentation", label: "Рабочая документация" },
+        { value: "launch_support", label: "Сопровождение запуска" },
+        { value: "unknown", label: "Нужно подобрать" },
+      ],
+      source: "llm",
+    },
+    {
+      title: "Есть ли требования арендодателя, управляющей компании или площадки?",
+      type: "text",
+      source: "llm",
+    },
+    {
+      title: "Какие решения должны быть простыми в обслуживании после открытия?",
+      type: "text",
+      placeholder: "Материалы, мебель, свет, оборудование, навигация, хранение.",
+      source: "llm",
+    },
+  ];
+}
+
+function residentialFallbackQuestions(): CustomBriefQuestion[] {
+  return [
+    {
+      title: "Какие сценарии жизни в этом объекте важнее всего сохранить?",
+      type: "text",
+      placeholder: "Например: тихое утро, гости, работа дома, хранение, спорт.",
+      source: "llm",
+    },
+    {
+      title: "Какие зоны должны быть готовы в первую очередь?",
+      type: "multi",
+      options: [
+        { value: "kitchen", label: "Кухня" },
+        { value: "bedroom", label: "Спальня" },
+        { value: "kids", label: "Детская" },
+        { value: "bathrooms", label: "Санузлы" },
+        { value: "storage", label: "Хранение" },
+      ],
+      source: "llm",
+    },
+    {
+      title: "Какие решения вы готовы доверить дизайнеру без частых согласований?",
+      type: "multi",
+      options: [
+        { value: "planning", label: "Планировка" },
+        { value: "materials", label: "Материалы" },
+        { value: "furniture", label: "Мебель" },
+        { value: "lighting", label: "Свет" },
+        { value: "none", label: "Пока ничего" },
+      ],
+      source: "llm",
+    },
+    {
+      title: "Какие бытовые ограничения нельзя нарушить в проекте?",
+      type: "text",
+      placeholder: "Например: сон ребёнка, животные, удалённая работа, аллергии, много вещей.",
+      source: "llm",
+    },
+    {
+      title: "Нужна ли помощь на этапе закупок и реализации?",
+      type: "choice",
+      options: [
+        { value: "no", label: "Нет, только проект" },
+        { value: "key_points", label: "Только ключевые решения" },
+        { value: "full", label: "Да, хочу сопровождение" },
+        { value: "unknown", label: "Пока не знаю" },
+      ],
+      source: "llm",
+    },
+  ];
+}
+
+export function fallbackBriefPackFromContext(context: BriefPackContext): CustomBriefQuestion[] {
+  const clean = sanitizeBriefPackContext(context);
+  const isWellness =
+    clean.project_type === "wellness" ||
+    /массаж|spa|спа|wellness|велнес|салон|процедур/i.test(clean.description);
+  const commercialTypes: BriefPackProjectType[] = [
+    "commercial",
+    "restaurant",
+    "office",
+    "retail",
+    "hospitality",
+  ];
+  const base = isWellness
+    ? wellnessFallbackQuestions()
+    : commercialTypes.includes(clean.project_type)
+      ? commercialFallbackQuestions()
+      : residentialFallbackQuestions();
+  const areaQuestion: CustomBriefQuestion | null = clean.area_m2
+    ? {
+        title: `Какие зоны должны поместиться в ${clean.area_m2} м² без компромисса по работе пространства?`,
+        type: "text",
+        help: "Помогает связать площадь с приоритетами клиента.",
+        source: "llm",
+      }
+    : null;
+  const locationQuestion: CustomBriefQuestion | null = clean.location
+    ? {
+        title: `Какие особенности локации «${clean.location}» важно учесть в проекте?`,
+        type: "text",
+        placeholder: "Климат, влажность, поставки, местные ограничения, ожидания гостей.",
+        source: "llm",
+      }
+    : null;
+
+  return normalizeCustomQuestions([
+    ...base,
+    areaQuestion,
+    locationQuestion,
+    ...planVerificationQuestions(clean),
+  ]);
 }
 
 function fromQuestion(question: Question): CustomBriefQuestion | null {

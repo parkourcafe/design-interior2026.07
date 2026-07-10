@@ -1,12 +1,15 @@
 "use client";
 
-import { useMemo, useRef, useState, useTransition } from "react";
+import { type ChangeEvent, useMemo, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import {
+  CUSTOM_QUESTIONS_LIMIT,
   DESIGNER_QUESTION_PRESETS,
   STANDARD_BRIEF_QUESTION_PREVIEW,
   normalizeCustomQuestions,
   optionValueFromLabel,
+  type BriefPackPlanFile,
+  type BriefPackProjectType,
   type CustomBriefQuestion,
   type CustomQuestionType,
 } from "@/lib/brief/custom-questions";
@@ -32,11 +35,33 @@ interface StructureResponse {
   question?: CustomBriefQuestion;
 }
 
+interface GeneratePackResponse {
+  ok?: boolean;
+  llmOk?: boolean;
+  questions?: CustomBriefQuestion[];
+}
+
+interface PlanUploadResponse {
+  ok?: boolean;
+  file?: BriefPackPlanFile;
+}
+
 const TYPES: { value: CustomQuestionType; label: string }[] = [
   { value: "text", label: ru.briefBuilder.types.text },
   { value: "choice", label: ru.briefBuilder.types.choice },
   { value: "multi", label: ru.briefBuilder.types.multi },
   { value: "number", label: ru.briefBuilder.types.number },
+];
+
+const PROJECT_TYPES: { value: BriefPackProjectType; label: string }[] = [
+  { value: "commercial", label: ru.briefBuilder.projectTypes.commercial },
+  { value: "wellness", label: ru.briefBuilder.projectTypes.wellness },
+  { value: "restaurant", label: ru.briefBuilder.projectTypes.restaurant },
+  { value: "office", label: ru.briefBuilder.projectTypes.office },
+  { value: "retail", label: ru.briefBuilder.projectTypes.retail },
+  { value: "hospitality", label: ru.briefBuilder.projectTypes.hospitality },
+  { value: "residential", label: ru.briefBuilder.projectTypes.residential },
+  { value: "other", label: ru.briefBuilder.projectTypes.other },
 ];
 
 function recognitionConstructor(): SpeechRecognitionConstructor | null {
@@ -80,6 +105,15 @@ export default function CustomQuestions({
   const [structuring, setStructuring] = useState(false);
   const [voiceState, setVoiceState] = useState<"idle" | "listening" | "unsupported">("idle");
   const [message, setMessage] = useState<string | null>(null);
+  const [packProjectType, setPackProjectType] = useState<BriefPackProjectType>("commercial");
+  const [packDescription, setPackDescription] = useState("");
+  const [packArea, setPackArea] = useState("");
+  const [packLocation, setPackLocation] = useState("");
+  const [packPlanNotes, setPackPlanNotes] = useState("");
+  const [packFiles, setPackFiles] = useState<BriefPackPlanFile[]>([]);
+  const [packGenerating, setPackGenerating] = useState(false);
+  const [packUploading, setPackUploading] = useState(false);
+  const [packMessage, setPackMessage] = useState<string | null>(null);
   const recognitionRef = useRef<SpeechRecognitionLike | null>(null);
   const router = useRouter();
 
@@ -114,7 +148,7 @@ export default function CustomQuestions({
   function addPreset(presetId: string) {
     const preset = DESIGNER_QUESTION_PRESETS.find((item) => item.id === presetId);
     if (!preset) return;
-    setItems((prev) => cleanForSave([...prev, ...preset.questions]).slice(0, 15));
+    setItems((prev) => cleanForSave([...prev, ...preset.questions]));
     markDirty();
   }
 
@@ -135,7 +169,7 @@ export default function CustomQuestions({
     }).catch(() => null);
     const json = (await response?.json().catch(() => null)) as StructureResponse | null;
     if (response?.ok && json?.question) {
-      setItems((prev) => cleanForSave([...prev, json.question!]).slice(0, 15));
+      setItems((prev) => cleanForSave([...prev, json.question!]));
       setDraft("");
       setMessage(json.llmOk ? ru.briefBuilder.structured : ru.briefBuilder.fallbackStructured);
       setSaved(false);
@@ -143,6 +177,73 @@ export default function CustomQuestions({
       setMessage(ru.briefBuilder.structureError);
     }
     setStructuring(false);
+  }
+
+  async function uploadPlan(event: ChangeEvent<HTMLInputElement>) {
+    const file = event.currentTarget.files?.[0];
+    event.currentTarget.value = "";
+    if (!file) return;
+    setPackUploading(true);
+    setPackMessage(null);
+    const form = new FormData();
+    form.set("projectId", projectId);
+    form.set("file", file);
+    const response = await fetch("/api/brief/custom-question/plan-upload", {
+      method: "POST",
+      body: form,
+    }).catch(() => null);
+    const json = (await response?.json().catch(() => null)) as PlanUploadResponse | null;
+    if (response?.ok && json?.file) {
+      const uploaded = json.file;
+      setPackFiles((prev) => [...prev, uploaded].slice(-5));
+      setPackMessage(ru.briefBuilder.planUploaded(uploaded.name));
+    } else {
+      setPackMessage(ru.briefBuilder.planUploadError);
+    }
+    setPackUploading(false);
+  }
+
+  async function generateBriefPack() {
+    const description = packDescription.trim();
+    if (description.length < 5) {
+      setPackMessage(ru.briefBuilder.packDescriptionRequired);
+      return;
+    }
+    const rawArea = packArea.trim();
+    const normalizedArea = rawArea ? Number(rawArea.replace(",", ".")) : null;
+    if (normalizedArea !== null && (!Number.isFinite(normalizedArea) || normalizedArea <= 0)) {
+      setPackMessage(ru.briefBuilder.packAreaError);
+      return;
+    }
+    setPackGenerating(true);
+    setPackMessage(null);
+    const response = await fetch("/api/brief/custom-question/generate", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        projectId,
+        projectType: packProjectType,
+        description,
+        areaM2: normalizedArea,
+        location: packLocation,
+        planNotes: packPlanNotes,
+        planFiles: packFiles,
+      }),
+    }).catch(() => null);
+    const json = (await response?.json().catch(() => null)) as GeneratePackResponse | null;
+    if (response?.ok && json?.questions?.length) {
+      const next = cleanForSave([...items, ...json.questions]).slice(0, CUSTOM_QUESTIONS_LIMIT);
+      setItems(next);
+      setSaved(false);
+      setPackMessage(
+        json.llmOk
+          ? ru.briefBuilder.packGenerated(json.questions.length)
+          : ru.briefBuilder.packFallback(json.questions.length),
+      );
+    } else {
+      setPackMessage(ru.briefBuilder.packError);
+    }
+    setPackGenerating(false);
   }
 
   function startVoice() {
@@ -215,6 +316,96 @@ export default function CustomQuestions({
             </button>
           ))}
         </div>
+      </div>
+
+      <div className="mt-4 rounded-md border border-line bg-white p-3">
+        <div className="flex flex-col gap-1">
+          <p className="text-sm font-medium">{ru.briefBuilder.packTitle}</p>
+          <p className="text-xs leading-relaxed text-muted">{ru.briefBuilder.packHint}</p>
+        </div>
+        <div className="mt-3 grid gap-2 sm:grid-cols-[1fr_120px_1fr]">
+          <label>
+            <span className="label">{ru.briefBuilder.projectTypeLabel}</span>
+            <select
+              className="input"
+              value={packProjectType}
+              onChange={(event) => setPackProjectType(event.target.value as BriefPackProjectType)}
+            >
+              {PROJECT_TYPES.map((type) => (
+                <option key={type.value} value={type.value}>
+                  {type.label}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label>
+            <span className="label">{ru.briefBuilder.packAreaLabel}</span>
+            <input
+              className="input"
+              inputMode="decimal"
+              value={packArea}
+              onChange={(event) => setPackArea(event.target.value)}
+              placeholder="300"
+            />
+          </label>
+          <label>
+            <span className="label">{ru.briefBuilder.packLocationLabel}</span>
+            <input
+              className="input"
+              value={packLocation}
+              onChange={(event) => setPackLocation(event.target.value)}
+              placeholder="Бали"
+            />
+          </label>
+        </div>
+        <label className="mt-3 block">
+          <span className="label">{ru.briefBuilder.packDescriptionLabel}</span>
+          <textarea
+            className="input min-h-24"
+            value={packDescription}
+            onChange={(event) => setPackDescription(event.target.value)}
+            placeholder={ru.briefBuilder.packDescriptionPlaceholder}
+          />
+        </label>
+        <div className="mt-3 grid gap-2 sm:grid-cols-2">
+          <label>
+            <span className="label">{ru.briefBuilder.packPlanLabel}</span>
+            <input
+              className="input"
+              type="file"
+              accept="image/*,.pdf,.dwg,.dxf"
+              onChange={uploadPlan}
+              disabled={packUploading}
+            />
+            <span className="mt-1 block text-xs text-muted">{ru.briefBuilder.packPlanHelp}</span>
+          </label>
+          <label>
+            <span className="label">{ru.briefBuilder.packPlanNotesLabel}</span>
+            <textarea
+              className="input min-h-20"
+              value={packPlanNotes}
+              onChange={(event) => setPackPlanNotes(event.target.value)}
+              placeholder={ru.briefBuilder.packPlanNotesPlaceholder}
+            />
+          </label>
+        </div>
+        {packFiles.length > 0 && (
+          <p className="mt-2 text-xs text-muted">
+            {ru.briefBuilder.attachedPlans}: {packFiles.map((file) => file.name).join(", ")}
+          </p>
+        )}
+        <div className="mt-3 flex flex-wrap items-center gap-2">
+          <button
+            type="button"
+            onClick={generateBriefPack}
+            disabled={packGenerating || packUploading || packDescription.trim().length < 5}
+            className="btn-primary"
+          >
+            {packGenerating ? ru.briefBuilder.packGenerating : ru.briefBuilder.packGenerate}
+          </button>
+          {packUploading && <span className="text-xs text-muted">{ru.briefBuilder.uploadingPlan}</span>}
+        </div>
+        {packMessage && <p className="mt-2 text-sm text-muted">{packMessage}</p>}
       </div>
 
       <div className="mt-4 rounded-md border border-line bg-white p-3">
