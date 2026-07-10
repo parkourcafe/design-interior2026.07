@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { quickQuestions, deepQuestions, type Question } from "@/lib/brief/questions";
+import { customQuestionToRuntimeQuestion, type CustomBriefQuestion } from "@/lib/brief/custom-questions";
 import { ru } from "@/lib/i18n/ru";
 import { supportEmail } from "@/lib/env";
 import ShareBrief from "@/components/share-brief";
@@ -34,7 +35,7 @@ export default function IntakeWizard({
 }: {
   token: string;
   selfServe?: boolean;
-  customQuestions?: string[];
+  customQuestions?: CustomBriefQuestion[];
   designer?: DesignerPublic | null;
   baseUrl?: string;
 }) {
@@ -93,15 +94,7 @@ export default function IntakeWizard({
   }, [answers, selfServe]);
   const deep = useMemo(() => {
     const base = deepQuestions(answers);
-    const custom: Question[] = customQuestions
-      .filter((t) => t.trim())
-      .map((text, i) => ({
-        id: `custom_${i}`,
-        type: "text",
-        title: text,
-        optional: true,
-        passport_field: `custom_${i}`,
-      }));
+    const custom: Question[] = customQuestions.map((item, i) => customQuestionToRuntimeQuestion(item, i));
     // Свои вопросы дизайнера — перед финальной загрузкой фото.
     const attachIdx = base.findIndex((q) => q.type === "files");
     if (attachIdx === -1) return [...base, ...custom];

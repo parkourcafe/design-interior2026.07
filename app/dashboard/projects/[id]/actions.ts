@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { runRiskPipeline } from "@/lib/brief/pipeline";
+import { normalizeCustomQuestions, type CustomBriefQuestion } from "@/lib/brief/custom-questions";
 import type { AnswersMap, RiskCard, RiskStatus } from "@/lib/types";
 
 // Все действия идут от имени залогиненного дизайнера через RLS (server client):
@@ -11,9 +12,9 @@ import type { AnswersMap, RiskCard, RiskStatus } from "@/lib/types";
 // Сохранить свои вопросы дизайнера для проекта (RLS: только владелец).
 export async function saveCustomQuestions(
   projectId: string,
-  questions: string[],
+  questions: CustomBriefQuestion[],
 ): Promise<{ ok: boolean }> {
-  const clean = questions.map((q) => q.trim()).filter((q) => q.length > 0).slice(0, 15);
+  const clean = normalizeCustomQuestions(questions);
   const supabase = await createClient();
   const { error } = await supabase
     .from("projects")

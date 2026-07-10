@@ -6,6 +6,11 @@ import { requestBaseUrl } from "@/lib/base-url";
 import { ru } from "@/lib/i18n/ru";
 import type { Passport } from "@/lib/types";
 import { questionById } from "@/lib/brief/questions";
+import {
+  formatCustomAnswer,
+  normalizeCustomQuestions,
+  type CustomBriefQuestion,
+} from "@/lib/brief/custom-questions";
 import { isProfileComplete } from "@/lib/designer";
 import { getStudio } from "@/lib/studio";
 import { missingFields, firstMeetingQuestions, type RiskCardRow } from "@/lib/review";
@@ -24,7 +29,7 @@ interface ProjectRow {
   status: string;
   intake_token: string;
   passport: Passport | null;
-  custom_questions: string[];
+  custom_questions: unknown;
 }
 
 export default async function ProjectPage({ params }: { params: Promise<{ id: string }> }) {
@@ -39,6 +44,7 @@ export default async function ProjectPage({ params }: { params: Promise<{ id: st
 
   if (!project) notFound();
   const p = project as ProjectRow;
+  const customQuestions = normalizeCustomQuestions(p.custom_questions);
 
   const briefDone = Boolean(
     p.passport &&
@@ -71,7 +77,7 @@ export default async function ProjectPage({ params }: { params: Promise<{ id: st
           {profileReady ? <IntakeLink url={intakeUrl} /> : <ProfileGate />}
           <CustomQuestions
             projectId={p.id}
-            initial={Array.isArray(p.custom_questions) ? p.custom_questions : []}
+            initial={customQuestions}
           />
           <p className="text-sm text-muted">
             Ждём, пока клиент заполнит бриф. Как только он завершит — здесь появятся паспорт
@@ -79,7 +85,12 @@ export default async function ProjectPage({ params }: { params: Promise<{ id: st
           </p>
         </div>
       ) : (
-        <ReviewBoard project={p} intakeUrl={intakeUrl} profileReady={profileReady} />
+        <ReviewBoard
+          project={p}
+          intakeUrl={intakeUrl}
+          profileReady={profileReady}
+          customQuestions={customQuestions}
+        />
       )}
     </div>
   );
@@ -89,10 +100,12 @@ async function ReviewBoard({
   project,
   intakeUrl,
   profileReady,
+  customQuestions,
 }: {
   project: ProjectRow;
   intakeUrl: string;
   profileReady: boolean;
+  customQuestions: CustomBriefQuestion[];
 }) {
   const supabase = await createClient();
   const { data: cardRows } = await supabase
@@ -114,7 +127,7 @@ async function ReviewBoard({
   const llmDegraded = cards.length > 0 && cards.every((c) => c.source === "rule");
 
   // Ответы клиента на свои вопросы дизайнера (question_id = custom_0, custom_1…).
-  const customQ = Array.isArray(project.custom_questions) ? project.custom_questions : [];
+  const customQ = customQuestions;
   let customAnswers: { q: string; a: string }[] = [];
   if (customQ.length > 0) {
     const { data: answerRows } = await supabase
@@ -129,8 +142,8 @@ async function ReviewBoard({
       ]),
     );
     customAnswers = customQ.map((q, i) => ({
-      q,
-      a: typeof byId.get(`custom_${i}`) === "string" ? String(byId.get(`custom_${i}`)) : "",
+      q: q.title,
+      a: formatCustomAnswer(q, byId.get(`custom_${i}`)),
     }));
   }
 
