@@ -17,7 +17,7 @@ export interface Studio {
 // - Приглашённый (по совпадению email) → студия владельца, равный доступ (v1).
 //   Висящее приглашение активируется при первом входе (через service role).
 export async function getStudio(): Promise<Studio | null> {
-  const supabase = createClient();
+  const supabase = await createClient();
   const {
     data: { user },
   } = await supabase.auth.getUser();
@@ -88,7 +88,7 @@ export interface StudioMemberRow {
 
 // Ростер студии (для UI «Команда»). RLS отдаёт только участникам этой студии.
 export async function listStudioMembers(studioId: string): Promise<StudioMemberRow[]> {
-  const supabase = createClient();
+  const supabase = await createClient();
   const { data } = await supabase
     .from("studio_members")
     .select("id, email, status, created_at, joined_at")

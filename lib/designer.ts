@@ -15,7 +15,7 @@ const SELECT = "id, name, studio_name, pricing, proposal_defaults, profile";
 
 // Возвращает текущего залогиненного дизайнера, создавая строку при первом входе.
 export async function getOrCreateDesigner(): Promise<DesignerRow | null> {
-  const supabase = createClient();
+  const supabase = await createClient();
   const {
     data: { user },
   } = await supabase.auth.getUser();

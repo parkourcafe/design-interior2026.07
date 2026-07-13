@@ -13,13 +13,14 @@ export const dynamic = "force-dynamic";
 export default async function PublicProposalPage({
   params,
 }: {
-  params: { public_token: string };
+  params: Promise<{ public_token: string }>;
 }) {
+  const { public_token } = await params;
   const admin = createAdminClient();
   const { data: proposal } = await admin
     .from("proposals")
     .select("sections, status, project_id")
-    .eq("public_token", params.public_token)
+    .eq("public_token", public_token)
     .maybeSingle();
 
   if (!proposal) notFound();
@@ -74,7 +75,7 @@ export default async function PublicProposalPage({
       </article>
 
       {/* Решение клиента: принять / обсудить / запросить правки (audit S3). */}
-      <ProposalRespond token={params.public_token} initialResponse={response} />
+      <ProposalRespond token={public_token} initialResponse={response} />
     </main>
   );
 }

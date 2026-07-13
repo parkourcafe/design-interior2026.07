@@ -6,8 +6,8 @@ type CookieToSet = { name: string; value: string; options?: CookieOptions };
 // Server client bound to the request's auth cookies (anon key). Используется в
 // server components / route handlers, где действия идут от имени залогиненного
 // дизайнера и должны проходить через RLS.
-export function createClient() {
-  const cookieStore = cookies();
+export async function createClient() {
+  const cookieStore = await cookies();
 
   return createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,

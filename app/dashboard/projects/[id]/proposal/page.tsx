@@ -21,13 +21,14 @@ interface ProjectRow {
   passport: Passport | null;
 }
 
-export default async function ProposalPage({ params }: { params: { id: string } }) {
-  const supabase = createClient();
+export default async function ProposalPage({ params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params;
+  const supabase = await createClient();
 
   const { data: project } = await supabase
     .from("projects")
     .select("id, client_name, status, passport")
-    .eq("id", params.id)
+    .eq("id", id)
     .maybeSingle();
   if (!project) notFound();
   const p = project as ProjectRow;
@@ -100,7 +101,7 @@ export default async function ProposalPage({ params }: { params: { id: string } 
     }
   }
 
-  const publicUrl = `${requestBaseUrl()}/p/${publicToken}`;
+  const publicUrl = `${await requestBaseUrl()}/p/${publicToken}`;
 
   // Петля обратной связи (audit S4): открывал ли клиент КП и его ответ.
   const { data: feedbackEvents } = await supabase

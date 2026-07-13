@@ -17,7 +17,7 @@ export async function saveSetup(payload: SetupPayload): Promise<{ ok: boolean }>
   const studio = await getStudio();
   if (!studio) return { ok: false };
 
-  const supabase = createClient();
+  const supabase = await createClient();
   // Правим профиль СТУДИИ (владельца). RLS разрешает участникам (равный доступ).
   const { error } = await supabase
     .from("designers")
@@ -47,7 +47,7 @@ export async function inviteMember(emailRaw: string): Promise<{ ok: boolean; err
   }
   if (email === studio.email) return { ok: false, error: "Это ваш собственный email." };
 
-  const supabase = createClient();
+  const supabase = await createClient();
   const { error } = await supabase.from("studio_members").insert({
     owner_id: studio.studioId,
     email,
@@ -67,7 +67,7 @@ export async function inviteMember(emailRaw: string): Promise<{ ok: boolean; err
 
 export async function removeMember(id: string): Promise<{ ok: boolean }> {
   // RLS: удалить может только владелец студии.
-  const supabase = createClient();
+  const supabase = await createClient();
   const { error } = await supabase.from("studio_members").delete().eq("id", id);
   if (!error) revalidatePath("/dashboard/setup");
   return { ok: !error };

@@ -10,12 +10,13 @@ export const dynamic = "force-dynamic";
 // Публичная read-only ссылка-бриф. Клиент рассылает её выбранным дизайнерам.
 // Доступ по intake-токену через service role. Показываем только паспорт
 // (заявку клиента), без карточек рисков — это инструмент дизайнера.
-export default async function BriefSharePage({ params }: { params: { token: string } }) {
+export default async function BriefSharePage({ params }: { params: Promise<{ token: string }> }) {
+  const { token } = await params;
   const admin = createAdminClient();
   const { data: project } = await admin
     .from("projects")
     .select("client_name, passport")
-    .eq("intake_token", params.token)
+    .eq("intake_token", token)
     .maybeSingle();
 
   if (!project) notFound();

@@ -1,6 +1,9 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: true,
+  turbopack: {
+    root: process.cwd(),
+  },
   images: {
     // Оптимизатор Next отдаёт webp/avif и правильный размер под экран.
     formats: ["image/avif", "image/webp"],

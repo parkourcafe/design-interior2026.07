@@ -6,8 +6,9 @@ export const dynamic = "force-static";
 // фон → безопасно и как "any", и как maskable (Android обрежет углы, контент в
 // центральной safe-zone). Палитра бренда ARHIDOM: уголь · слоновая кость ·
 // бронза · олива. Используется манифестом и как иконка в Google Play / RuStore.
-export function GET(_req: Request, { params }: { params: { size: string } }) {
-  const size = Math.min(1024, Math.max(48, Number(params.size) || 192));
+export async function GET(_req: Request, { params }: { params: Promise<{ size: string }> }) {
+  const { size: rawSize } = await params;
+  const size = Math.min(1024, Math.max(48, Number(rawSize) || 192));
   // Safe-zone для maskable: контент в центральных ~52% (углы отрежутся).
   const card = Math.round(size * 0.52);
   const gap = Math.round(size * 0.055);

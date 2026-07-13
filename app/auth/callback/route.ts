@@ -23,7 +23,7 @@ export async function GET(request: Request) {
   const nextParam = searchParams.get("next");
   const next = nextParam && /^\/(?![/\\])/.test(nextParam) ? nextParam : "/dashboard";
 
-  const supabase = createClient();
+  const supabase = await createClient();
 
   if (code) {
     const { error } = await supabase.auth.exchangeCodeForSession(code);
