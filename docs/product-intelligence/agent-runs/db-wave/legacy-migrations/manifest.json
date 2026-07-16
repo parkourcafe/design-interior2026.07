@@ -1,0 +1,123 @@
+{
+  "schema": "archidom-legacy-migration-evidence/1.0",
+  "created_on": "2026-07-16",
+  "production_snapshot": {
+    "contract": "project-intelligence-production-schema/1.0",
+    "captured_at": "2026-07-16T07:10:24.609229+00:00",
+    "sha256": "ef8b0d3aafd319fe8779a70ce2fc6440fd0f2fc23bb58497cb90cd64d61561b0",
+    "migration_ledger": []
+  },
+  "active_baseline": {
+    "version": "20260716071024",
+    "path": "supabase/migrations/20260716071024_legacy_production_baseline.sql",
+    "bytes": 15743,
+    "sha256": "12aa89db579f7608d7cb3df71e9927ae904734cb9d92b97b640766cf0607c016",
+    "execution_contract": "clean_bootstrap_only",
+    "production_adoption_contract": "history_repair_only_after_authorized_schema_fingerprint"
+  },
+  "legacy_chain_aggregate_sha256": "8595447832d2fde459032de02f86e277b79c93a3154215bc6bee0d71acc13ddb",
+  "entries": [
+    {
+      "version": "0001",
+      "name": "init",
+      "source": "canonical_tracked_worktree",
+      "production_status": "fully_present_for_audited_public_schema",
+      "evidence_path": "0001_init.sql.txt",
+      "bytes": 8349,
+      "sha256": "d5b9015014ca53d257967b9813a6c2bad664c2e9c69944a6dd92ae648c98625a",
+      "included_in_active_baseline": true,
+      "note": "Private client-uploads bucket is included from the original migration effect as required; storage rows were outside the schema-only snapshot."
+    },
+    {
+      "version": "0002",
+      "name": "client_briefs",
+      "source": "canonical_tracked_worktree",
+      "production_status": "fully_present",
+      "evidence_path": "0002_client_briefs.sql.txt",
+      "bytes": 1192,
+      "sha256": "6ac83d72419a786a951a6887f30bdc592d8b760de016278d5338f896ad98b946",
+      "included_in_active_baseline": true
+    },
+    {
+      "version": "0003",
+      "name": "custom_questions",
+      "source": "canonical_tracked_worktree",
+      "production_status": "fully_present",
+      "evidence_path": "0003_custom_questions.sql.txt",
+      "bytes": 917,
+      "sha256": "e2b9b43456ea8827c1a81c3e7172d427be6827d76dad06b28e1381e2e580de81",
+      "included_in_active_baseline": true
+    },
+    {
+      "version": "0004",
+      "name": "designer_profile",
+      "source": "canonical_tracked_worktree",
+      "production_status": "fully_present",
+      "evidence_path": "0004_designer_profile.sql.txt",
+      "bytes": 681,
+      "sha256": "823b2f2db7ff590027a058387cda4e0b3f636121ca2121310d40ee02e5233c65",
+      "included_in_active_baseline": true
+    },
+    {
+      "version": "0005",
+      "name": "rate_limits",
+      "source": "canonical_tracked_worktree",
+      "production_status": "absent",
+      "evidence_path": "0005_rate_limits.sql.txt",
+      "bytes": 1732,
+      "sha256": "d4e32ed66f606abf3537d3ada9ff61a3673c89602e4399be398ea27ca7187af2",
+      "included_in_active_baseline": false
+    },
+    {
+      "version": "0006",
+      "name": "team",
+      "source": "canonical_tracked_worktree",
+      "production_status": "fully_present",
+      "evidence_path": "0006_team.sql.txt",
+      "bytes": 6243,
+      "sha256": "2b56b060b70ae32683d9325de6991447b7530c9cc310842c215753cb4ab6efee",
+      "included_in_active_baseline": true
+    },
+    {
+      "version": "0007",
+      "name": "project_rooms",
+      "source": {
+        "type": "git_head_blob",
+        "head": "5134998def61dae3a7fcf8edb96559d22b9d0845",
+        "blob": "a13a3c4b5024e14f5cd80883e83c4b1ce5353fc9",
+        "path": "supabase/migrations/0007_project_rooms.sql"
+      },
+      "production_status": "fully_present_schema_equivalent",
+      "evidence_path": "0007_project_rooms.sql.txt",
+      "bytes": 6164,
+      "sha256": "474f49491d60bbb200f8f1723a500b3f2c3b7fe0c4769d5507544c07e73a12cc",
+      "included_in_active_baseline": true,
+      "note": "Schema objects are exact; historical data backfills cannot be proven by a schema-only snapshot."
+    },
+    {
+      "version": "0008",
+      "name": "concept_packs",
+      "source": {
+        "type": "canonical_tracked_worktree_equal_to_head",
+        "head": "5134998def61dae3a7fcf8edb96559d22b9d0845",
+        "blob": "c766775b001392e1d0673031cf01bcadff7489e2"
+      },
+      "production_status": "absent",
+      "evidence_path": "0008_concept_packs.sql.txt",
+      "bytes": 3383,
+      "sha256": "530a166c4ae5f05b3e43aecba52c1dae4b59f8b1c46a9a771de4d48a84ad1433",
+      "included_in_active_baseline": false
+    },
+    {
+      "version": "0009",
+      "name": "project_room_workflow",
+      "source": "canonical_untracked_worktree_candidate",
+      "production_status": "absent_rejected_unsafe_pending",
+      "evidence_path": "0009_project_room_workflow.sql.txt",
+      "bytes": 12037,
+      "sha256": "3b6c8623aaa758336434435ddb00cde52f8ab9f223780cfd95080a0491bcaf26",
+      "included_in_active_baseline": false,
+      "note": "Rejected because it contains irreversible duplicate deletion and insufficient authority, CAS and idempotency controls."
+    }
+  ]
+}

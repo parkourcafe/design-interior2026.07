@@ -1,0 +1,20 @@
+{
+  "contractVersion": "project-intelligence-vertical-slice/0.1",
+  "caseId": "invalid-idempotency-conflict",
+  "caseType": "idempotency_conflict",
+  "projectId": "project-kitchen-001",
+  "firstCommand": {
+    "operation": "revise_decision",
+    "idempotencyKey": "revise-decision-conflict-001",
+    "requestDigest": "sha256:1111111111111111111111111111111111111111111111111111111111111111"
+  },
+  "replayedCommand": {
+    "operation": "revise_decision",
+    "idempotencyKey": "revise-decision-conflict-001",
+    "requestDigest": "sha256:2222222222222222222222222222222222222222222222222222222222222222"
+  },
+  "expectedError": {
+    "code": "IDEMPOTENCY_CONFLICT",
+    "entityId": "revise-decision-conflict-001"
+  }
+}

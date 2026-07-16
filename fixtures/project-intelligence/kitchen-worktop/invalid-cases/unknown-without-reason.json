@@ -1,0 +1,18 @@
+{
+  "contractVersion": "project-intelligence-vertical-slice/0.1",
+  "caseId": "invalid-unknown-without-reason",
+  "caseType": "unknown_without_reason",
+  "projectId": "project-kitchen-001",
+  "revision": {
+    "id": "revision-requirement-unknown-r1",
+    "nodeId": "requirement-unknown",
+    "projectId": "project-kitchen-001",
+    "contentOrigin": "ai",
+    "claimStatus": "unknown",
+    "unknownReason": ""
+  },
+  "expectedError": {
+    "code": "UNKNOWN_REASON_REQUIRED",
+    "entityId": "revision-requirement-unknown-r1"
+  }
+}

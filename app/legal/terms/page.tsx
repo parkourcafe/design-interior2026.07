@@ -10,8 +10,6 @@ export const metadata: Metadata = {
   description: l.pilotBanner,
 };
 
-// См. комментарий в legal/privacy: честные условия пилота, без выдуманных
-// реквизитов и юридических гарантий.
 export default function TermsPage() {
   return (
     <div className="landing min-h-screen">
@@ -21,7 +19,7 @@ export default function TermsPage() {
           {l.termsTitle}
         </h1>
         <p className="mt-2 text-[13px] text-ivorymuted">
-          {l.updated}: 05.07.2026
+          {l.updated}: 12.07.2026
         </p>
         <p className="mt-6 rounded-xl border border-bronze/40 bg-bronze/10 px-5 py-4 text-[13.5px] leading-relaxed text-ivory/85">
           {l.pilotBanner}

@@ -1,0 +1,19 @@
+{
+  "contractVersion": "project-intelligence-vertical-slice/0.1",
+  "caseId": "invalid-missing-change-reason",
+  "caseType": "missing_change_reason",
+  "projectId": "project-kitchen-001",
+  "reviseDecisionCommand": {
+    "nodeId": "decision-worktop-material",
+    "baseVersionId": "version-kitchen-001-v1",
+    "expectedRevisionId": "revision-decision-worktop-material-r1",
+    "payload": { "areaId": "area-kitchen", "material": "quartz_composite", "subject": "kitchen_worktop" },
+    "reasonCode": "schedule_constraint",
+    "reason": "",
+    "idempotencyKey": "revise-decision-missing-reason-001"
+  },
+  "expectedError": {
+    "code": "CHANGE_REASON_REQUIRED",
+    "entityId": "decision-worktop-material"
+  }
+}

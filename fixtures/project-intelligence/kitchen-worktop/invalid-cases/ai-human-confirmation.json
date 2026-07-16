@@ -1,0 +1,28 @@
+{
+  "contractVersion": "project-intelligence-vertical-slice/0.1",
+  "caseId": "invalid-ai-human-confirmation",
+  "caseType": "ai_human_confirmation",
+  "projectId": "project-kitchen-001",
+  "revision": {
+    "id": "revision-decision-worktop-material-r1",
+    "nodeId": "decision-worktop-material",
+    "projectId": "project-kitchen-001",
+    "contentOrigin": "ai",
+    "claimStatus": "extracted"
+  },
+  "reviewCommand": {
+    "action": "confirm",
+    "targetRevisionId": "revision-decision-worktop-material-r1",
+    "expectedRevisionId": "revision-decision-worktop-material-r1",
+    "actor": {
+      "actorId": "actor-extraction-worker",
+      "actorType": "ai",
+      "role": "system"
+    }
+  },
+  "expectedError": {
+    "code": "AI_HUMAN_REVIEW_FORBIDDEN",
+    "entityId": "revision-decision-worktop-material-r1"
+  },
+  "interpretation": "The invalid condition is the non-human review actor, not the AI content origin."
+}

@@ -1,0 +1,23 @@
+{
+  "contractVersion": "project-intelligence-vertical-slice/0.1",
+  "caseId": "edge-case-cycle-safe",
+  "caseType": "cycle",
+  "projectId": "project-kitchen-001",
+  "changedNodeIds": ["decision-cycle-root"],
+  "nodes": [
+    { "id": "decision-cycle-root", "projectId": "project-kitchen-001" },
+    { "id": "deliverable-cycle", "projectId": "project-kitchen-001" },
+    { "id": "item-cycle", "projectId": "project-kitchen-001" }
+  ],
+  "edges": [
+    { "id": "edge-cycle-decision-deliverable", "projectId": "project-kitchen-001", "fromNodeId": "decision-cycle-root", "toNodeId": "deliverable-cycle", "relation": "depends_on" },
+    { "id": "edge-cycle-deliverable-item", "projectId": "project-kitchen-001", "fromNodeId": "deliverable-cycle", "toNodeId": "item-cycle", "relation": "depends_on" },
+    { "id": "edge-cycle-item-decision", "projectId": "project-kitchen-001", "fromNodeId": "item-cycle", "toNodeId": "decision-cycle-root", "relation": "specified_by" }
+  ],
+  "expectedOutcome": {
+    "code": "CYCLE_SAFE",
+    "terminates": true,
+    "maximumVisitedNodeCount": 3,
+    "impactedNodeIds": ["item-cycle", "deliverable-cycle"]
+  }
+}

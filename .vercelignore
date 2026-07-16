@@ -1,0 +1,10 @@
+# Local-only ProjectCEO proof corpus. It contains real project file names and
+# must never be uploaded as a public production asset.
+public/kora-project-intelligence/**
+
+# Development evidence and test corpora are not runtime inputs.
+qa-artifacts/**
+docs/**
+fixtures/**
+tests/**
+ios/**

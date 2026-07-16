@@ -1,0 +1,21 @@
+{
+  "contractVersion": "project-intelligence-vertical-slice/0.1",
+  "caseId": "invalid-cross-project-edge",
+  "caseType": "cross_project_edge",
+  "projectId": "project-kitchen-001",
+  "nodes": [
+    { "id": "decision-worktop-material", "projectId": "project-kitchen-001" },
+    { "id": "item-other-project", "projectId": "project-other-002" }
+  ],
+  "edge": {
+    "id": "edge-invalid-cross-project",
+    "projectId": "project-kitchen-001",
+    "fromNodeId": "item-other-project",
+    "toNodeId": "decision-worktop-material",
+    "relation": "specified_by"
+  },
+  "expectedError": {
+    "code": "PROJECT_SCOPE_VIOLATION",
+    "entityId": "edge-invalid-cross-project"
+  }
+}
