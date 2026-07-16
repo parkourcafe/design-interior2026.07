@@ -13,7 +13,7 @@ const MANIFEST_PATH = resolve(
   REPOSITORY_ROOT,
   "docs/product-intelligence/agent-runs/wave-2/agent-1/frozen-input-manifest.json",
 );
-const LAUNCH_AGGREGATE_SHA256 = "fea36a8ab6b3282a6614986abb5029cb3bbd0c90d50da23b61efe64b2c4b6086";
+const LAUNCH_AGGREGATE_SHA256 = "c74d5a3f9204b10c458c7699d272d17b2332ec53c6dd14d4bcee78ef776ea545";
 
 const REQUIRED_FROZEN_PATHS = [
   "docs/product-intelligence/architecture-v1.md",

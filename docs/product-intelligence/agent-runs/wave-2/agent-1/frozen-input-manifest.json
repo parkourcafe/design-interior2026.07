@@ -3,11 +3,11 @@
   "hashAlgorithm": "sha256",
   "canonicalEntryFormat": "<sha256>  <relative-path>\\n",
   "fileCount": 51,
-  "aggregateSha256": "fea36a8ab6b3282a6614986abb5029cb3bbd0c90d50da23b61efe64b2c4b6086",
+  "aggregateSha256": "c74d5a3f9204b10c458c7699d272d17b2332ec53c6dd14d4bcee78ef776ea545",
   "files": [
     {
       "path": "docs/product-intelligence/architecture-v1.md",
-      "sha256": "dbd30177bf8948fc18f303e82d48e5fa99e376751e56dc0f698618a72c9ea85f"
+      "sha256": "6967f68b4854c7b6a256555359c8bc74d90e34bcab233a1d32f8c424861c4484"
     },
     {
       "path": "docs/product-intelligence/domain/contract-v0.1.json",
@@ -43,7 +43,7 @@
     },
     {
       "path": "docs/product-intelligence/vertical-slice-l1-spec.md",
-      "sha256": "802eb3c27a62e8e67d414ca942a7cfa8ca9e29582c981f9d35d266a26a03a1a4"
+      "sha256": "98221cf7d009e6cbd2493487be1594b780611ec14e93c0258c4cb7509b876308"
     },
     {
       "path": "docs/product-intelligence/vertical-slice/README.md",
@@ -51,7 +51,7 @@
     },
     {
       "path": "docs/product-intelligence/vertical-slice/api-contract.md",
-      "sha256": "59835eff0c57229f59d095c63c14b51223fa0eac9c12ea3440a95d0a7ee39e5c"
+      "sha256": "b1b160bef7dd3040e235a3d2ac79d37940c71f1f89fe6e34f681c6b0f9a52785"
     },
     {
       "path": "docs/product-intelligence/vertical-slice/contract-gaps.md",

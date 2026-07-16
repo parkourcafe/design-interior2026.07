@@ -41,7 +41,7 @@ Production изменён: **нет**.
 | legacy production baseline | `12aa89db579f7608d7cb3df71e9927ae904734cb9d92b97b640766cf0607c016` |
 | Project Intelligence core | `9315a5a547b12aac2c624da3ebb97753994dd15d6528ce85cd430d290a0a6aa5` |
 | Project Intelligence operations | `a95b9681b8da98f3b99196ec0ab05b0631ab36741efaa1262fc1ea40f8cf6890` |
-| Architecture/contract/runtime aggregate | `fea36a8ab6b3282a6614986abb5029cb3bbd0c90d50da23b61efe64b2c4b6086` |
+| Architecture/contract/runtime aggregate | `c74d5a3f9204b10c458c7699d272d17b2332ec53c6dd14d4bcee78ef776ea545` |
 | repository `AGENTS.md` | `4840206ecf71833215e56f37422e4155c0887c5b417db767befbd90eb6a9a9a2` |
 | `.vercelignore` | `b833aeddc44da3753dcd81ec6380d7992d2f243b8358ae21d7a7c94acb6e15b4` |
 
