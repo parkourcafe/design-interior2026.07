@@ -9,6 +9,7 @@
 5. [Runbook интегратора](./INTEGRATOR_RUNBOOK.md)
 6. [Launch prompts](./LAUNCH_PROMPTS.md)
 7. [Gate 0 report](./GATE_0_REPORT.md)
+8. [Foundation contract freeze](./FOUNDATION_CONTRACT_FREEZE.md)
 
 Gate 0 завершён. Текущий шаг: Foundation — Organization/Project enrollment,
 Invitation/AccessGrant, package scope, read model и source registration.
