@@ -5,6 +5,10 @@
 Источник продуктовой истины:
 `ProjectCEO_Russia_Product_Charter_v0.3_2026-07-17.docx`.
 
+Gate 0 завершён 17 июля 2026 года: release gate, DB2 PostgreSQL 16/17 и Git
+materialization прошли. Зафиксированный результат:
+`docs/product-intelligence/wave-3/GATE_0_REPORT.md`.
+
 ## 1. Цель
 
 Собрать один DB-backed сквозной ProjectCEO workflow для российского продукта:
@@ -53,11 +57,8 @@ P0 считается завершённым не по количеству эк
 
 ### Не завершено
 
-- Репозиторий сейчас не проходит полный release gate:
-  - `npm run lint` проходит;
-  - `npm run typecheck` падает;
-  - `npm run test` — 221/223;
-  - build не должен запускаться до исправления typecheck.
+- Gate 0 закрыт: `lint`, `typecheck`, 223/223 tests, build и DB2 PG16/PG17
+  проходят; materialized baseline зафиксирован.
 - Нет application enrollment для Organization/Project.
 - Нет безопасных Invitation/AccessGrant контрактов ProjectCEO.
 - Нет initial ingestion RPC и DB-backed Kora import.

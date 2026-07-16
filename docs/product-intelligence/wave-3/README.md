@@ -8,6 +8,7 @@
 4. [ТЗ агента 3 — Product UI/Pilots](./AGENT_3_PRODUCT_UI_PILOT.md)
 5. [Runbook интегратора](./INTEGRATOR_RUNBOOK.md)
 6. [Launch prompts](./LAUNCH_PROMPTS.md)
+7. [Gate 0 report](./GATE_0_REPORT.md)
 
-Текущий первый шаг: Gate 0 — восстановить зелёный и materialized repository
-baseline. Новая feature-разработка начинается после единого snapshot hash.
+Gate 0 завершён. Текущий шаг: Foundation — Organization/Project enrollment,
+Invitation/AccessGrant, package scope, read model и source registration.
