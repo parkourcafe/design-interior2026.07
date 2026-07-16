@@ -11,6 +11,7 @@ grant usage on schema auth to anon, authenticated, service_role;
 create table auth.users (
   id uuid primary key,
   email text unique,
+  email_confirmed_at timestamptz,
   created_at timestamptz not null default clock_timestamp()
 );
 
@@ -25,6 +26,21 @@ $function$;
 
 revoke all on function auth.uid() from public;
 grant execute on function auth.uid() to anon, authenticated, service_role;
+
+create or replace function auth.jwt()
+returns jsonb
+language sql
+stable
+set search_path = ''
+as $function$
+  select coalesce(
+    nullif(current_setting('request.jwt.claims', true), '')::jsonb,
+    '{}'::jsonb
+  )
+$function$;
+
+revoke all on function auth.jwt() from public;
+grant execute on function auth.jwt() to anon, authenticated, service_role;
 
 create schema storage;
 revoke all on schema storage from public;
