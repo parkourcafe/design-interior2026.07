@@ -1,0 +1,4128 @@
+{
+  "schemaVersion": "project-ceo-kora-golden/0.1",
+  "sanitized": true,
+  "generatedFrom": "sanitized-kora-source-manifest",
+  "organizationId": "11111111-1111-4111-8111-111111111111",
+  "projectId": "22222222-2222-4222-8222-222222222222",
+  "projectProfile": {
+    "name": "Kora Food Hall",
+    "areaM2": 1800,
+    "model": "full_project"
+  },
+  "packages": [
+    {
+      "id": "33333333-3333-4333-8333-333333333333",
+      "organizationId": "11111111-1111-4111-8111-111111111111",
+      "projectId": "22222222-2222-4222-8222-222222222222",
+      "parentPackageId": null,
+      "kind": "project_root",
+      "stableKey": "project-root",
+      "name": "Полный проект",
+      "status": "active"
+    },
+    {
+      "id": "44444444-4444-4444-8444-444444444441",
+      "organizationId": "11111111-1111-4111-8111-111111111111",
+      "projectId": "22222222-2222-4222-8222-222222222222",
+      "parentPackageId": "33333333-3333-4333-8333-333333333333",
+      "kind": "work_package",
+      "stableKey": "architecture-release",
+      "name": "Архитектурный выпуск",
+      "status": "active"
+    },
+    {
+      "id": "44444444-4444-4444-8444-444444444442",
+      "organizationId": "11111111-1111-4111-8111-111111111111",
+      "projectId": "22222222-2222-4222-8222-222222222222",
+      "parentPackageId": "33333333-3333-4333-8333-333333333333",
+      "kind": "work_package",
+      "stableKey": "engineering-release",
+      "name": "Инженерный выпуск",
+      "status": "active"
+    },
+    {
+      "id": "44444444-4444-4444-8444-444444444443",
+      "organizationId": "11111111-1111-4111-8111-111111111111",
+      "projectId": "22222222-2222-4222-8222-222222222222",
+      "parentPackageId": "33333333-3333-4333-8333-333333333333",
+      "kind": "work_package",
+      "stableKey": "project-controls-release",
+      "name": "Управление проектом",
+      "status": "active"
+    },
+    {
+      "id": "44444444-4444-4444-8444-444444444444",
+      "organizationId": "11111111-1111-4111-8111-111111111111",
+      "projectId": "22222222-2222-4222-8222-222222222222",
+      "parentPackageId": "33333333-3333-4333-8333-333333333333",
+      "kind": "work_package",
+      "stableKey": "site-evidence-release",
+      "name": "Полевые подтверждения",
+      "status": "active"
+    }
+  ],
+  "inventory": [
+    {
+      "physicalRecordId": "536b2a0a-1c04-438d-8d7b-9f10d9fa3ea8",
+      "sanitizedName": "source-001.pdf",
+      "hierarchy": {
+        "projectId": "22222222-2222-4222-8222-222222222222",
+        "packageId": "44444444-4444-4444-8444-444444444441",
+        "floorId": "floor-first_floor",
+        "zoneId": "zone-first_floor",
+        "disciplineId": "architecture"
+      },
+      "availability": "materialized",
+      "documentStatus": "reference",
+      "mediaKind": "pdf",
+      "sizeBytes": 1875022,
+      "checksum": "4d07995ce042aac2b92e5242ea012b403bac48d611764512e6c0d83a0b988735",
+      "sourceRevisionId": "3d1e82c6-af38-4ec9-8bdf-dbb020653921",
+      "semanticConflict": false
+    },
+    {
+      "physicalRecordId": "d8688461-3e31-43e8-82fe-dc17f49c13ce",
+      "sanitizedName": "source-002.pdf",
+      "hierarchy": {
+        "projectId": "22222222-2222-4222-8222-222222222222",
+        "packageId": "44444444-4444-4444-8444-444444444441",
+        "floorId": "floor-first_floor",
+        "zoneId": "zone-first_floor",
+        "disciplineId": "architecture"
+      },
+      "availability": "materialized",
+      "documentStatus": "reference",
+      "mediaKind": "pdf",
+      "sizeBytes": 187118,
+      "checksum": "4d7aa07f800095d8b75e69c795e27418f35f6c32df27c19b0c30f7655ba6dff1",
+      "sourceRevisionId": "8a0f8ec3-fa66-48bf-8dc9-98ca8996a807",
+      "semanticConflict": true
+    },
+    {
+      "physicalRecordId": "ccfea5a8-7133-4388-8fb7-17fe3cb72f5f",
+      "sanitizedName": "source-003.pdf",
+      "hierarchy": {
+        "projectId": "22222222-2222-4222-8222-222222222222",
+        "packageId": "44444444-4444-4444-8444-444444444441",
+        "floorId": "floor-second_floor",
+        "zoneId": "zone-second_floor",
+        "disciplineId": "architecture"
+      },
+      "availability": "materialized",
+      "documentStatus": "reference",
+      "mediaKind": "pdf",
+      "sizeBytes": 4768392,
+      "checksum": "7089b91ab7ca122a8638bbb962bd06e7f5562fa5fabcc8e0be1205bc9d2f5095",
+      "sourceRevisionId": "c4658865-7cd3-49e9-8544-230459e963ef",
+      "semanticConflict": false
+    },
+    {
+      "physicalRecordId": "62c8e1f6-d1b6-4e96-8081-c81d816820b6",
+      "sanitizedName": "source-004.pdf",
+      "hierarchy": {
+        "projectId": "22222222-2222-4222-8222-222222222222",
+        "packageId": "44444444-4444-4444-8444-444444444441",
+        "floorId": "floor-second_floor",
+        "zoneId": "zone-second_floor",
+        "disciplineId": "architecture"
+      },
+      "availability": "materialized",
+      "documentStatus": "reference",
+      "mediaKind": "pdf",
+      "sizeBytes": 119112,
+      "checksum": "efe6d9224515b1cb3dac1413417d43f63a41fdc631d7b78e597717a3ba151f28",
+      "sourceRevisionId": "2a10a76b-41d9-4c07-8e1e-0cba49260eff",
+      "semanticConflict": false
+    },
+    {
+      "physicalRecordId": "dfb7f434-1c41-4965-80ee-72dc7a75e551",
+      "sanitizedName": "source-005.png",
+      "hierarchy": {
+        "projectId": "22222222-2222-4222-8222-222222222222",
+        "packageId": "44444444-4444-4444-8444-444444444441",
+        "floorId": "floor-second_floor",
+        "zoneId": "zone-second_floor",
+        "disciplineId": "architecture"
+      },
+      "availability": "materialized",
+      "documentStatus": "reference",
+      "mediaKind": "image",
+      "sizeBytes": 59324,
+      "checksum": "6575f9ab9e7e8beea0ec973089685277a0bd81bc41b1c7869f7be28d51d26bc5",
+      "sourceRevisionId": "cb75381d-4d0c-4736-88ab-b18f7f60d80e",
+      "semanticConflict": false
+    },
+    {
+      "physicalRecordId": "e60cc472-310d-48c4-8ab7-17d8d461c61f",
+      "sanitizedName": "source-006.pdf",
+      "hierarchy": {
+        "projectId": "22222222-2222-4222-8222-222222222222",
+        "packageId": "44444444-4444-4444-8444-444444444441",
+        "floorId": "floor-unspecified",
+        "zoneId": "zone-unspecified",
+        "disciplineId": "architecture"
+      },
+      "availability": "materialized",
+      "documentStatus": "reference",
+      "mediaKind": "pdf",
+      "sizeBytes": 5963001,
+      "checksum": "f35486afc7dbf63b943f01512a28df77f58c19208659d15ed9720f9a2bf13973",
+      "sourceRevisionId": "05fc0396-1b34-4c55-8fc9-abb9c7695be2",
+      "semanticConflict": true
+    },
+    {
+      "physicalRecordId": "00fdeb6c-f031-483c-8919-0d6a190bd8ed",
+      "sanitizedName": "source-007.png",
+      "hierarchy": {
+        "projectId": "22222222-2222-4222-8222-222222222222",
+        "packageId": "44444444-4444-4444-8444-444444444441",
+        "floorId": "floor-unspecified",
+        "zoneId": "zone-unspecified",
+        "disciplineId": "architecture"
+      },
+      "availability": "materialized",
+      "documentStatus": "reference",
+      "mediaKind": "image",
+      "sizeBytes": 129421,
+      "checksum": "1dc2fbede708b55129424ac55d5c5799c5aa159ec19b22eba9a5f723a0c9e293",
+      "sourceRevisionId": "6714fdfa-6da5-4f2e-8709-8d6a520d94a1",
+      "semanticConflict": false
+    },
+    {
+      "physicalRecordId": "ab7aa531-fe6d-448d-89e0-f01eee60eeff",
+      "sanitizedName": "source-008.pdf",
+      "hierarchy": {
+        "projectId": "22222222-2222-4222-8222-222222222222",
+        "packageId": "44444444-4444-4444-8444-444444444441",
+        "floorId": "floor-unspecified",
+        "zoneId": "zone-unspecified",
+        "disciplineId": "architecture"
+      },
+      "availability": "materialized",
+      "documentStatus": "reference",
+      "mediaKind": "pdf",
+      "sizeBytes": 2698073,
+      "checksum": "bd98ffce0ca6ab74dd957644861efa2ea675b7a19b3620e1b2831e0598dfe62a",
+      "sourceRevisionId": "2342b3ca-fccc-4225-8a68-a3ca1915f734",
+      "semanticConflict": false
+    },
+    {
+      "physicalRecordId": "a561a8eb-b6eb-40a4-824f-a3d41693423e",
+      "sanitizedName": "source-009.pdf",
+      "hierarchy": {
+        "projectId": "22222222-2222-4222-8222-222222222222",
+        "packageId": "44444444-4444-4444-8444-444444444441",
+        "floorId": "floor-first_floor",
+        "zoneId": "zone-first_floor",
+        "disciplineId": "architecture"
+      },
+      "availability": "materialized",
+      "documentStatus": "reference",
+      "mediaKind": "pdf",
+      "sizeBytes": 2127498,
+      "checksum": "7b3aba89803a32cf5c14e17f4aec0ebcfbd31774991ba2929dd010ac1d7d04a5",
+      "sourceRevisionId": "1a7a4077-07ea-489e-8cca-b2eea5f991a4",
+      "semanticConflict": true
+    },
+    {
+      "physicalRecordId": "afb41760-a625-462a-8630-7c6d8a031e65",
+      "sanitizedName": "source-010.pdf",
+      "hierarchy": {
+        "projectId": "22222222-2222-4222-8222-222222222222",
+        "packageId": "44444444-4444-4444-8444-444444444441",
+        "floorId": "floor-unspecified",
+        "zoneId": "zone-unspecified",
+        "disciplineId": "architecture"
+      },
+      "availability": "materialized",
+      "documentStatus": "reference",
+      "mediaKind": "pdf",
+      "sizeBytes": 1669466,
+      "checksum": "c6932fba20b20bb8b7b9dd289199e84d5f4fac2c65507fdc96f563a673c9281d",
+      "sourceRevisionId": "e1bcb947-5faa-44f8-81ce-9d89f1f0a5c9",
+      "semanticConflict": true
+    },
+    {
+      "physicalRecordId": "d807edce-0fbc-4d32-8e44-860685e573fd",
+      "sanitizedName": "source-011.pdf",
+      "hierarchy": {
+        "projectId": "22222222-2222-4222-8222-222222222222",
+        "packageId": "44444444-4444-4444-8444-444444444441",
+        "floorId": "floor-unspecified",
+        "zoneId": "zone-unspecified",
+        "disciplineId": "architecture"
+      },
+      "availability": "materialized",
+      "documentStatus": "reference",
+      "mediaKind": "pdf",
+      "sizeBytes": 187780,
+      "checksum": "aea51c07dc7c203b418febb7dacc77215ced9f6310b83d173cd0b4314901696b",
+      "sourceRevisionId": "4365ee8a-e938-4850-8455-b73a84c6d944",
+      "semanticConflict": true
+    },
+    {
+      "physicalRecordId": "f316275a-7cc8-4aa8-81be-24cfd702f36e",
+      "sanitizedName": "source-012.pdf",
+      "hierarchy": {
+        "projectId": "22222222-2222-4222-8222-222222222222",
+        "packageId": "44444444-4444-4444-8444-444444444441",
+        "floorId": "floor-unspecified",
+        "zoneId": "zone-unspecified",
+        "disciplineId": "architecture"
+      },
+      "availability": "materialized",
+      "documentStatus": "reference",
+      "mediaKind": "pdf",
+      "sizeBytes": 682768,
+      "checksum": "b1424a433fa46465215957e3847d7d14dde20f15bd1b5a0c68a6695e2a668491",
+      "sourceRevisionId": "a8789d09-2a10-48bc-8081-6126916839db",
+      "semanticConflict": false
+    },
+    {
+      "physicalRecordId": "b3a40229-40d9-4124-87e2-994ac00fb50b",
+      "sanitizedName": "source-013.pdf",
+      "hierarchy": {
+        "projectId": "22222222-2222-4222-8222-222222222222",
+        "packageId": "44444444-4444-4444-8444-444444444441",
+        "floorId": "floor-exterior",
+        "zoneId": "zone-exterior",
+        "disciplineId": "architecture"
+      },
+      "availability": "materialized",
+      "documentStatus": "reference",
+      "mediaKind": "pdf",
+      "sizeBytes": 1659721,
+      "checksum": "75dabc4bbc1b6e4649224cb186d2726ee2c45bdf6afba5532717fc8cdad25ab4",
+      "sourceRevisionId": "e7741fb6-dfab-4a21-8dd2-e1ae6eeacfe2",
+      "semanticConflict": true
+    },
+    {
+      "physicalRecordId": "aab2abe3-d3fb-4a22-8a7a-61bed4d57b0f",
+      "sanitizedName": "source-014.pdf",
+      "hierarchy": {
+        "projectId": "22222222-2222-4222-8222-222222222222",
+        "packageId": "44444444-4444-4444-8444-444444444442",
+        "floorId": "floor-first_floor",
+        "zoneId": "zone-first_floor",
+        "disciplineId": "mep"
+      },
+      "availability": "materialized",
+      "documentStatus": "reference",
+      "mediaKind": "pdf",
+      "sizeBytes": 8928422,
+      "checksum": "5bd15076863b184155d8f8b089d20780089c1a3194673e0b72ee23bd99dea649",
+      "sourceRevisionId": "adc68849-80ed-46eb-82aa-3315e9256c27",
+      "semanticConflict": false
+    },
+    {
+      "physicalRecordId": "4ebfdea8-39ff-4a37-8460-f1a35983f6d1",
+      "sanitizedName": "source-015.pdf",
+      "hierarchy": {
+        "projectId": "22222222-2222-4222-8222-222222222222",
+        "packageId": "44444444-4444-4444-8444-444444444442",
+        "floorId": "floor-first_floor",
+        "zoneId": "zone-first_floor",
+        "disciplineId": "mep"
+      },
+      "availability": "materialized",
+      "documentStatus": "reference",
+      "mediaKind": "pdf",
+      "sizeBytes": 8290251,
+      "checksum": "22c0eedc873757ce723041bc09694db2275121ef8f33699b3c6c30783181a2fb",
+      "sourceRevisionId": "68b59b83-8543-4f4b-8149-3024c54cfac8",
+      "semanticConflict": true
+    },
+    {
+      "physicalRecordId": "d37c93dc-0a45-40b5-87e4-62c3e2dfb106",
+      "sanitizedName": "source-016.pdf",
+      "hierarchy": {
+        "projectId": "22222222-2222-4222-8222-222222222222",
+        "packageId": "44444444-4444-4444-8444-444444444442",
+        "floorId": "floor-unspecified",
+        "zoneId": "zone-unspecified",
+        "disciplineId": "mep"
+      },
+      "availability": "materialized",
+      "documentStatus": "reference",
+      "mediaKind": "pdf",
+      "sizeBytes": 12347,
+      "checksum": "b17dd9ca5a883e521d8b9ef084bd9585a31f2021912acbed602b2aee6f2876f6",
+      "sourceRevisionId": "2ce6fd9e-11a1-454e-885b-48b08a1c77c4",
+      "semanticConflict": true
+    },
+    {
+      "physicalRecordId": "b955ff41-633c-46a9-81de-2c3c89b92d18",
+      "sanitizedName": "source-017.pdf",
+      "hierarchy": {
+        "projectId": "22222222-2222-4222-8222-222222222222",
+        "packageId": "44444444-4444-4444-8444-444444444441",
+        "floorId": "floor-exterior",
+        "zoneId": "zone-exterior",
+        "disciplineId": "visualization"
+      },
+      "availability": "placeholder",
+      "documentStatus": "reference",
+      "mediaKind": "pdf",
+      "sizeBytes": 13853765,
+      "checksum": null,
+      "sourceRevisionId": null,
+      "semanticConflict": false
+    },
+    {
+      "physicalRecordId": "84ddbb6a-340e-4169-8a8a-484800da2b02",
+      "sanitizedName": "source-018.xlsx",
+      "hierarchy": {
+        "projectId": "22222222-2222-4222-8222-222222222222",
+        "packageId": "44444444-4444-4444-8444-444444444443",
+        "floorId": "floor-unspecified",
+        "zoneId": "zone-unspecified",
+        "disciplineId": "quantity_cost"
+      },
+      "availability": "placeholder",
+      "documentStatus": "reference",
+      "mediaKind": "spreadsheet",
+      "sizeBytes": 13554,
+      "checksum": null,
+      "sourceRevisionId": null,
+      "semanticConflict": false
+    },
+    {
+      "physicalRecordId": "4245545f-7c89-4b61-8525-2916060da250",
+      "sanitizedName": "source-019.xlsx",
+      "hierarchy": {
+        "projectId": "22222222-2222-4222-8222-222222222222",
+        "packageId": "44444444-4444-4444-8444-444444444442",
+        "floorId": "floor-unspecified",
+        "zoneId": "zone-unspecified",
+        "disciplineId": "mep"
+      },
+      "availability": "placeholder",
+      "documentStatus": "reference",
+      "mediaKind": "spreadsheet",
+      "sizeBytes": 27863,
+      "checksum": null,
+      "sourceRevisionId": null,
+      "semanticConflict": false
+    },
+    {
+      "physicalRecordId": "581124d6-5ca2-4bf9-8c4a-cfe6d8156cdb",
+      "sanitizedName": "source-020.xlsx",
+      "hierarchy": {
+        "projectId": "22222222-2222-4222-8222-222222222222",
+        "packageId": "44444444-4444-4444-8444-444444444443",
+        "floorId": "floor-unspecified",
+        "zoneId": "zone-unspecified",
+        "disciplineId": "project_controls"
+      },
+      "availability": "placeholder",
+      "documentStatus": "reference",
+      "mediaKind": "spreadsheet",
+      "sizeBytes": 16391,
+      "checksum": null,
+      "sourceRevisionId": null,
+      "semanticConflict": false
+    },
+    {
+      "physicalRecordId": "a473f6f1-e190-41e4-866a-55495196bb58",
+      "sanitizedName": "source-021.xlsx",
+      "hierarchy": {
+        "projectId": "22222222-2222-4222-8222-222222222222",
+        "packageId": "44444444-4444-4444-8444-444444444444",
+        "floorId": "floor-unspecified",
+        "zoneId": "zone-unspecified",
+        "disciplineId": "general"
+      },
+      "availability": "placeholder",
+      "documentStatus": "reference",
+      "mediaKind": "spreadsheet",
+      "sizeBytes": 13485,
+      "checksum": null,
+      "sourceRevisionId": null,
+      "semanticConflict": false
+    },
+    {
+      "physicalRecordId": "f3689724-715f-4db5-800f-40f33294c35e",
+      "sanitizedName": "source-022.zip",
+      "hierarchy": {
+        "projectId": "22222222-2222-4222-8222-222222222222",
+        "packageId": "44444444-4444-4444-8444-444444444444",
+        "floorId": "floor-unspecified",
+        "zoneId": "zone-unspecified",
+        "disciplineId": "archive"
+      },
+      "availability": "materialized",
+      "documentStatus": "reference",
+      "mediaKind": "archive",
+      "sizeBytes": 156033227,
+      "checksum": "331e2ce3291b97e449653068512e1eac405efe33021537f1bd5e111f43a4fff8",
+      "sourceRevisionId": "a2989535-24e4-4c20-8492-27924fc5b70f",
+      "semanticConflict": false
+    },
+    {
+      "physicalRecordId": "a92f1dd4-84e4-4e9a-8c0a-d864132922f8",
+      "sanitizedName": "source-023.rar",
+      "hierarchy": {
+        "projectId": "22222222-2222-4222-8222-222222222222",
+        "packageId": "44444444-4444-4444-8444-444444444444",
+        "floorId": "floor-second_floor",
+        "zoneId": "zone-second_floor",
+        "disciplineId": "archive"
+      },
+      "availability": "materialized",
+      "documentStatus": "reference",
+      "mediaKind": "archive",
+      "sizeBytes": 25538996,
+      "checksum": "51eaff109223e3dd28d0efd2134d6a778844d8377eeb94941e806fee37d04a66",
+      "sourceRevisionId": "166fa31b-dc4c-4935-8163-ffc65d2f1a18",
+      "semanticConflict": false
+    },
+    {
+      "physicalRecordId": "f232f0c8-ede2-4a60-868b-4c2bdc73fb29",
+      "sanitizedName": "source-024.dwg",
+      "hierarchy": {
+        "projectId": "22222222-2222-4222-8222-222222222222",
+        "packageId": "44444444-4444-4444-8444-444444444442",
+        "floorId": "floor-unspecified",
+        "zoneId": "zone-unspecified",
+        "disciplineId": "mep"
+      },
+      "availability": "placeholder",
+      "documentStatus": "reference",
+      "mediaKind": "cad_binary",
+      "sizeBytes": 25558752,
+      "checksum": null,
+      "sourceRevisionId": null,
+      "semanticConflict": false
+    },
+    {
+      "physicalRecordId": "c1426cef-4866-4335-8f68-f92a126dc3fe",
+      "sanitizedName": "source-025.dwg",
+      "hierarchy": {
+        "projectId": "22222222-2222-4222-8222-222222222222",
+        "packageId": "44444444-4444-4444-8444-444444444442",
+        "floorId": "floor-unspecified",
+        "zoneId": "zone-unspecified",
+        "disciplineId": "mep"
+      },
+      "availability": "placeholder",
+      "documentStatus": "reference",
+      "mediaKind": "cad_binary",
+      "sizeBytes": 13349920,
+      "checksum": null,
+      "sourceRevisionId": null,
+      "semanticConflict": false
+    },
+    {
+      "physicalRecordId": "4a16ba98-8f83-48e4-8c13-cf44f999e506",
+      "sanitizedName": "source-026.dwg",
+      "hierarchy": {
+        "projectId": "22222222-2222-4222-8222-222222222222",
+        "packageId": "44444444-4444-4444-8444-444444444442",
+        "floorId": "floor-unspecified",
+        "zoneId": "zone-unspecified",
+        "disciplineId": "mep"
+      },
+      "availability": "placeholder",
+      "documentStatus": "reference",
+      "mediaKind": "cad_binary",
+      "sizeBytes": 18714464,
+      "checksum": null,
+      "sourceRevisionId": null,
+      "semanticConflict": false
+    },
+    {
+      "physicalRecordId": "1d1c6ee5-bf4a-4cc5-8115-fd3794d1eafb",
+      "sanitizedName": "source-027.dwg",
+      "hierarchy": {
+        "projectId": "22222222-2222-4222-8222-222222222222",
+        "packageId": "44444444-4444-4444-8444-444444444442",
+        "floorId": "floor-unspecified",
+        "zoneId": "zone-unspecified",
+        "disciplineId": "mep"
+      },
+      "availability": "materialized",
+      "documentStatus": "reference",
+      "mediaKind": "cad_binary",
+      "sizeBytes": 11397824,
+      "checksum": "189ec8d5f9eabcaea6eed9399862f22c4e855aaebae9390bf0b9d84b25cd4d1b",
+      "sourceRevisionId": "c3aa7cf5-c793-4f94-8ffd-3def95316d14",
+      "semanticConflict": false
+    },
+    {
+      "physicalRecordId": "4d346510-eae8-43d1-86fa-607d21edb1ba",
+      "sanitizedName": "source-028.pdf",
+      "hierarchy": {
+        "projectId": "22222222-2222-4222-8222-222222222222",
+        "packageId": "44444444-4444-4444-8444-444444444442",
+        "floorId": "floor-first_floor",
+        "zoneId": "zone-first_floor",
+        "disciplineId": "mep"
+      },
+      "availability": "placeholder",
+      "documentStatus": "reference",
+      "mediaKind": "pdf",
+      "sizeBytes": 187780,
+      "checksum": null,
+      "sourceRevisionId": null,
+      "semanticConflict": false
+    },
+    {
+      "physicalRecordId": "c3d8eaae-7d3e-4b3e-8a74-93512228a781",
+      "sanitizedName": "source-029.png",
+      "hierarchy": {
+        "projectId": "22222222-2222-4222-8222-222222222222",
+        "packageId": "44444444-4444-4444-8444-444444444444",
+        "floorId": "floor-second_floor",
+        "zoneId": "zone-second_floor",
+        "disciplineId": "general"
+      },
+      "availability": "placeholder",
+      "documentStatus": "reference",
+      "mediaKind": "image",
+      "sizeBytes": 72850,
+      "checksum": null,
+      "sourceRevisionId": null,
+      "semanticConflict": false
+    },
+    {
+      "physicalRecordId": "e2f8e577-5e7b-4d99-8c4f-98ae5882927d",
+      "sanitizedName": "source-030.pdf",
+      "hierarchy": {
+        "projectId": "22222222-2222-4222-8222-222222222222",
+        "packageId": "44444444-4444-4444-8444-444444444444",
+        "floorId": "floor-second_floor",
+        "zoneId": "zone-second_floor",
+        "disciplineId": "general"
+      },
+      "availability": "placeholder",
+      "documentStatus": "reference",
+      "mediaKind": "pdf",
+      "sizeBytes": 119112,
+      "checksum": null,
+      "sourceRevisionId": null,
+      "semanticConflict": false
+    },
+    {
+      "physicalRecordId": "cf3ac944-9de1-400c-8494-3c2010bc05d6",
+      "sanitizedName": "source-031.pdf",
+      "hierarchy": {
+        "projectId": "22222222-2222-4222-8222-222222222222",
+        "packageId": "44444444-4444-4444-8444-444444444444",
+        "floorId": "floor-exterior",
+        "zoneId": "zone-exterior",
+        "disciplineId": "general"
+      },
+      "availability": "placeholder",
+      "documentStatus": "reference",
+      "mediaKind": "pdf",
+      "sizeBytes": 12347,
+      "checksum": null,
+      "sourceRevisionId": null,
+      "semanticConflict": false
+    },
+    {
+      "physicalRecordId": "d4e383a0-a8d4-4dd4-8b50-b70b8e1cbf1a",
+      "sanitizedName": "source-032.png",
+      "hierarchy": {
+        "projectId": "22222222-2222-4222-8222-222222222222",
+        "packageId": "44444444-4444-4444-8444-444444444444",
+        "floorId": "floor-exterior",
+        "zoneId": "zone-exterior",
+        "disciplineId": "general"
+      },
+      "availability": "placeholder",
+      "documentStatus": "reference",
+      "mediaKind": "image",
+      "sizeBytes": 119828,
+      "checksum": null,
+      "sourceRevisionId": null,
+      "semanticConflict": false
+    },
+    {
+      "physicalRecordId": "13d9341e-7376-4ca4-8694-9c4a9682dffa",
+      "sanitizedName": "source-033.dwg",
+      "hierarchy": {
+        "projectId": "22222222-2222-4222-8222-222222222222",
+        "packageId": "44444444-4444-4444-8444-444444444444",
+        "floorId": "floor-unspecified",
+        "zoneId": "zone-unspecified",
+        "disciplineId": "general"
+      },
+      "availability": "placeholder",
+      "documentStatus": "reference",
+      "mediaKind": "cad_binary",
+      "sizeBytes": 3639564,
+      "checksum": null,
+      "sourceRevisionId": null,
+      "semanticConflict": false
+    },
+    {
+      "physicalRecordId": "c82e9444-b8ea-44ac-8526-6127954424c3",
+      "sanitizedName": "source-034.pdf",
+      "hierarchy": {
+        "projectId": "22222222-2222-4222-8222-222222222222",
+        "packageId": "44444444-4444-4444-8444-444444444442",
+        "floorId": "floor-unspecified",
+        "zoneId": "zone-unspecified",
+        "disciplineId": "mep"
+      },
+      "availability": "placeholder",
+      "documentStatus": "reference",
+      "mediaKind": "pdf",
+      "sizeBytes": 13853765,
+      "checksum": null,
+      "sourceRevisionId": null,
+      "semanticConflict": false
+    },
+    {
+      "physicalRecordId": "eb2d9cfc-6e3b-4f99-83a9-47629f16eb3e",
+      "sanitizedName": "source-035.pdf",
+      "hierarchy": {
+        "projectId": "22222222-2222-4222-8222-222222222222",
+        "packageId": "44444444-4444-4444-8444-444444444441",
+        "floorId": "floor-first_floor",
+        "zoneId": "zone-first_floor",
+        "disciplineId": "architecture"
+      },
+      "availability": "materialized",
+      "documentStatus": "previous",
+      "mediaKind": "pdf",
+      "sizeBytes": 1875022,
+      "checksum": "4d07995ce042aac2b92e5242ea012b403bac48d611764512e6c0d83a0b988735",
+      "sourceRevisionId": "3d1e82c6-af38-4ec9-8bdf-dbb020653921",
+      "semanticConflict": false
+    },
+    {
+      "physicalRecordId": "b769a617-e82b-4a9c-8241-10bb7b14c576",
+      "sanitizedName": "source-036.pdf",
+      "hierarchy": {
+        "projectId": "22222222-2222-4222-8222-222222222222",
+        "packageId": "44444444-4444-4444-8444-444444444441",
+        "floorId": "floor-first_floor",
+        "zoneId": "zone-first_floor",
+        "disciplineId": "architecture"
+      },
+      "availability": "materialized",
+      "documentStatus": "current",
+      "mediaKind": "pdf",
+      "sizeBytes": 765719,
+      "checksum": "fd2dbeaef78368386b86acb1195fd7a18b537fc4a08ac7cb3c27103e227a1feb",
+      "sourceRevisionId": "6448ddcf-5bbf-413e-8f52-4117b628798c",
+      "semanticConflict": false
+    },
+    {
+      "physicalRecordId": "163eb3da-0f09-4632-8036-e512a3a8686e",
+      "sanitizedName": "source-037.pdf",
+      "hierarchy": {
+        "projectId": "22222222-2222-4222-8222-222222222222",
+        "packageId": "44444444-4444-4444-8444-444444444441",
+        "floorId": "floor-first_floor",
+        "zoneId": "zone-first_floor",
+        "disciplineId": "architecture"
+      },
+      "availability": "materialized",
+      "documentStatus": "current",
+      "mediaKind": "pdf",
+      "sizeBytes": 187118,
+      "checksum": "4d7aa07f800095d8b75e69c795e27418f35f6c32df27c19b0c30f7655ba6dff1",
+      "sourceRevisionId": "8a0f8ec3-fa66-48bf-8dc9-98ca8996a807",
+      "semanticConflict": true
+    },
+    {
+      "physicalRecordId": "32692403-9ba4-497b-8146-31c32857930e",
+      "sanitizedName": "source-038.pdf",
+      "hierarchy": {
+        "projectId": "22222222-2222-4222-8222-222222222222",
+        "packageId": "44444444-4444-4444-8444-444444444441",
+        "floorId": "floor-first_floor",
+        "zoneId": "zone-first_floor",
+        "disciplineId": "architecture"
+      },
+      "availability": "materialized",
+      "documentStatus": "current",
+      "mediaKind": "pdf",
+      "sizeBytes": 5963001,
+      "checksum": "f35486afc7dbf63b943f01512a28df77f58c19208659d15ed9720f9a2bf13973",
+      "sourceRevisionId": "05fc0396-1b34-4c55-8fc9-abb9c7695be2",
+      "semanticConflict": true
+    },
+    {
+      "physicalRecordId": "6c8b7dbf-991e-42ec-8585-7a9b3018bd4e",
+      "sanitizedName": "source-039.pdf",
+      "hierarchy": {
+        "projectId": "22222222-2222-4222-8222-222222222222",
+        "packageId": "44444444-4444-4444-8444-444444444441",
+        "floorId": "floor-first_floor",
+        "zoneId": "zone-first_floor",
+        "disciplineId": "architecture"
+      },
+      "availability": "materialized",
+      "documentStatus": "current",
+      "mediaKind": "pdf",
+      "sizeBytes": 682768,
+      "checksum": "b1424a433fa46465215957e3847d7d14dde20f15bd1b5a0c68a6695e2a668491",
+      "sourceRevisionId": "a8789d09-2a10-48bc-8081-6126916839db",
+      "semanticConflict": false
+    },
+    {
+      "physicalRecordId": "4b424910-5540-4514-8228-e2db9797dd91",
+      "sanitizedName": "source-040.pdf",
+      "hierarchy": {
+        "projectId": "22222222-2222-4222-8222-222222222222",
+        "packageId": "44444444-4444-4444-8444-444444444442",
+        "floorId": "floor-first_floor",
+        "zoneId": "zone-first_floor",
+        "disciplineId": "mep"
+      },
+      "availability": "materialized",
+      "documentStatus": "current",
+      "mediaKind": "pdf",
+      "sizeBytes": 8928422,
+      "checksum": "5bd15076863b184155d8f8b089d20780089c1a3194673e0b72ee23bd99dea649",
+      "sourceRevisionId": "adc68849-80ed-46eb-82aa-3315e9256c27",
+      "semanticConflict": false
+    },
+    {
+      "physicalRecordId": "a3e12f36-e145-4278-8de6-029acbe0387d",
+      "sanitizedName": "source-041.pdf",
+      "hierarchy": {
+        "projectId": "22222222-2222-4222-8222-222222222222",
+        "packageId": "44444444-4444-4444-8444-444444444441",
+        "floorId": "floor-first_floor",
+        "zoneId": "zone-first_floor",
+        "disciplineId": "architecture"
+      },
+      "availability": "materialized",
+      "documentStatus": "current",
+      "mediaKind": "pdf",
+      "sizeBytes": 8290251,
+      "checksum": "22c0eedc873757ce723041bc09694db2275121ef8f33699b3c6c30783181a2fb",
+      "sourceRevisionId": "68b59b83-8543-4f4b-8149-3024c54cfac8",
+      "semanticConflict": true
+    },
+    {
+      "physicalRecordId": "c4517f8c-c651-48a6-8456-3f0823a14315",
+      "sanitizedName": "source-042.pdf",
+      "hierarchy": {
+        "projectId": "22222222-2222-4222-8222-222222222222",
+        "packageId": "44444444-4444-4444-8444-444444444441",
+        "floorId": "floor-second_floor",
+        "zoneId": "zone-second_floor",
+        "disciplineId": "visualization"
+      },
+      "availability": "placeholder",
+      "documentStatus": "reference",
+      "mediaKind": "pdf",
+      "sizeBytes": 2127498,
+      "checksum": null,
+      "sourceRevisionId": null,
+      "semanticConflict": false
+    },
+    {
+      "physicalRecordId": "350da304-15fe-4158-8f07-f797be08facc",
+      "sanitizedName": "source-043.pdf",
+      "hierarchy": {
+        "projectId": "22222222-2222-4222-8222-222222222222",
+        "packageId": "44444444-4444-4444-8444-444444444441",
+        "floorId": "floor-second_floor",
+        "zoneId": "zone-second_floor",
+        "disciplineId": "architecture"
+      },
+      "availability": "materialized",
+      "documentStatus": "current",
+      "mediaKind": "pdf",
+      "sizeBytes": 4768392,
+      "checksum": "7089b91ab7ca122a8638bbb962bd06e7f5562fa5fabcc8e0be1205bc9d2f5095",
+      "sourceRevisionId": "c4658865-7cd3-49e9-8544-230459e963ef",
+      "semanticConflict": false
+    },
+    {
+      "physicalRecordId": "6fa5d06a-9275-4b01-8540-da84ba65fb9e",
+      "sanitizedName": "source-044.pdf",
+      "hierarchy": {
+        "projectId": "22222222-2222-4222-8222-222222222222",
+        "packageId": "44444444-4444-4444-8444-444444444441",
+        "floorId": "floor-second_floor",
+        "zoneId": "zone-second_floor",
+        "disciplineId": "architecture"
+      },
+      "availability": "materialized",
+      "documentStatus": "current",
+      "mediaKind": "pdf",
+      "sizeBytes": 17541670,
+      "checksum": "d63cba43942655e6d656747cb00c31154337f3545d8d819fb3f3d36eed87843c",
+      "sourceRevisionId": "58acec02-8d4d-4c1d-8045-2aca4bde1c93",
+      "semanticConflict": false
+    },
+    {
+      "physicalRecordId": "0017212d-55cb-4966-8aa3-415c440eab54",
+      "sanitizedName": "source-045.pdf",
+      "hierarchy": {
+        "projectId": "22222222-2222-4222-8222-222222222222",
+        "packageId": "44444444-4444-4444-8444-444444444441",
+        "floorId": "floor-second_floor",
+        "zoneId": "zone-second_floor",
+        "disciplineId": "architecture"
+      },
+      "availability": "materialized",
+      "documentStatus": "current",
+      "mediaKind": "pdf",
+      "sizeBytes": 1669466,
+      "checksum": "c6932fba20b20bb8b7b9dd289199e84d5f4fac2c65507fdc96f563a673c9281d",
+      "sourceRevisionId": "e1bcb947-5faa-44f8-81ce-9d89f1f0a5c9",
+      "semanticConflict": true
+    },
+    {
+      "physicalRecordId": "e2407c91-4281-4e89-8b38-236f104cbf11",
+      "sanitizedName": "source-046.pdf",
+      "hierarchy": {
+        "projectId": "22222222-2222-4222-8222-222222222222",
+        "packageId": "44444444-4444-4444-8444-444444444441",
+        "floorId": "floor-second_floor",
+        "zoneId": "zone-second_floor",
+        "disciplineId": "architecture"
+      },
+      "availability": "materialized",
+      "documentStatus": "current",
+      "mediaKind": "pdf",
+      "sizeBytes": 1659721,
+      "checksum": "75dabc4bbc1b6e4649224cb186d2726ee2c45bdf6afba5532717fc8cdad25ab4",
+      "sourceRevisionId": "e7741fb6-dfab-4a21-8dd2-e1ae6eeacfe2",
+      "semanticConflict": true
+    },
+    {
+      "physicalRecordId": "2070bbe6-e5df-4d48-84ce-ef5621ccbaf4",
+      "sanitizedName": "source-047.pdf",
+      "hierarchy": {
+        "projectId": "22222222-2222-4222-8222-222222222222",
+        "packageId": "44444444-4444-4444-8444-444444444441",
+        "floorId": "floor-second_floor",
+        "zoneId": "zone-second_floor",
+        "disciplineId": "architecture"
+      },
+      "availability": "materialized",
+      "documentStatus": "current",
+      "mediaKind": "pdf",
+      "sizeBytes": 2698073,
+      "checksum": "bd98ffce0ca6ab74dd957644861efa2ea675b7a19b3620e1b2831e0598dfe62a",
+      "sourceRevisionId": "2342b3ca-fccc-4225-8a68-a3ca1915f734",
+      "semanticConflict": false
+    },
+    {
+      "physicalRecordId": "7a8469a2-eeab-4f1c-8fa9-41a5c3bc4c2b",
+      "sanitizedName": "source-048.pdf",
+      "hierarchy": {
+        "projectId": "22222222-2222-4222-8222-222222222222",
+        "packageId": "44444444-4444-4444-8444-444444444441",
+        "floorId": "floor-second_floor",
+        "zoneId": "zone-second_floor",
+        "disciplineId": "architecture"
+      },
+      "availability": "materialized",
+      "documentStatus": "current",
+      "mediaKind": "pdf",
+      "sizeBytes": 1626608,
+      "checksum": "b5b172d96b9bf8f3851c7ce8e1fc124252f485f13ded6b02ea70ef0e70afffb8",
+      "sourceRevisionId": "cff65061-f6de-4b19-83f7-d6ef75c201a3",
+      "semanticConflict": false
+    },
+    {
+      "physicalRecordId": "0dfbbac8-fbbe-43a6-8f44-a9afb40000d4",
+      "sanitizedName": "source-049.pdf",
+      "hierarchy": {
+        "projectId": "22222222-2222-4222-8222-222222222222",
+        "packageId": "44444444-4444-4444-8444-444444444441",
+        "floorId": "floor-second_floor",
+        "zoneId": "zone-second_floor",
+        "disciplineId": "architecture"
+      },
+      "availability": "materialized",
+      "documentStatus": "current",
+      "mediaKind": "pdf",
+      "sizeBytes": 948070,
+      "checksum": "03a1d7899b83b08a0c060f0d6153e2951327c89af7ae3078e6f7877bd3b29c35",
+      "sourceRevisionId": "d7b6f245-0ed6-407c-8e6d-603f480b9df6",
+      "semanticConflict": false
+    },
+    {
+      "physicalRecordId": "ee19568e-05ee-46a1-8b8a-9929b68d77ad",
+      "sanitizedName": "source-050.pdf",
+      "hierarchy": {
+        "projectId": "22222222-2222-4222-8222-222222222222",
+        "packageId": "44444444-4444-4444-8444-444444444444",
+        "floorId": "floor-second_floor_toilet",
+        "zoneId": "zone-second_floor_toilet",
+        "disciplineId": "general"
+      },
+      "availability": "placeholder",
+      "documentStatus": "current",
+      "mediaKind": "pdf",
+      "sizeBytes": 17261091,
+      "checksum": null,
+      "sourceRevisionId": null,
+      "semanticConflict": false
+    },
+    {
+      "physicalRecordId": "c352be60-056f-4559-857c-2d7cbb5b944c",
+      "sanitizedName": "source-051.pdf",
+      "hierarchy": {
+        "projectId": "22222222-2222-4222-8222-222222222222",
+        "packageId": "44444444-4444-4444-8444-444444444442",
+        "floorId": "floor-second_floor_toilet",
+        "zoneId": "zone-second_floor_toilet",
+        "disciplineId": "mep"
+      },
+      "availability": "placeholder",
+      "documentStatus": "reference",
+      "mediaKind": "pdf",
+      "sizeBytes": 13853765,
+      "checksum": null,
+      "sourceRevisionId": null,
+      "semanticConflict": false
+    },
+    {
+      "physicalRecordId": "ea4c9fda-9b1d-4e9a-8eb0-258b408a0fe0",
+      "sanitizedName": "source-052.xlsx",
+      "hierarchy": {
+        "projectId": "22222222-2222-4222-8222-222222222222",
+        "packageId": "44444444-4444-4444-8444-444444444443",
+        "floorId": "floor-unspecified",
+        "zoneId": "zone-unspecified",
+        "disciplineId": "quantity_cost"
+      },
+      "availability": "placeholder",
+      "documentStatus": "current",
+      "mediaKind": "spreadsheet",
+      "sizeBytes": 112699,
+      "checksum": null,
+      "sourceRevisionId": null,
+      "semanticConflict": false
+    },
+    {
+      "physicalRecordId": "1a51746b-2a80-4c50-80bf-27514e9f3428",
+      "sanitizedName": "source-053.dwg",
+      "hierarchy": {
+        "projectId": "22222222-2222-4222-8222-222222222222",
+        "packageId": "44444444-4444-4444-8444-444444444442",
+        "floorId": "floor-unspecified",
+        "zoneId": "zone-unspecified",
+        "disciplineId": "mep"
+      },
+      "availability": "placeholder",
+      "documentStatus": "reference",
+      "mediaKind": "cad_binary",
+      "sizeBytes": 25558752,
+      "checksum": null,
+      "sourceRevisionId": null,
+      "semanticConflict": false
+    },
+    {
+      "physicalRecordId": "4df03777-ce2f-4662-856d-36640c459a59",
+      "sanitizedName": "source-054.dwg",
+      "hierarchy": {
+        "projectId": "22222222-2222-4222-8222-222222222222",
+        "packageId": "44444444-4444-4444-8444-444444444442",
+        "floorId": "floor-unspecified",
+        "zoneId": "zone-unspecified",
+        "disciplineId": "mep"
+      },
+      "availability": "placeholder",
+      "documentStatus": "reference",
+      "mediaKind": "cad_binary",
+      "sizeBytes": 13349920,
+      "checksum": null,
+      "sourceRevisionId": null,
+      "semanticConflict": false
+    },
+    {
+      "physicalRecordId": "09c1af4d-ac27-4380-898a-afff8a406a6f",
+      "sanitizedName": "source-055.dwg",
+      "hierarchy": {
+        "projectId": "22222222-2222-4222-8222-222222222222",
+        "packageId": "44444444-4444-4444-8444-444444444442",
+        "floorId": "floor-unspecified",
+        "zoneId": "zone-unspecified",
+        "disciplineId": "mep"
+      },
+      "availability": "placeholder",
+      "documentStatus": "reference",
+      "mediaKind": "cad_binary",
+      "sizeBytes": 18714464,
+      "checksum": null,
+      "sourceRevisionId": null,
+      "semanticConflict": false
+    },
+    {
+      "physicalRecordId": "a8d25834-3fa1-4943-81e8-d618c8ab8220",
+      "sanitizedName": "source-056.dwg",
+      "hierarchy": {
+        "projectId": "22222222-2222-4222-8222-222222222222",
+        "packageId": "44444444-4444-4444-8444-444444444442",
+        "floorId": "floor-unspecified",
+        "zoneId": "zone-unspecified",
+        "disciplineId": "mep"
+      },
+      "availability": "placeholder",
+      "documentStatus": "reference",
+      "mediaKind": "cad_binary",
+      "sizeBytes": 11397824,
+      "checksum": null,
+      "sourceRevisionId": null,
+      "semanticConflict": false
+    },
+    {
+      "physicalRecordId": "b2ecdc4c-9dee-46c2-8e3d-8facc5bdb0fb",
+      "sanitizedName": "source-057.pdf",
+      "hierarchy": {
+        "projectId": "22222222-2222-4222-8222-222222222222",
+        "packageId": "44444444-4444-4444-8444-444444444442",
+        "floorId": "floor-first_floor",
+        "zoneId": "zone-first_floor",
+        "disciplineId": "mep"
+      },
+      "availability": "placeholder",
+      "documentStatus": "reference",
+      "mediaKind": "pdf",
+      "sizeBytes": 187780,
+      "checksum": null,
+      "sourceRevisionId": null,
+      "semanticConflict": false
+    },
+    {
+      "physicalRecordId": "7aaca416-9e2d-4d6c-8eaf-db6e47c7cc3b",
+      "sanitizedName": "source-058.png",
+      "hierarchy": {
+        "projectId": "22222222-2222-4222-8222-222222222222",
+        "packageId": "44444444-4444-4444-8444-444444444444",
+        "floorId": "floor-second_floor",
+        "zoneId": "zone-second_floor",
+        "disciplineId": "general"
+      },
+      "availability": "placeholder",
+      "documentStatus": "reference",
+      "mediaKind": "image",
+      "sizeBytes": 72850,
+      "checksum": null,
+      "sourceRevisionId": null,
+      "semanticConflict": false
+    },
+    {
+      "physicalRecordId": "464c3db8-ff27-41b9-8c47-d9e65ea8ab59",
+      "sanitizedName": "source-059.pdf",
+      "hierarchy": {
+        "projectId": "22222222-2222-4222-8222-222222222222",
+        "packageId": "44444444-4444-4444-8444-444444444444",
+        "floorId": "floor-second_floor",
+        "zoneId": "zone-second_floor",
+        "disciplineId": "general"
+      },
+      "availability": "placeholder",
+      "documentStatus": "reference",
+      "mediaKind": "pdf",
+      "sizeBytes": 119112,
+      "checksum": null,
+      "sourceRevisionId": null,
+      "semanticConflict": false
+    },
+    {
+      "physicalRecordId": "cc116d3d-a35d-438e-8225-5b4280235360",
+      "sanitizedName": "source-060.pdf",
+      "hierarchy": {
+        "projectId": "22222222-2222-4222-8222-222222222222",
+        "packageId": "44444444-4444-4444-8444-444444444444",
+        "floorId": "floor-exterior",
+        "zoneId": "zone-exterior",
+        "disciplineId": "general"
+      },
+      "availability": "placeholder",
+      "documentStatus": "reference",
+      "mediaKind": "pdf",
+      "sizeBytes": 12347,
+      "checksum": null,
+      "sourceRevisionId": null,
+      "semanticConflict": false
+    },
+    {
+      "physicalRecordId": "f38e0eff-86a7-4298-843e-65b36c813dd1",
+      "sanitizedName": "source-061.png",
+      "hierarchy": {
+        "projectId": "22222222-2222-4222-8222-222222222222",
+        "packageId": "44444444-4444-4444-8444-444444444444",
+        "floorId": "floor-exterior",
+        "zoneId": "zone-exterior",
+        "disciplineId": "general"
+      },
+      "availability": "placeholder",
+      "documentStatus": "reference",
+      "mediaKind": "image",
+      "sizeBytes": 119828,
+      "checksum": null,
+      "sourceRevisionId": null,
+      "semanticConflict": false
+    },
+    {
+      "physicalRecordId": "d05efbb2-5d4e-4baf-8320-c0576d288610",
+      "sanitizedName": "source-062.dwg",
+      "hierarchy": {
+        "projectId": "22222222-2222-4222-8222-222222222222",
+        "packageId": "44444444-4444-4444-8444-444444444444",
+        "floorId": "floor-unspecified",
+        "zoneId": "zone-unspecified",
+        "disciplineId": "general"
+      },
+      "availability": "placeholder",
+      "documentStatus": "reference",
+      "mediaKind": "cad_binary",
+      "sizeBytes": 3639564,
+      "checksum": null,
+      "sourceRevisionId": null,
+      "semanticConflict": false
+    },
+    {
+      "physicalRecordId": "09c4138a-cded-45c6-853d-88e688190b11",
+      "sanitizedName": "source-063.pdf",
+      "hierarchy": {
+        "projectId": "22222222-2222-4222-8222-222222222222",
+        "packageId": "44444444-4444-4444-8444-444444444442",
+        "floorId": "floor-unspecified",
+        "zoneId": "zone-unspecified",
+        "disciplineId": "mep"
+      },
+      "availability": "placeholder",
+      "documentStatus": "reference",
+      "mediaKind": "pdf",
+      "sizeBytes": 13853765,
+      "checksum": null,
+      "sourceRevisionId": null,
+      "semanticConflict": false
+    },
+    {
+      "physicalRecordId": "a2107311-252a-4c42-84dd-7eb5a34aa927",
+      "sanitizedName": "source-064.pdf",
+      "hierarchy": {
+        "projectId": "22222222-2222-4222-8222-222222222222",
+        "packageId": "44444444-4444-4444-8444-444444444441",
+        "floorId": "floor-first_floor",
+        "zoneId": "zone-first_floor",
+        "disciplineId": "architecture"
+      },
+      "availability": "materialized",
+      "documentStatus": "previous",
+      "mediaKind": "pdf",
+      "sizeBytes": 1875022,
+      "checksum": "4d07995ce042aac2b92e5242ea012b403bac48d611764512e6c0d83a0b988735",
+      "sourceRevisionId": "3d1e82c6-af38-4ec9-8bdf-dbb020653921",
+      "semanticConflict": false
+    },
+    {
+      "physicalRecordId": "c3890207-d770-4228-883f-e8563066e7ef",
+      "sanitizedName": "source-065.pdf",
+      "hierarchy": {
+        "projectId": "22222222-2222-4222-8222-222222222222",
+        "packageId": "44444444-4444-4444-8444-444444444441",
+        "floorId": "floor-first_floor",
+        "zoneId": "zone-first_floor",
+        "disciplineId": "architecture"
+      },
+      "availability": "materialized",
+      "documentStatus": "current",
+      "mediaKind": "pdf",
+      "sizeBytes": 765719,
+      "checksum": "fd2dbeaef78368386b86acb1195fd7a18b537fc4a08ac7cb3c27103e227a1feb",
+      "sourceRevisionId": "6448ddcf-5bbf-413e-8f52-4117b628798c",
+      "semanticConflict": false
+    },
+    {
+      "physicalRecordId": "9659f0c6-9a0e-410f-81da-2d005946a7e5",
+      "sanitizedName": "source-066.pdf",
+      "hierarchy": {
+        "projectId": "22222222-2222-4222-8222-222222222222",
+        "packageId": "44444444-4444-4444-8444-444444444441",
+        "floorId": "floor-first_floor",
+        "zoneId": "zone-first_floor",
+        "disciplineId": "architecture"
+      },
+      "availability": "materialized",
+      "documentStatus": "current",
+      "mediaKind": "pdf",
+      "sizeBytes": 187118,
+      "checksum": "4d7aa07f800095d8b75e69c795e27418f35f6c32df27c19b0c30f7655ba6dff1",
+      "sourceRevisionId": "8a0f8ec3-fa66-48bf-8dc9-98ca8996a807",
+      "semanticConflict": true
+    },
+    {
+      "physicalRecordId": "608cc9df-5309-4317-8142-166290462f58",
+      "sanitizedName": "source-067.pdf",
+      "hierarchy": {
+        "projectId": "22222222-2222-4222-8222-222222222222",
+        "packageId": "44444444-4444-4444-8444-444444444441",
+        "floorId": "floor-first_floor",
+        "zoneId": "zone-first_floor",
+        "disciplineId": "architecture"
+      },
+      "availability": "materialized",
+      "documentStatus": "current",
+      "mediaKind": "pdf",
+      "sizeBytes": 5963001,
+      "checksum": "f35486afc7dbf63b943f01512a28df77f58c19208659d15ed9720f9a2bf13973",
+      "sourceRevisionId": "05fc0396-1b34-4c55-8fc9-abb9c7695be2",
+      "semanticConflict": true
+    },
+    {
+      "physicalRecordId": "1ce357b6-9fd3-46fd-8b94-19b9ba4486f1",
+      "sanitizedName": "source-068.pdf",
+      "hierarchy": {
+        "projectId": "22222222-2222-4222-8222-222222222222",
+        "packageId": "44444444-4444-4444-8444-444444444441",
+        "floorId": "floor-first_floor",
+        "zoneId": "zone-first_floor",
+        "disciplineId": "architecture"
+      },
+      "availability": "materialized",
+      "documentStatus": "current",
+      "mediaKind": "pdf",
+      "sizeBytes": 682768,
+      "checksum": "b1424a433fa46465215957e3847d7d14dde20f15bd1b5a0c68a6695e2a668491",
+      "sourceRevisionId": "a8789d09-2a10-48bc-8081-6126916839db",
+      "semanticConflict": false
+    },
+    {
+      "physicalRecordId": "352b9ba3-d72f-40bf-8a0a-76528fc80d7e",
+      "sanitizedName": "source-069.pdf",
+      "hierarchy": {
+        "projectId": "22222222-2222-4222-8222-222222222222",
+        "packageId": "44444444-4444-4444-8444-444444444442",
+        "floorId": "floor-first_floor",
+        "zoneId": "zone-first_floor",
+        "disciplineId": "mep"
+      },
+      "availability": "materialized",
+      "documentStatus": "current",
+      "mediaKind": "pdf",
+      "sizeBytes": 8928422,
+      "checksum": "5bd15076863b184155d8f8b089d20780089c1a3194673e0b72ee23bd99dea649",
+      "sourceRevisionId": "adc68849-80ed-46eb-82aa-3315e9256c27",
+      "semanticConflict": false
+    },
+    {
+      "physicalRecordId": "021bbec7-96cf-432d-8e2d-c78a65859fcf",
+      "sanitizedName": "source-070.pdf",
+      "hierarchy": {
+        "projectId": "22222222-2222-4222-8222-222222222222",
+        "packageId": "44444444-4444-4444-8444-444444444441",
+        "floorId": "floor-first_floor",
+        "zoneId": "zone-first_floor",
+        "disciplineId": "architecture"
+      },
+      "availability": "materialized",
+      "documentStatus": "current",
+      "mediaKind": "pdf",
+      "sizeBytes": 8290251,
+      "checksum": "22c0eedc873757ce723041bc09694db2275121ef8f33699b3c6c30783181a2fb",
+      "sourceRevisionId": "68b59b83-8543-4f4b-8149-3024c54cfac8",
+      "semanticConflict": true
+    },
+    {
+      "physicalRecordId": "bc458b36-4a39-4d08-8fee-7f0f9789318a",
+      "sanitizedName": "source-071.pdf",
+      "hierarchy": {
+        "projectId": "22222222-2222-4222-8222-222222222222",
+        "packageId": "44444444-4444-4444-8444-444444444441",
+        "floorId": "floor-second_floor",
+        "zoneId": "zone-second_floor",
+        "disciplineId": "visualization"
+      },
+      "availability": "materialized",
+      "documentStatus": "reference",
+      "mediaKind": "pdf",
+      "sizeBytes": 2127498,
+      "checksum": "7b3aba89803a32cf5c14e17f4aec0ebcfbd31774991ba2929dd010ac1d7d04a5",
+      "sourceRevisionId": "1a7a4077-07ea-489e-8cca-b2eea5f991a4",
+      "semanticConflict": true
+    },
+    {
+      "physicalRecordId": "9629b92e-a4f8-4ac1-86e9-b23c7b9b7b68",
+      "sanitizedName": "source-072.pdf",
+      "hierarchy": {
+        "projectId": "22222222-2222-4222-8222-222222222222",
+        "packageId": "44444444-4444-4444-8444-444444444441",
+        "floorId": "floor-second_floor",
+        "zoneId": "zone-second_floor",
+        "disciplineId": "architecture"
+      },
+      "availability": "materialized",
+      "documentStatus": "current",
+      "mediaKind": "pdf",
+      "sizeBytes": 4768392,
+      "checksum": "7089b91ab7ca122a8638bbb962bd06e7f5562fa5fabcc8e0be1205bc9d2f5095",
+      "sourceRevisionId": "c4658865-7cd3-49e9-8544-230459e963ef",
+      "semanticConflict": false
+    },
+    {
+      "physicalRecordId": "d81ed4ba-75a9-4bc8-856c-a3df8b098efe",
+      "sanitizedName": "source-073.pdf",
+      "hierarchy": {
+        "projectId": "22222222-2222-4222-8222-222222222222",
+        "packageId": "44444444-4444-4444-8444-444444444441",
+        "floorId": "floor-second_floor",
+        "zoneId": "zone-second_floor",
+        "disciplineId": "architecture"
+      },
+      "availability": "materialized",
+      "documentStatus": "current",
+      "mediaKind": "pdf",
+      "sizeBytes": 17541670,
+      "checksum": "d63cba43942655e6d656747cb00c31154337f3545d8d819fb3f3d36eed87843c",
+      "sourceRevisionId": "58acec02-8d4d-4c1d-8045-2aca4bde1c93",
+      "semanticConflict": false
+    },
+    {
+      "physicalRecordId": "67b42fe1-fee8-4a32-8e41-89bd542149a6",
+      "sanitizedName": "source-074.pdf",
+      "hierarchy": {
+        "projectId": "22222222-2222-4222-8222-222222222222",
+        "packageId": "44444444-4444-4444-8444-444444444441",
+        "floorId": "floor-second_floor",
+        "zoneId": "zone-second_floor",
+        "disciplineId": "architecture"
+      },
+      "availability": "materialized",
+      "documentStatus": "current",
+      "mediaKind": "pdf",
+      "sizeBytes": 1669466,
+      "checksum": "c6932fba20b20bb8b7b9dd289199e84d5f4fac2c65507fdc96f563a673c9281d",
+      "sourceRevisionId": "e1bcb947-5faa-44f8-81ce-9d89f1f0a5c9",
+      "semanticConflict": true
+    },
+    {
+      "physicalRecordId": "9d1a65eb-0d75-4008-8a89-e0054bdfc8df",
+      "sanitizedName": "source-075.pdf",
+      "hierarchy": {
+        "projectId": "22222222-2222-4222-8222-222222222222",
+        "packageId": "44444444-4444-4444-8444-444444444441",
+        "floorId": "floor-second_floor",
+        "zoneId": "zone-second_floor",
+        "disciplineId": "architecture"
+      },
+      "availability": "materialized",
+      "documentStatus": "current",
+      "mediaKind": "pdf",
+      "sizeBytes": 1659721,
+      "checksum": "75dabc4bbc1b6e4649224cb186d2726ee2c45bdf6afba5532717fc8cdad25ab4",
+      "sourceRevisionId": "e7741fb6-dfab-4a21-8dd2-e1ae6eeacfe2",
+      "semanticConflict": true
+    },
+    {
+      "physicalRecordId": "69d63e04-8229-483c-895b-2787d08e56cb",
+      "sanitizedName": "source-076.pdf",
+      "hierarchy": {
+        "projectId": "22222222-2222-4222-8222-222222222222",
+        "packageId": "44444444-4444-4444-8444-444444444441",
+        "floorId": "floor-second_floor",
+        "zoneId": "zone-second_floor",
+        "disciplineId": "architecture"
+      },
+      "availability": "materialized",
+      "documentStatus": "current",
+      "mediaKind": "pdf",
+      "sizeBytes": 2698073,
+      "checksum": "bd98ffce0ca6ab74dd957644861efa2ea675b7a19b3620e1b2831e0598dfe62a",
+      "sourceRevisionId": "2342b3ca-fccc-4225-8a68-a3ca1915f734",
+      "semanticConflict": false
+    },
+    {
+      "physicalRecordId": "6793cec2-ab46-47db-8754-3193c9d66239",
+      "sanitizedName": "source-077.pdf",
+      "hierarchy": {
+        "projectId": "22222222-2222-4222-8222-222222222222",
+        "packageId": "44444444-4444-4444-8444-444444444441",
+        "floorId": "floor-second_floor",
+        "zoneId": "zone-second_floor",
+        "disciplineId": "architecture"
+      },
+      "availability": "materialized",
+      "documentStatus": "current",
+      "mediaKind": "pdf",
+      "sizeBytes": 1626608,
+      "checksum": "b5b172d96b9bf8f3851c7ce8e1fc124252f485f13ded6b02ea70ef0e70afffb8",
+      "sourceRevisionId": "cff65061-f6de-4b19-83f7-d6ef75c201a3",
+      "semanticConflict": false
+    },
+    {
+      "physicalRecordId": "cdc105e4-1f71-4c93-8b8a-aa704824adfa",
+      "sanitizedName": "source-078.pdf",
+      "hierarchy": {
+        "projectId": "22222222-2222-4222-8222-222222222222",
+        "packageId": "44444444-4444-4444-8444-444444444441",
+        "floorId": "floor-second_floor",
+        "zoneId": "zone-second_floor",
+        "disciplineId": "architecture"
+      },
+      "availability": "materialized",
+      "documentStatus": "current",
+      "mediaKind": "pdf",
+      "sizeBytes": 948070,
+      "checksum": "03a1d7899b83b08a0c060f0d6153e2951327c89af7ae3078e6f7877bd3b29c35",
+      "sourceRevisionId": "d7b6f245-0ed6-407c-8e6d-603f480b9df6",
+      "semanticConflict": false
+    },
+    {
+      "physicalRecordId": "157273a0-f559-449b-88c1-4b6b9d297910",
+      "sanitizedName": "source-079.pdf",
+      "hierarchy": {
+        "projectId": "22222222-2222-4222-8222-222222222222",
+        "packageId": "44444444-4444-4444-8444-444444444444",
+        "floorId": "floor-second_floor_toilet",
+        "zoneId": "zone-second_floor_toilet",
+        "disciplineId": "general"
+      },
+      "availability": "placeholder",
+      "documentStatus": "current",
+      "mediaKind": "pdf",
+      "sizeBytes": 17261091,
+      "checksum": null,
+      "sourceRevisionId": null,
+      "semanticConflict": false
+    },
+    {
+      "physicalRecordId": "d91df71f-491e-4097-8cd2-e50f4dd208fe",
+      "sanitizedName": "source-080.pdf",
+      "hierarchy": {
+        "projectId": "22222222-2222-4222-8222-222222222222",
+        "packageId": "44444444-4444-4444-8444-444444444442",
+        "floorId": "floor-second_floor_toilet",
+        "zoneId": "zone-second_floor_toilet",
+        "disciplineId": "mep"
+      },
+      "availability": "placeholder",
+      "documentStatus": "reference",
+      "mediaKind": "pdf",
+      "sizeBytes": 13853765,
+      "checksum": null,
+      "sourceRevisionId": null,
+      "semanticConflict": false
+    },
+    {
+      "physicalRecordId": "0e1d6f1e-a376-4492-8552-ce7ebe8a54e9",
+      "sanitizedName": "source-081.xlsx",
+      "hierarchy": {
+        "projectId": "22222222-2222-4222-8222-222222222222",
+        "packageId": "44444444-4444-4444-8444-444444444443",
+        "floorId": "floor-unspecified",
+        "zoneId": "zone-unspecified",
+        "disciplineId": "quantity_cost"
+      },
+      "availability": "placeholder",
+      "documentStatus": "current",
+      "mediaKind": "spreadsheet",
+      "sizeBytes": 112699,
+      "checksum": null,
+      "sourceRevisionId": null,
+      "semanticConflict": false
+    },
+    {
+      "physicalRecordId": "a5fcca39-3e91-4a2a-8c41-4bb2cb3890d5",
+      "sanitizedName": "source-082.pdf",
+      "hierarchy": {
+        "projectId": "22222222-2222-4222-8222-222222222222",
+        "packageId": "44444444-4444-4444-8444-444444444442",
+        "floorId": "floor-unspecified",
+        "zoneId": "zone-unspecified",
+        "disciplineId": "mep"
+      },
+      "availability": "placeholder",
+      "documentStatus": "unknown",
+      "mediaKind": "pdf",
+      "sizeBytes": 10723070,
+      "checksum": null,
+      "sourceRevisionId": null,
+      "semanticConflict": false
+    },
+    {
+      "physicalRecordId": "c84dd20e-7192-444b-8a45-7a1007088586",
+      "sanitizedName": "source-083.pdf",
+      "hierarchy": {
+        "projectId": "22222222-2222-4222-8222-222222222222",
+        "packageId": "44444444-4444-4444-8444-444444444442",
+        "floorId": "floor-unspecified",
+        "zoneId": "zone-unspecified",
+        "disciplineId": "mep"
+      },
+      "availability": "placeholder",
+      "documentStatus": "unknown",
+      "mediaKind": "pdf",
+      "sizeBytes": 10723070,
+      "checksum": null,
+      "sourceRevisionId": null,
+      "semanticConflict": false
+    },
+    {
+      "physicalRecordId": "9dc2733f-424c-471c-8656-7a9280c10ded",
+      "sanitizedName": "source-084.pdf",
+      "hierarchy": {
+        "projectId": "22222222-2222-4222-8222-222222222222",
+        "packageId": "44444444-4444-4444-8444-444444444444",
+        "floorId": "floor-unspecified",
+        "zoneId": "zone-unspecified",
+        "disciplineId": "general"
+      },
+      "availability": "placeholder",
+      "documentStatus": "unknown",
+      "mediaKind": "pdf",
+      "sizeBytes": 203420,
+      "checksum": null,
+      "sourceRevisionId": null,
+      "semanticConflict": false
+    },
+    {
+      "physicalRecordId": "a5ea01e1-c0c2-44af-87d7-c9e53ca9b6a1",
+      "sanitizedName": "source-085.pdf",
+      "hierarchy": {
+        "projectId": "22222222-2222-4222-8222-222222222222",
+        "packageId": "44444444-4444-4444-8444-444444444443",
+        "floorId": "floor-second_floor",
+        "zoneId": "zone-second_floor",
+        "disciplineId": "brief_specification"
+      },
+      "availability": "placeholder",
+      "documentStatus": "current",
+      "mediaKind": "pdf",
+      "sizeBytes": 30918,
+      "checksum": null,
+      "sourceRevisionId": null,
+      "semanticConflict": false
+    },
+    {
+      "physicalRecordId": "5825071b-5006-412f-88e5-ff81d90ccdfa",
+      "sanitizedName": "source-086.pdf",
+      "hierarchy": {
+        "projectId": "22222222-2222-4222-8222-222222222222",
+        "packageId": "44444444-4444-4444-8444-444444444444",
+        "floorId": "floor-unspecified",
+        "zoneId": "zone-unspecified",
+        "disciplineId": "general"
+      },
+      "availability": "placeholder",
+      "documentStatus": "reference",
+      "mediaKind": "pdf",
+      "sizeBytes": 7275069,
+      "checksum": null,
+      "sourceRevisionId": null,
+      "semanticConflict": false
+    },
+    {
+      "physicalRecordId": "7792f9dc-f865-4ed0-8ab0-dcf220b0c9ef",
+      "sanitizedName": "source-087.pdf",
+      "hierarchy": {
+        "projectId": "22222222-2222-4222-8222-222222222222",
+        "packageId": "44444444-4444-4444-8444-444444444444",
+        "floorId": "floor-unspecified",
+        "zoneId": "zone-unspecified",
+        "disciplineId": "general"
+      },
+      "availability": "placeholder",
+      "documentStatus": "previous",
+      "mediaKind": "pdf",
+      "sizeBytes": 3992868,
+      "checksum": null,
+      "sourceRevisionId": null,
+      "semanticConflict": false
+    },
+    {
+      "physicalRecordId": "6efbe14c-9106-4628-8ced-9d68a2798ae7",
+      "sanitizedName": "source-088.heic",
+      "hierarchy": {
+        "projectId": "22222222-2222-4222-8222-222222222222",
+        "packageId": "44444444-4444-4444-8444-444444444444",
+        "floorId": "floor-unspecified",
+        "zoneId": "zone-unspecified",
+        "disciplineId": "site_evidence"
+      },
+      "availability": "placeholder",
+      "documentStatus": "reference",
+      "mediaKind": "image",
+      "sizeBytes": 2893442,
+      "checksum": null,
+      "sourceRevisionId": null,
+      "semanticConflict": false
+    },
+    {
+      "physicalRecordId": "add61619-14c8-4960-89c7-d0b9ecdfa60e",
+      "sanitizedName": "source-089.heic",
+      "hierarchy": {
+        "projectId": "22222222-2222-4222-8222-222222222222",
+        "packageId": "44444444-4444-4444-8444-444444444444",
+        "floorId": "floor-unspecified",
+        "zoneId": "zone-unspecified",
+        "disciplineId": "site_evidence"
+      },
+      "availability": "placeholder",
+      "documentStatus": "reference",
+      "mediaKind": "image",
+      "sizeBytes": 4184792,
+      "checksum": null,
+      "sourceRevisionId": null,
+      "semanticConflict": false
+    },
+    {
+      "physicalRecordId": "32aac513-edb2-481d-80e2-2d1c8808c625",
+      "sanitizedName": "source-090.heic",
+      "hierarchy": {
+        "projectId": "22222222-2222-4222-8222-222222222222",
+        "packageId": "44444444-4444-4444-8444-444444444444",
+        "floorId": "floor-unspecified",
+        "zoneId": "zone-unspecified",
+        "disciplineId": "site_evidence"
+      },
+      "availability": "placeholder",
+      "documentStatus": "reference",
+      "mediaKind": "image",
+      "sizeBytes": 3686320,
+      "checksum": null,
+      "sourceRevisionId": null,
+      "semanticConflict": false
+    },
+    {
+      "physicalRecordId": "27ae5c20-f4cf-422d-8769-0aa8e68cfc2e",
+      "sanitizedName": "source-091.heic",
+      "hierarchy": {
+        "projectId": "22222222-2222-4222-8222-222222222222",
+        "packageId": "44444444-4444-4444-8444-444444444444",
+        "floorId": "floor-unspecified",
+        "zoneId": "zone-unspecified",
+        "disciplineId": "site_evidence"
+      },
+      "availability": "placeholder",
+      "documentStatus": "reference",
+      "mediaKind": "image",
+      "sizeBytes": 3187480,
+      "checksum": null,
+      "sourceRevisionId": null,
+      "semanticConflict": false
+    },
+    {
+      "physicalRecordId": "7891855b-46eb-48cf-8e77-e8e97749afcb",
+      "sanitizedName": "source-092.heic",
+      "hierarchy": {
+        "projectId": "22222222-2222-4222-8222-222222222222",
+        "packageId": "44444444-4444-4444-8444-444444444444",
+        "floorId": "floor-unspecified",
+        "zoneId": "zone-unspecified",
+        "disciplineId": "site_evidence"
+      },
+      "availability": "placeholder",
+      "documentStatus": "reference",
+      "mediaKind": "image",
+      "sizeBytes": 3001611,
+      "checksum": null,
+      "sourceRevisionId": null,
+      "semanticConflict": false
+    },
+    {
+      "physicalRecordId": "260c4316-8c98-4ede-872f-6946a6ed4611",
+      "sanitizedName": "source-093.heic",
+      "hierarchy": {
+        "projectId": "22222222-2222-4222-8222-222222222222",
+        "packageId": "44444444-4444-4444-8444-444444444444",
+        "floorId": "floor-unspecified",
+        "zoneId": "zone-unspecified",
+        "disciplineId": "site_evidence"
+      },
+      "availability": "placeholder",
+      "documentStatus": "reference",
+      "mediaKind": "image",
+      "sizeBytes": 3331845,
+      "checksum": null,
+      "sourceRevisionId": null,
+      "semanticConflict": false
+    },
+    {
+      "physicalRecordId": "6003c966-5bb9-48de-8a55-471bb906a83a",
+      "sanitizedName": "source-094.heic",
+      "hierarchy": {
+        "projectId": "22222222-2222-4222-8222-222222222222",
+        "packageId": "44444444-4444-4444-8444-444444444444",
+        "floorId": "floor-unspecified",
+        "zoneId": "zone-unspecified",
+        "disciplineId": "site_evidence"
+      },
+      "availability": "placeholder",
+      "documentStatus": "reference",
+      "mediaKind": "image",
+      "sizeBytes": 3410719,
+      "checksum": null,
+      "sourceRevisionId": null,
+      "semanticConflict": false
+    },
+    {
+      "physicalRecordId": "a18f21f8-f5e4-4476-8f2a-0bc9f2261ac3",
+      "sanitizedName": "source-095.heic",
+      "hierarchy": {
+        "projectId": "22222222-2222-4222-8222-222222222222",
+        "packageId": "44444444-4444-4444-8444-444444444444",
+        "floorId": "floor-unspecified",
+        "zoneId": "zone-unspecified",
+        "disciplineId": "site_evidence"
+      },
+      "availability": "placeholder",
+      "documentStatus": "reference",
+      "mediaKind": "image",
+      "sizeBytes": 3371811,
+      "checksum": null,
+      "sourceRevisionId": null,
+      "semanticConflict": false
+    },
+    {
+      "physicalRecordId": "265c1535-2b27-4e4c-8a24-b7aa96c76b1d",
+      "sanitizedName": "source-096.heic",
+      "hierarchy": {
+        "projectId": "22222222-2222-4222-8222-222222222222",
+        "packageId": "44444444-4444-4444-8444-444444444444",
+        "floorId": "floor-unspecified",
+        "zoneId": "zone-unspecified",
+        "disciplineId": "site_evidence"
+      },
+      "availability": "placeholder",
+      "documentStatus": "reference",
+      "mediaKind": "image",
+      "sizeBytes": 3173583,
+      "checksum": null,
+      "sourceRevisionId": null,
+      "semanticConflict": false
+    },
+    {
+      "physicalRecordId": "a2a8972e-05c9-4f5a-868c-9be888bddfd4",
+      "sanitizedName": "source-097.heic",
+      "hierarchy": {
+        "projectId": "22222222-2222-4222-8222-222222222222",
+        "packageId": "44444444-4444-4444-8444-444444444444",
+        "floorId": "floor-unspecified",
+        "zoneId": "zone-unspecified",
+        "disciplineId": "site_evidence"
+      },
+      "availability": "placeholder",
+      "documentStatus": "reference",
+      "mediaKind": "image",
+      "sizeBytes": 3760910,
+      "checksum": null,
+      "sourceRevisionId": null,
+      "semanticConflict": false
+    },
+    {
+      "physicalRecordId": "a87c4ab6-cf80-47a2-82bd-44a1c3020817",
+      "sanitizedName": "source-098.heic",
+      "hierarchy": {
+        "projectId": "22222222-2222-4222-8222-222222222222",
+        "packageId": "44444444-4444-4444-8444-444444444444",
+        "floorId": "floor-unspecified",
+        "zoneId": "zone-unspecified",
+        "disciplineId": "site_evidence"
+      },
+      "availability": "placeholder",
+      "documentStatus": "reference",
+      "mediaKind": "image",
+      "sizeBytes": 3729190,
+      "checksum": null,
+      "sourceRevisionId": null,
+      "semanticConflict": false
+    },
+    {
+      "physicalRecordId": "d82d0ce3-83b2-4435-8dd4-a1173980674a",
+      "sanitizedName": "source-099.heic",
+      "hierarchy": {
+        "projectId": "22222222-2222-4222-8222-222222222222",
+        "packageId": "44444444-4444-4444-8444-444444444444",
+        "floorId": "floor-unspecified",
+        "zoneId": "zone-unspecified",
+        "disciplineId": "site_evidence"
+      },
+      "availability": "placeholder",
+      "documentStatus": "reference",
+      "mediaKind": "image",
+      "sizeBytes": 3397398,
+      "checksum": null,
+      "sourceRevisionId": null,
+      "semanticConflict": false
+    },
+    {
+      "physicalRecordId": "3c30f9dc-cb55-4d2d-872d-7e5c8d0c3001",
+      "sanitizedName": "source-100.heic",
+      "hierarchy": {
+        "projectId": "22222222-2222-4222-8222-222222222222",
+        "packageId": "44444444-4444-4444-8444-444444444444",
+        "floorId": "floor-unspecified",
+        "zoneId": "zone-unspecified",
+        "disciplineId": "site_evidence"
+      },
+      "availability": "placeholder",
+      "documentStatus": "reference",
+      "mediaKind": "image",
+      "sizeBytes": 3789308,
+      "checksum": null,
+      "sourceRevisionId": null,
+      "semanticConflict": false
+    },
+    {
+      "physicalRecordId": "07468934-0b13-4941-83e2-46bb2b2d0e15",
+      "sanitizedName": "source-101.heic",
+      "hierarchy": {
+        "projectId": "22222222-2222-4222-8222-222222222222",
+        "packageId": "44444444-4444-4444-8444-444444444444",
+        "floorId": "floor-unspecified",
+        "zoneId": "zone-unspecified",
+        "disciplineId": "site_evidence"
+      },
+      "availability": "placeholder",
+      "documentStatus": "reference",
+      "mediaKind": "image",
+      "sizeBytes": 3494496,
+      "checksum": null,
+      "sourceRevisionId": null,
+      "semanticConflict": false
+    },
+    {
+      "physicalRecordId": "d1a4ae3f-8f70-4e9c-8cd0-0ba97e5e4a1d",
+      "sanitizedName": "source-102.heic",
+      "hierarchy": {
+        "projectId": "22222222-2222-4222-8222-222222222222",
+        "packageId": "44444444-4444-4444-8444-444444444444",
+        "floorId": "floor-unspecified",
+        "zoneId": "zone-unspecified",
+        "disciplineId": "site_evidence"
+      },
+      "availability": "placeholder",
+      "documentStatus": "reference",
+      "mediaKind": "image",
+      "sizeBytes": 3183772,
+      "checksum": null,
+      "sourceRevisionId": null,
+      "semanticConflict": false
+    },
+    {
+      "physicalRecordId": "10791ffc-0d6a-4758-82de-4140f38b8128",
+      "sanitizedName": "source-103.xlsx",
+      "hierarchy": {
+        "projectId": "22222222-2222-4222-8222-222222222222",
+        "packageId": "44444444-4444-4444-8444-444444444443",
+        "floorId": "floor-unspecified",
+        "zoneId": "zone-unspecified",
+        "disciplineId": "quantity_cost"
+      },
+      "availability": "placeholder",
+      "documentStatus": "current",
+      "mediaKind": "spreadsheet",
+      "sizeBytes": 71221,
+      "checksum": null,
+      "sourceRevisionId": null,
+      "semanticConflict": false
+    },
+    {
+      "physicalRecordId": "e02b1faa-6f0d-4fc0-8bf7-0c9d60ff503c",
+      "sanitizedName": "source-104.docx",
+      "hierarchy": {
+        "projectId": "22222222-2222-4222-8222-222222222222",
+        "packageId": "44444444-4444-4444-8444-444444444443",
+        "floorId": "floor-unspecified",
+        "zoneId": "zone-unspecified",
+        "disciplineId": "project_controls"
+      },
+      "availability": "placeholder",
+      "documentStatus": "current",
+      "mediaKind": "document",
+      "sizeBytes": 14213,
+      "checksum": null,
+      "sourceRevisionId": null,
+      "semanticConflict": false
+    },
+    {
+      "physicalRecordId": "2d01546d-16d0-4088-8b8d-95b926493087",
+      "sanitizedName": "source-105.docx",
+      "hierarchy": {
+        "projectId": "22222222-2222-4222-8222-222222222222",
+        "packageId": "44444444-4444-4444-8444-444444444443",
+        "floorId": "floor-unspecified",
+        "zoneId": "zone-unspecified",
+        "disciplineId": "project_controls"
+      },
+      "availability": "placeholder",
+      "documentStatus": "reference",
+      "mediaKind": "document",
+      "sizeBytes": 19019,
+      "checksum": null,
+      "sourceRevisionId": null,
+      "semanticConflict": false
+    },
+    {
+      "physicalRecordId": "b010d02c-70d9-4f87-8dfd-c3860f5e0ddd",
+      "sanitizedName": "source-106.md",
+      "hierarchy": {
+        "projectId": "22222222-2222-4222-8222-222222222222",
+        "packageId": "44444444-4444-4444-8444-444444444443",
+        "floorId": "floor-unspecified",
+        "zoneId": "zone-unspecified",
+        "disciplineId": "project_controls"
+      },
+      "availability": "placeholder",
+      "documentStatus": "previous",
+      "mediaKind": "plain_text",
+      "sizeBytes": 6251,
+      "checksum": null,
+      "sourceRevisionId": null,
+      "semanticConflict": false
+    },
+    {
+      "physicalRecordId": "33138144-49d0-4eb7-8821-85ed886d9fdf",
+      "sanitizedName": "source-107.jpg",
+      "hierarchy": {
+        "projectId": "22222222-2222-4222-8222-222222222222",
+        "packageId": "44444444-4444-4444-8444-444444444444",
+        "floorId": "floor-unspecified",
+        "zoneId": "zone-unspecified",
+        "disciplineId": "site_evidence"
+      },
+      "availability": "placeholder",
+      "documentStatus": "reference",
+      "mediaKind": "image",
+      "sizeBytes": 147591,
+      "checksum": null,
+      "sourceRevisionId": null,
+      "semanticConflict": false
+    },
+    {
+      "physicalRecordId": "ca680a06-7011-4a7e-8496-968745ef9f76",
+      "sanitizedName": "source-108.jpg",
+      "hierarchy": {
+        "projectId": "22222222-2222-4222-8222-222222222222",
+        "packageId": "44444444-4444-4444-8444-444444444444",
+        "floorId": "floor-unspecified",
+        "zoneId": "zone-unspecified",
+        "disciplineId": "site_evidence"
+      },
+      "availability": "placeholder",
+      "documentStatus": "reference",
+      "mediaKind": "image",
+      "sizeBytes": 154926,
+      "checksum": null,
+      "sourceRevisionId": null,
+      "semanticConflict": false
+    },
+    {
+      "physicalRecordId": "5dfb2be7-33ef-4c9d-89e9-28d74e9d42a8",
+      "sanitizedName": "source-109.jpg",
+      "hierarchy": {
+        "projectId": "22222222-2222-4222-8222-222222222222",
+        "packageId": "44444444-4444-4444-8444-444444444444",
+        "floorId": "floor-unspecified",
+        "zoneId": "zone-unspecified",
+        "disciplineId": "site_evidence"
+      },
+      "availability": "placeholder",
+      "documentStatus": "reference",
+      "mediaKind": "image",
+      "sizeBytes": 160185,
+      "checksum": null,
+      "sourceRevisionId": null,
+      "semanticConflict": false
+    },
+    {
+      "physicalRecordId": "d3414d54-3817-42dc-8861-9c49b5322f68",
+      "sanitizedName": "source-110.jpg",
+      "hierarchy": {
+        "projectId": "22222222-2222-4222-8222-222222222222",
+        "packageId": "44444444-4444-4444-8444-444444444444",
+        "floorId": "floor-unspecified",
+        "zoneId": "zone-unspecified",
+        "disciplineId": "site_evidence"
+      },
+      "availability": "placeholder",
+      "documentStatus": "reference",
+      "mediaKind": "image",
+      "sizeBytes": 153681,
+      "checksum": null,
+      "sourceRevisionId": null,
+      "semanticConflict": false
+    },
+    {
+      "physicalRecordId": "989eed2a-a7fb-4ecf-86cc-5c9fed713c17",
+      "sanitizedName": "source-111.jpg",
+      "hierarchy": {
+        "projectId": "22222222-2222-4222-8222-222222222222",
+        "packageId": "44444444-4444-4444-8444-444444444444",
+        "floorId": "floor-unspecified",
+        "zoneId": "zone-unspecified",
+        "disciplineId": "site_evidence"
+      },
+      "availability": "placeholder",
+      "documentStatus": "reference",
+      "mediaKind": "image",
+      "sizeBytes": 197824,
+      "checksum": null,
+      "sourceRevisionId": null,
+      "semanticConflict": false
+    },
+    {
+      "physicalRecordId": "86ead616-d650-43df-8f6c-02756cdbb236",
+      "sanitizedName": "source-112.jpg",
+      "hierarchy": {
+        "projectId": "22222222-2222-4222-8222-222222222222",
+        "packageId": "44444444-4444-4444-8444-444444444444",
+        "floorId": "floor-unspecified",
+        "zoneId": "zone-unspecified",
+        "disciplineId": "site_evidence"
+      },
+      "availability": "placeholder",
+      "documentStatus": "reference",
+      "mediaKind": "image",
+      "sizeBytes": 191038,
+      "checksum": null,
+      "sourceRevisionId": null,
+      "semanticConflict": false
+    },
+    {
+      "physicalRecordId": "75c7ce80-7509-47ea-8417-01209693339b",
+      "sanitizedName": "source-113.jpg",
+      "hierarchy": {
+        "projectId": "22222222-2222-4222-8222-222222222222",
+        "packageId": "44444444-4444-4444-8444-444444444444",
+        "floorId": "floor-unspecified",
+        "zoneId": "zone-unspecified",
+        "disciplineId": "site_evidence"
+      },
+      "availability": "placeholder",
+      "documentStatus": "reference",
+      "mediaKind": "image",
+      "sizeBytes": 211205,
+      "checksum": null,
+      "sourceRevisionId": null,
+      "semanticConflict": false
+    },
+    {
+      "physicalRecordId": "5115019b-85ef-4b5a-8c6f-e4d3a546de18",
+      "sanitizedName": "source-114.jpg",
+      "hierarchy": {
+        "projectId": "22222222-2222-4222-8222-222222222222",
+        "packageId": "44444444-4444-4444-8444-444444444444",
+        "floorId": "floor-unspecified",
+        "zoneId": "zone-unspecified",
+        "disciplineId": "site_evidence"
+      },
+      "availability": "placeholder",
+      "documentStatus": "reference",
+      "mediaKind": "image",
+      "sizeBytes": 132050,
+      "checksum": null,
+      "sourceRevisionId": null,
+      "semanticConflict": false
+    },
+    {
+      "physicalRecordId": "8382a2d2-c562-43b2-8ede-fcab0af74c9e",
+      "sanitizedName": "source-115.jpg",
+      "hierarchy": {
+        "projectId": "22222222-2222-4222-8222-222222222222",
+        "packageId": "44444444-4444-4444-8444-444444444444",
+        "floorId": "floor-unspecified",
+        "zoneId": "zone-unspecified",
+        "disciplineId": "site_evidence"
+      },
+      "availability": "placeholder",
+      "documentStatus": "reference",
+      "mediaKind": "image",
+      "sizeBytes": 125652,
+      "checksum": null,
+      "sourceRevisionId": null,
+      "semanticConflict": false
+    },
+    {
+      "physicalRecordId": "2724558b-5b94-4e5f-848f-8acfc40943bc",
+      "sanitizedName": "source-116.jpg",
+      "hierarchy": {
+        "projectId": "22222222-2222-4222-8222-222222222222",
+        "packageId": "44444444-4444-4444-8444-444444444444",
+        "floorId": "floor-unspecified",
+        "zoneId": "zone-unspecified",
+        "disciplineId": "site_evidence"
+      },
+      "availability": "placeholder",
+      "documentStatus": "reference",
+      "mediaKind": "image",
+      "sizeBytes": 117744,
+      "checksum": null,
+      "sourceRevisionId": null,
+      "semanticConflict": false
+    },
+    {
+      "physicalRecordId": "065c94d2-4155-4861-8a50-8e2defb4e454",
+      "sanitizedName": "source-117.jpg",
+      "hierarchy": {
+        "projectId": "22222222-2222-4222-8222-222222222222",
+        "packageId": "44444444-4444-4444-8444-444444444444",
+        "floorId": "floor-unspecified",
+        "zoneId": "zone-unspecified",
+        "disciplineId": "site_evidence"
+      },
+      "availability": "placeholder",
+      "documentStatus": "reference",
+      "mediaKind": "image",
+      "sizeBytes": 156340,
+      "checksum": null,
+      "sourceRevisionId": null,
+      "semanticConflict": false
+    },
+    {
+      "physicalRecordId": "60a8fb44-3d30-4e84-8fe8-fba9cb89fca3",
+      "sanitizedName": "source-118.jpg",
+      "hierarchy": {
+        "projectId": "22222222-2222-4222-8222-222222222222",
+        "packageId": "44444444-4444-4444-8444-444444444444",
+        "floorId": "floor-unspecified",
+        "zoneId": "zone-unspecified",
+        "disciplineId": "site_evidence"
+      },
+      "availability": "placeholder",
+      "documentStatus": "reference",
+      "mediaKind": "image",
+      "sizeBytes": 156340,
+      "checksum": null,
+      "sourceRevisionId": null,
+      "semanticConflict": false
+    },
+    {
+      "physicalRecordId": "8950ff3d-99e2-4719-84dd-e087f417a553",
+      "sanitizedName": "source-119.jpg",
+      "hierarchy": {
+        "projectId": "22222222-2222-4222-8222-222222222222",
+        "packageId": "44444444-4444-4444-8444-444444444444",
+        "floorId": "floor-unspecified",
+        "zoneId": "zone-unspecified",
+        "disciplineId": "site_evidence"
+      },
+      "availability": "placeholder",
+      "documentStatus": "reference",
+      "mediaKind": "image",
+      "sizeBytes": 156340,
+      "checksum": null,
+      "sourceRevisionId": null,
+      "semanticConflict": false
+    },
+    {
+      "physicalRecordId": "7e3efb33-2a5c-4e30-8068-f68a28233907",
+      "sanitizedName": "source-120.docx",
+      "hierarchy": {
+        "projectId": "22222222-2222-4222-8222-222222222222",
+        "packageId": "44444444-4444-4444-8444-444444444444",
+        "floorId": "floor-unspecified",
+        "zoneId": "zone-unspecified",
+        "disciplineId": "general"
+      },
+      "availability": "placeholder",
+      "documentStatus": "reference",
+      "mediaKind": "document",
+      "sizeBytes": 46601,
+      "checksum": null,
+      "sourceRevisionId": null,
+      "semanticConflict": false
+    },
+    {
+      "physicalRecordId": "45069d46-81a0-4c40-8eb3-a0c4f8777378",
+      "sanitizedName": "source-121.docx",
+      "hierarchy": {
+        "projectId": "22222222-2222-4222-8222-222222222222",
+        "packageId": "44444444-4444-4444-8444-444444444443",
+        "floorId": "floor-unspecified",
+        "zoneId": "zone-unspecified",
+        "disciplineId": "brief_specification"
+      },
+      "availability": "placeholder",
+      "documentStatus": "current",
+      "mediaKind": "document",
+      "sizeBytes": 10626,
+      "checksum": null,
+      "sourceRevisionId": null,
+      "semanticConflict": false
+    },
+    {
+      "physicalRecordId": "29c20265-cdba-4a57-8709-91599e9d72c4",
+      "sanitizedName": "source-122.pdf",
+      "hierarchy": {
+        "projectId": "22222222-2222-4222-8222-222222222222",
+        "packageId": "44444444-4444-4444-8444-444444444441",
+        "floorId": "floor-exterior",
+        "zoneId": "zone-exterior",
+        "disciplineId": "visualization"
+      },
+      "availability": "placeholder",
+      "documentStatus": "reference",
+      "mediaKind": "pdf",
+      "sizeBytes": 2127498,
+      "checksum": null,
+      "sourceRevisionId": null,
+      "semanticConflict": false
+    },
+    {
+      "physicalRecordId": "ea60739a-4c4b-471b-8a75-d9fc42916c5a",
+      "sanitizedName": "source-123.jpeg",
+      "hierarchy": {
+        "projectId": "22222222-2222-4222-8222-222222222222",
+        "packageId": "44444444-4444-4444-8444-444444444444",
+        "floorId": "floor-unspecified",
+        "zoneId": "zone-unspecified",
+        "disciplineId": "site_evidence"
+      },
+      "availability": "placeholder",
+      "documentStatus": "reference",
+      "mediaKind": "image",
+      "sizeBytes": 560994,
+      "checksum": null,
+      "sourceRevisionId": null,
+      "semanticConflict": false
+    },
+    {
+      "physicalRecordId": "21bbb125-703e-4678-81cc-a8d6bf26efd6",
+      "sanitizedName": "source-124.jpeg",
+      "hierarchy": {
+        "projectId": "22222222-2222-4222-8222-222222222222",
+        "packageId": "44444444-4444-4444-8444-444444444444",
+        "floorId": "floor-unspecified",
+        "zoneId": "zone-unspecified",
+        "disciplineId": "site_evidence"
+      },
+      "availability": "placeholder",
+      "documentStatus": "reference",
+      "mediaKind": "image",
+      "sizeBytes": 643822,
+      "checksum": null,
+      "sourceRevisionId": null,
+      "semanticConflict": false
+    },
+    {
+      "physicalRecordId": "6ecf3db1-66f0-43f6-8e51-9871bf83adda",
+      "sanitizedName": "source-125.jpeg",
+      "hierarchy": {
+        "projectId": "22222222-2222-4222-8222-222222222222",
+        "packageId": "44444444-4444-4444-8444-444444444444",
+        "floorId": "floor-unspecified",
+        "zoneId": "zone-unspecified",
+        "disciplineId": "site_evidence"
+      },
+      "availability": "placeholder",
+      "documentStatus": "reference",
+      "mediaKind": "image",
+      "sizeBytes": 497018,
+      "checksum": null,
+      "sourceRevisionId": null,
+      "semanticConflict": false
+    },
+    {
+      "physicalRecordId": "8e0fed28-96ed-4bf1-82e0-0e38759ed14f",
+      "sanitizedName": "source-126.jpeg",
+      "hierarchy": {
+        "projectId": "22222222-2222-4222-8222-222222222222",
+        "packageId": "44444444-4444-4444-8444-444444444444",
+        "floorId": "floor-unspecified",
+        "zoneId": "zone-unspecified",
+        "disciplineId": "site_evidence"
+      },
+      "availability": "placeholder",
+      "documentStatus": "reference",
+      "mediaKind": "image",
+      "sizeBytes": 1159941,
+      "checksum": null,
+      "sourceRevisionId": null,
+      "semanticConflict": false
+    },
+    {
+      "physicalRecordId": "52c4e39e-73e1-4261-899d-e134328856e0",
+      "sanitizedName": "source-127.jpeg",
+      "hierarchy": {
+        "projectId": "22222222-2222-4222-8222-222222222222",
+        "packageId": "44444444-4444-4444-8444-444444444444",
+        "floorId": "floor-unspecified",
+        "zoneId": "zone-unspecified",
+        "disciplineId": "site_evidence"
+      },
+      "availability": "placeholder",
+      "documentStatus": "reference",
+      "mediaKind": "image",
+      "sizeBytes": 115190,
+      "checksum": null,
+      "sourceRevisionId": null,
+      "semanticConflict": false
+    },
+    {
+      "physicalRecordId": "ad274987-5e9f-464d-8a51-e297d67e8be5",
+      "sanitizedName": "source-128.jpeg",
+      "hierarchy": {
+        "projectId": "22222222-2222-4222-8222-222222222222",
+        "packageId": "44444444-4444-4444-8444-444444444444",
+        "floorId": "floor-unspecified",
+        "zoneId": "zone-unspecified",
+        "disciplineId": "site_evidence"
+      },
+      "availability": "placeholder",
+      "documentStatus": "reference",
+      "mediaKind": "image",
+      "sizeBytes": 156340,
+      "checksum": null,
+      "sourceRevisionId": null,
+      "semanticConflict": false
+    },
+    {
+      "physicalRecordId": "423d5ac0-8b92-4b4d-8903-7a70e47acb5d",
+      "sanitizedName": "source-129.pdf",
+      "hierarchy": {
+        "projectId": "22222222-2222-4222-8222-222222222222",
+        "packageId": "44444444-4444-4444-8444-444444444442",
+        "floorId": "floor-unspecified",
+        "zoneId": "zone-unspecified",
+        "disciplineId": "mep"
+      },
+      "availability": "placeholder",
+      "documentStatus": "reference",
+      "mediaKind": "pdf",
+      "sizeBytes": 13764269,
+      "checksum": null,
+      "sourceRevisionId": null,
+      "semanticConflict": false
+    },
+    {
+      "physicalRecordId": "5b3ccc7b-94fa-49ae-8dab-53b6a306d315",
+      "sanitizedName": "source-130.pdf",
+      "hierarchy": {
+        "projectId": "22222222-2222-4222-8222-222222222222",
+        "packageId": "44444444-4444-4444-8444-444444444442",
+        "floorId": "floor-unspecified",
+        "zoneId": "zone-unspecified",
+        "disciplineId": "mep"
+      },
+      "availability": "materialized",
+      "documentStatus": "current",
+      "mediaKind": "pdf",
+      "sizeBytes": 100027,
+      "checksum": "15db4485d2d0ecc6f3af50e764898a16dcf1faa18e0a0ee1d8cd70c7671bfc08",
+      "sourceRevisionId": "447da8c2-cb95-49d5-8581-c91724dc57b0",
+      "semanticConflict": false
+    },
+    {
+      "physicalRecordId": "ee737582-3820-4642-8f19-1bafa95440ec",
+      "sanitizedName": "source-131.pdf",
+      "hierarchy": {
+        "projectId": "22222222-2222-4222-8222-222222222222",
+        "packageId": "44444444-4444-4444-8444-444444444442",
+        "floorId": "floor-unspecified",
+        "zoneId": "zone-unspecified",
+        "disciplineId": "mep"
+      },
+      "availability": "placeholder",
+      "documentStatus": "unknown",
+      "mediaKind": "pdf",
+      "sizeBytes": 62374,
+      "checksum": null,
+      "sourceRevisionId": null,
+      "semanticConflict": false
+    },
+    {
+      "physicalRecordId": "3960658a-e44f-498a-8e29-96339ce3dc4f",
+      "sanitizedName": "source-132.dwg",
+      "hierarchy": {
+        "projectId": "22222222-2222-4222-8222-222222222222",
+        "packageId": "44444444-4444-4444-8444-444444444442",
+        "floorId": "floor-unspecified",
+        "zoneId": "zone-unspecified",
+        "disciplineId": "mep"
+      },
+      "availability": "placeholder",
+      "documentStatus": "reference",
+      "mediaKind": "cad_binary",
+      "sizeBytes": 25558752,
+      "checksum": null,
+      "sourceRevisionId": null,
+      "semanticConflict": false
+    },
+    {
+      "physicalRecordId": "13e76352-7362-4033-888c-85d8cbd9105f",
+      "sanitizedName": "source-133.dwg",
+      "hierarchy": {
+        "projectId": "22222222-2222-4222-8222-222222222222",
+        "packageId": "44444444-4444-4444-8444-444444444442",
+        "floorId": "floor-unspecified",
+        "zoneId": "zone-unspecified",
+        "disciplineId": "mep"
+      },
+      "availability": "placeholder",
+      "documentStatus": "reference",
+      "mediaKind": "cad_binary",
+      "sizeBytes": 13349920,
+      "checksum": null,
+      "sourceRevisionId": null,
+      "semanticConflict": false
+    },
+    {
+      "physicalRecordId": "10e7af91-a804-480c-8b7c-310b18531da6",
+      "sanitizedName": "source-134.dwg",
+      "hierarchy": {
+        "projectId": "22222222-2222-4222-8222-222222222222",
+        "packageId": "44444444-4444-4444-8444-444444444442",
+        "floorId": "floor-unspecified",
+        "zoneId": "zone-unspecified",
+        "disciplineId": "mep"
+      },
+      "availability": "placeholder",
+      "documentStatus": "reference",
+      "mediaKind": "cad_binary",
+      "sizeBytes": 18714464,
+      "checksum": null,
+      "sourceRevisionId": null,
+      "semanticConflict": false
+    },
+    {
+      "physicalRecordId": "ff0e2e6f-1929-441e-872d-379bd3f2be1b",
+      "sanitizedName": "source-135.dwg",
+      "hierarchy": {
+        "projectId": "22222222-2222-4222-8222-222222222222",
+        "packageId": "44444444-4444-4444-8444-444444444442",
+        "floorId": "floor-unspecified",
+        "zoneId": "zone-unspecified",
+        "disciplineId": "mep"
+      },
+      "availability": "placeholder",
+      "documentStatus": "reference",
+      "mediaKind": "cad_binary",
+      "sizeBytes": 11397824,
+      "checksum": null,
+      "sourceRevisionId": null,
+      "semanticConflict": false
+    },
+    {
+      "physicalRecordId": "28d3dc3c-0abf-40a5-8c87-e2e0219b68ec",
+      "sanitizedName": "source-136.pdf",
+      "hierarchy": {
+        "projectId": "22222222-2222-4222-8222-222222222222",
+        "packageId": "44444444-4444-4444-8444-444444444442",
+        "floorId": "floor-first_floor",
+        "zoneId": "zone-first_floor",
+        "disciplineId": "mep"
+      },
+      "availability": "materialized",
+      "documentStatus": "reference",
+      "mediaKind": "pdf",
+      "sizeBytes": 187780,
+      "checksum": "aea51c07dc7c203b418febb7dacc77215ced9f6310b83d173cd0b4314901696b",
+      "sourceRevisionId": "4365ee8a-e938-4850-8455-b73a84c6d944",
+      "semanticConflict": true
+    },
+    {
+      "physicalRecordId": "efba49d3-6e93-44bc-8ac5-a0c4510b5fd4",
+      "sanitizedName": "source-137.png",
+      "hierarchy": {
+        "projectId": "22222222-2222-4222-8222-222222222222",
+        "packageId": "44444444-4444-4444-8444-444444444444",
+        "floorId": "floor-second_floor",
+        "zoneId": "zone-second_floor",
+        "disciplineId": "general"
+      },
+      "availability": "placeholder",
+      "documentStatus": "reference",
+      "mediaKind": "image",
+      "sizeBytes": 72850,
+      "checksum": null,
+      "sourceRevisionId": null,
+      "semanticConflict": false
+    },
+    {
+      "physicalRecordId": "cbaf4baa-7a50-4b68-89ed-3ba6fdee2770",
+      "sanitizedName": "source-138.pdf",
+      "hierarchy": {
+        "projectId": "22222222-2222-4222-8222-222222222222",
+        "packageId": "44444444-4444-4444-8444-444444444444",
+        "floorId": "floor-second_floor",
+        "zoneId": "zone-second_floor",
+        "disciplineId": "general"
+      },
+      "availability": "materialized",
+      "documentStatus": "reference",
+      "mediaKind": "pdf",
+      "sizeBytes": 119112,
+      "checksum": "efe6d9224515b1cb3dac1413417d43f63a41fdc631d7b78e597717a3ba151f28",
+      "sourceRevisionId": "2a10a76b-41d9-4c07-8e1e-0cba49260eff",
+      "semanticConflict": false
+    },
+    {
+      "physicalRecordId": "205c59b8-497f-4d49-837f-28d8f9698402",
+      "sanitizedName": "source-139.pdf",
+      "hierarchy": {
+        "projectId": "22222222-2222-4222-8222-222222222222",
+        "packageId": "44444444-4444-4444-8444-444444444444",
+        "floorId": "floor-exterior",
+        "zoneId": "zone-exterior",
+        "disciplineId": "general"
+      },
+      "availability": "materialized",
+      "documentStatus": "reference",
+      "mediaKind": "pdf",
+      "sizeBytes": 12347,
+      "checksum": "b17dd9ca5a883e521d8b9ef084bd9585a31f2021912acbed602b2aee6f2876f6",
+      "sourceRevisionId": "2ce6fd9e-11a1-454e-885b-48b08a1c77c4",
+      "semanticConflict": true
+    },
+    {
+      "physicalRecordId": "6013c06d-667d-4a1c-8127-a4081ae47ef5",
+      "sanitizedName": "source-140.png",
+      "hierarchy": {
+        "projectId": "22222222-2222-4222-8222-222222222222",
+        "packageId": "44444444-4444-4444-8444-444444444444",
+        "floorId": "floor-exterior",
+        "zoneId": "zone-exterior",
+        "disciplineId": "general"
+      },
+      "availability": "placeholder",
+      "documentStatus": "reference",
+      "mediaKind": "image",
+      "sizeBytes": 119828,
+      "checksum": null,
+      "sourceRevisionId": null,
+      "semanticConflict": false
+    },
+    {
+      "physicalRecordId": "d46dab80-bd64-4b5a-8909-38d4e95405b9",
+      "sanitizedName": "source-141.dwg",
+      "hierarchy": {
+        "projectId": "22222222-2222-4222-8222-222222222222",
+        "packageId": "44444444-4444-4444-8444-444444444444",
+        "floorId": "floor-unspecified",
+        "zoneId": "zone-unspecified",
+        "disciplineId": "general"
+      },
+      "availability": "materialized",
+      "documentStatus": "reference",
+      "mediaKind": "cad_binary",
+      "sizeBytes": 3639564,
+      "checksum": "44d4495b75f605f8217c8898ae0ed73a6575e779110520dda21de771c2e1eb13",
+      "sourceRevisionId": "94ccc23e-0f43-4cdc-8573-0128fdc3e663",
+      "semanticConflict": false
+    },
+    {
+      "physicalRecordId": "ad9357de-a48e-408c-869e-d1682cd21a27",
+      "sanitizedName": "source-142.pdf",
+      "hierarchy": {
+        "projectId": "22222222-2222-4222-8222-222222222222",
+        "packageId": "44444444-4444-4444-8444-444444444442",
+        "floorId": "floor-unspecified",
+        "zoneId": "zone-unspecified",
+        "disciplineId": "mep"
+      },
+      "availability": "placeholder",
+      "documentStatus": "reference",
+      "mediaKind": "pdf",
+      "sizeBytes": 13853765,
+      "checksum": null,
+      "sourceRevisionId": null,
+      "semanticConflict": false
+    },
+    {
+      "physicalRecordId": "56446ddc-a42e-48cf-83b9-f92b90d73a99",
+      "sanitizedName": "source-143.pdf",
+      "hierarchy": {
+        "projectId": "22222222-2222-4222-8222-222222222222",
+        "packageId": "44444444-4444-4444-8444-444444444441",
+        "floorId": "floor-first_floor",
+        "zoneId": "zone-first_floor",
+        "disciplineId": "architecture"
+      },
+      "availability": "placeholder",
+      "documentStatus": "previous",
+      "mediaKind": "pdf",
+      "sizeBytes": 1875022,
+      "checksum": null,
+      "sourceRevisionId": null,
+      "semanticConflict": false
+    },
+    {
+      "physicalRecordId": "8e3e58e0-ce09-4aab-87be-442881ab8b1d",
+      "sanitizedName": "source-144.pdf",
+      "hierarchy": {
+        "projectId": "22222222-2222-4222-8222-222222222222",
+        "packageId": "44444444-4444-4444-8444-444444444441",
+        "floorId": "floor-first_floor",
+        "zoneId": "zone-first_floor",
+        "disciplineId": "architecture"
+      },
+      "availability": "materialized",
+      "documentStatus": "current",
+      "mediaKind": "pdf",
+      "sizeBytes": 187118,
+      "checksum": "4d7aa07f800095d8b75e69c795e27418f35f6c32df27c19b0c30f7655ba6dff1",
+      "sourceRevisionId": "8a0f8ec3-fa66-48bf-8dc9-98ca8996a807",
+      "semanticConflict": true
+    },
+    {
+      "physicalRecordId": "fc2d373c-99f4-48b5-8fd4-2f4c90a67dfa",
+      "sanitizedName": "source-145.pdf",
+      "hierarchy": {
+        "projectId": "22222222-2222-4222-8222-222222222222",
+        "packageId": "44444444-4444-4444-8444-444444444441",
+        "floorId": "floor-first_floor",
+        "zoneId": "zone-first_floor",
+        "disciplineId": "architecture"
+      },
+      "availability": "materialized",
+      "documentStatus": "current",
+      "mediaKind": "pdf",
+      "sizeBytes": 5963001,
+      "checksum": "f35486afc7dbf63b943f01512a28df77f58c19208659d15ed9720f9a2bf13973",
+      "sourceRevisionId": "05fc0396-1b34-4c55-8fc9-abb9c7695be2",
+      "semanticConflict": true
+    },
+    {
+      "physicalRecordId": "9807ae41-185a-4575-8d83-3c7aa8d677c7",
+      "sanitizedName": "source-146.pdf",
+      "hierarchy": {
+        "projectId": "22222222-2222-4222-8222-222222222222",
+        "packageId": "44444444-4444-4444-8444-444444444441",
+        "floorId": "floor-first_floor",
+        "zoneId": "zone-first_floor",
+        "disciplineId": "architecture"
+      },
+      "availability": "materialized",
+      "documentStatus": "current",
+      "mediaKind": "pdf",
+      "sizeBytes": 682768,
+      "checksum": "b1424a433fa46465215957e3847d7d14dde20f15bd1b5a0c68a6695e2a668491",
+      "sourceRevisionId": "a8789d09-2a10-48bc-8081-6126916839db",
+      "semanticConflict": false
+    },
+    {
+      "physicalRecordId": "34a870cc-982b-46c6-8209-1fcc99b0eb69",
+      "sanitizedName": "source-147.pdf",
+      "hierarchy": {
+        "projectId": "22222222-2222-4222-8222-222222222222",
+        "packageId": "44444444-4444-4444-8444-444444444442",
+        "floorId": "floor-first_floor",
+        "zoneId": "zone-first_floor",
+        "disciplineId": "mep"
+      },
+      "availability": "materialized",
+      "documentStatus": "current",
+      "mediaKind": "pdf",
+      "sizeBytes": 8928422,
+      "checksum": "5bd15076863b184155d8f8b089d20780089c1a3194673e0b72ee23bd99dea649",
+      "sourceRevisionId": "adc68849-80ed-46eb-82aa-3315e9256c27",
+      "semanticConflict": false
+    },
+    {
+      "physicalRecordId": "c62d0d98-2e41-4a4a-88b4-db328f419ad1",
+      "sanitizedName": "source-148.pdf",
+      "hierarchy": {
+        "projectId": "22222222-2222-4222-8222-222222222222",
+        "packageId": "44444444-4444-4444-8444-444444444441",
+        "floorId": "floor-first_floor",
+        "zoneId": "zone-first_floor",
+        "disciplineId": "architecture"
+      },
+      "availability": "materialized",
+      "documentStatus": "current",
+      "mediaKind": "pdf",
+      "sizeBytes": 8290251,
+      "checksum": "22c0eedc873757ce723041bc09694db2275121ef8f33699b3c6c30783181a2fb",
+      "sourceRevisionId": "68b59b83-8543-4f4b-8149-3024c54cfac8",
+      "semanticConflict": true
+    },
+    {
+      "physicalRecordId": "116273e6-3184-4b8a-842e-500de8f8de3d",
+      "sanitizedName": "source-149.pdf",
+      "hierarchy": {
+        "projectId": "22222222-2222-4222-8222-222222222222",
+        "packageId": "44444444-4444-4444-8444-444444444441",
+        "floorId": "floor-second_floor",
+        "zoneId": "zone-second_floor",
+        "disciplineId": "visualization"
+      },
+      "availability": "materialized",
+      "documentStatus": "reference",
+      "mediaKind": "pdf",
+      "sizeBytes": 2127498,
+      "checksum": "7b3aba89803a32cf5c14e17f4aec0ebcfbd31774991ba2929dd010ac1d7d04a5",
+      "sourceRevisionId": "1a7a4077-07ea-489e-8cca-b2eea5f991a4",
+      "semanticConflict": true
+    },
+    {
+      "physicalRecordId": "b1fc7609-08c2-48ad-8622-40efb3ddceb6",
+      "sanitizedName": "source-150.pdf",
+      "hierarchy": {
+        "projectId": "22222222-2222-4222-8222-222222222222",
+        "packageId": "44444444-4444-4444-8444-444444444441",
+        "floorId": "floor-second_floor",
+        "zoneId": "zone-second_floor",
+        "disciplineId": "architecture"
+      },
+      "availability": "materialized",
+      "documentStatus": "current",
+      "mediaKind": "pdf",
+      "sizeBytes": 4768392,
+      "checksum": "7089b91ab7ca122a8638bbb962bd06e7f5562fa5fabcc8e0be1205bc9d2f5095",
+      "sourceRevisionId": "c4658865-7cd3-49e9-8544-230459e963ef",
+      "semanticConflict": false
+    },
+    {
+      "physicalRecordId": "d0781e35-0c51-4a17-8fd0-780b73d677cd",
+      "sanitizedName": "source-151.pdf",
+      "hierarchy": {
+        "projectId": "22222222-2222-4222-8222-222222222222",
+        "packageId": "44444444-4444-4444-8444-444444444441",
+        "floorId": "floor-second_floor",
+        "zoneId": "zone-second_floor",
+        "disciplineId": "architecture"
+      },
+      "availability": "materialized",
+      "documentStatus": "current",
+      "mediaKind": "pdf",
+      "sizeBytes": 17541670,
+      "checksum": "d63cba43942655e6d656747cb00c31154337f3545d8d819fb3f3d36eed87843c",
+      "sourceRevisionId": "58acec02-8d4d-4c1d-8045-2aca4bde1c93",
+      "semanticConflict": false
+    },
+    {
+      "physicalRecordId": "f892e26b-84d7-4068-8f64-eb621c673315",
+      "sanitizedName": "source-152.pdf",
+      "hierarchy": {
+        "projectId": "22222222-2222-4222-8222-222222222222",
+        "packageId": "44444444-4444-4444-8444-444444444441",
+        "floorId": "floor-second_floor",
+        "zoneId": "zone-second_floor",
+        "disciplineId": "architecture"
+      },
+      "availability": "materialized",
+      "documentStatus": "current",
+      "mediaKind": "pdf",
+      "sizeBytes": 1669466,
+      "checksum": "c6932fba20b20bb8b7b9dd289199e84d5f4fac2c65507fdc96f563a673c9281d",
+      "sourceRevisionId": "e1bcb947-5faa-44f8-81ce-9d89f1f0a5c9",
+      "semanticConflict": true
+    },
+    {
+      "physicalRecordId": "cd623a8c-4f48-4b85-8b37-5c2d96fde208",
+      "sanitizedName": "source-153.pdf",
+      "hierarchy": {
+        "projectId": "22222222-2222-4222-8222-222222222222",
+        "packageId": "44444444-4444-4444-8444-444444444441",
+        "floorId": "floor-second_floor",
+        "zoneId": "zone-second_floor",
+        "disciplineId": "architecture"
+      },
+      "availability": "materialized",
+      "documentStatus": "current",
+      "mediaKind": "pdf",
+      "sizeBytes": 1659721,
+      "checksum": "75dabc4bbc1b6e4649224cb186d2726ee2c45bdf6afba5532717fc8cdad25ab4",
+      "sourceRevisionId": "e7741fb6-dfab-4a21-8dd2-e1ae6eeacfe2",
+      "semanticConflict": true
+    },
+    {
+      "physicalRecordId": "3c6fdcf8-4495-447a-83db-effc6a289f15",
+      "sanitizedName": "source-154.pdf",
+      "hierarchy": {
+        "projectId": "22222222-2222-4222-8222-222222222222",
+        "packageId": "44444444-4444-4444-8444-444444444441",
+        "floorId": "floor-second_floor",
+        "zoneId": "zone-second_floor",
+        "disciplineId": "architecture"
+      },
+      "availability": "materialized",
+      "documentStatus": "current",
+      "mediaKind": "pdf",
+      "sizeBytes": 2698073,
+      "checksum": "bd98ffce0ca6ab74dd957644861efa2ea675b7a19b3620e1b2831e0598dfe62a",
+      "sourceRevisionId": "2342b3ca-fccc-4225-8a68-a3ca1915f734",
+      "semanticConflict": false
+    },
+    {
+      "physicalRecordId": "3bba34ee-fee4-4816-8a8c-968ff9a92abb",
+      "sanitizedName": "source-155.pdf",
+      "hierarchy": {
+        "projectId": "22222222-2222-4222-8222-222222222222",
+        "packageId": "44444444-4444-4444-8444-444444444441",
+        "floorId": "floor-second_floor",
+        "zoneId": "zone-second_floor",
+        "disciplineId": "architecture"
+      },
+      "availability": "materialized",
+      "documentStatus": "current",
+      "mediaKind": "pdf",
+      "sizeBytes": 1626608,
+      "checksum": "b5b172d96b9bf8f3851c7ce8e1fc124252f485f13ded6b02ea70ef0e70afffb8",
+      "sourceRevisionId": "cff65061-f6de-4b19-83f7-d6ef75c201a3",
+      "semanticConflict": false
+    },
+    {
+      "physicalRecordId": "05ec820a-a842-4ff4-82ac-ba56c645ed44",
+      "sanitizedName": "source-156.pdf",
+      "hierarchy": {
+        "projectId": "22222222-2222-4222-8222-222222222222",
+        "packageId": "44444444-4444-4444-8444-444444444441",
+        "floorId": "floor-second_floor",
+        "zoneId": "zone-second_floor",
+        "disciplineId": "architecture"
+      },
+      "availability": "materialized",
+      "documentStatus": "current",
+      "mediaKind": "pdf",
+      "sizeBytes": 948070,
+      "checksum": "03a1d7899b83b08a0c060f0d6153e2951327c89af7ae3078e6f7877bd3b29c35",
+      "sourceRevisionId": "d7b6f245-0ed6-407c-8e6d-603f480b9df6",
+      "semanticConflict": false
+    },
+    {
+      "physicalRecordId": "cd537bad-ffb5-4ae0-8b1b-6a4355c32a2f",
+      "sanitizedName": "source-157.pdf",
+      "hierarchy": {
+        "projectId": "22222222-2222-4222-8222-222222222222",
+        "packageId": "44444444-4444-4444-8444-444444444444",
+        "floorId": "floor-second_floor_toilet",
+        "zoneId": "zone-second_floor_toilet",
+        "disciplineId": "general"
+      },
+      "availability": "placeholder",
+      "documentStatus": "current",
+      "mediaKind": "pdf",
+      "sizeBytes": 17261091,
+      "checksum": null,
+      "sourceRevisionId": null,
+      "semanticConflict": false
+    },
+    {
+      "physicalRecordId": "c77f215d-10e0-411d-8c93-5e48e3afc5d1",
+      "sanitizedName": "source-158.pdf",
+      "hierarchy": {
+        "projectId": "22222222-2222-4222-8222-222222222222",
+        "packageId": "44444444-4444-4444-8444-444444444442",
+        "floorId": "floor-second_floor_toilet",
+        "zoneId": "zone-second_floor_toilet",
+        "disciplineId": "mep"
+      },
+      "availability": "placeholder",
+      "documentStatus": "reference",
+      "mediaKind": "pdf",
+      "sizeBytes": 13853765,
+      "checksum": null,
+      "sourceRevisionId": null,
+      "semanticConflict": false
+    },
+    {
+      "physicalRecordId": "8988e0b8-aac6-4151-8ffb-250dd3250451",
+      "sanitizedName": "source-159.zip",
+      "hierarchy": {
+        "projectId": "22222222-2222-4222-8222-222222222222",
+        "packageId": "44444444-4444-4444-8444-444444444444",
+        "floorId": "floor-unspecified",
+        "zoneId": "zone-unspecified",
+        "disciplineId": "archive"
+      },
+      "availability": "materialized",
+      "documentStatus": "reference",
+      "mediaKind": "archive",
+      "sizeBytes": 155248996,
+      "checksum": "4c7712da7b74cc24d551cdbbe1a3d896fd6cfa8d360367c3dfdbdde94df684d0",
+      "sourceRevisionId": "daa51882-b5e7-463d-80bc-bea78f455894",
+      "semanticConflict": false
+    },
+    {
+      "physicalRecordId": "8cd971ba-6feb-4897-87bf-c1c63a0874a0",
+      "sanitizedName": "source-160.dwg",
+      "hierarchy": {
+        "projectId": "22222222-2222-4222-8222-222222222222",
+        "packageId": "44444444-4444-4444-8444-444444444442",
+        "floorId": "floor-unspecified",
+        "zoneId": "zone-unspecified",
+        "disciplineId": "mep"
+      },
+      "availability": "placeholder",
+      "documentStatus": "reference",
+      "mediaKind": "cad_binary",
+      "sizeBytes": 25558752,
+      "checksum": null,
+      "sourceRevisionId": null,
+      "semanticConflict": false
+    },
+    {
+      "physicalRecordId": "0e60e6db-07ab-4dd2-8415-9f8b95cc778a",
+      "sanitizedName": "source-161.dwg",
+      "hierarchy": {
+        "projectId": "22222222-2222-4222-8222-222222222222",
+        "packageId": "44444444-4444-4444-8444-444444444442",
+        "floorId": "floor-unspecified",
+        "zoneId": "zone-unspecified",
+        "disciplineId": "mep"
+      },
+      "availability": "placeholder",
+      "documentStatus": "reference",
+      "mediaKind": "cad_binary",
+      "sizeBytes": 13349920,
+      "checksum": null,
+      "sourceRevisionId": null,
+      "semanticConflict": false
+    },
+    {
+      "physicalRecordId": "45b3b20e-0955-4e6e-8961-3becd0381e7a",
+      "sanitizedName": "source-162.dwg",
+      "hierarchy": {
+        "projectId": "22222222-2222-4222-8222-222222222222",
+        "packageId": "44444444-4444-4444-8444-444444444442",
+        "floorId": "floor-unspecified",
+        "zoneId": "zone-unspecified",
+        "disciplineId": "mep"
+      },
+      "availability": "placeholder",
+      "documentStatus": "reference",
+      "mediaKind": "cad_binary",
+      "sizeBytes": 18714464,
+      "checksum": null,
+      "sourceRevisionId": null,
+      "semanticConflict": false
+    },
+    {
+      "physicalRecordId": "270e4b92-3ddd-4e34-8d9c-a9f5569fa851",
+      "sanitizedName": "source-163.dwg",
+      "hierarchy": {
+        "projectId": "22222222-2222-4222-8222-222222222222",
+        "packageId": "44444444-4444-4444-8444-444444444442",
+        "floorId": "floor-unspecified",
+        "zoneId": "zone-unspecified",
+        "disciplineId": "mep"
+      },
+      "availability": "placeholder",
+      "documentStatus": "reference",
+      "mediaKind": "cad_binary",
+      "sizeBytes": 11397824,
+      "checksum": null,
+      "sourceRevisionId": null,
+      "semanticConflict": false
+    },
+    {
+      "physicalRecordId": "1c1e5e9e-594b-4705-8d1b-b99fa7d3f82d",
+      "sanitizedName": "source-164.pdf",
+      "hierarchy": {
+        "projectId": "22222222-2222-4222-8222-222222222222",
+        "packageId": "44444444-4444-4444-8444-444444444442",
+        "floorId": "floor-first_floor",
+        "zoneId": "zone-first_floor",
+        "disciplineId": "mep"
+      },
+      "availability": "placeholder",
+      "documentStatus": "reference",
+      "mediaKind": "pdf",
+      "sizeBytes": 187780,
+      "checksum": null,
+      "sourceRevisionId": null,
+      "semanticConflict": false
+    },
+    {
+      "physicalRecordId": "e6e473d9-d796-46ff-8aef-259a450e95a0",
+      "sanitizedName": "source-165.png",
+      "hierarchy": {
+        "projectId": "22222222-2222-4222-8222-222222222222",
+        "packageId": "44444444-4444-4444-8444-444444444444",
+        "floorId": "floor-second_floor",
+        "zoneId": "zone-second_floor",
+        "disciplineId": "general"
+      },
+      "availability": "placeholder",
+      "documentStatus": "reference",
+      "mediaKind": "image",
+      "sizeBytes": 72850,
+      "checksum": null,
+      "sourceRevisionId": null,
+      "semanticConflict": false
+    },
+    {
+      "physicalRecordId": "8667ccde-3b4a-4d94-8871-5dd94e9842c9",
+      "sanitizedName": "source-166.pdf",
+      "hierarchy": {
+        "projectId": "22222222-2222-4222-8222-222222222222",
+        "packageId": "44444444-4444-4444-8444-444444444444",
+        "floorId": "floor-second_floor",
+        "zoneId": "zone-second_floor",
+        "disciplineId": "general"
+      },
+      "availability": "placeholder",
+      "documentStatus": "reference",
+      "mediaKind": "pdf",
+      "sizeBytes": 119112,
+      "checksum": null,
+      "sourceRevisionId": null,
+      "semanticConflict": false
+    },
+    {
+      "physicalRecordId": "55924f91-f3fc-4dfe-8f90-9a1ecb642b57",
+      "sanitizedName": "source-167.pdf",
+      "hierarchy": {
+        "projectId": "22222222-2222-4222-8222-222222222222",
+        "packageId": "44444444-4444-4444-8444-444444444444",
+        "floorId": "floor-exterior",
+        "zoneId": "zone-exterior",
+        "disciplineId": "general"
+      },
+      "availability": "placeholder",
+      "documentStatus": "reference",
+      "mediaKind": "pdf",
+      "sizeBytes": 12347,
+      "checksum": null,
+      "sourceRevisionId": null,
+      "semanticConflict": false
+    },
+    {
+      "physicalRecordId": "c44fac5d-c89c-4d36-8921-a72ae0a3e0f0",
+      "sanitizedName": "source-168.png",
+      "hierarchy": {
+        "projectId": "22222222-2222-4222-8222-222222222222",
+        "packageId": "44444444-4444-4444-8444-444444444444",
+        "floorId": "floor-exterior",
+        "zoneId": "zone-exterior",
+        "disciplineId": "general"
+      },
+      "availability": "placeholder",
+      "documentStatus": "reference",
+      "mediaKind": "image",
+      "sizeBytes": 119828,
+      "checksum": null,
+      "sourceRevisionId": null,
+      "semanticConflict": false
+    },
+    {
+      "physicalRecordId": "ad48fe04-78fc-47f7-8bb9-cac3d3640f32",
+      "sanitizedName": "source-169.dwg",
+      "hierarchy": {
+        "projectId": "22222222-2222-4222-8222-222222222222",
+        "packageId": "44444444-4444-4444-8444-444444444444",
+        "floorId": "floor-unspecified",
+        "zoneId": "zone-unspecified",
+        "disciplineId": "general"
+      },
+      "availability": "placeholder",
+      "documentStatus": "reference",
+      "mediaKind": "cad_binary",
+      "sizeBytes": 3639564,
+      "checksum": null,
+      "sourceRevisionId": null,
+      "semanticConflict": false
+    },
+    {
+      "physicalRecordId": "97356480-f1e3-4a84-8157-e96b5c4a5b0c",
+      "sanitizedName": "source-170.pdf",
+      "hierarchy": {
+        "projectId": "22222222-2222-4222-8222-222222222222",
+        "packageId": "44444444-4444-4444-8444-444444444442",
+        "floorId": "floor-unspecified",
+        "zoneId": "zone-unspecified",
+        "disciplineId": "mep"
+      },
+      "availability": "placeholder",
+      "documentStatus": "reference",
+      "mediaKind": "pdf",
+      "sizeBytes": 13853765,
+      "checksum": null,
+      "sourceRevisionId": null,
+      "semanticConflict": false
+    },
+    {
+      "physicalRecordId": "bd336e46-7944-40a9-8d3b-ee3e27a4bbee",
+      "sanitizedName": "source-171.pdf",
+      "hierarchy": {
+        "projectId": "22222222-2222-4222-8222-222222222222",
+        "packageId": "44444444-4444-4444-8444-444444444441",
+        "floorId": "floor-first_floor",
+        "zoneId": "zone-first_floor",
+        "disciplineId": "architecture"
+      },
+      "availability": "placeholder",
+      "documentStatus": "previous",
+      "mediaKind": "pdf",
+      "sizeBytes": 1875022,
+      "checksum": null,
+      "sourceRevisionId": null,
+      "semanticConflict": false
+    },
+    {
+      "physicalRecordId": "dbd41426-2a78-4060-8e8c-5b7453457260",
+      "sanitizedName": "source-172.pdf",
+      "hierarchy": {
+        "projectId": "22222222-2222-4222-8222-222222222222",
+        "packageId": "44444444-4444-4444-8444-444444444441",
+        "floorId": "floor-first_floor",
+        "zoneId": "zone-first_floor",
+        "disciplineId": "architecture"
+      },
+      "availability": "materialized",
+      "documentStatus": "current",
+      "mediaKind": "pdf",
+      "sizeBytes": 187118,
+      "checksum": "4d7aa07f800095d8b75e69c795e27418f35f6c32df27c19b0c30f7655ba6dff1",
+      "sourceRevisionId": "8a0f8ec3-fa66-48bf-8dc9-98ca8996a807",
+      "semanticConflict": true
+    },
+    {
+      "physicalRecordId": "25810f84-a29d-4790-8adb-f1b59f322069",
+      "sanitizedName": "source-173.pdf",
+      "hierarchy": {
+        "projectId": "22222222-2222-4222-8222-222222222222",
+        "packageId": "44444444-4444-4444-8444-444444444441",
+        "floorId": "floor-first_floor",
+        "zoneId": "zone-first_floor",
+        "disciplineId": "architecture"
+      },
+      "availability": "materialized",
+      "documentStatus": "current",
+      "mediaKind": "pdf",
+      "sizeBytes": 5963001,
+      "checksum": "f35486afc7dbf63b943f01512a28df77f58c19208659d15ed9720f9a2bf13973",
+      "sourceRevisionId": "05fc0396-1b34-4c55-8fc9-abb9c7695be2",
+      "semanticConflict": true
+    },
+    {
+      "physicalRecordId": "0a67fc4e-ff7c-4666-8cde-ad0c41cd6f46",
+      "sanitizedName": "source-174.pdf",
+      "hierarchy": {
+        "projectId": "22222222-2222-4222-8222-222222222222",
+        "packageId": "44444444-4444-4444-8444-444444444441",
+        "floorId": "floor-first_floor",
+        "zoneId": "zone-first_floor",
+        "disciplineId": "architecture"
+      },
+      "availability": "materialized",
+      "documentStatus": "current",
+      "mediaKind": "pdf",
+      "sizeBytes": 682768,
+      "checksum": "b1424a433fa46465215957e3847d7d14dde20f15bd1b5a0c68a6695e2a668491",
+      "sourceRevisionId": "a8789d09-2a10-48bc-8081-6126916839db",
+      "semanticConflict": false
+    },
+    {
+      "physicalRecordId": "7e4b85d5-e033-468a-86f8-495999d2f163",
+      "sanitizedName": "source-175.pdf",
+      "hierarchy": {
+        "projectId": "22222222-2222-4222-8222-222222222222",
+        "packageId": "44444444-4444-4444-8444-444444444442",
+        "floorId": "floor-first_floor",
+        "zoneId": "zone-first_floor",
+        "disciplineId": "mep"
+      },
+      "availability": "materialized",
+      "documentStatus": "current",
+      "mediaKind": "pdf",
+      "sizeBytes": 8928422,
+      "checksum": "5bd15076863b184155d8f8b089d20780089c1a3194673e0b72ee23bd99dea649",
+      "sourceRevisionId": "adc68849-80ed-46eb-82aa-3315e9256c27",
+      "semanticConflict": false
+    },
+    {
+      "physicalRecordId": "c95fe572-b364-4912-8f5e-f932fe7fc60d",
+      "sanitizedName": "source-176.pdf",
+      "hierarchy": {
+        "projectId": "22222222-2222-4222-8222-222222222222",
+        "packageId": "44444444-4444-4444-8444-444444444441",
+        "floorId": "floor-first_floor",
+        "zoneId": "zone-first_floor",
+        "disciplineId": "architecture"
+      },
+      "availability": "materialized",
+      "documentStatus": "current",
+      "mediaKind": "pdf",
+      "sizeBytes": 8290251,
+      "checksum": "22c0eedc873757ce723041bc09694db2275121ef8f33699b3c6c30783181a2fb",
+      "sourceRevisionId": "68b59b83-8543-4f4b-8149-3024c54cfac8",
+      "semanticConflict": true
+    },
+    {
+      "physicalRecordId": "e8e63a18-f6cd-442b-83e8-eb806499a0f3",
+      "sanitizedName": "source-177.pdf",
+      "hierarchy": {
+        "projectId": "22222222-2222-4222-8222-222222222222",
+        "packageId": "44444444-4444-4444-8444-444444444441",
+        "floorId": "floor-second_floor",
+        "zoneId": "zone-second_floor",
+        "disciplineId": "visualization"
+      },
+      "availability": "placeholder",
+      "documentStatus": "reference",
+      "mediaKind": "pdf",
+      "sizeBytes": 2127498,
+      "checksum": null,
+      "sourceRevisionId": null,
+      "semanticConflict": false
+    },
+    {
+      "physicalRecordId": "8f8813b8-29cc-4fbd-869c-2e218c1cdcd1",
+      "sanitizedName": "source-178.pdf",
+      "hierarchy": {
+        "projectId": "22222222-2222-4222-8222-222222222222",
+        "packageId": "44444444-4444-4444-8444-444444444441",
+        "floorId": "floor-second_floor",
+        "zoneId": "zone-second_floor",
+        "disciplineId": "architecture"
+      },
+      "availability": "materialized",
+      "documentStatus": "current",
+      "mediaKind": "pdf",
+      "sizeBytes": 4768392,
+      "checksum": "7089b91ab7ca122a8638bbb962bd06e7f5562fa5fabcc8e0be1205bc9d2f5095",
+      "sourceRevisionId": "c4658865-7cd3-49e9-8544-230459e963ef",
+      "semanticConflict": false
+    },
+    {
+      "physicalRecordId": "1f7532b8-7de0-486c-8eb8-23898f428221",
+      "sanitizedName": "source-179.pdf",
+      "hierarchy": {
+        "projectId": "22222222-2222-4222-8222-222222222222",
+        "packageId": "44444444-4444-4444-8444-444444444441",
+        "floorId": "floor-second_floor",
+        "zoneId": "zone-second_floor",
+        "disciplineId": "architecture"
+      },
+      "availability": "materialized",
+      "documentStatus": "current",
+      "mediaKind": "pdf",
+      "sizeBytes": 17541670,
+      "checksum": "d63cba43942655e6d656747cb00c31154337f3545d8d819fb3f3d36eed87843c",
+      "sourceRevisionId": "58acec02-8d4d-4c1d-8045-2aca4bde1c93",
+      "semanticConflict": false
+    },
+    {
+      "physicalRecordId": "e60953e3-17c6-46d3-8793-ea400adadda6",
+      "sanitizedName": "source-180.pdf",
+      "hierarchy": {
+        "projectId": "22222222-2222-4222-8222-222222222222",
+        "packageId": "44444444-4444-4444-8444-444444444441",
+        "floorId": "floor-second_floor",
+        "zoneId": "zone-second_floor",
+        "disciplineId": "architecture"
+      },
+      "availability": "materialized",
+      "documentStatus": "current",
+      "mediaKind": "pdf",
+      "sizeBytes": 1669466,
+      "checksum": "c6932fba20b20bb8b7b9dd289199e84d5f4fac2c65507fdc96f563a673c9281d",
+      "sourceRevisionId": "e1bcb947-5faa-44f8-81ce-9d89f1f0a5c9",
+      "semanticConflict": true
+    },
+    {
+      "physicalRecordId": "58458fbc-ee56-4be6-84a5-328c4e31e4fa",
+      "sanitizedName": "source-181.pdf",
+      "hierarchy": {
+        "projectId": "22222222-2222-4222-8222-222222222222",
+        "packageId": "44444444-4444-4444-8444-444444444441",
+        "floorId": "floor-second_floor",
+        "zoneId": "zone-second_floor",
+        "disciplineId": "architecture"
+      },
+      "availability": "materialized",
+      "documentStatus": "current",
+      "mediaKind": "pdf",
+      "sizeBytes": 1659721,
+      "checksum": "75dabc4bbc1b6e4649224cb186d2726ee2c45bdf6afba5532717fc8cdad25ab4",
+      "sourceRevisionId": "e7741fb6-dfab-4a21-8dd2-e1ae6eeacfe2",
+      "semanticConflict": true
+    },
+    {
+      "physicalRecordId": "fd3336a7-fec3-47d6-80bc-66850ee4a038",
+      "sanitizedName": "source-182.pdf",
+      "hierarchy": {
+        "projectId": "22222222-2222-4222-8222-222222222222",
+        "packageId": "44444444-4444-4444-8444-444444444441",
+        "floorId": "floor-second_floor",
+        "zoneId": "zone-second_floor",
+        "disciplineId": "architecture"
+      },
+      "availability": "materialized",
+      "documentStatus": "current",
+      "mediaKind": "pdf",
+      "sizeBytes": 2698073,
+      "checksum": "bd98ffce0ca6ab74dd957644861efa2ea675b7a19b3620e1b2831e0598dfe62a",
+      "sourceRevisionId": "2342b3ca-fccc-4225-8a68-a3ca1915f734",
+      "semanticConflict": false
+    },
+    {
+      "physicalRecordId": "785ba3a8-93e1-4cb1-8e41-b46be8067d51",
+      "sanitizedName": "source-183.pdf",
+      "hierarchy": {
+        "projectId": "22222222-2222-4222-8222-222222222222",
+        "packageId": "44444444-4444-4444-8444-444444444441",
+        "floorId": "floor-second_floor",
+        "zoneId": "zone-second_floor",
+        "disciplineId": "architecture"
+      },
+      "availability": "materialized",
+      "documentStatus": "current",
+      "mediaKind": "pdf",
+      "sizeBytes": 1626608,
+      "checksum": "b5b172d96b9bf8f3851c7ce8e1fc124252f485f13ded6b02ea70ef0e70afffb8",
+      "sourceRevisionId": "cff65061-f6de-4b19-83f7-d6ef75c201a3",
+      "semanticConflict": false
+    },
+    {
+      "physicalRecordId": "531e0a39-e803-4797-8098-80c5e202f721",
+      "sanitizedName": "source-184.pdf",
+      "hierarchy": {
+        "projectId": "22222222-2222-4222-8222-222222222222",
+        "packageId": "44444444-4444-4444-8444-444444444441",
+        "floorId": "floor-second_floor",
+        "zoneId": "zone-second_floor",
+        "disciplineId": "architecture"
+      },
+      "availability": "materialized",
+      "documentStatus": "current",
+      "mediaKind": "pdf",
+      "sizeBytes": 948070,
+      "checksum": "03a1d7899b83b08a0c060f0d6153e2951327c89af7ae3078e6f7877bd3b29c35",
+      "sourceRevisionId": "d7b6f245-0ed6-407c-8e6d-603f480b9df6",
+      "semanticConflict": false
+    },
+    {
+      "physicalRecordId": "57ca4b53-2291-4f52-8bf1-c28ab06f9909",
+      "sanitizedName": "source-185.pdf",
+      "hierarchy": {
+        "projectId": "22222222-2222-4222-8222-222222222222",
+        "packageId": "44444444-4444-4444-8444-444444444444",
+        "floorId": "floor-second_floor_toilet",
+        "zoneId": "zone-second_floor_toilet",
+        "disciplineId": "general"
+      },
+      "availability": "placeholder",
+      "documentStatus": "current",
+      "mediaKind": "pdf",
+      "sizeBytes": 17261091,
+      "checksum": null,
+      "sourceRevisionId": null,
+      "semanticConflict": false
+    },
+    {
+      "physicalRecordId": "a7745eac-025d-48bb-82e2-563655608825",
+      "sanitizedName": "source-186.pdf",
+      "hierarchy": {
+        "projectId": "22222222-2222-4222-8222-222222222222",
+        "packageId": "44444444-4444-4444-8444-444444444442",
+        "floorId": "floor-second_floor_toilet",
+        "zoneId": "zone-second_floor_toilet",
+        "disciplineId": "mep"
+      },
+      "availability": "placeholder",
+      "documentStatus": "reference",
+      "mediaKind": "pdf",
+      "sizeBytes": 13853765,
+      "checksum": null,
+      "sourceRevisionId": null,
+      "semanticConflict": false
+    },
+    {
+      "physicalRecordId": "f347479a-e817-42ef-8a58-914d312b668f",
+      "sanitizedName": "source-187.png",
+      "hierarchy": {
+        "projectId": "22222222-2222-4222-8222-222222222222",
+        "packageId": "44444444-4444-4444-8444-444444444444",
+        "floorId": "floor-unspecified",
+        "zoneId": "zone-unspecified",
+        "disciplineId": "site_evidence"
+      },
+      "availability": "placeholder",
+      "documentStatus": "reference",
+      "mediaKind": "image",
+      "sizeBytes": 979928,
+      "checksum": null,
+      "sourceRevisionId": null,
+      "semanticConflict": false
+    },
+    {
+      "physicalRecordId": "e42841d6-229c-4844-8fe4-318ba97721de",
+      "sanitizedName": "source-188.pdf",
+      "hierarchy": {
+        "projectId": "22222222-2222-4222-8222-222222222222",
+        "packageId": "44444444-4444-4444-8444-444444444441",
+        "floorId": "floor-first_floor",
+        "zoneId": "zone-first_floor",
+        "disciplineId": "architecture"
+      },
+      "availability": "placeholder",
+      "documentStatus": "previous",
+      "mediaKind": "pdf",
+      "sizeBytes": 699696,
+      "checksum": null,
+      "sourceRevisionId": null,
+      "semanticConflict": false
+    },
+    {
+      "physicalRecordId": "737642e7-0787-438e-8dba-02b59512cd19",
+      "sanitizedName": "source-189.pdf",
+      "hierarchy": {
+        "projectId": "22222222-2222-4222-8222-222222222222",
+        "packageId": "44444444-4444-4444-8444-444444444441",
+        "floorId": "floor-first_floor",
+        "zoneId": "zone-first_floor",
+        "disciplineId": "architecture"
+      },
+      "availability": "placeholder",
+      "documentStatus": "previous",
+      "mediaKind": "pdf",
+      "sizeBytes": 858740,
+      "checksum": null,
+      "sourceRevisionId": null,
+      "semanticConflict": false
+    },
+    {
+      "physicalRecordId": "d79d6d25-ee43-4700-81a1-d95dc53d63fb",
+      "sanitizedName": "source-190.pdf",
+      "hierarchy": {
+        "projectId": "22222222-2222-4222-8222-222222222222",
+        "packageId": "44444444-4444-4444-8444-444444444441",
+        "floorId": "floor-first_floor",
+        "zoneId": "zone-first_floor",
+        "disciplineId": "architecture"
+      },
+      "availability": "placeholder",
+      "documentStatus": "previous",
+      "mediaKind": "pdf",
+      "sizeBytes": 699696,
+      "checksum": null,
+      "sourceRevisionId": null,
+      "semanticConflict": false
+    },
+    {
+      "physicalRecordId": "7be6ebe4-a487-4961-8502-be6090e2791d",
+      "sanitizedName": "source-191.pdf",
+      "hierarchy": {
+        "projectId": "22222222-2222-4222-8222-222222222222",
+        "packageId": "44444444-4444-4444-8444-444444444441",
+        "floorId": "floor-first_floor",
+        "zoneId": "zone-first_floor",
+        "disciplineId": "architecture"
+      },
+      "availability": "placeholder",
+      "documentStatus": "previous",
+      "mediaKind": "pdf",
+      "sizeBytes": 858740,
+      "checksum": null,
+      "sourceRevisionId": null,
+      "semanticConflict": false
+    },
+    {
+      "physicalRecordId": "d6f72571-bb51-4ee3-8798-1e8e4da7d839",
+      "sanitizedName": "source-192.pdf",
+      "hierarchy": {
+        "projectId": "22222222-2222-4222-8222-222222222222",
+        "packageId": "44444444-4444-4444-8444-444444444441",
+        "floorId": "floor-first_floor",
+        "zoneId": "zone-first_floor",
+        "disciplineId": "architecture"
+      },
+      "availability": "materialized",
+      "documentStatus": "current",
+      "mediaKind": "pdf",
+      "sizeBytes": 858740,
+      "checksum": "030d97d805cfb91712f389178323d30a9f41852df933c3838a3a8af92bc92b46",
+      "sourceRevisionId": "4f0d480c-b0e9-4f78-8dce-34bf87db7ff8",
+      "semanticConflict": false
+    },
+    {
+      "physicalRecordId": "f5d7feaa-80d6-4f1e-8cd6-fbdab0f79937",
+      "sanitizedName": "source-193.pdf",
+      "hierarchy": {
+        "projectId": "22222222-2222-4222-8222-222222222222",
+        "packageId": "44444444-4444-4444-8444-444444444441",
+        "floorId": "floor-first_floor",
+        "zoneId": "zone-first_floor",
+        "disciplineId": "architecture"
+      },
+      "availability": "placeholder",
+      "documentStatus": "previous",
+      "mediaKind": "pdf",
+      "sizeBytes": 1399555,
+      "checksum": null,
+      "sourceRevisionId": null,
+      "semanticConflict": false
+    },
+    {
+      "physicalRecordId": "f127a2b1-4ce2-4b02-8e6f-560168c60c78",
+      "sanitizedName": "source-194.pdf",
+      "hierarchy": {
+        "projectId": "22222222-2222-4222-8222-222222222222",
+        "packageId": "44444444-4444-4444-8444-444444444441",
+        "floorId": "floor-first_floor",
+        "zoneId": "zone-first_floor",
+        "disciplineId": "architecture"
+      },
+      "availability": "placeholder",
+      "documentStatus": "previous",
+      "mediaKind": "pdf",
+      "sizeBytes": 779007,
+      "checksum": null,
+      "sourceRevisionId": null,
+      "semanticConflict": false
+    },
+    {
+      "physicalRecordId": "bb26b957-0596-44c2-844f-d8983397f4a5",
+      "sanitizedName": "source-195.pdf",
+      "hierarchy": {
+        "projectId": "22222222-2222-4222-8222-222222222222",
+        "packageId": "44444444-4444-4444-8444-444444444441",
+        "floorId": "floor-first_floor",
+        "zoneId": "zone-first_floor",
+        "disciplineId": "architecture"
+      },
+      "availability": "placeholder",
+      "documentStatus": "previous",
+      "mediaKind": "pdf",
+      "sizeBytes": 779007,
+      "checksum": null,
+      "sourceRevisionId": null,
+      "semanticConflict": false
+    },
+    {
+      "physicalRecordId": "353eadb3-a266-42ed-8ce3-465e749969a7",
+      "sanitizedName": "source-196.pdf",
+      "hierarchy": {
+        "projectId": "22222222-2222-4222-8222-222222222222",
+        "packageId": "44444444-4444-4444-8444-444444444441",
+        "floorId": "floor-first_floor",
+        "zoneId": "zone-first_floor",
+        "disciplineId": "architecture"
+      },
+      "availability": "placeholder",
+      "documentStatus": "previous",
+      "mediaKind": "pdf",
+      "sizeBytes": 779007,
+      "checksum": null,
+      "sourceRevisionId": null,
+      "semanticConflict": false
+    },
+    {
+      "physicalRecordId": "be612cc1-0020-4140-8d44-afdbeb4ea307",
+      "sanitizedName": "source-197.pdf",
+      "hierarchy": {
+        "projectId": "22222222-2222-4222-8222-222222222222",
+        "packageId": "44444444-4444-4444-8444-444444444441",
+        "floorId": "floor-first_floor",
+        "zoneId": "zone-first_floor",
+        "disciplineId": "architecture"
+      },
+      "availability": "placeholder",
+      "documentStatus": "previous",
+      "mediaKind": "pdf",
+      "sizeBytes": 699696,
+      "checksum": null,
+      "sourceRevisionId": null,
+      "semanticConflict": false
+    },
+    {
+      "physicalRecordId": "7604e35e-bce6-4613-8af8-8e949baa0de0",
+      "sanitizedName": "source-198.pdf",
+      "hierarchy": {
+        "projectId": "22222222-2222-4222-8222-222222222222",
+        "packageId": "44444444-4444-4444-8444-444444444441",
+        "floorId": "floor-first_floor",
+        "zoneId": "zone-first_floor",
+        "disciplineId": "architecture"
+      },
+      "availability": "placeholder",
+      "documentStatus": "previous",
+      "mediaKind": "pdf",
+      "sizeBytes": 2793371,
+      "checksum": null,
+      "sourceRevisionId": null,
+      "semanticConflict": false
+    },
+    {
+      "physicalRecordId": "b6e31465-31fd-47ad-8c95-9426e11448ce",
+      "sanitizedName": "source-199.pdf",
+      "hierarchy": {
+        "projectId": "22222222-2222-4222-8222-222222222222",
+        "packageId": "44444444-4444-4444-8444-444444444441",
+        "floorId": "floor-first_floor",
+        "zoneId": "zone-first_floor",
+        "disciplineId": "architecture"
+      },
+      "availability": "placeholder",
+      "documentStatus": "previous",
+      "mediaKind": "pdf",
+      "sizeBytes": 2793371,
+      "checksum": null,
+      "sourceRevisionId": null,
+      "semanticConflict": false
+    },
+    {
+      "physicalRecordId": "3fdb0f43-1af3-41c9-8d94-d6aa496e8fc2",
+      "sanitizedName": "source-200.pdf",
+      "hierarchy": {
+        "projectId": "22222222-2222-4222-8222-222222222222",
+        "packageId": "44444444-4444-4444-8444-444444444442",
+        "floorId": "floor-first_floor",
+        "zoneId": "zone-first_floor",
+        "disciplineId": "mep"
+      },
+      "availability": "placeholder",
+      "documentStatus": "unknown",
+      "mediaKind": "pdf",
+      "sizeBytes": 8928422,
+      "checksum": null,
+      "sourceRevisionId": null,
+      "semanticConflict": false
+    },
+    {
+      "physicalRecordId": "a60a0a6d-a425-446f-817b-9bcde061ef3e",
+      "sanitizedName": "source-201.pdf",
+      "hierarchy": {
+        "projectId": "22222222-2222-4222-8222-222222222222",
+        "packageId": "44444444-4444-4444-8444-444444444441",
+        "floorId": "floor-unspecified",
+        "zoneId": "zone-unspecified",
+        "disciplineId": "architecture"
+      },
+      "availability": "placeholder",
+      "documentStatus": "unknown",
+      "mediaKind": "pdf",
+      "sizeBytes": 1640909,
+      "checksum": null,
+      "sourceRevisionId": null,
+      "semanticConflict": false
+    },
+    {
+      "physicalRecordId": "3240a77c-6ffc-4244-8d57-4d96e7c85b80",
+      "sanitizedName": "source-202.pdf",
+      "hierarchy": {
+        "projectId": "22222222-2222-4222-8222-222222222222",
+        "packageId": "44444444-4444-4444-8444-444444444441",
+        "floorId": "floor-unspecified",
+        "zoneId": "zone-unspecified",
+        "disciplineId": "architecture"
+      },
+      "availability": "placeholder",
+      "documentStatus": "unknown",
+      "mediaKind": "pdf",
+      "sizeBytes": 17541670,
+      "checksum": null,
+      "sourceRevisionId": null,
+      "semanticConflict": false
+    },
+    {
+      "physicalRecordId": "a11c754b-e357-4907-8258-29ea371c00ca",
+      "sanitizedName": "source-203.docx",
+      "hierarchy": {
+        "projectId": "22222222-2222-4222-8222-222222222222",
+        "packageId": "44444444-4444-4444-8444-444444444443",
+        "floorId": "floor-unspecified",
+        "zoneId": "zone-unspecified",
+        "disciplineId": "brief_specification"
+      },
+      "availability": "placeholder",
+      "documentStatus": "reference",
+      "mediaKind": "document",
+      "sizeBytes": 13952,
+      "checksum": null,
+      "sourceRevisionId": null,
+      "semanticConflict": false
+    },
+    {
+      "physicalRecordId": "ffba233c-0c4e-4ed2-8a6b-047138071577",
+      "sanitizedName": "source-204.docx",
+      "hierarchy": {
+        "projectId": "22222222-2222-4222-8222-222222222222",
+        "packageId": "44444444-4444-4444-8444-444444444443",
+        "floorId": "floor-unspecified",
+        "zoneId": "zone-unspecified",
+        "disciplineId": "brief_specification"
+      },
+      "availability": "placeholder",
+      "documentStatus": "reference",
+      "mediaKind": "document",
+      "sizeBytes": 13952,
+      "checksum": null,
+      "sourceRevisionId": null,
+      "semanticConflict": false
+    },
+    {
+      "physicalRecordId": "37ee0709-e8b1-448f-8196-fa4e8f3c7cad",
+      "sanitizedName": "source-205.pdf",
+      "hierarchy": {
+        "projectId": "22222222-2222-4222-8222-222222222222",
+        "packageId": "44444444-4444-4444-8444-444444444444",
+        "floorId": "floor-unspecified",
+        "zoneId": "zone-unspecified",
+        "disciplineId": "general"
+      },
+      "availability": "materialized",
+      "documentStatus": "reference",
+      "mediaKind": "pdf",
+      "sizeBytes": 1836632,
+      "checksum": "a0098fa1f2a2f0af363a453b2283e5cf2adaa9e53488d3e8fea11201cd20403d",
+      "sourceRevisionId": "1fca0caa-4c6a-410b-8ad2-f6da8fc8761d",
+      "semanticConflict": false
+    },
+    {
+      "physicalRecordId": "281e0448-b797-4342-8e8c-7bfdbdc39c1a",
+      "sanitizedName": "source-206.docx",
+      "hierarchy": {
+        "projectId": "22222222-2222-4222-8222-222222222222",
+        "packageId": "44444444-4444-4444-8444-444444444443",
+        "floorId": "floor-unspecified",
+        "zoneId": "zone-unspecified",
+        "disciplineId": "brief_specification"
+      },
+      "availability": "placeholder",
+      "documentStatus": "reference",
+      "mediaKind": "document",
+      "sizeBytes": 23183,
+      "checksum": null,
+      "sourceRevisionId": null,
+      "semanticConflict": false
+    },
+    {
+      "physicalRecordId": "f591f13c-8c61-4025-844d-6eb9d965c3cd",
+      "sanitizedName": "source-207.pdf",
+      "hierarchy": {
+        "projectId": "22222222-2222-4222-8222-222222222222",
+        "packageId": "44444444-4444-4444-8444-444444444441",
+        "floorId": "floor-first_floor",
+        "zoneId": "zone-first_floor",
+        "disciplineId": "architecture"
+      },
+      "availability": "placeholder",
+      "documentStatus": "unknown",
+      "mediaKind": "pdf",
+      "sizeBytes": 106636,
+      "checksum": null,
+      "sourceRevisionId": null,
+      "semanticConflict": false
+    },
+    {
+      "physicalRecordId": "9f705ead-a8d5-4d3e-80a1-53220a76dd4d",
+      "sanitizedName": "source-208.pdf",
+      "hierarchy": {
+        "projectId": "22222222-2222-4222-8222-222222222222",
+        "packageId": "44444444-4444-4444-8444-444444444441",
+        "floorId": "floor-unspecified",
+        "zoneId": "zone-unspecified",
+        "disciplineId": "architecture"
+      },
+      "availability": "placeholder",
+      "documentStatus": "unknown",
+      "mediaKind": "pdf",
+      "sizeBytes": 157988,
+      "checksum": null,
+      "sourceRevisionId": null,
+      "semanticConflict": false
+    },
+    {
+      "physicalRecordId": "792da855-db2a-4ca5-81b4-be25cd07bd2c",
+      "sanitizedName": "source-209.pdf",
+      "hierarchy": {
+        "projectId": "22222222-2222-4222-8222-222222222222",
+        "packageId": "44444444-4444-4444-8444-444444444441",
+        "floorId": "floor-unspecified",
+        "zoneId": "zone-unspecified",
+        "disciplineId": "architecture"
+      },
+      "availability": "placeholder",
+      "documentStatus": "unknown",
+      "mediaKind": "pdf",
+      "sizeBytes": 115833,
+      "checksum": null,
+      "sourceRevisionId": null,
+      "semanticConflict": false
+    }
+  ],
+  "exactHashIndex": {
+    "4d07995ce042aac2b92e5242ea012b403bac48d611764512e6c0d83a0b988735": [
+      "536b2a0a-1c04-438d-8d7b-9f10d9fa3ea8",
+      "a2107311-252a-4c42-84dd-7eb5a34aa927",
+      "eb2d9cfc-6e3b-4f99-83a9-47629f16eb3e"
+    ],
+    "4d7aa07f800095d8b75e69c795e27418f35f6c32df27c19b0c30f7655ba6dff1": [
+      "163eb3da-0f09-4632-8036-e512a3a8686e",
+      "8e3e58e0-ce09-4aab-87be-442881ab8b1d",
+      "9659f0c6-9a0e-410f-81da-2d005946a7e5",
+      "d8688461-3e31-43e8-82fe-dc17f49c13ce",
+      "dbd41426-2a78-4060-8e8c-5b7453457260"
+    ],
+    "7089b91ab7ca122a8638bbb962bd06e7f5562fa5fabcc8e0be1205bc9d2f5095": [
+      "350da304-15fe-4158-8f07-f797be08facc",
+      "8f8813b8-29cc-4fbd-869c-2e218c1cdcd1",
+      "9629b92e-a4f8-4ac1-86e9-b23c7b9b7b68",
+      "b1fc7609-08c2-48ad-8622-40efb3ddceb6",
+      "ccfea5a8-7133-4388-8fb7-17fe3cb72f5f"
+    ],
+    "efe6d9224515b1cb3dac1413417d43f63a41fdc631d7b78e597717a3ba151f28": [
+      "62c8e1f6-d1b6-4e96-8081-c81d816820b6",
+      "cbaf4baa-7a50-4b68-89ed-3ba6fdee2770"
+    ],
+    "6575f9ab9e7e8beea0ec973089685277a0bd81bc41b1c7869f7be28d51d26bc5": [
+      "dfb7f434-1c41-4965-80ee-72dc7a75e551"
+    ],
+    "f35486afc7dbf63b943f01512a28df77f58c19208659d15ed9720f9a2bf13973": [
+      "25810f84-a29d-4790-8adb-f1b59f322069",
+      "32692403-9ba4-497b-8146-31c32857930e",
+      "608cc9df-5309-4317-8142-166290462f58",
+      "e60cc472-310d-48c4-8ab7-17d8d461c61f",
+      "fc2d373c-99f4-48b5-8fd4-2f4c90a67dfa"
+    ],
+    "1dc2fbede708b55129424ac55d5c5799c5aa159ec19b22eba9a5f723a0c9e293": [
+      "00fdeb6c-f031-483c-8919-0d6a190bd8ed"
+    ],
+    "bd98ffce0ca6ab74dd957644861efa2ea675b7a19b3620e1b2831e0598dfe62a": [
+      "2070bbe6-e5df-4d48-84ce-ef5621ccbaf4",
+      "3c6fdcf8-4495-447a-83db-effc6a289f15",
+      "69d63e04-8229-483c-895b-2787d08e56cb",
+      "ab7aa531-fe6d-448d-89e0-f01eee60eeff",
+      "fd3336a7-fec3-47d6-80bc-66850ee4a038"
+    ],
+    "7b3aba89803a32cf5c14e17f4aec0ebcfbd31774991ba2929dd010ac1d7d04a5": [
+      "116273e6-3184-4b8a-842e-500de8f8de3d",
+      "a561a8eb-b6eb-40a4-824f-a3d41693423e",
+      "bc458b36-4a39-4d08-8fee-7f0f9789318a"
+    ],
+    "c6932fba20b20bb8b7b9dd289199e84d5f4fac2c65507fdc96f563a673c9281d": [
+      "0017212d-55cb-4966-8aa3-415c440eab54",
+      "67b42fe1-fee8-4a32-8e41-89bd542149a6",
+      "afb41760-a625-462a-8630-7c6d8a031e65",
+      "e60953e3-17c6-46d3-8793-ea400adadda6",
+      "f892e26b-84d7-4068-8f64-eb621c673315"
+    ],
+    "aea51c07dc7c203b418febb7dacc77215ced9f6310b83d173cd0b4314901696b": [
+      "28d3dc3c-0abf-40a5-8c87-e2e0219b68ec",
+      "d807edce-0fbc-4d32-8e44-860685e573fd"
+    ],
+    "b1424a433fa46465215957e3847d7d14dde20f15bd1b5a0c68a6695e2a668491": [
+      "0a67fc4e-ff7c-4666-8cde-ad0c41cd6f46",
+      "1ce357b6-9fd3-46fd-8b94-19b9ba4486f1",
+      "6c8b7dbf-991e-42ec-8585-7a9b3018bd4e",
+      "9807ae41-185a-4575-8d83-3c7aa8d677c7",
+      "f316275a-7cc8-4aa8-81be-24cfd702f36e"
+    ],
+    "75dabc4bbc1b6e4649224cb186d2726ee2c45bdf6afba5532717fc8cdad25ab4": [
+      "58458fbc-ee56-4be6-84a5-328c4e31e4fa",
+      "9d1a65eb-0d75-4008-8a89-e0054bdfc8df",
+      "b3a40229-40d9-4124-87e2-994ac00fb50b",
+      "cd623a8c-4f48-4b85-8b37-5c2d96fde208",
+      "e2407c91-4281-4e89-8b38-236f104cbf11"
+    ],
+    "5bd15076863b184155d8f8b089d20780089c1a3194673e0b72ee23bd99dea649": [
+      "34a870cc-982b-46c6-8209-1fcc99b0eb69",
+      "352b9ba3-d72f-40bf-8a0a-76528fc80d7e",
+      "4b424910-5540-4514-8228-e2db9797dd91",
+      "7e4b85d5-e033-468a-86f8-495999d2f163",
+      "aab2abe3-d3fb-4a22-8a7a-61bed4d57b0f"
+    ],
+    "22c0eedc873757ce723041bc09694db2275121ef8f33699b3c6c30783181a2fb": [
+      "021bbec7-96cf-432d-8e2d-c78a65859fcf",
+      "4ebfdea8-39ff-4a37-8460-f1a35983f6d1",
+      "a3e12f36-e145-4278-8de6-029acbe0387d",
+      "c62d0d98-2e41-4a4a-88b4-db328f419ad1",
+      "c95fe572-b364-4912-8f5e-f932fe7fc60d"
+    ],
+    "b17dd9ca5a883e521d8b9ef084bd9585a31f2021912acbed602b2aee6f2876f6": [
+      "205c59b8-497f-4d49-837f-28d8f9698402",
+      "d37c93dc-0a45-40b5-87e4-62c3e2dfb106"
+    ],
+    "331e2ce3291b97e449653068512e1eac405efe33021537f1bd5e111f43a4fff8": [
+      "f3689724-715f-4db5-800f-40f33294c35e"
+    ],
+    "51eaff109223e3dd28d0efd2134d6a778844d8377eeb94941e806fee37d04a66": [
+      "a92f1dd4-84e4-4e9a-8c0a-d864132922f8"
+    ],
+    "189ec8d5f9eabcaea6eed9399862f22c4e855aaebae9390bf0b9d84b25cd4d1b": [
+      "1d1c6ee5-bf4a-4cc5-8115-fd3794d1eafb"
+    ],
+    "fd2dbeaef78368386b86acb1195fd7a18b537fc4a08ac7cb3c27103e227a1feb": [
+      "b769a617-e82b-4a9c-8241-10bb7b14c576",
+      "c3890207-d770-4228-883f-e8563066e7ef"
+    ],
+    "d63cba43942655e6d656747cb00c31154337f3545d8d819fb3f3d36eed87843c": [
+      "1f7532b8-7de0-486c-8eb8-23898f428221",
+      "6fa5d06a-9275-4b01-8540-da84ba65fb9e",
+      "d0781e35-0c51-4a17-8fd0-780b73d677cd",
+      "d81ed4ba-75a9-4bc8-856c-a3df8b098efe"
+    ],
+    "b5b172d96b9bf8f3851c7ce8e1fc124252f485f13ded6b02ea70ef0e70afffb8": [
+      "3bba34ee-fee4-4816-8a8c-968ff9a92abb",
+      "6793cec2-ab46-47db-8754-3193c9d66239",
+      "785ba3a8-93e1-4cb1-8e41-b46be8067d51",
+      "7a8469a2-eeab-4f1c-8fa9-41a5c3bc4c2b"
+    ],
+    "03a1d7899b83b08a0c060f0d6153e2951327c89af7ae3078e6f7877bd3b29c35": [
+      "05ec820a-a842-4ff4-82ac-ba56c645ed44",
+      "0dfbbac8-fbbe-43a6-8f44-a9afb40000d4",
+      "531e0a39-e803-4797-8098-80c5e202f721",
+      "cdc105e4-1f71-4c93-8b8a-aa704824adfa"
+    ],
+    "15db4485d2d0ecc6f3af50e764898a16dcf1faa18e0a0ee1d8cd70c7671bfc08": [
+      "5b3ccc7b-94fa-49ae-8dab-53b6a306d315"
+    ],
+    "44d4495b75f605f8217c8898ae0ed73a6575e779110520dda21de771c2e1eb13": [
+      "d46dab80-bd64-4b5a-8909-38d4e95405b9"
+    ],
+    "4c7712da7b74cc24d551cdbbe1a3d896fd6cfa8d360367c3dfdbdde94df684d0": [
+      "8988e0b8-aac6-4151-8ffb-250dd3250451"
+    ],
+    "030d97d805cfb91712f389178323d30a9f41852df933c3838a3a8af92bc92b46": [
+      "d6f72571-bb51-4ee3-8798-1e8e4da7d839"
+    ],
+    "a0098fa1f2a2f0af363a453b2283e5cf2adaa9e53488d3e8fea11201cd20403d": [
+      "37ee0709-e8b1-448f-8196-fa4e8f3c7cad"
+    ]
+  },
+  "conflictReviews": [
+    {
+      "checksum": "22c0eedc873757ce723041bc09694db2275121ef8f33699b3c6c30783181a2fb",
+      "disposition": "resolved",
+      "actor": {
+        "actorId": "member-architect",
+        "actorType": "human"
+      },
+      "reviewedAt": "2026-07-17T06:00:00Z",
+      "reason": "Смысл дубликатов проверен человеком по защищённой проекции."
+    },
+    {
+      "checksum": "4d7aa07f800095d8b75e69c795e27418f35f6c32df27c19b0c30f7655ba6dff1",
+      "disposition": "resolved",
+      "actor": {
+        "actorId": "member-architect",
+        "actorType": "human"
+      },
+      "reviewedAt": "2026-07-17T07:00:00Z",
+      "reason": "Смысл дубликатов проверен человеком по защищённой проекции."
+    },
+    {
+      "checksum": "75dabc4bbc1b6e4649224cb186d2726ee2c45bdf6afba5532717fc8cdad25ab4",
+      "disposition": "resolved",
+      "actor": {
+        "actorId": "member-architect",
+        "actorType": "human"
+      },
+      "reviewedAt": "2026-07-17T08:00:00Z",
+      "reason": "Смысл дубликатов проверен человеком по защищённой проекции."
+    },
+    {
+      "checksum": "7b3aba89803a32cf5c14e17f4aec0ebcfbd31774991ba2929dd010ac1d7d04a5",
+      "disposition": "resolved",
+      "actor": {
+        "actorId": "member-architect",
+        "actorType": "human"
+      },
+      "reviewedAt": "2026-07-17T09:00:00Z",
+      "reason": "Смысл дубликатов проверен человеком по защищённой проекции."
+    },
+    {
+      "checksum": "aea51c07dc7c203b418febb7dacc77215ced9f6310b83d173cd0b4314901696b",
+      "disposition": "resolved",
+      "actor": {
+        "actorId": "member-architect",
+        "actorType": "human"
+      },
+      "reviewedAt": "2026-07-17T10:00:00Z",
+      "reason": "Смысл дубликатов проверен человеком по защищённой проекции."
+    },
+    {
+      "checksum": "b17dd9ca5a883e521d8b9ef084bd9585a31f2021912acbed602b2aee6f2876f6",
+      "disposition": "resolved",
+      "actor": {
+        "actorId": "member-architect",
+        "actorType": "human"
+      },
+      "reviewedAt": "2026-07-17T11:00:00Z",
+      "reason": "Смысл дубликатов проверен человеком по защищённой проекции."
+    },
+    {
+      "checksum": "c6932fba20b20bb8b7b9dd289199e84d5f4fac2c65507fdc96f563a673c9281d",
+      "disposition": "resolved",
+      "actor": {
+        "actorId": "member-architect",
+        "actorType": "human"
+      },
+      "reviewedAt": "2026-07-17T12:00:00Z",
+      "reason": "Смысл дубликатов проверен человеком по защищённой проекции."
+    },
+    {
+      "checksum": "f35486afc7dbf63b943f01512a28df77f58c19208659d15ed9720f9a2bf13973",
+      "disposition": "resolved",
+      "actor": {
+        "actorId": "member-architect",
+        "actorType": "human"
+      },
+      "reviewedAt": "2026-07-17T13:00:00Z",
+      "reason": "Смысл дубликатов проверен человеком по защищённой проекции."
+    }
+  ],
+  "expectedSummary": {
+    "physicalRecords": 209,
+    "materializedRecords": 81,
+    "placeholders": 128,
+    "uniqueMaterializedBlobs": 28,
+    "duplicateGroups": 18,
+    "semanticConflictGroups": 8,
+    "byStatus": {
+      "current": 62,
+      "previous": 17,
+      "reference": 120,
+      "unknown": 10
+    }
+  },
+  "scenario": {
+    "baselineV1": {
+      "id": "76593393-845d-44b1-86f6-ed064b5fadf4",
+      "decisionRevisionIds": [
+        "f39cbb99-a481-4287-8b5a-15d8dcc64f34"
+      ],
+      "selectionRevisionIds": [
+        "c6fbc5c3-35dc-4c5b-839f-b080871d6475"
+      ],
+      "approvalPackageIds": [
+        "f078f295-5766-441f-8322-c8e86a2fc352"
+      ]
+    },
+    "noChange": {
+      "reason": "Повторная проверка не выявила изменений в exact revisions."
+    },
+    "baselineV2": {
+      "id": "9b25b646-c1c2-4496-8767-4fc94efbcde3",
+      "decisionRevisionIds": [
+        "f39cbb99-a481-4287-8b5a-15d8dcc64f34"
+      ],
+      "selectionRevisionIds": [
+        "95936f38-450f-43aa-8d51-68c5d9cf9dca"
+      ],
+      "approvalPackageIds": [
+        "cbfb92a2-fc48-4182-8c03-a415d6cfe4b6"
+      ]
+    },
+    "changeRequestId": "f60460ef-57a5-41c0-8194-9c47170cc318",
+    "dependencies": [
+      {
+        "fromRevisionId": "95936f38-450f-43aa-8d51-68c5d9cf9dca",
+        "toRevisionId": "9ec9f0f0-5bf8-4cab-8db7-e306e3103f5a",
+        "relation": "depends_on"
+      },
+      {
+        "fromRevisionId": "9ec9f0f0-5bf8-4cab-8db7-e306e3103f5a",
+        "toRevisionId": "b2956652-271e-48ad-8c0e-9a806b69963d",
+        "relation": "depends_on"
+      },
+      {
+        "fromRevisionId": "b2956652-271e-48ad-8c0e-9a806b69963d",
+        "toRevisionId": "ef0251ac-b66b-4335-8608-b03cd0d6804b",
+        "relation": "depends_on"
+      }
+    ],
+    "expectedImpacts": [
+      {
+        "rootRevisionId": "95936f38-450f-43aa-8d51-68c5d9cf9dca",
+        "impactedRevisionId": "9ec9f0f0-5bf8-4cab-8db7-e306e3103f5a",
+        "distance": 1
+      },
+      {
+        "rootRevisionId": "95936f38-450f-43aa-8d51-68c5d9cf9dca",
+        "impactedRevisionId": "b2956652-271e-48ad-8c0e-9a806b69963d",
+        "distance": 2
+      },
+      {
+        "rootRevisionId": "95936f38-450f-43aa-8d51-68c5d9cf9dca",
+        "impactedRevisionId": "ef0251ac-b66b-4335-8608-b03cd0d6804b",
+        "distance": 3
+      }
+    ]
+  },
+  "fixtureHash": "sha256:f441608921c8765f35881ccf33a804e69b034be7a436ec351f7d47657a3f8b2f"
+}
