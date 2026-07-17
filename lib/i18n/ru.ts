@@ -300,6 +300,20 @@ export const ru = {
       proposal_discussion_requested: "просит обсудить",
       proposal_changes_requested: "запросил правки",
     } as Record<string, string>,
+    pricingControls: {
+      title: "Параметры предложения",
+      hint: "Пакет услуг определяет состав работ, сроки и стоимость. Смена пакета пересоберёт КП (ручные правки текста сбросятся).",
+      packageLabel: "Пакет услуг",
+      packages: {
+        concept: "Концепция",
+        full: "Полный проект",
+        full_plus_supervision: "Полный проект + авторский надзор",
+      } as Record<string, string>,
+      complexityLabel: "Сложность",
+      complexity: { low: "низкая", mid: "средняя", high: "высокая" } as Record<string, string>,
+      complexityAuto: "(определяется по паспорту)",
+      saving: "Пересобираем КП…",
+    },
     sections: {
       task: "Задача клиента",
       works: "Состав работ",
