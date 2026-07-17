@@ -21,7 +21,11 @@ export type EventType =
   | "brief_started"
   | "brief_completed"
   | "proposal_created"
-  | "proposal_sent";
+  | "proposal_sent"
+  | "proposal_viewed"
+  | "proposal_accepted"
+  | "proposal_discussion_requested"
+  | "proposal_changes_requested";
 
 // ── Money ────────────────────────────────────────────────
 // Деньги — integer в рублях. Диапазоны как [min, max].
