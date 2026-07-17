@@ -1,150 +1,177 @@
-# Архитектура продукта — текущее состояние
+# Архитектура продукта — зафиксированное состояние
 
-Снимок того, что реально построено и задеплоено на момент составления. Документ можно отправлять на внешний анализ.
+Снимок того, что реально построено на ветке. Документ можно отправлять на внешний анализ.
+Дата фиксации: 2026-07-17. Продукт: **ARHIDOM** (бывш. «Свод»).
+
+Источник истины по продуктовым правилам — `CLAUDE.md`. Этот файл описывает **как оно устроено в коде**.
 
 ---
 
 ## 1. Что это
 
-Pre-sale контур для интерьерных дизайнеров: **Бриф → Цена → КП**. Клиент проходит умный бриф → система строит машиночитаемый «паспорт проекта» и карточки рисков → дизайнер на Review Board принимает/отклоняет риски → собирает и отправляет коммерческое предложение.
+Pre-sale контур для интерьерных дизайнеров: **Бриф → Паспорт/Риски → Цена → КП**. Клиент проходит поведенческий (JTBD) бриф → система детерминированно строит машиночитаемый «паспорт проекта» и карточки рисков → дизайнер на Review Board принимает/отклоняет риски → собирает и отправляет коммерческое предложение. Слой ДО дизайна: до чертежей, визуализаций, закупок.
 
-Две равнозначные точки входа:
-- **Дизайнер** (за логином) — отправляет клиенту ссылку, разбирает результат, собирает КП.
-- **Клиент** (публично, без регистрации) — сам заполняет бриф и получает ссылку-заявку, которую рассылает выбранным дизайнерам. **Каталога/матчинга дизайнеров нет** (сознательно — не маркетплейс).
+Русскоязычный интерфейс, валюта — рубль. Все строки UI — в `lib/i18n/ru.ts`.
+
+Две точки входа (один движок):
+- **Вход А — дизайнер** (за логином): создаёт проект → отправляет клиенту ссылку `/i/[token]` → разбирает результат → собирает КП. Железное правило: клиент Входа А **никогда не видит других дизайнеров**.
+- **Вход Б — клиент** (публично, без регистрации): сам заполняет бриф `/api/client/create` → получает read-only ссылку-заявку `/b/[token]`, которую рассылает выбранным дизайнерам. **Каталога/матчинга/сортировки по цене нет** (сознательно — не маркетплейс). Полный слой Входа Б (shareable-паспорт, «Передать в пул», подтверждение вилки) — это Фаза 4, ещё не построена (гейт закрыт по SMTP-верификации).
 
 ---
 
-## 2. Стек и деплой (актуально)
+## 2. Стек и деплой
 
 | Слой | Технология | Состояние |
 |---|---|---|
-| Фронт/бэк | Next.js 14 (App Router), TypeScript strict, Tailwind | ✅ в проде |
-| БД/Auth/Storage | Supabase (Postgres + RLS, magic-link, bucket `client-uploads`) | ✅ проект `ztnycrchwxqczqbyegnp`, миграции 0001+0002 применены |
-| LLM продукта | За интерфейсом `lib/llm/provider.ts` (`completeJSON`). Провайдеры: YandexGPT, GigaChat (заглушка), **z.ai/GLM** | ✅ на проде `LLM_PROVIDER=zai`, модель `glm-4.6` |
-| Хостинг | Vercel (Production = ветка `main`) | ✅ `design-interior2026-07.vercel.app`, Deployment Protection выключена |
-| Тесты | Vitest — **52 unit-теста**, зелёные | ✅ |
+| Фронт/бэк | Next.js (App Router, async APIs), TypeScript strict, Tailwind | ✅ |
+| БД/Auth/Storage | Supabase (Postgres + RLS; Auth: Google OAuth, email+пароль, OTP; bucket `client-uploads`) | ✅ проект `design2026` |
+| LLM продукта | За интерфейсом `lib/llm/provider.ts` (`completeJSON`). Провайдеры: YandexGPT (дефолт), GigaChat (заглушка-throw), **z.ai/GLM** | ⚠️ прод-runtime `LLM_PROVIDER=zai`, модель `glm-4.6` |
+| Хостинг | Vercel (Production = ветка `main`) | ✅ домен `arhidom.space` |
+| Тесты | Vitest — **55 unit-тестов**, зелёные | ✅ |
+| Магазины | TWA-готовность: manifest, иконки, assetlinks (Google Play + RuStore) | 🟡 каркас есть, публикация — ручная |
 
-> ⚠️ z.ai/GLM — осознанное отступление от изначального guardrail «не китайские API» (по решению владельца, задокументировано в коде). Персональные данные брифа уходят к внешнему провайдеру — учитывать для 152-ФЗ.
+> ⚠️ **z.ai/GLM** — осознанное отступление от изначального guardrail «не китайские API» (решение владельца, задокументировано в `CLAUDE.md` и `.env.example`). Митигация 152-ФЗ: `lib/risks/llm.ts` вырезает город/район/контакты и маскирует телефон/email/@-ник в свободном тексте ДО вызова LLM. Смена на YandexGPT — только env, продуктовый код не трогается. `.env.example` по умолчанию ставит `yandex`; прод переключён на `zai` вручную.
 
 ---
 
 ## 3. Карта маршрутов
 
 **Публичные (без логина):**
-- `/` — лендинг: две панели «Я дизайнер» / «Я клиент».
-- `/i/[token]` — бриф (клиент проходит по ссылке; работает и для designer-, и для client-initiated проектов).
+- `/` — лендинг ARHIDOM (кинематографичный, тёмный; `components/landing/*`).
+- `/demo`, `/demo/brief`, `/demo/proposal` — демо-прогон без регистрации.
+- `/designers`, `/studios`, `/security`, `/pilot` — маркетинговые/инфо-страницы; `/pilot` + `/api/pilot` — заявка на пилот.
+- `/legal/privacy`, `/legal/terms` — юрблок.
+- `/i/[token]` — бриф-визард (клиент проходит по ссылке; общий для Входа А и Б).
 - `/b/[token]` — read-only «ссылка-бриф» (заявка клиента для рассылки дизайнерам).
-- `/p/[public_token]` — публичное КП + печать (`@media print`).
-- `/login`, `/auth/callback` — вход по magic link.
-- `/api/health` — статус подсистем.
-- `/api/client/create` — создать клиентский бриф (без дизайнера).
-- `/api/intake/start | submit | upload` — служебные для брифа (сверка токена, service role).
+- `/p/[public_token]` — публичное КП + печать (`@media print`) + CTA ответа клиента.
+- `/login`, `/auth/callback` — вход (Google / почта+пароль / код на почту). `next`-редирект санитизируется до внутреннего пути.
 
-**Кабинет дизайнера (за middleware-защитой):**
-- `/dashboard` — список проектов + создание.
-- `/dashboard/projects/[id]` — Review Board (паспорт, карточки рисков, недостающие данные, вопросы к встрече).
-- `/dashboard/projects/[id]/proposal` — сборка КП.
-- `/dashboard/setup` — профиль, pricing-мастер, шаблон КП.
+**Кабинет дизайнера (защита в `app/dashboard/layout.tsx` — `getStudio()` → нет сессии → redirect `/login`):**
 
----
+> ⚠️ Edge-middleware **отключён**: файл переименован `middleware.ts → proxy.ts` (экспорт `proxy`, не `middleware`), поэтому Next.js его не запускает и никто его не импортирует. Защита `/dashboard` держится только на серверной проверке в layout (`getStudio()`) — она отрабатывает на каждый рендер и безопасна, но проверки на edge нет. Чтобы вернуть edge-слой, файл нужно назвать `middleware.ts` с экспортом `middleware`.
 
-## 4. Пользовательские потоки
+- `/dashboard` — список проектов студии + создание.
+- `/dashboard/projects/[id]` — Review Board (паспорт, карточки рисков, свои вопросы). **Профильный гейт:** ссылка на бриф показывается только при `isProfileComplete()` (имя/студия + телефон + email), иначе — блок «Заполнить профиль».
+- `/dashboard/projects/[id]/proposal` — сборка/редактирование/отправка КП.
+- `/dashboard/analytics` — воронка событий.
+- `/dashboard/setup` — профиль студии, pricing, шаблон КП, **пароль**, **Команда**.
 
-**Дизайнер:** войти → создать проект → скопировать `/i/[token]` → (клиент проходит) → Review Board: принять/отклонить риски → «Собрать КП» → редактировать секции → «Отправить» (`/p/[token]`).
-
-**Клиент (self-serve):** лендинг → «Я клиент» → `POST /api/client/create` → бриф `/i/[token]` → завершение → экран с кнопкой **«Отправить ссылку»** (`navigator.share`) → рассылает `/b/[token]` дизайнерам.
-
-**Пайплайн после брифа** (`lib/brief/pipeline.ts`): `buildPassport(answers)` → слой правил → LLM-проход (z.ai) → дедуп → сохранение паспорта и карточек. **Обязательная деградация:** LLM недоступен/мусор → показываются только rule-карточки, UX не падает.
-
----
-
-## 5. Модель данных
-
-Таблицы: `designers`, `projects`, `answers`, `risk_cards`, `proposals`, `events`. RLS: дизайнер видит только свои проекты; публичный доступ — только через server route по токену (service role). `projects.designer_id` **nullable** (клиентские брифы без дизайнера).
-
-**Shadow-паспорт (`projects.passport`, jsonb)** — заполняется детерминированно `buildPassport`:
-- `object`: type, area_m2, city, **district, floor, building, condition, replanning, neighbors_renovation**
-- `vision` — «своими словами, как видит квартиру» (свободный текст)
-- `asset_horizon`
-- `household`: now, in_5y, kids, pets, **decision_makers**
-- `lifestyle`: morning_load, bathrooms, cooking, storage_pressure, **furniture_keep, requirements[]**
-- `budget`: range | undisclosed, risk_level (уровень эконом/средний/премиум по ₽/м²), **includes_furniture**
-- `timeline`: target, urgency, **hard_deadline**
-- `style`: refs[], anti[], notes, **directions[], palette**
-- `rooms`: **kitchen{layout,bar,dining}, bath{count,sinks,shower}, bedrooms, living, hallway[], balcony, view, doors, zones[]**
-- `pain_points`, `scope.package`
-
-Файлы клиента — в Storage; метаданные в `answers` (`question_id='attachments'`).
+**API (server route handlers):**
+- `/api/health` — статус подсистем (env, LLM-провайдер).
+- `/api/auth/register` — регистрация без письма: `admin.createUser({email_confirm:true})` + rate-limit, затем клиентский `signInWithPassword`.
+- `/api/auth/set-password` — смена пароля через `admin.updateUserById` (обходит проверку «слабый/утёкший пароль»); только с валидной сессией.
+- `/api/client/create` — создать клиентский бриф (Вход Б, без дизайнера).
+- `/api/intake/start | submit | upload` — служебные для брифа (сверка `intake_token` на сервере, service role).
+- `/api/proposal/respond` — ответ клиента на публичном КП.
+- `/api/pilot` — заявка на пилот.
+- `/api/assetlinks`, `/app/manifest.ts`, `/app/icons/[size]`, `apple-icon` — PWA/TWA инфраструктура.
 
 ---
 
-## 6. Бриф (источник истины — `lib/brief/questions.ts`)
+## 4. Три Supabase-клиента (важно для безопасности)
 
-Тон поведенческий (JTBD), с ветвлением (`show_if`), у каждого вопроса — комментарий со свободным текстом и **голосовой надиктовкой** (Web Speech API).
-
-Блоки и вопросы:
-- **Объект:** объект (тип/площадь/город/район/этаж/тип дома) · видение своими словами · состояние · перепланировка · соседи-ремонт.
-- **Домохозяйство:** кто живёт/добавится · кто принимает решения · спальни · тип гостиной · зоны (детская/кабинет/гардеробная/мастер-спальня с санузлом…).
-- **Сценарии:** утро+санузлы · санузел (кол-во/раковины/ванна-душ) · готовка (+на скольких) · кухня (планировка/бар/обед.зона) · прихожая · балкон · вид из окон · двери · хранение · что с мебелью.
-- **Коммерция/сроки:** бюджет · включает ли мебель · сроки · жёсткий дедлайн.
-- **Стиль:** направления · палитра · референсы+анти · pain points · особые требования · фото (план + комнаты + вид, несколько файлов).
+- `lib/supabase/server.ts` — **anon + cookies**, соблюдает RLS. Для server-компонентов кабинета (видно только своё).
+- `lib/supabase/browser.ts` — **anon**, браузерный (`createBrowserClient`). Для клиентских компонентов и auth.
+- `lib/supabase/admin.ts` — **service-role, ТОЛЬКО СЕРВЕР**, обходит RLS. Используется в публичных token-gated роутах (после сверки токена), в регистрации/пароле и в резолвере студии/команды. Anon-ключ доступа к чужим данным не даёт.
 
 ---
 
-## 7. Логика (детерминированная, покрыта тестами)
+## 5. Аутентификация и команда
 
-- **`buildPassport(answers)`** — маппинг ответов в паспорт. Без сети.
-- **Правила рисков (`lib/risks/rules.ts`, 9 шт., `confidence=high`, `source=rule`):** премиум-материалы при низком бюджете · продажа/аренда+кастомизация · срочность+мебель на заказ · минимализм+высокое хранение · высокая утренняя нагрузка+1 санузел · перепланировка+срочность · мебель в тесном бюджете · много зон при малой площади · присоединение балкона (technical).
-- **LLM-слой (`lib/risks/llm.ts`):** один вызов, строгий JSON по Zod-схеме, один repair-retry, тон «Возможный риск… Рекомендуем обсудить…».
-- **Дедуп (`lib/risks/dedupe.ts`):** rule-карточки авторитетнее; Unicode-aware сравнение словоформ.
+- **Методы входа (`app/login/page.tsx`):** Google OAuth · почта+пароль (`signUp`/`signInWithPassword` через `/api/auth/register`) · код на почту (OTP). `redirectTo` строится от `window.location.origin` (фикс «отбрасывает на главную»). `/auth/callback` обрабатывает и `?code` (PKCE), и `?token_hash&type` (stateless OTP).
+- **Без зависимости от доставки писем:** регистрация и смена пароля работают через service-role без подтверждающих писем — SMTP не блокирует вход. (Выделенный SMTP для кодов верификации контактов Фазы 4 — отдельная незакрытая задача.)
+- **Команда (`lib/studio.ts`, migration `0006_team.sql`):** студия = строка `designers` владельца; проекты принадлежат `studioId` (владельцу), поэтому видны всей команде. Приглашение по email (`studio_members`, статус `invited`) активируется при первом входе участника (`getStudio()` через service-role → `active`). Роли пока плоские (равный доступ). RLS переписана с «владелец» на «студия» через `is_studio_member(owner, uid)` (SECURITY DEFINER). **Обратная совместимость:** без применённой миграции 0006 всё деградирует в режим единственного владельца.
 
 ---
 
-## 8. Цена и Proposal
+## 6. Пользовательские потоки
 
-- **Цена (`lib/pricing/calc.ts`):** диапазон = base × area × (сложность × срочность × пакет), прозрачная разбивка. Режим «без цены» при `pricing=null`.
-- **Proposal (`lib/proposal/build.ts`):** секции (задача · состав работ · этапы/сроки · стоимость · что входит/не входит · лимиты правок · что нужно от клиента · условия завершения) предзаполнены из паспорта + принятых карточек + `proposal_defaults`; каждая редактируема. Публикация `/p/[token]`, печать, «Отправить».
+**Дизайнер:** войти → (заполнить профиль — гейт) → создать проект → скопировать `/i/[token]` → клиент проходит → Review Board: принять/отклонить риски → «Собрать КП» → редактировать секции → «Отправить» → `/p/[public_token]`.
+
+**Клиент (Вход Б):** лендинг/`Я клиент` → `POST /api/client/create` → бриф `/i/[token]` → завершение → экран с кнопкой «Отправить ссылку» (`navigator.share`) → рассылает `/b/[token]`.
+
+**Пайплайн после брифа** (`lib/brief/pipeline.ts`): `buildPassport(answers)` → слой правил (`lib/risks/rules.ts`) → LLM-проход (`lib/risks/llm.ts`, PII вырезан) → дедуп (`lib/risks/dedupe.ts`) → сохранение паспорта и карточек. **Обязательная деградация:** LLM недоступен/мусор → один repair-retry → фолбэк на rule-карточки, UX не падает.
+
+---
+
+## 7. Модель данных
+
+Таблицы (миграции `0001`–`0006`): `designers`, `projects`, `answers`, `risk_cards`, `proposals`, `events`, `custom_questions` (0003), `rate_limits` (0005), `studio_members` (0006). Профиль дизайнера (0004) — jsonb `designers.profile`. `projects.designer_id` **nullable** (Вход Б без дизайнера).
+
+**RLS:** дизайнер/студия видит только свои проекты (через `is_studio_member`); публичный доступ — только через server route по токену (service-role). `rate_limits`/`studio_members` — доступ только service-role/участникам студии.
+
+**Rate limiting (`lib/rate-limit.ts`, `rate_limits`):** durable-счётчик по ключу `action:ip` в окне; **fail-open** (сбой БД не блокирует пользователя). Применён: register (10/ч), client/create (10/ч), intake/submit (30/ч), proposal/respond (20/ч), pilot (10/ч). In-memory на Vercel не годится (разные инстансы) — поэтому таблица.
+
+**Shadow-паспорт (`projects.passport`, jsonb)** — детерминированно `buildPassport`:
+`object{type,area_m2,city,district,floor,building,condition,replanning,neighbors_renovation}` · `vision` · `asset_horizon` · `household{now,in_5y,kids,pets,decision_makers}` · `lifestyle{morning_load,bathrooms,cooking,storage_pressure,furniture_keep,requirements[]}` · `budget{range|undisclosed,risk_level,includes_furniture}` · `timeline{target,urgency,hard_deadline}` · `style{refs[],anti[],notes,directions[],palette}` · `rooms{...}` · `pain_points` · `scope.package`.
+
+> Известный долг: `scope.package` в `buildPassport` всегда `null` (пакет не спрашивается в брифе; в цене подставляется `"full"`). `str()` в `passport.ts` читает и `"x"`, и `{value:"x"}` — фикс инверсии смысла (напр. cooking → «не готовит»), закрыт регрессионным тестом.
+
+Файлы клиента — в Storage (`client-uploads`, приватный); метаданные в `answers` (`question_id='attachments'`).
+
+---
+
+## 8. Логика (детерминированная, покрыта тестами)
+
+- **`buildPassport(answers)`** (`lib/brief/passport.ts`) — маппинг ответов в паспорт. Без сети.
+- **Правила рисков** (`lib/risks/rules.ts`, `confidence=high`, `source=rule`): премиум-материалы при низком бюджете · продажа/аренда+кастомизация · срочность+мебель на заказ · минимализм+высокое хранение · высокая утренняя нагрузка+1 санузел · перепланировка+срочность · мебель в тесном бюджете · много зон при малой площади · присоединение балкона (technical).
+- **LLM-слой** (`lib/risks/llm.ts`): один вызов, строгий JSON по Zod-схеме (`schema.ts`), один repair-retry, PII вырезан/маскирован, тон «Возможный риск… Рекомендуем обсудить…».
+- **Дедуп** (`lib/risks/dedupe.ts`): rule-карточки авторитетнее LLM; Unicode-aware сравнение словоформ.
+- **Цена** (`lib/pricing/calc.ts`): диапазон = base × area × (сложность × срочность × пакет), прозрачная разбивка. `pricing=null` → режим «без цены». Сложность сейчас захардкожена `"mid"` (известный долг).
+- **Proposal** (`lib/proposal/build.ts`): секции предзаполнены из паспорта + принятых карточек (`proposal_implication` → «что входит/не входит») + `proposal_defaults`; каждая редактируема. Пересборка запрещена после `status='sent'`.
 
 ---
 
 ## 9. События (метрики валидации)
 
-В `events`: `intake_link_created`, `brief_started`, `brief_completed`, `proposal_created`, `proposal_sent`. Отдельного дашборда нет — данные в таблице.
+В `events`: `intake_link_created`, `brief_started`, `brief_completed`, `proposal_created`, `proposal_sent`. Визуализация — `/dashboard/analytics`. События Фазы 4 (share/verify/pool/range) — ещё не пишутся (фаза не стартовала).
 
 ---
 
-## 10. Что готово / известные ограничения и косяки (вход в задачу #3 — юзабилити)
+## 10. Лестница запуска (см. `CLAUDE.md` → «Лестница запуска»)
 
-**Готово и работает в проде:** вход дизайнера, кабинет, бриф (обе стороны), паспорт, карточки рисков (rules; LLM при рабочем ключе), Review Board, КП, публичные страницы, клиентская ссылка-бриф.
-
-**Кандидаты на доработку юзабилити / известные косяки:**
-- Бриф стал **длинным** (~30 вопросов) — риск падения конверсии (метрика №1 — доходимость >60%). Нужна прогресс-логика/группировка/«необязательные» шаги, возможно two-step (quick + deep).
-- На каждом шаге — только один вопрос; нет обзора/возврата к разделам, нет сохранения черновика (ушёл — потерял).
-- Баннер деградации LLM показывается по эвристике «все карточки rule» — может ложно срабатывать.
-- Встроенная почта Supabase лимитирована (magic-link ~неск./час) — нужен свой SMTP (Resend).
-- Клиентский бриф не спрашивает имя/контакт клиента — дизайнер получает заявку без связи.
-- Голосовой ввод — только Chrome/Android; на iOS нет.
-- `/b/[token]` доступен всем по ссылке — нет ограничения на повторное редактирование (частично прикрыто статусом).
-- Мобильная вёрстка брифа/паспорта — не выверена под узкие экраны.
-- Нет аналитики воронки (события есть, визуализации нет).
+Три стадии готовности продукта (не путать с маркетплейс-механикой Входа Б):
+- **Пилот** (5–10 бюро, приватно): P1 паспорт не инвертирует ✅ · P2 клиент видит бренд, не email ✅ · P3 consent+support+факт-чек PII ✅ · P4 обещание лендинга выровнено ✅ · P5 клиентский CTA ведёт в бриф ⏳ (ошибка сделана видимой; нужен ручной клик на живом сайте).
+- **Расширение** (после WTP-интервью): S1 ценовое поведение КП · S2 верификация rule-движка на эталонах · S3 завершение сделки в публичном КП (accept/decline) · S4 петля обратной связи.
+- **Публичный запуск:** L1 полный юрблок · L2 позиционирование догоняет продукт · L3 демо/онбординг.
 
 ---
 
-## 11. Файловая карта (ключевое)
+## 11. Известные ограничения и долги
+
+- **Фаза 4 (Вход Б полный)** — не построена; гейт закрыт: нет выделенного SMTP для 6-значных кодов верификации (S-B5 — первый кирпич).
+- **`scope.package`** всегда `null` в паспорте; **сложность цены** захардкожена `"mid"`.
+- **Мобильная вёрстка** брифа/паспорта — не выверена под узкие экраны.
+- **Голосовой ввод** в брифе — Chrome/Android; на iOS нет.
+- **`/b/[token]`** доступен по ссылке всем — повторное редактирование прикрыто статусом лишь частично.
+- **`EventType`**-юнион и набор пишущихся событий могут расходиться — сверять при добавлении.
+- **`components/reveal.tsx`** — кандидат в мёртвый код (проверить использование перед удалением).
+- **GigaChat** — заглушка-throw (по стратегии — задокументированный запасной, не активен).
+- **Миграции 0005/0006** должны быть применены владельцем в Supabase (проект `design2026`); код fail-safe без них.
+
+---
+
+## 12. Файловая карта (ключевое)
 
 ```
-app/            маршруты (App Router): landing, login, i/[token], b/[token],
-                p/[public_token], dashboard/*, api/*
+app/            App Router: landing (page.tsx), login, auth/callback,
+                i/[token], b/[token], p/[public_token], demo/*, dashboard/*,
+                api/* (health, auth/*, client/create, intake/*, proposal/respond,
+                pilot, assetlinks), manifest.ts, icons/[size], legal/*,
+                designers/studios/security/pilot (маркетинг)
 lib/brief/      questions.ts · passport.ts · pipeline.ts
 lib/risks/      rules.ts · llm.ts · schema.ts · dedupe.ts
 lib/pricing/    calc.ts
-lib/proposal/   build.ts
+lib/proposal/   build.ts · respond.ts
 lib/llm/        provider.ts · yandex.ts · gigachat.ts · zai.ts
-lib/supabase/   browser.ts · server.ts · admin.ts
-lib/            types.ts · i18n/ru.ts · designer.ts · intake.ts · tokens.ts · env.ts · review.ts
-components/     passport-view · intake-link · share-brief · print-button
-supabase/migrations/  0001_init.sql · 0002_client_briefs.sql
-research/       brief-questions-bank.md (банк вопросов для дальнейшего расширения)
+lib/supabase/   server.ts (RLS) · browser.ts · admin.ts (service-role)
+lib/            types.ts · i18n/ru.ts · designer.ts · studio.ts · intake.ts
+                · tokens.ts · env.ts · base-url.ts · rate-limit.ts · review.ts
+components/     landing/* (кинематографичный лендинг) · passport-view ·
+                intake-link · designer-card · share-brief · print-button · pwa
+supabase/migrations/  0001_init · 0002_client_briefs · 0003_custom_questions ·
+                0004_designer_profile · 0005_rate_limits · 0006_team
 ```
 
-Доп. документы: `CLAUDE.md` (спека), `DEMO.md`, `PHASE_0..3_REPORT.md`, `BACKLOG.md`.
+Доп. документы: `CLAUDE.md` (спека, источник истины), `LAUNCH_CHECKLIST.md`, `BACKLOG.md`,
+`PHASE_0..3_REPORT.md`, `HANDOFF*.md`, `STORE_SETUP.md` / `RUSTORE_RELEASE.md` (магазины), `DEMO.md`.
