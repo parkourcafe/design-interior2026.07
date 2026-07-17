@@ -26,13 +26,14 @@ interface ProjectRow {
   custom_questions: string[];
 }
 
-export default async function ProjectPage({ params }: { params: { id: string } }) {
-  const supabase = createClient();
+export default async function ProjectPage({ params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params;
+  const supabase = await createClient();
 
   const { data: project } = await supabase
     .from("projects")
     .select("id, client_name, status, intake_token, passport, custom_questions")
-    .eq("id", params.id)
+    .eq("id", id)
     .maybeSingle();
 
   if (!project) notFound();
@@ -43,7 +44,7 @@ export default async function ProjectPage({ params }: { params: { id: string } }
       ["brief_completed", "proposal_draft", "proposal_sent"].includes(p.status),
   );
 
-  const intakeUrl = `${requestBaseUrl()}/i/${p.intake_token}`;
+  const intakeUrl = `${await requestBaseUrl()}/i/${p.intake_token}`;
 
   // Гейт: ссылку на бриф показываем только с заполненным профилем — клиент
   // должен видеть, от кого пришёл бриф (имя/студия + телефон + email).
@@ -92,7 +93,7 @@ async function ReviewBoard({
   intakeUrl: string;
   profileReady: boolean;
 }) {
-  const supabase = createClient();
+  const supabase = await createClient();
   const { data: cardRows } = await supabase
     .from("risk_cards")
     .select("id, risk_type, evidence, impact, confidence, designer_action, proposal_implication, status, source")

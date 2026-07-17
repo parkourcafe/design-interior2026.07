@@ -8,6 +8,7 @@ import { ru } from "@/lib/i18n/ru";
 import type { Passport, PricingConfig, ProposalDefaults, ProposalSection } from "@/lib/types";
 import { calcPrice, type PriceResult } from "@/lib/pricing/calc";
 import { buildProposalSections } from "@/lib/proposal/build";
+import { RESPONSE_TYPES } from "@/lib/proposal/respond";
 import type { RiskCardRow } from "@/lib/review";
 import ProposalEditor from "./editor";
 
@@ -20,13 +21,14 @@ interface ProjectRow {
   passport: Passport | null;
 }
 
-export default async function ProposalPage({ params }: { params: { id: string } }) {
-  const supabase = createClient();
+export default async function ProposalPage({ params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params;
+  const supabase = await createClient();
 
   const { data: project } = await supabase
     .from("projects")
     .select("id, client_name, status, passport")
-    .eq("id", params.id)
+    .eq("id", id)
     .maybeSingle();
   if (!project) notFound();
   const p = project as ProjectRow;
@@ -99,7 +101,16 @@ export default async function ProposalPage({ params }: { params: { id: string } 
     }
   }
 
-  const publicUrl = `${requestBaseUrl()}/p/${publicToken}`;
+  const publicUrl = `${await requestBaseUrl()}/p/${publicToken}`;
+
+  // Петля обратной связи (audit S4): открывал ли клиент КП и его ответ.
+  const { data: feedbackEvents } = await supabase
+    .from("events")
+    .select("type")
+    .eq("project_id", p.id)
+    .in("type", [...RESPONSE_TYPES, "proposal_viewed"]);
+  const feedback = new Set((feedbackEvents ?? []).map((e) => (e as { type: string }).type));
+  const clientResponse = RESPONSE_TYPES.find((t) => feedback.has(t)) ?? null;
 
   return (
     <div>
@@ -110,6 +121,20 @@ export default async function ProposalPage({ params }: { params: { id: string } 
         <h1 className="mt-1 font-display text-3xl font-semibold">{ru.proposal.draftTitle}</h1>
         <p className="mt-1 text-sm text-muted">{ru.proposal.editHint}</p>
         {!pricing && <p className="mt-1 text-sm text-amber-800">{ru.proposal.noPrice}</p>}
+        {(clientResponse || feedback.has("proposal_viewed")) && (
+          <div className="mt-3 flex flex-wrap gap-2">
+            {feedback.has("proposal_viewed") && (
+              <span className="rounded-full border border-line bg-white px-3 py-1 text-xs text-muted">
+                {ru.proposal.clientViewed}
+              </span>
+            )}
+            {clientResponse && (
+              <span className="rounded-full border border-accent/30 bg-accent/10 px-3 py-1 text-xs font-medium text-accent">
+                {ru.proposal.clientResponse}: {ru.proposal.clientResponseValue[clientResponse]}
+              </span>
+            )}
+          </div>
+        )}
       </div>
 
       <ProposalEditor

@@ -4,14 +4,15 @@ import { ru } from "@/lib/i18n/ru";
 import Pwa from "@/components/pwa";
 
 export const metadata: Metadata = {
-  title: ru.app.name,
-  description: ru.app.tagline,
+  title: `${ru.app.name} — ${ru.app.tagline}`,
+  description: ru.app.heroSub,
   manifest: "/manifest.webmanifest",
   appleWebApp: { capable: true, title: ru.app.name, statusBarStyle: "default" },
 };
 
 export const viewport: Viewport = {
-  themeColor: "#9c4a28",
+  // Совпадает с manifest.theme_color: приложение открывается на тёмной главной.
+  themeColor: "#14110d",
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

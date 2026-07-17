@@ -17,7 +17,7 @@ export async function saveProposal(
   projectId: string,
   sections: ProposalSection[],
 ): Promise<{ ok: boolean }> {
-  const supabase = createClient();
+  const supabase = await createClient();
   const { error } = await supabase
     .from("proposals")
     .update({ sections })
@@ -34,7 +34,7 @@ export async function saveProposal(
 export async function rebuildProposal(
   projectId: string,
 ): Promise<{ ok: boolean; sections?: ProposalSection[]; reason?: string }> {
-  const supabase = createClient();
+  const supabase = await createClient();
   const studio = await getStudio();
   if (!studio) return { ok: false };
 
@@ -101,7 +101,7 @@ export async function rebuildProposal(
 }
 
 export async function sendProposal(projectId: string): Promise<{ ok: boolean }> {
-  const supabase = createClient();
+  const supabase = await createClient();
   const studio = await getStudio();
   if (!studio) return { ok: false };
 

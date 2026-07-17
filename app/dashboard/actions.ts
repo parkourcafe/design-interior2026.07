@@ -17,7 +17,7 @@ export async function createProject(clientName: string): Promise<CreateProjectRe
   const studio = await getStudio();
   if (!studio) return { ok: false, error: "unauthorized" };
 
-  const supabase = createClient();
+  const supabase = await createClient();
   const intakeToken = makeToken();
   const { data, error } = await supabase
     .from("projects")

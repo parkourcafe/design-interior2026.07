@@ -5,10 +5,11 @@ import { appUrl } from "@/lib/env";
 // совпадали с доменом, на котором реально открыт сайт (например arhidom.space),
 // без зависимости от NEXT_PUBLIC_APP_URL. Только в server-компонентах/роутах.
 // Фолбэк — appUrl() из env.
-export function requestBaseUrl(): string {
-  const host = headers().get("host");
+export async function requestBaseUrl(): Promise<string> {
+  const requestHeaders = await headers();
+  const host = requestHeaders.get("host");
   if (host) {
-    const proto = headers().get("x-forwarded-proto") ?? "https";
+    const proto = requestHeaders.get("x-forwarded-proto") ?? "https";
     return `${proto}://${host}`.replace(/\/$/, "");
   }
   return appUrl();
