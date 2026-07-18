@@ -1,0 +1,92 @@
+{
+  "schemaVersion": "project-ceo-kora-pilot/0.1",
+  "sanitized": true,
+  "project": {
+    "name": "Kora Food Hall",
+    "areaM2": 1800,
+    "model": "full_project",
+    "sourceRevisionSampleSize": 12
+  },
+  "actors": {
+    "owner": "pilot-owner",
+    "architect": "pilot-architect",
+    "builder": "pilot-builder",
+    "client": "pilot-client",
+    "guest": "pilot-guest"
+  },
+  "revisions": {
+    "requirement": "requirement-project-scope-r1",
+    "assumption": "assumption-site-access-r1",
+    "decision": "f39cbb99-a481-4287-8b5a-15d8dcc64f34",
+    "selectionV1": "c6fbc5c3-35dc-4c5b-839f-b080871d6475",
+    "selectionV2": "95936f38-450f-43aa-8d51-68c5d9cf9dca"
+  },
+  "artifacts": {
+    "rootV1": "production-package-v1",
+    "rootV2": "production-package-v2",
+    "architectureV1": "pilot-architecture-package-v1",
+    "architectureV2": "pilot-architecture-package-v2",
+    "engineeringV1": "pilot-engineering-package-v1",
+    "rootReleaseV2": "pilot-root-release-v2",
+    "architectureReleaseV2": "pilot-architecture-release-v2"
+  },
+  "distribution": {
+    "id": "pilot-architecture-distribution-v2",
+    "acknowledgementId": "pilot-architecture-ack-v2",
+    "recipientRole": "builder",
+    "guestPackageStableKey": "architecture-release"
+  },
+  "change": {
+    "reason": "Утверждена замена чистового материала в архитектурном пакете.",
+    "deltaCostRub": 180000,
+    "deltaDays": 2,
+    "maxDepth": 3,
+    "dispositions": [
+      "accepted",
+      "resolved",
+      "dismissed"
+    ]
+  },
+  "fieldClosure": {
+    "areas": [
+      "area-first-floor",
+      "area-second-floor",
+      "area-service-zone"
+    ],
+    "milestones": [
+      {
+        "id": "milestone-architecture-first-floor",
+        "areaIds": [
+          "area-first-floor"
+        ],
+        "acceptedPhotoIds": [
+          "photo-first-floor-accepted"
+        ]
+      },
+      {
+        "id": "milestone-architecture-upper-and-service",
+        "areaIds": [
+          "area-second-floor",
+          "area-service-zone"
+        ],
+        "acceptedPhotoIds": [
+          "photo-second-floor-accepted",
+          "photo-service-zone-accepted"
+        ]
+      }
+    ],
+    "warrantyDocumentIds": [
+      "warranty-architecture-package-v2"
+    ]
+  },
+  "expected": {
+    "physicalRecords": 209,
+    "materializedRecords": 81,
+    "placeholders": 128,
+    "workPackages": 4,
+    "impactCount": 3,
+    "baselineV1Hash": "sha256:d5d10c5933668753f8c1c733caca74d8d4b49e3e8f9adec57481d4537a52d906",
+    "baselineV2Hash": "sha256:c80dbe32f680621b153a4b3ffa6f35948d23f2c871460ee5550884fddb8c5f49",
+    "rootReleaseV2Hash": "sha256:9f229b61ef24d4258e174c9b5bad9a700e1bdf367d2b3c8b8f0745ec681d4fd8"
+  }
+}
