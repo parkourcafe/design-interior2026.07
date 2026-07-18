@@ -4,10 +4,12 @@ import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { ru } from "@/lib/i18n/ru";
 import { inviteMember, removeMember } from "./actions";
+import CopyTextButton from "@/components/copy-text-button";
 import type { StudioMemberRow } from "@/lib/studio";
 
-// «Команда» (v1, равный доступ). Владелец приглашает по email и убирает
-// участников; участники видят ростер только на чтение.
+// «Команда» (v1, равный доступ). Владелец приглашает по ссылке-токену и убирает
+// участников; участники видят ростер только на чтение. Доступ к студии даёт
+// переход по ссылке /join/<token>, а не совпадение email.
 export default function TeamMembers({
   members,
   role,
@@ -21,14 +23,24 @@ export default function TeamMembers({
   const [email, setEmail] = useState("");
   const [pending, start] = useTransition();
   const [error, setError] = useState<string | null>(null);
+  const [lastLink, setLastLink] = useState<string | null>(null);
+
+  // Ссылку строим на клиенте из текущего домена — чтобы совпадала с тем, где
+  // реально открыт кабинет (arhidom.space и т.п.).
+  function linkFor(t: string): string {
+    if (typeof window === "undefined") return `/join/${t}`;
+    return `${window.location.origin}/join/${t}`;
+  }
 
   function invite(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
+    setLastLink(null);
     start(async () => {
       const res = await inviteMember(email);
       if (res.ok) {
         setEmail("");
+        if (res.joinUrl) setLastLink(res.joinUrl);
         router.refresh();
       } else {
         setError(res.error ?? "Не удалось пригласить.");
@@ -61,33 +73,51 @@ export default function TeamMembers({
                 · {m.status === "active" ? ru.team.active : ru.team.invited}
               </span>
             </span>
-            {role === "owner" && (
-              <button
-                onClick={() => remove(m.id)}
-                disabled={pending}
-                className="btn-ghost px-3 text-sm"
-              >
-                {ru.team.remove}
-              </button>
-            )}
+            <span className="flex items-center gap-2">
+              {role === "owner" && m.status === "invited" && m.invite_token && (
+                <CopyTextButton text={linkFor(m.invite_token)} label={ru.team.copyLink} />
+              )}
+              {role === "owner" && (
+                <button
+                  onClick={() => remove(m.id)}
+                  disabled={pending}
+                  className="btn-ghost px-3 text-sm"
+                >
+                  {ru.team.remove}
+                </button>
+              )}
+            </span>
           </li>
         ))}
       </ul>
 
       {role === "owner" ? (
-        <form onSubmit={invite} className="mt-4 flex flex-col gap-2 sm:flex-row">
-          <input
-            type="email"
-            required
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            placeholder={ru.team.invitePlaceholder}
-            className="input flex-1"
-          />
-          <button type="submit" disabled={pending} className="btn-primary whitespace-nowrap">
-            {pending ? ru.team.inviting : ru.team.invite}
-          </button>
-        </form>
+        <>
+          <form onSubmit={invite} className="mt-4 flex flex-col gap-2 sm:flex-row">
+            <input
+              type="email"
+              required
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              placeholder={ru.team.invitePlaceholder}
+              className="input flex-1"
+            />
+            <button type="submit" disabled={pending} className="btn-primary whitespace-nowrap">
+              {pending ? ru.team.inviting : ru.team.invite}
+            </button>
+          </form>
+          {lastLink && (
+            <div className="mt-3 rounded-lg border border-line bg-paper/50 p-3">
+              <p className="text-sm text-ink/90">{ru.team.linkReady}</p>
+              <div className="mt-2 flex items-center gap-2">
+                <code className="flex-1 truncate rounded bg-line/40 px-2 py-1 text-xs">
+                  {lastLink}
+                </code>
+                <CopyTextButton text={lastLink} label={ru.team.copyLink} />
+              </div>
+            </div>
+          )}
+        </>
       ) : (
         <p className="mt-4 text-sm text-muted">{ru.team.memberNote}</p>
       )}

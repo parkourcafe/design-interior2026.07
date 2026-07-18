@@ -7,10 +7,12 @@ import { requestBaseUrl } from "@/lib/base-url";
 import { ru } from "@/lib/i18n/ru";
 import type { Passport, PricingConfig, ProposalDefaults, ProposalSection } from "@/lib/types";
 import { calcPrice, type PriceResult } from "@/lib/pricing/calc";
+import { deriveComplexity } from "@/lib/pricing/complexity";
 import { buildProposalSections } from "@/lib/proposal/build";
 import { RESPONSE_TYPES } from "@/lib/proposal/respond";
 import type { RiskCardRow } from "@/lib/review";
 import ProposalEditor from "./editor";
+import PricingControls from "./pricing-controls";
 
 export const dynamic = "force-dynamic";
 
@@ -51,12 +53,15 @@ export default async function ProposalPage({ params }: { params: Promise<{ id: s
   const acceptedCards = (cardRows ?? []) as RiskCardRow[];
 
   // Цена: считаем, если есть pricing и площадь. Иначе — режим «без цены».
+  // Пакет — выбор дизайнера (passport.scope.package); сложность выводится из
+  // паспорта детерминированно (не захардкожена).
   const packageChoice = passport.scope.package ?? "full";
+  const complexity = deriveComplexity(passport);
   let price: PriceResult | null = null;
   if (pricing && passport.object.area_m2) {
     price = calcPrice(pricing, {
       area_m2: passport.object.area_m2,
-      complexity: "mid",
+      complexity,
       urgent: passport.timeline.urgency === "urgent",
       package: packageChoice,
     });
@@ -136,6 +141,15 @@ export default async function ProposalPage({ params }: { params: Promise<{ id: s
           </div>
         )}
       </div>
+
+      {!sent && (
+        <PricingControls
+          projectId={p.id}
+          currentPackage={packageChoice}
+          complexity={complexity}
+          hasPricing={Boolean(pricing)}
+        />
+      )}
 
       <ProposalEditor
         projectId={p.id}

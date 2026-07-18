@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getProjectByIntakeToken } from "@/lib/intake";
+import { makeToken } from "@/lib/tokens";
 
 export const dynamic = "force-dynamic";
 
@@ -17,7 +18,10 @@ export async function POST(request: Request) {
   if (!(file instanceof File)) return NextResponse.json({ error: "no_file" }, { status: 400 });
 
   const admin = createAdminClient();
-  const path = `${project.id}/${Date.now()}-${file.name}`;
+  // Случайное имя файла в ключе Storage: не пишем оригинальное имя (может
+  // содержать PII/спецсимволы). Оригинал сохраняем в метаданных answers.
+  const ext = (file.name.match(/\.[A-Za-z0-9]{1,8}$/)?.[0] ?? "").toLowerCase();
+  const path = `${project.id}/${makeToken(12)}${ext}`;
   const { error: uploadError } = await admin.storage
     .from("client-uploads")
     .upload(path, file, { contentType: file.type, upsert: false });
