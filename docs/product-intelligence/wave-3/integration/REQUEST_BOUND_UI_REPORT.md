@@ -27,7 +27,7 @@ Request-bound слой собран и security-reviewed, но статус ре
 PASS
 
 ./node_modules/.bin/vitest run tests/projectceo-integration
-5 files, 27 tests passed
+5 files, 28 tests passed
 
 ./node_modules/.bin/vitest run tests/projectceo-integration tests/projectceo-ui
 10 files, 54 tests passed

@@ -3,6 +3,7 @@
 Дата подготовки: 17 июля 2026 года
 Обновлено: 18 июля 2026 года
 Accepted source: `a8c86a81b7305210b71e1d790fcefa11e5920571`
+Accepted local pilot evidence: `487e9936c6c9b366bce1542ce9d8d2ccd64106b7`
 Final release candidate: не материализован
 
 ```text
@@ -30,9 +31,9 @@ REMOTE_WRITES_AUTHORIZED=false
    authenticated browser QA и production-clone rehearsal не завершены.
 
 M4 migrations `20260717102000` и `20260717103000` приняты в `e74f4b3`,
-request-bound application — в `a8c86a8`. Pilot evidence находится **за границей
-accepted source** до отдельного integrator commit/review. Ни один локальный PASS
-не разрешает production apply.
+request-bound application — в `a8c86a8`, local pilot evidence — в `487e993`.
+Этот evidence commit не является production release candidate. Ни один локальный
+PASS не разрешает production apply.
 
 ## 2. Источники истины
 

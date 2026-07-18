@@ -2,9 +2,10 @@
 
 Дата оценки: 18 июля 2026 года
 Accepted source commit: `a8c86a81b7305210b71e1d790fcefa11e5920571`
+Accepted local pilot evidence: `487e9936c6c9b366bce1542ce9d8d2ccd64106b7`
 Local integration state: thin M4 принят в `e74f4b3`; request-bound UI — в
-`a8c86a8`. Pilot evidence package staged отдельно и не является production
-release candidate.
+`a8c86a8`; local pilot evidence — в `487e993`. Он не является production release
+candidate.
 
 ```text
 PRODUCTION_READY=false
@@ -43,7 +44,7 @@ PRODUCTION_APPLIED=false
 | PA-B14 | Email delivery и Auth configuration не проверены | Invitation contract зависит от confirmed email/AMR; SMTP, redirects, templates и bounce path не имеют production-shaped evidence | SMTP/Auth test matrix и logs без token leakage | App / Operations / QA |
 | PA-B15 | Monitoring/alerting/kill switch не приняты | Нет подписанного production dashboard, thresholds и incident ownership | Alerts, owner, tested kill switch, rollback drill | Operations / Rollback |
 | PA-B16 | Release artifact security не доказана для финального RC | `.vercelignore` исключает Kora/demo paths локально, но финальный deployment artifact ещё не проверен | Artifact inventory подтверждает отсутствие Kora manifest, paths, fixtures, secrets | App / Security |
-| PA-B17 | Финальный production release candidate не материализован | Accepted source `a8c86a8` содержит exact 11-row ledger и request-bound layer; pilot evidence ещё не зафиксирован, а production blockers не закрыты | Один reviewed commit/tag после закрытия blockers, clean worktree, exact application/artifact hashes и подтверждённый ledger | Integrator / DB |
+| PA-B17 | Финальный production release candidate не материализован | Accepted source `a8c86a8` содержит exact 11-row ledger и request-bound layer; local pilot evidence зафиксирован в `487e993`, но production blockers не закрыты | Один reviewed commit/tag после закрытия blockers, clean worktree, exact application/artifact hashes и подтверждённый ledger | Integrator / DB |
 | PA-B18 | Custom API schema exposure не доказан | Request-bound adapters вызывают `.schema('projectceo_api'|'projectceo_product_api'|'projectceo_m4_api')`; production Data API settings/schema cache неизвестны | Expose только API schemas, private schemas не expose; exact USAGE/EXECUTE allowlist и positive/negative PostgREST tests | App / DB / Security |
 | PA-B19 | HTTP command surface не закрывает полный Kora vertical slice | Принятый request-bound слой поддерживает только часть human mutations; source review, Selection approval, baseline/release/distribution и worker handover остаются unavailable либо не имеют route | Зафиксировать минимальный supported surface, закрыть обязательные Kora команды или явно оставить application pilot NO-GO; positive/negative HTTP replay на request-bound JWT | Product / App / QA |
 | PA-B21 | Route handler execution покрыт не полностью | Security review не нашёл P0/P1. Commit `a8c86a8` добавил direct early-`POST` tests для cross-origin, content type, malformed JSON, fixture и redaction; P2 остаётся для unauthenticated/unexpected-backend paths и фактических `GET` handlers/status/cache serialization | Дополнить direct handler tests оставшимися paths и выполнить live request-bound integration | App / Security / QA |

@@ -5,6 +5,7 @@ Accepted baseline: `9874524c39199386d042a24c0d50908b966fec4d`.
 Thin M4 accepted: `e74f4b34e169a3397c0d2f4c3191576d131eb65d`.
 Public-manifest retirement: `1c803b0`.
 Request-bound layer accepted: `a8c86a81b7305210b71e1d790fcefa11e5920571`.
+Accepted local pilot evidence: `487e9936c6c9b366bce1542ce9d8d2ccd64106b7`.
 Область: локальный ProjectCEO RU P0; production не изменялся.
 
 ```text
@@ -14,6 +15,7 @@ DETERMINISTIC_PILOT_HARNESS=true
 M2_M3_ACCEPTED_LOCAL=true
 M4_ACCEPTED_LOCAL=true
 REQUEST_BOUND_LAYER_ACCEPTED_LOCAL=true
+LOCAL_PILOT_EVIDENCE_COMMIT=487e9936c6c9b366bce1542ce9d8d2ccd64106b7
 REQUEST_BOUND_BACKEND_E2E=pending
 SANITIZED_BROWSER_QA=pass
 AUTHENTICATED_BROWSER_QA=pending
@@ -259,8 +261,8 @@ evidence основан на ручной проверке DOM, tabs, viewport �
 
 ## 6. Remaining gates
 
-1. Зафиксировать этот pilot evidence package отдельным integrator commit и
-   повторить финальные gates на exact commit.
+1. Сохранять `487e993` immutable local evidence point; любое изменение package
+   требует нового integrator commit и повторения gates на exact commit.
 2. Закрыть additive read contracts для decisions/selections, package-scoped
    sources и recipient-bound distribution acknowledgement.
 3. Закрыть обязательный HTTP command surface: accepted v0.1 выполняет лишь
