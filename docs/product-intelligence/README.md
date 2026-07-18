@@ -1,64 +1,64 @@
-# Project Intelligence — Architecture v1
+# ArchiDom — Product Intelligence / RU delivery
 
-Статус: **Architecture v1 accepted для application-level L1**, 16 июля 2026 года. Этот
-каталог фиксирует целевую архитектуру и порядок перехода от текущего ArchiDom M1 к общему
-ядру ArchiDom Space / ProUp. Durable persistence, API/UI wiring и production остаются за
-отдельным database/baseline gate.
+Текущий продуктовый источник истины — утверждённый
+[Product Charter v0.4](./ArchiDom_Russia_Product_Charter_v0.4_2026-07-18.md).
 
-## Принятое решение
+ArchiDom — один публичный продукт и одна Память проекта с четырьмя ролевыми
+рабочими пространствами:
 
-- Одна кодовая база и одно доменное ядро.
-- Две продуктовые редакции: `studio` и `renovation`.
-- Два физически раздельных региональных контура: `us` и `ru`.
-- На первом этапе — модульный монолит, а не микросервисы.
-- Первый технический результат — сквозной путь `Source → Claim → Decision → Version → Change Impact → Export`.
-- Полный ArchiDom и полный ProUp одновременно не строятся. После общего вертикального среза выбирается один коммерческий build-track по платным пилотам.
+1. M1 · Заказчик;
+2. M2 · Дизайнер;
+3. M3 · Архитектор;
+4. M4 · ГлавПрораб.
 
-## Документы
+`ProjectCEO` сохраняется только как internal compatibility namespace существующих
+DB/API/code contracts. ProUp как отдельная редакция отменён. Текущий delivery и
+production-adoption scope — только RU.
 
-1. [architecture-v1.md](./architecture-v1.md) — принятая слоистая application-архитектура, security boundaries и gates.
-2. [vertical-slice-l1-spec.md](./vertical-slice-l1-spec.md) — исполняемое ТЗ первого application-level среза.
-3. [architecture-v0.1.md](./architecture-v0.1.md) — исторический baseline, сохранённый для traceability.
-4. [project-graph.md](./project-graph.md) — каноническая модель Project Graph, provenance, версии и change-impact.
-5. [vertical-slice-spec.md](./vertical-slice-spec.md) — product-level сквозной сценарий и критерии приёмки.
-6. [domain/contract-v0.1.md](./domain/contract-v0.1.md) — frozen pure-domain contract.
-7. [vertical-slice/](./vertical-slice/) — принятые use-case/API/events/UI contracts и fixtures mapping.
-8. [multi-agent/wave-2/](./multi-agent/wave-2/) — три непересекающихся ТЗ Wave 2 и Integrator protocol.
-9. [technical-audit-2026-07-16.md](./technical-audit-2026-07-16.md) — что уже существует, что переиспользовать и чего не хватает.
-10. [codex-execution-spec.md](./codex-execution-spec.md) — исходный execution backlog и зависимости.
-11. [backlog.md](./backlog.md) — последовательность работ и гейты.
-12. [verification-2026-07-16.md](./verification-2026-07-16.md) — воспроизводимые результаты тестов и ограничения проверки.
-13. [production-schema-observation-2026-07-16.md](./production-schema-observation-2026-07-16.md) — read-only снимок доступной production Data API schema.
-14. [pilot-pack.md](./pilot-pack.md) — готовый пакет для интервью и concierge pilots.
-15. [measurement-plan.md](./measurement-plan.md) — события, формулы метрик и decision gate.
-16. [adr/](./adr/) — принятые архитектурные решения.
-17. [agent-runs/INTEGRATION_REPORT.md](./agent-runs/INTEGRATION_REPORT.md) — принятые результаты Wave 1 и блокирующие database gates.
-18. [agent-runs/wave-2/INTEGRATION_REPORT.md](./agent-runs/wave-2/INTEGRATION_REPORT.md) — финальная приёмка Architecture v1 и application-level L1.
-19. [agent-runs/db-wave/README.md](./agent-runs/db-wave/README.md) — materialized Git/migration gate перед DB1/DB2.
+## Принятые документы
 
-## Порядок исполнения
+1. [Product Charter v0.4](./ArchiDom_Russia_Product_Charter_v0.4_2026-07-18.md) — продукт, модули, монетизация, гипотезы и открытые решения.
+2. [Architecture v1](./architecture-v1.md) — слоистая архитектура и технические инварианты с v0.4 compatibility notice.
+3. [ADR-0004](./adr/0004-one-archidom-four-workspaces.md) — публичный ArchiDom, четыре workspace и сохранение internal namespaces.
+4. [Master Execution Plan](./wave-3/MASTER_EXECUTION_PLAN.md) — текущий путь к authenticated RU pilot.
+5. [Project Graph](./project-graph.md) — каноническая provenance/version/change-impact модель.
+6. [Domain contract](./domain/contract-v0.1.md) — frozen pure-domain contract.
+7. [Kora pilot-ready report](./wave-3/pilot/PILOT_READY_REPORT.md) — accepted local evidence и его ограничения.
+8. [Request-bound UI report](./wave-3/integration/REQUEST_BOUND_UI_REPORT.md) — принятый application слой и remaining live gaps.
+9. [Production Adoption Plan](./wave-3/production-adoption/PRODUCTION_ADOPTION_PLAN.md) — отдельная production boundary.
+10. [Charter v0.4 adoption report](./wave-3/CHARTER_V0_4_ADOPTION_REPORT.md) — traceability принятия нового контракта.
+
+Исторические architecture/product документы сохраняются для traceability, но их
+противоречащие v0.4 product/edition/naming решения не являются действующим scope.
+
+## Текущий статус
 
 ```text
-Architecture baseline
-  → доменные контракты и инварианты
-  → L1 application orchestration
-  → root end-to-end contract test
-  → Git/migration integrity gate
-  → database design review
-  → additive migrations
-  → ingestion + provenance
-  → versioned Project Graph
-  → deterministic change-impact
-  → handoff export
-  → первый коммерческий build-track
+LOCAL_PROJECT_BRAIN_CORE=accepted
+KORA_DETERMINISTIC_E2E=pass
+SANITIZED_BROWSER_QA=pass
+AUTHENTICATED_BROWSER_QA=pending
+EXTERNAL_PACKAGE_GATE=pending
+PRODUCTION_READY=false
 ```
 
-## Что сознательно не выполняется автоматически
+Следующий исполнимый gate — disposable Supabase с настоящими request-bound sessions,
+полным обязательным command/read surface и authenticated Kora browser matrix. Затем
+тот же data model проходит внешний реальный пакет.
 
-- платные пилоты и интервью;
-- выбор первого коммерческого трека без рыночных данных;
-- применение миграций к production Supabase;
-- перенос production-данных между регионами;
-- изменение текущего публичного workflow до появления совместимой миграции и regression suite.
+## Порядок
 
-Все остальные подготовительные результаты должны быть воспроизводимы из этого пакета без устных пояснений.
+```text
+Charter v0.4 adoption
+  → AP1 disposable Auth/PostgREST/Storage environment
+  → AP2 additive read contracts
+  → AP3 request-bound command surface
+  → AP4 direct route/security tests
+  → AP5 authenticated Kora E2E
+  → AP6 external package
+  → paid wedge validation
+  → separate production-adoption decision
+```
+
+Никакой локальный PASS не разрешает production writes, deploy или изменение migration
+history без заполненного adoption checklist и отдельного GO.

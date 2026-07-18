@@ -1,429 +1,322 @@
-# ProjectCEO RU — Master Execution Plan, Wave 3
+# ArchiDom RU — Master Execution Plan после Charter v0.4
 
-Дата: 17 июля 2026 года.
-Статус: план подготовки pilot-ready P0.
-Источник продуктовой истины:
-`ProjectCEO_Russia_Product_Charter_v0.3_2026-07-17.docx`.
-
-Gate 0 завершён 17 июля 2026 года: release gate, DB2 PostgreSQL 16/17 и Git
-materialization прошли. Зафиксированный результат:
-`docs/product-intelligence/wave-3/GATE_0_REPORT.md`.
-
-## 1. Цель
-
-Собрать один DB-backed сквозной ProjectCEO workflow для российского продукта:
+Дата первоначального плана: 17 июля 2026 года.
+Обновлено и принято: 18 июля 2026 года.
+Статус: активный delivery-план до authenticated pilot.
+Продуктовый источник истины:
+[`ArchiDom_Russia_Product_Charter_v0.4_2026-07-18.md`](../ArchiDom_Russia_Product_Charter_v0.4_2026-07-18.md).
 
 ```text
-M1 Project Passport
-→ M2 Decisions & Selections
-→ M3 Production Package & Release
-→ M4 Distribution, Change & Acceptance
+PUBLIC_PRODUCT=ArchiDom
+DELIVERY_REGION=RU_ONLY
+PROJECTCEO_INTERNAL_NAMESPACE=compatibility_only
+LOCAL_PILOT_EVIDENCE=487e993
+SANITIZED_BROWSER_QA=pass
+AUTHENTICATED_BROWSER_QA=pending
+PRODUCTION_READY=false
+PRODUCTION_APPLIED=false
 ```
 
-Kora Food Hall используется как эталонный полноразмерный проект около 1 800 м².
-Помещение, этаж, дисциплина или package являются представлениями полного Project
-Graph, а не отдельными уменьшенными проектами.
+## 1. Решение и текущая цель
 
-P0 считается завершённым не по количеству экранов, а когда на одном живом проекте:
+ArchiDom — один продукт, один аккаунт, одна Organization, один Project и одна
+Память проекта. Четыре публичных модуля являются ролевыми рабочими пространствами:
 
-1. владелец создаёт организацию и проект;
-2. приглашает архитектора и исполнителя;
-3. загружает или регистрирует источники;
-4. человек подтверждает baseline и решения;
-5. система выпускает immutable production package;
-6. участник получает только разрешённый package и подтверждает получение;
-7. одно реальное изменение создаёт новую revision, ChangeRequest, impact review и
-   новую baseline/package version;
-8. audit позволяет восстановить кто, что, когда и на основании какого источника
-   изменил;
-9. тот же workflow повторяется на втором проекте одной организации.
+```text
+M1 · Заказчик
+  → Contracted Project Passport
+M2 · Дизайнер
+  → Approved Design Intent + Approved Selections
+M3 · Архитектор
+  → Released Production Package
+M4 · ГлавПрораб
+  → As-built & Warranty Archive
+```
 
-## 2. Фактическая исходная точка
+Текущая инженерная цель — не строить все целевые функции Charter одновременно, а
+довести уже принятый Project Intelligence Core до настоящего authenticated RU pilot
+на disposable Supabase. После него та же модель должна принять минимум один внешний
+пакет реального покупателя. Production остаётся отдельным решением.
 
-### Уже существует
+## 2. Что уже принято
 
-- Architecture v1 и Project Intelligence domain/application contracts.
-- Локальный DB2-контур из 31 private relation и шести mutation RPC.
-- Локальный DB2 harness, прошедший PostgreSQL 16 и 17, RLS, concurrency,
-  idempotency, immutability, rollback и restart replay.
-- Pure-domain путь review → V1 → change → V2 → impact → logical handoff.
-- RU domain seams для import, WBS, estimate, procurement state, change order,
-  photo report и handover.
-- Kora manifest: 209 источников, 81 materialized/hashed, 128 placeholders,
-  28 unique blobs, 18 duplicate groups, 8 semantic-conflict groups.
-- Read-only Kora demo с поиском, provenance, quarantine и review queue.
-- Legacy M1: brief, Project Passport, risks, proposal и базовая team/project-room
-  функциональность.
+### 2.1 Архитектура и persistence
 
-### Не завершено
+- модульный монолит и слои domain/application/ports/adapters/delivery;
+- Organization/Project enrollment, membership и package scope;
+- Invitation/AccessGrant contracts;
+- source registry, provenance, exact revisions и human review;
+- Decisions, Selections, ApprovalPackages и price observations;
+- immutable ProjectBaseline и ProductionPackageVersion;
+- distribution, acknowledgement, ChangeRequest и bounded impact;
+- photo evidence, milestone acceptance и immutable handover archive;
+- append-only audit и human/worker executor separation.
 
-- Gate 0 закрыт: `lint`, `typecheck`, 223/223 tests, build и DB2 PG16/PG17
-  проходят; materialized baseline зафиксирован.
-- Нет application enrollment для Organization/Project.
-- Нет безопасных Invitation/AccessGrant контрактов ProjectCEO.
-- Нет initial ingestion RPC и DB-backed Kora import.
-- Нет RLS-scoped read model.
-- Нет Storage authorization probe и source registration workflow.
-- Нет application/API adapters для шести DB2 RPC.
-- Нет DB-backed экранов ProjectCEO.
-- Нет persisted selections, procurement transition, photo acceptance и
-  construction handover.
-- Legacy `studio_members` и token-based `project_rooms` не являются целевой
-  ProjectCEO access model.
+### 2.2 Request-bound application
 
-### Текущая готовность модулей
+- cookie-bound human JWT через request-scoped Supabase client;
+- server-derived actor/organization/project/package/role;
+- strict command schemas, same-origin/JSON gate и stable idempotency;
+- controlled portfolio/project reads и DTO sanitization;
+- fail-closed multi-org, sibling-package и downstream error handling;
+- отсутствие service-role/private-table path для human operations;
+- локальный read-only Kora route для пяти sanitised role projections.
 
-| Модуль | Статус | Краткий вывод |
+### 2.3 Accepted evidence
+
+| Слой | Commit | Статус |
 |---|---|---|
-| M1 Presale | PARTIAL / legacy exists | Workflow существует, но baseline сломан, бренд и ownership не соответствуют ProjectCEO v0.3 |
-| M2 Decisions & Selections | PARTIAL | Revision/review/change primitives есть, но selection/approval product flow и DB projection отсутствуют |
-| M3 Production Package | PARTIAL | Kora inventory/demo и immutable version core есть, но ingestion, hierarchy, baseline UI и release отсутствуют |
-| M4 Execution & Change | EARLY / MISSING | Impact/logical handoff есть; distribution, acknowledgement, photo acceptance и construction handover отсутствуют |
+| Persisted M2/M3 | `9874524` | PG16/PG17, RLS, concurrency, rollback/replay PASS |
+| Thin M4 | `e74f4b3` | release/impact/closure DB5 PASS |
+| Public manifest retirement | `1c803b0` | real filenames/paths удалены из public assets |
+| Request-bound UI | `a8c86a8` | local integration/security review accepted |
+| Kora pilot evidence | `487e993` | deterministic full-project E2E + sanitized browser PASS |
+| Readiness verdict | `88b1442` | local ready / authenticated and production pending |
 
-### Критические риски, которые нельзя переносить в ProjectCEO
+Последний release gate на принятом дереве: lint без ошибок, typecheck PASS,
+56 test files / 328 tests PASS, Next build PASS, dependency audit 0 vulnerabilities.
+DB5 прошёл PostgreSQL 16/17, RLS/ACL, concurrency, idempotency, rollback и restart
+replay. Эти результаты являются локальным evidence, а не production approval.
 
-- Legacy invitation активируется по совпадению email и даёт равный доступ ко всей
-  студии.
-- Текущая password registration может подтвердить email без доказанного владения
-  почтовым ящиком.
-- Legacy participant tokens хранятся plaintext, не имеют полного expiry/revoke
-  lifecycle и обслуживаются через admin client.
-- Organization membership DB2 пока не ограничен project/package scope.
-- Один legacy project технически может быть enrolled в несколько organizations.
-- Storage keys legacy flow могут содержать original filename.
-- Некоторые signed URLs живут дольше целевых 15 минут.
-- Static Kora manifest нельзя публиковать в production: он раскрывает реальные
-  имена и структуру файлов.
+## 3. Compatibility mapping v0.4
 
-## 3. Четыре продуктовых модуля
+Существующий код не выбрасывается и не переименовывается механически.
 
-### M1 — Presale / Project Passport
+| Charter v0.4 | Существующий контур | Решение |
+|---|---|---|
+| ArchiDom | ProjectCEO UI/copy | Новый публичный copy; internal namespaces временно сохраняются |
+| M1 · Заказчик | legacy brief/passport/proposal | Стабилизировать и передавать immutable Contracted Project Passport |
+| M2 · Дизайнер | Decisions/Selections/Approvals | Это принятый Project Brain foundation; Design Workspace наращивается отдельными gates |
+| M3 · Архитектор | sources/baseline/package/release | Продолжить через exact revisions и immutable release |
+| M4 · ГлавПрораб | distribution/change/photo/handover | Тонкий контур принят; WBS/estimate/procurement расширять после wedge validation |
+| Память проекта | Project Intelligence Core | Каноническое ядро без fork |
 
-Текущий статус: функционально существует, но требует стабилизации и моста в новое
-ядро.
+`projectceo_*` database schemas/RPC и внутренние TypeScript paths являются
+compatibility contracts. Их rename не создаёт пользовательской ценности и может
+сломать migration ledger, поэтому требует отдельного ADR, additive bridge и rollback.
 
-P0 output:
+## 4. Текущие незакрытые ворота
 
-- immutable `ProjectPassportSnapshot`;
-- Organization и Project identity;
-- source-linked scope/requirements/assumptions;
-- передача подтверждённого результата в M2/M3 без копирования вручную.
+### AP1 — Disposable authenticated environment
 
-Осталось:
+- отдельный Supabase project/environment, не production;
+- exact additive migration ledger;
+- custom API schemas exposed, private schemas не exposed;
+- request-bound Auth/PostgREST, Storage и schema cache;
+- безопасные env secrets, redirect allowlist и test-only mail delivery;
+- пять отдельных пользователей: owner, designer/architect, builder, client, guest.
 
-- восстановить зелёный baseline legacy приложения;
-- заменить пользовательский бренд на ProjectCEO в RU product flow;
-- создать explicit `promote passport to Project Brain` command;
-- обеспечить version/source identity при передаче;
-- не смешивать legacy studio ownership и ProjectCEO membership.
+### AP2 — Read contracts
 
-### M2 — Decisions & Selections
+Закрыть additive projections/RPC для:
 
-Текущий статус: graph/revision/review/change primitives существуют; product workflow
-и persistence projection не завершены.
+- decisions и selections;
+- package-scoped sources и review state;
+- approval/baseline/release status;
+- recipient-bound distribution и acknowledgement;
+- impact/photo/milestone/handover state;
+- organization selector либо явный one-pilot-organization limit.
 
-P0 output:
+Read DTO не раскрывает private relation names, original filenames, absolute paths,
+signed URLs, sibling packages или другую Organization.
 
-- Requirement/Assumption/Decision/Selection с immutable revisions;
-- источник и evidence для каждого извлечённого или интерпретированного факта;
-- human review exact revision;
-- approval package;
-- price observation с валютой RUB и датой проверки;
-- change reason и связь с baseline/version.
+### AP3 — Command surface
 
-Не P0:
+Довести request-bound HTTP/application contract до обязательного Kora flow:
 
-- marketplace;
-- автоматический заказ;
-- бухгалтерия;
-- supplier master-data platform;
-- AI, который самостоятельно утверждает selection.
+1. create/accept/revoke invitation и grant lifecycle;
+2. register/review source;
+3. create/review Decision и Selection exact revision;
+4. publish ProjectBaseline;
+5. publish/distribute ProductionPackageVersion;
+6. acknowledge exact release;
+7. create ChangeRequest и review calculated impacts;
+8. submit/review photo evidence;
+9. accept milestone;
+10. build/close handover через отдельный worker allowlist там, где это требуется.
 
-### M3 — Source Registry, Baseline & Production Release
+Каждая команда получает identity/scope server-side, использует stable idempotency и
+возвращает controlled error. UI не показывает synthetic success.
 
-Текущий статус: Kora manifest и static demo существуют; DB-backed workflow отсутствует.
+### AP4 — Direct route and security evidence
 
-P0 output:
+- direct `GET`/`POST` handler tests для auth success/failure, CSRF, content type,
+  malformed JSON, downstream errors, status/cache/error redaction;
+- cross-organization, cross-project и sibling-package negative tests;
+- revoke/expire/replay/concurrency tests;
+- service-role отсутствует в browser bundle и human route;
+- worker RPC имеет отдельный client и fixed allowlist;
+- Storage upload/download использует opaque keys и URL TTL не более 15 минут.
 
-- `Project → Package → Zone/Room → Discipline → Source/Artifact`;
-- checksum/provenance и immutable source revisions;
-- current/previous/reference/unknown;
-- exact-hash dedupe;
-- semantic-name conflict quarantine;
-- completeness/conflict review;
-- approved ProjectBaseline;
-- immutable ProductionPackageVersion;
-- logical export с semantic hash.
+### AP5 — Authenticated Kora browser E2E
 
-Не P0:
+Одна Organization без ручной записи в private tables проходит:
 
-- native DWG authoring;
-- CAD/BIM plugin;
-- автоматическое утверждение листов;
-- удаление старых revisions.
+```text
+owner enrollment
+→ invitation and role acceptance
+→ sanitized Kora source registration
+→ exact source review
+→ Decision/Selection approval
+→ ProjectBaseline V1
+→ ProductionPackageVersion V1
+→ scoped distribution and acknowledgement
+→ one real change with RUB/day delta
+→ bounded impact and human dispositions
+→ ProjectBaseline/Package V2
+→ photo evidence and milestone acceptance
+→ handover closure
+```
 
-### M4 — Distribution, Change & Acceptance
+Browser matrix выполняется отдельной authenticated session для каждой роли. Переключение
+role через query, fixture или client state не считается evidence.
 
-Текущий статус: impact/handoff primitives существуют; field workflow не завершён.
+### AP6 — External package gate
 
-P0 output:
+До заморозки широкого M2–M4 необходимо провести через те же contracts минимум один
+внешний пакет реального покупателя:
 
-- role-scoped distribution;
-- expiring/revocable guest access;
-- acknowledgement exact package hash/version;
-- ChangeRequest с причиной, инициатором, delta RUB/days;
-- deterministic impact + human disposition;
-- новая baseline/package version;
-- photo evidence, milestone acceptance и handover archive в узком P0-контракте.
+- package не подгоняется под Kora fixture;
+- фиксируются import gaps и неизвестные типы источников;
+- подтверждается package/room/discipline mapping;
+- измеряется время до baseline, число конфликтов и downstream use;
+- Kora counts не используются как универсальная форма всех проектов.
 
-Не P0:
+### AP7 — Commercial validation
 
-- полный ERP;
-- складской учёт;
-- бухгалтерия;
-- универсальный task manager;
-- тяжёлый стройконтроль;
-- полноценная WhatsApp-auth интеграция.
+Charter v0.4 требует сравнить три wedge:
 
-## 4. Обязательный Gate 0 — Restore Trustworthy Baseline
+1. платный аудит дизайн-пакета на комплектность/конфликты;
+2. платный M1→M2 цикл для дизайнера;
+3. платное управление одним объектом в M4.
 
-До новых функциональных веток выполняется последовательно.
+Широкий build получает сценарий с наиболее быстрым подтверждённым платежом и повторным
+использованием. Минимальный gate: два оплаченных concierge/pilot-сценария, один второй
+проект той же компании и измеримый downstream result. Уже заявленные предоплаты должны
+получить письменные scope/success criteria, но не подменяют техническую приёмку.
 
-### G0.1 Snapshot
+## 5. Параллельные workstreams после AP1 freeze
 
-- Зафиксировать список tracked/untracked/deleted файлов.
-- Не удалять и не восстанавливать пользовательские изменения без provenance.
-- Определить intended state для:
-  - `lib/i18n/ru.ts`;
-  - `app/legal/privacy/page.tsx`;
-  - legacy migrations `0001–0008`;
-  - файлов `* 2.ts`;
-  - Architecture frozen manifest;
-  - domain contract runtime exports.
+### Stream A — Data/Auth/API
 
-### G0.2 Repository contract
+Владеет additive migrations, custom API exposure, read RPC, command persistence,
+invitation/grant lifecycle, Storage authorization, executor separation и PG harness.
 
-- Согласовать `AGENTS.md` с Product Charter v0.3 либо создать отдельный
-  ProjectCEO implementation root с собственным contract.
-- Пока старый guardrail действует, specifications/procurement/construction workflow
-  можно проектировать и тестировать, но нельзя выдавать за разрешённый production
-  scope.
+Не меняет product copy или browser role semantics самостоятельно.
 
-### G0.3 Green baseline
+### Stream B — ArchiDom workspaces/UI
 
-Обязательный результат:
+Владеет публичным ArchiDom naming, role navigation, M1–M4 handoff surfaces, loading/
+empty/error/stale states и mobile/accessibility.
+
+Не реконструирует authorization в TypeScript, не передаёт caller-supplied scope и не
+использует admin/service client.
+
+### Stream C — QA/Security/Pilot evidence
+
+Владеет authenticated role matrix, direct handler tests, negative tenancy/package
+tests, Kora/external runbooks, metrics и immutable evidence ledger.
+
+Не меняет contracts для удобства теста; gaps возвращает владельцу соответствующего слоя.
+
+### Интегратор
+
+Владеет frozen interfaces, sequencing, shared-file ownership, cross-module acceptance,
+security review, release checks и финальным GO/NO-GO. At most one stream меняет shared
+contract; существующие timestamped migrations никто не переписывает.
+
+## 6. M1–M4 scope после authenticated pilot
+
+### M1 · Заказчик
+
+Ближайший P0: защищённый brief, итоговая версия, комментарий, принятие КП, upload/status
+внешнего договора и immutable Contracted Project Passport. Собственная юридически
+значимая ЭП не строится без provider/legal gate.
+
+### M2 · Дизайнер
+
+Принятый foundation: decisions, selections, approvals, price observations и provenance.
+Следующий продуктовый P0 после выбора wedge: одна комната, три управляемых варианта,
+Approved Design Intent/Selections и budget frame.
+
+AI-actions, два provider adapters, credits и cost ledger требуют отдельного benchmark,
+privacy/legal review и unit-economics spec. До него допустим concierge fallback; нельзя
+обещать unlimited AI или автоматическое утверждение.
+
+### M3 · Архитектор
+
+Ближайший P0: PDF/JPG/PNG/CSV/XLSX intake, room/sheet/specification links, revision,
+completeness/conflict review, baseline и immutable Released Production Package. Native
+CAD/BIM authoring не строится.
+
+### M4 · ГлавПрораб
+
+Принятый тонкий P0: distribution/acknowledgement, ChangeRequest, impact review, photo,
+milestone и handover. WBS, schedule, split estimate, procurement и Change Order являются
+следующим платным расширением только после M4 wedge validation. ERP/warehouse/accounting
+не входят.
+
+## 7. Definition of Done для authenticated pilot
+
+### Product
+
+- пользователь проходит обязательный flow без ручной записи в Supabase;
+- публичный UI использует ArchiDom и четыре понятных workspace names;
+- Kora остаётся одним Project около 1 800 м²;
+- внешний пакет проходит через ту же модель;
+- каждое изменение связано с причиной, exact revisions, impact и новой выдачей.
+
+### Data and security
+
+- actor/organization/project/package/role выводятся server-side;
+- RLS/ACL deny-by-default и negative tenancy зелёные;
+- guest grants hashed/expiring/scoped/revocable;
+- source/evidence/version/handoff lineage воспроизводима;
+- published artifacts immutable, audit append-only;
+- logs/artifacts не содержат PII, original filenames, raw tokens или signed URLs;
+- human JWT и worker executor разделены.
+
+### Engineering
 
 ```text
 npm run lint       PASS
 npm run typecheck  PASS
 npm run test       PASS
 npm run build      PASS
-git snapshot       MATERIALIZED
+PG16/PG17          PASS
+RLS/concurrency/idempotency/rollback/restart replay PASS
+authenticated browser matrix PASS
 ```
-
-### G0.4 Freeze
-
-- Обновить frozen-input manifests только после review фактических изменений.
-- Зафиксировать один baseline commit/hash для Wave 3.
-- Все агенты начинают работу от одного snapshot.
-
-## 5. Последовательность исполнения
-
-### Wave A — Foundation contracts
-
-Выполняется после Gate 0.
-
-Результат:
-
-- Organization/Project enrollment;
-- ProjectMembership;
-- Invitation/AccessGrant;
-- project-scoped read model;
-- Storage authorization;
-- initial source/graph ingestion;
-- stable API error envelope;
-- DB-ready Kora golden fixture.
-
-До DB design отдельно замораживаются:
-
-- стабильная Package identity;
-- invariant «один Project enrolled ровно в одну Organization»;
-- role/capability matrix;
-- verified recipient binding для приглашений.
-
-Это общий блокирующий слой. UI и product modules не должны создавать прямые записи
-в private tables или реконструировать authorization в TypeScript.
-
-### Wave B — Параллельные product streams
-
-После принятия Foundation:
-
-- Stream B1: M2 Decisions & Selections.
-- Stream B2: M3 Kora Registry, Baseline & Release.
-- Stream B3: role-scoped ProjectCEO UI и thin M4 Distribution/Change.
-
-Каждый stream работает через принятые ports/RPC/read DTO и не меняет чужие
-контракты самостоятельно.
-
-### Wave C — Cross-module vertical slice
-
-Сценарий:
-
-```text
-Organization
-→ Invitation
-→ Kora ingestion
-→ human source review
-→ ProjectBaseline V1
-→ approved Decision/Selection
-→ ProductionPackageVersion 1
-→ distribution + acknowledgement
-→ decision change
-→ ChangeRequest
-→ impact review
-→ ProjectBaseline V2
-→ ProductionPackageVersion 2
-→ acknowledgement
-```
-
-### Wave D — Hardening
-
-- PG16/PG17 disposable runs.
-- RLS and negative tenancy.
-- same-key replay and different-digest conflict.
-- multi-session races.
-- object-storage retry and orphan cleanup.
-- immutable snapshots and append-only audit.
-- signed URL expiry/revocation.
-- MIME/size limits.
-- mobile/keyboard/accessibility.
-- failure, empty, loading and stale-state UX.
-
-### Wave E — Paid pilot gate
-
-- Kora работает как full-project proof.
-- Три оплаченных клиента имеют договорённый scope и success criteria.
-- Минимум два handoff/package реально использованы downstream.
-- Минимум одна организация запускает второй проект.
-- Измеряются time-to-baseline, package review time, change cycle и avoided rework.
-
-Production adoption оформляется отдельным решением после green gate.
-
-## 6. Распределение между тремя агентами и интегратором
-
-### Агент 1 — Core, DB, Access
-
-Владеет:
-
-- additive migrations;
-- Organization/Project enrollment;
-- membership/capabilities;
-- Invitation/AccessGrant;
-- RLS read model;
-- Storage authorization;
-- initial ingestion transaction;
-- DB/API adapter acceptance;
-- PG16/PG17 harness.
-
-Не владеет UI, product copy и Kora presentation.
-
-### Агент 2 — Project Brain и Kora workflow
-
-Владеет:
-
-- DB-ready Kora fixture/import mapping;
-- source register, dedupe, quarantine;
-- package hierarchy;
-- M2 Decision/Selection application rules;
-- baseline/release application orchestration;
-- change/impact/handoff integration;
-- golden fixtures and contract tests.
-
-Не меняет migrations напрямую. Новые persistence needs передаёт Агенту 1 через
-interface request.
-
-### Агент 3 — Product UI, Roles и Pilot Readiness
-
-Владеет:
-
-- ProjectCEO navigation and naming;
-- onboarding;
-- invitation UX;
-- owner/architect/builder/client views;
-- sources/review/baseline/release/change screens;
-- distribution/acknowledgement UI;
-- mobile/WhatsApp-friendly share links;
-- analytics events;
-- browser and accessibility QA.
-
-Не использует admin client для human operations и не пишет напрямую в private
-tables.
-
-### Главный интегратор
-
-Владеет:
-
-- Gate 0;
-- frozen contracts;
-- shared DTO approval;
-- task sequencing;
-- merge/integration;
-- cross-module tests;
-- security review;
-- product acceptance;
-- reports and final production-adoption proposal.
-
-## 7. Merge policy
-
-1. Один владелец на изменяемый shared file.
-2. Existing migration files immutable; только additive migrations.
-3. Domain/application/adapters/delivery не смешиваются.
-4. UI получает server-derived actor/scope.
-5. Ни один agent не использует direct private-table runtime access.
-6. Каждый merge сопровождается:
-   - scope report;
-   - changed files;
-   - commands/tests;
-   - known gaps;
-   - rollback note.
-7. Интегратор принимает stream только после его локального Definition of Done.
-
-## 8. Общий Definition of Done
-
-### Product
-
-- Пользователь проходит полный P0 flow без ручной записи в Supabase.
-- Kora остаётся единым проектом около 1 800 м².
-- Room/package filters не разрывают Project Graph.
-- Изменение всегда связано с причиной, revision, impact и новой выдачей.
-
-### Data and security
-
-- Actor/organization/project/role выводятся server-side.
-- RLS/ACL deny-by-default.
-- Guest grants hashed, expiring, scoped and revocable.
-- Snapshots, evidence and handoffs immutable.
-- Audit append-only.
-- PII/source text/original filenames/signed URLs отсутствуют в structured logs.
-
-### Engineering
-
-- lint/typecheck/test/build green.
-- PG16 and PG17 green.
-- concurrency, idempotency, rollback and restart replay green.
-- golden Kora scenario green.
-- no direct private-table application access.
 
 ### Commercial
 
-- три paid pilot scopes зафиксированы;
+- минимум два paid pilot scope с критериями успеха;
+- минимум один внешний пакет;
 - минимум два downstream package uses;
 - минимум один second-project start;
-- production adoption decision оформлен отдельно.
+- измеряются time-to-passport, time-to-baseline, conflict yield, change cycle,
+  avoided rework и AI cost per approved result там, где AI реально используется.
 
-## 9. Что делаем первым
+## 8. Production boundary
 
-Первое исполнимое действие — Gate 0. После зелёного baseline Агент 1 начинает
-Foundation, а Агенты 2 и 3 готовят fixtures/UI against frozen interfaces. Полная
-feature-разработка M2–M4 начинается только после принятия enrollment, ingestion и
-read model.
+Authenticated disposable pilot не разрешает production adoption. До production нужны:
+
+- свежий read-only schema/grants/policies/ledger snapshot;
+- database и Storage backup/restore rehearsal;
+- production-equivalent clone и exact migration/history repair review;
+- Russian data-plane/152-ФЗ legal and technical decision;
+- Auth/SMTP/redirect/rate-limit configuration;
+- monitoring, alerts, incident owner, kill switch и rollback commander;
+- deployment artifact scan;
+- заполненный adoption checklist и отдельный человеческий GO.
+
+Baseline SQL нельзя выполнять на существующей production. US/multi-region runtime,
+data movement и production deploy не входят в этот план.
+
+## 9. Следующее исполнимое действие
+
+Собрать AP1 specification по фактическому Supabase test environment, затем параллельно
+закрыть AP2 read contracts, AP3 command surface и AP4 direct route/security tests.
+После их интеграции пройти AP5 Kora с пятью настоящими sessions и только затем AP6
+внешний пакет. Ребрендинг публичного copy выполняется внутри Stream B, не через rename
+database schemas или migration history.

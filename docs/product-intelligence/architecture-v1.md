@@ -1,23 +1,32 @@
 # Project Intelligence Architecture v1
 
+> **Compatibility notice, 18 июля 2026 года.** Product/edition naming в разделах
+> 1 и 9 superseded утверждённым
+> `ArchiDom_Russia_Product_Charter_v0.4_2026-07-18.md` и ADR-0004. Публичный
+> продукт теперь один — ArchiDom с четырьмя ролевыми рабочими пространствами;
+> текущий delivery остаётся RU-only. `ProjectCEO` сохраняется только как internal
+> compatibility namespace, ProUp как отдельная редакция отменён. Layered modular
+> monolith, provenance, exact revisions, immutable versions, deterministic impact,
+> server-derived scope и остальные технические инварианты Architecture v1 остаются
+> принятыми.
+
 Дата фиксации: 16 июля 2026 года.
 Статус: **accepted для application-level vertical slice**.
 Основание: принятые `Project Intelligence Domain v0.1`, vertical-slice contract/fixtures и
 Wave 1 integration report.
 
 Текущий delivery scope: **только RU**. RU deployment cell — единственная цель
-разработки, пилота и production-adoption на этой фазе. US/Studio Edition остаются
-архитектурным заделом и backlog; параллельная реализация и production-валидация US
-до принятия RU не выполняются.
+разработки, пилота и production-adoption на этой фазе. Северная Америка остаётся
+будущей региональной упаковкой того же ArchiDom и не получает runtime, отдельную
+кодовую базу или production-валидацию до принятия RU.
 
 ## 1. Решение
 
-Компания строит **одно Project Intelligence Core**, две коммерческие редакции и два
-региональных deployment-контура:
-
-- `studio` — ArchiDom Space, сначала США;
-- `renovation` — ProUp Renovation, сначала Россия;
-- `us` и `ru` — независимые data cells без общей транзакционной базы проектов.
+Компания строит **одно Project Intelligence Core** внутри одного публичного ArchiDom.
+Четыре ролевых рабочих пространства M1–M4 композируют capabilities поверх общей
+Organization/Project модели. Текущий физический deployment-контур один — `ru`.
+Будущая североамериканская упаковка обязана использовать то же ядро, но её data-plane
+и operational boundary принимаются отдельным ADR до реализации.
 
 Архитектурная форма P0 — **слоистый модульный монолит**. Разделяются доменные границы,
 application services, ports и adapters, но не создаются преждевременные микросервисы.
@@ -33,9 +42,8 @@ flowchart TB
   Application --> Domain["Domain v0.1: graph, review, diff, impact"]
   Application --> Ports["Ports: atomic state, idempotency, audit, clock, IDs"]
   Ports --> Adapters["Adapters: PostgreSQL, storage, queue, AI, export"]
-  Studio["Studio composition"] --> Application
-  Renovation["Renovation composition"] --> Application
-  US["US deployment cell"] --> Adapters
+  M1M4["ArchiDom M1–M4 capability composition"] --> Application
+  FutureRegion["Future regional packaging"] -. separate ADR .-> Adapters
   RU["RU deployment cell"] --> Adapters
 ```
 
@@ -56,7 +64,7 @@ flowchart TB
 | Ports | atomic commit boundary и контракты внешних зависимостей | vendor-specific implementation |
 | Adapters | PostgreSQL/RLS, object storage, durable jobs, providers, renderers | изменение domain semantics |
 | Delivery | authenticated request mapping, controlled errors, response DTO | доверие к client-supplied actor/region/role |
-| Edition composition | journeys, templates, pricing-facing capabilities | дублирование graph/version/provenance core |
+| Workspace composition | M1–M4 journeys, templates, role/capability surfaces | дублирование graph/version/provenance core |
 
 ## 4. Канонический application aggregate
 
@@ -183,10 +191,10 @@ content и volatile artifact metadata.
 
 Wave 2 строит `logical_json`; PDF/DOCX/XLSX/CSV renderers относятся к adapters/L2.
 
-## 9. Регион и редакция
+## 9. Регион и рабочие пространства
 
-Domain и application types не содержат ветвлений `if US` / `if RU`. Внешняя композиция
-передаёт policy:
+Domain и application types не содержат ветвлений по публичному модулю или будущему
+региону. Внешняя композиция передаёт policy:
 
 - capability set;
 - locale/display units;
@@ -194,8 +202,10 @@ Domain и application types не содержат ветвлений `if US` / `
 - document templates;
 - provider adapters и retention policy.
 
-Project content, storage, logs и backups не пересекают deployment cells. Общими могут
-быть код, миграции после их одобрения, обезличенные templates и schema versions.
+На текущем этапе существует только RU cell. Если появится второй регион, project
+content, storage, logs и backups не пересекают cells; общими могут быть код,
+одобренные миграции, обезличенные templates и schema versions. До отдельного ADR это
+архитектурный инвариант, а не разрешение строить multi-region runtime.
 
 ## 10. Security invariants
 

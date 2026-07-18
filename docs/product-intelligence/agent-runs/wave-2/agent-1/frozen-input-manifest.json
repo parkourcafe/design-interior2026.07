@@ -3,11 +3,11 @@
   "hashAlgorithm": "sha256",
   "canonicalEntryFormat": "<sha256>  <relative-path>\\n",
   "fileCount": 51,
-  "aggregateSha256": "c74d5a3f9204b10c458c7699d272d17b2332ec53c6dd14d4bcee78ef776ea545",
+  "aggregateSha256": "c09a4d58120865927dc03b981e0de24345bd43306ff6d5e6858658e57ee87350",
   "files": [
     {
       "path": "docs/product-intelligence/architecture-v1.md",
-      "sha256": "6967f68b4854c7b6a256555359c8bc74d90e34bcab233a1d32f8c424861c4484"
+      "sha256": "aac7a5f284480bba515030fff4aed90057def604803ffe7daac9da94661a8482"
     },
     {
       "path": "docs/product-intelligence/domain/contract-v0.1.json",
