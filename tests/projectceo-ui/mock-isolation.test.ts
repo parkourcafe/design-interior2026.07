@@ -6,13 +6,10 @@ import {
 } from "../../components/projectceo/mock";
 
 describe("ProjectCEO deterministic pilot read port", () => {
-  const port = createProjectCeoMockPort();
-
   it("represents Kora as one full 1,800 m² project with the frozen source counts", async () => {
+    const port = createProjectCeoMockPort("owner");
     const result = await port.getProjectWorkspace({
       projectId: KORA_PROJECT_ID,
-      role: "owner",
-      packageId: null,
       requestId: "owner-kora",
     });
 
@@ -37,10 +34,9 @@ describe("ProjectCEO deterministic pilot read port", () => {
   });
 
   it("does not expose original filenames, local paths or private relation details", async () => {
+    const port = createProjectCeoMockPort("owner");
     const result = await port.getProjectWorkspace({
       projectId: KORA_PROJECT_ID,
-      role: "owner",
-      packageId: null,
       requestId: "safe-projection",
     });
     const serialized = JSON.stringify(result);
@@ -54,10 +50,9 @@ describe("ProjectCEO deterministic pilot read port", () => {
   });
 
   it("limits a guest to one exact current published package", async () => {
+    const port = createProjectCeoMockPort("guest");
     const result = await port.getProjectWorkspace({
       projectId: KORA_PROJECT_ID,
-      role: "guest",
-      packageId: KORA_ARCHITECTURE_PACKAGE_ID,
       requestId: "guest-exact",
     });
 
@@ -71,19 +66,52 @@ describe("ProjectCEO deterministic pilot read port", () => {
     expect(result.data?.invitations).toEqual([]);
     expect(result.data?.grants).toEqual([]);
     expect(result.data?.history).toEqual([]);
+    expect(result.data?.project).toMatchObject({
+      areaM2: 0,
+      packageCount: 1,
+      openChangeCount: 0,
+      participantCount: 0,
+      secondProjectSignal: false,
+      sourceStats: {
+        physicalRecords: 0,
+        materializedRecords: 0,
+        placeholders: 0,
+        uniqueBlobs: 0,
+        duplicateGroups: 0,
+        quarantinedGroups: 0,
+        reviewQueue: 0,
+      },
+    });
+    expect(result.data?.handover).toEqual({
+      status: "not_ready",
+      acceptedAreaCount: 0,
+      totalAreaCount: 0,
+      warrantyDocumentCount: 0,
+      archiveHash: null,
+    });
+  });
+
+  it("keeps the guest portfolio exact-package scoped", async () => {
+    const result = await createProjectCeoMockPort("guest").getPortfolio({
+      requestId: "guest-portfolio",
+    });
+    expect(result.data?.projects).toHaveLength(1);
+    expect(result.data?.projects[0]).toMatchObject({
+      areaM2: 0,
+      packageCount: 1,
+      participantCount: 0,
+      sourceStats: { physicalRecords: 0, materializedRecords: 0, placeholders: 0 },
+    });
   });
 
   it("returns controlled errors for cross-project and scope leakage attempts", async () => {
+    const port = createProjectCeoMockPort("owner");
     const missing = await port.getProjectWorkspace({
       projectId: "different-project",
-      role: "owner",
-      packageId: null,
       requestId: "cross-project",
     });
-    const wrongPackage = await port.getProjectWorkspace({
+    const wrongPackage = await createProjectCeoMockPort("guest").getProjectWorkspace({
       projectId: KORA_PROJECT_ID,
-      role: "guest",
-      packageId: "sibling-package",
       requestId: "cross-package",
     });
 
@@ -95,14 +123,8 @@ describe("ProjectCEO deterministic pilot read port", () => {
         retryable: false,
       },
     });
-    expect(wrongPackage).toMatchObject({
-      data: null,
-      error: {
-        code: "scope_conflict",
-        messageKey: "exact_package_scope_required",
-        retryable: false,
-      },
-    });
+    expect(wrongPackage.error).toBeNull();
+    expect(wrongPackage.data?.actor.packageId).toBe(KORA_ARCHITECTURE_PACKAGE_ID);
     expect(JSON.stringify([missing, wrongPackage])).not.toMatch(/sql|token|email|relation/i);
   });
 });

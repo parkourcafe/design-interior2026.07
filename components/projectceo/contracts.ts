@@ -99,7 +99,7 @@ export interface OrganizationSummary {
   readonly id: string;
   readonly name: string;
   readonly activeProjectCount: number;
-  readonly paidPilotScopeCount: 3;
+  readonly paidPilotScopeCount: number;
 }
 
 export interface SourceStats {
@@ -132,6 +132,7 @@ export interface ReleaseSummary {
   readonly acknowledgementCount: number;
   readonly recipientCount: number;
   readonly publishedAt: string;
+  readonly pendingDistributionId: string | null;
 }
 
 export interface ProjectSummary {
@@ -313,7 +314,50 @@ export interface ProjectWorkspaceView {
   readonly handover: HandoverView;
   readonly history: readonly AuditEventView[];
   readonly controlledAnalytics: readonly AnalyticsEvent[];
+  readonly operations: ProjectCeoOperationStates;
 }
+
+export const PROJECTCEO_OPERATION_NAMES = [
+  "create_invitation",
+  "revoke_invitation",
+  "revoke_guest_grant",
+  "register_source",
+  "review_source",
+  "review_selection",
+  "publish_baseline",
+  "publish_release",
+  "distribute_release",
+  "acknowledge_release",
+  "create_change",
+  "review_change_impact",
+  "upload_photo_evidence",
+  "review_photo_evidence",
+  "accept_milestone",
+  "build_handover",
+] as const;
+
+export type ProjectCeoOperationName =
+  (typeof PROJECTCEO_OPERATION_NAMES)[number];
+
+export type ProjectCeoOperationState =
+  | {
+      readonly status: "available";
+      readonly commandTargetId?: string;
+    }
+  | {
+      readonly status: "unavailable";
+      readonly reason:
+        | "capability_missing"
+        | "exact_scope_missing"
+        | "prerequisite_missing"
+        | "read_contract_pending"
+        | "worker_only"
+        | "fixture_read_only";
+    };
+
+export type ProjectCeoOperationStates = Readonly<
+  Record<ProjectCeoOperationName, ProjectCeoOperationState>
+>;
 
 export interface OnboardingState {
   readonly organizationCreated: boolean;

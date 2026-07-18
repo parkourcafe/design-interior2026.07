@@ -66,11 +66,12 @@ export interface SourceDownloadAuthorization {
 }
 
 export interface ProjectListItem {
+  readonly accessScope: "project" | "package";
   readonly organizationId: string;
   readonly projectId: string;
-  readonly rootPackageId: string;
+  readonly packageId?: string;
+  readonly role: "owner_lead" | "architect" | "builder" | "client_approver";
   readonly stateRevision: number;
-  readonly latestVersionId: string | null;
 }
 
 export interface ProjectDeliveryProjection {

@@ -18,15 +18,13 @@ function stageLabel(stage: ProjectSummary["stage"]): string {
   return projectCeoRu.stage[stage];
 }
 
-function ProjectCard({ project, guest }: { readonly project: ProjectSummary; readonly guest: boolean }) {
-  const packageQuery = guest ? "?package=kora-architecture-release" : "";
-  const isInteractivePilot = project.id === "kora-food-hall";
+function ProjectCard({ project }: { readonly project: ProjectSummary }) {
   return (
     <article className="group rounded-2xl border border-line bg-white p-5 shadow-sm transition hover:-translate-y-0.5 hover:border-orange-200 hover:shadow-md">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
         <div>
           <div className="flex flex-wrap items-center gap-2">
-            <Badge tone={project.id === "kora-food-hall" ? "accent" : "neutral"}>
+            <Badge tone="neutral">
               {stageLabel(project.stage)}
             </Badge>
             {project.secondProjectSignal && <Badge tone="success">{projectCeoRu.portfolio.secondProject}</Badge>}
@@ -35,21 +33,19 @@ function ProjectCard({ project, guest }: { readonly project: ProjectSummary; rea
           <p className="mt-1 text-sm text-muted">
             {projectCeoRu.common.projectMeta(
               project.location,
-              project.areaM2.toLocaleString(projectCeoRu.common.locale),
+              project.areaM2 > 0
+                ? project.areaM2.toLocaleString(projectCeoRu.common.locale)
+                : projectCeoRu.common.dash,
               projectCeoRu.common.fullProject.toLocaleLowerCase(projectCeoRu.common.locale),
             )}
           </p>
         </div>
-        {isInteractivePilot ? (
-          <Link
-            href={`/dashboard/projectceo/projects/${project.id}${packageQuery}`}
-            className="btn-primary shrink-0"
-          >
-            {projectCeoRu.actions.open}
-          </Link>
-        ) : (
-          <Badge tone="neutral">{projectCeoRu.portfolio.mappedScope}</Badge>
-        )}
+        <Link
+          href={`/dashboard/projectceo/projects/${project.id}`}
+          className="btn-primary shrink-0"
+        >
+          {projectCeoRu.actions.open}
+        </Link>
       </div>
 
       <div className="mt-5 grid grid-cols-2 gap-2 sm:grid-cols-4">
@@ -73,12 +69,12 @@ function ProjectCard({ project, guest }: { readonly project: ProjectSummary; rea
         </div>
       </div>
 
-      {project.id === "kora-food-hall" && (
+      {project.sourceStats.physicalRecords > 0 && (
         <div className="mt-4 flex flex-wrap gap-x-5 gap-y-2 border-t border-line pt-4 text-xs text-muted">
-          <span><strong className="text-ink">81</strong> {projectCeoRu.portfolio.materialized}</span>
-          <span><strong className="text-ink">128</strong> {projectCeoRu.portfolio.placeholderRecords}</span>
-          <span><strong className="text-ink">28</strong> {projectCeoRu.portfolio.logicalSources}</span>
-          <span><strong className="text-ink">8</strong> {projectCeoRu.portfolio.quarantines}</span>
+          <span><strong className="text-ink">{project.sourceStats.materializedRecords}</strong> {projectCeoRu.portfolio.materialized}</span>
+          <span><strong className="text-ink">{project.sourceStats.placeholders}</strong> {projectCeoRu.portfolio.placeholderRecords}</span>
+          <span><strong className="text-ink">{project.sourceStats.uniqueBlobs}</strong> {projectCeoRu.portfolio.logicalSources}</span>
+          <span><strong className="text-ink">{project.sourceStats.quarantinedGroups}</strong> {projectCeoRu.portfolio.quarantines}</span>
           <span>{projectCeoRu.common.hiddenFilenames}</span>
         </div>
       )}
@@ -135,20 +131,21 @@ export function ProjectCeoPortfolio({
         <ScenarioPanel scenario={scenario} onReady={() => setScenario("ready")}>
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
             <Metric label={projectCeoRu.portfolio.activeProjects} value={view.organization.activeProjectCount} />
-            <Metric label={projectCeoRu.portfolio.physicalRecords} value={209} />
-            <Metric label={projectCeoRu.portfolio.materializedBytes} value={81} />
-            <Metric label={projectCeoRu.portfolio.placeholders} value={128} />
+            <Metric label={projectCeoRu.portfolio.physicalRecords} value={view.projects.reduce((sum, project) => sum + project.sourceStats.physicalRecords, 0)} />
+            <Metric label={projectCeoRu.portfolio.materializedBytes} value={view.projects.reduce((sum, project) => sum + project.sourceStats.materializedRecords, 0)} />
+            <Metric label={projectCeoRu.portfolio.placeholders} value={view.projects.reduce((sum, project) => sum + project.sourceStats.placeholders, 0)} />
           </div>
 
           <div className="mt-6 space-y-4">
             {view.projects.map((project) => (
-              <ProjectCard key={project.id} project={project} guest={role === "guest"} />
+              <ProjectCard key={project.id} project={project} />
             ))}
           </div>
 
           {role === "owner" && (
             <div className="mt-7">
               <OnboardingPanel
+                projectId={view.projects[0]?.id ?? null}
                 onboarding={view.onboarding}
                 invitations={view.invitations}
                 grants={view.grants}

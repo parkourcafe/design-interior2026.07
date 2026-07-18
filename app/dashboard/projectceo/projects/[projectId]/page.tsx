@@ -1,10 +1,6 @@
 import { notFound } from "next/navigation";
-import {
-  createProjectCeoMockPort,
-  KORA_ARCHITECTURE_PACKAGE_ID,
-} from "@/components/projectceo/mock";
 import { ProjectCeoWorkspace } from "@/components/projectceo/project-workspace";
-import { resolveProjectCeoServerRole } from "@/components/projectceo/server-role";
+import { createProjectCeoServerPort } from "@/lib/project-intelligence/delivery/projectceo/server-port";
 
 export const dynamic = "force-dynamic";
 
@@ -14,13 +10,10 @@ export default async function ProjectCeoProjectPage({
   readonly params: Promise<{ projectId: string }>;
 }) {
   const { projectId } = await params;
-  const port = createProjectCeoMockPort();
-  const role = resolveProjectCeoServerRole();
+  const port = await createProjectCeoServerPort();
   const result = await port.getProjectWorkspace({
     projectId,
-    role,
-    packageId: role === "guest" ? KORA_ARCHITECTURE_PACKAGE_ID : null,
-    requestId: `workspace-${role}`,
+    requestId: crypto.randomUUID(),
   });
   if (result.error?.code === "not_found") notFound();
   if (!result.data || result.error) {

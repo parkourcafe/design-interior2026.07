@@ -1,11 +1,10 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
+import { useMemo, useRef, useState } from "react";
 import { ru } from "@/lib/i18n/ru";
 import type {
-  AccessGrantView,
-  ChangeRequestView,
   ProjectCeoRole,
   ProjectCeoTab,
   ProjectWorkspaceView,
@@ -17,6 +16,8 @@ import { Badge, Metric } from "./badges";
 import { CopyLinkButton } from "./copy-link-button";
 import { can, visibleTabsForRole } from "./role-policy";
 import { ScenarioPanel, ScenarioSwitcher } from "./state-panel";
+import { ProjectCeoCommandButton, sendProjectCeoCommand } from "./command-client";
+import { PROJECTCEO_COMMAND_CONTRACT_VERSION } from "@/lib/project-intelligence/delivery/projectceo/command-contract";
 
 const projectCeoRu = ru.projectCeo;
 
@@ -67,9 +68,13 @@ function Header({
           <div>
             <div className="flex flex-wrap gap-2">
               <Badge tone="accent">
-                {projectCeoRu.workspace.header.fullProjectArea(
-                  view.project.areaM2.toLocaleString(projectCeoRu.common.locale),
-                )}
+                {view.actor.packageId
+                  ? projectCeoRu.common.exactWorkPackage
+                  : projectCeoRu.workspace.header.fullProjectArea(
+                      view.project.areaM2 > 0
+                        ? view.project.areaM2.toLocaleString(projectCeoRu.common.locale)
+                        : projectCeoRu.common.dash,
+                    )}
               </Badge>
               <Badge tone="success">{projectCeoRu.workspace.header.baselineVersion(view.baseline.versionNo)}</Badge>
               <Badge tone="warning">{projectCeoRu.workspace.header.changeCount(view.project.openChangeCount)}</Badge>
@@ -117,7 +122,6 @@ function OverviewView({
   readonly view: ProjectWorkspaceView;
   readonly role: ProjectCeoRole;
 }) {
-  const [photoPreviewAdded, setPhotoPreviewAdded] = useState(false);
   const mayUploadPhoto = can(role, "upload_photo_evidence");
   return (
     <div className="space-y-5">
@@ -179,11 +183,14 @@ function OverviewView({
           {mayUploadPhoto && (
             <button
               type="button"
-              onClick={() => setPhotoPreviewAdded(true)}
+              disabled={view.operations.upload_photo_evidence.status !== "available"}
               className="btn-ghost mt-4 w-full"
             >
-              {photoPreviewAdded ? projectCeoRu.actions.photoAdded : projectCeoRu.actions.addPhoto}
+              {projectCeoRu.actions.addPhoto}
             </button>
+          )}
+          {mayUploadPhoto && view.operations.upload_photo_evidence.status !== "available" && (
+            <p className="mt-2 text-xs text-muted">{projectCeoRu.common.commandUnavailable}</p>
           )}
         </section>
       </div>
@@ -235,7 +242,6 @@ function SourcesView({
   const [query, setQuery] = useState("");
   const [availability, setAvailability] = useState<"all" | SourceRegistryItem["availability"]>("all");
   const [selectedId, setSelectedId] = useState(view.sources[0]?.id ?? "");
-  const [localReviews, setLocalReviews] = useState<Readonly<Record<string, SourceRegistryItem["reviewStatus"]>>>({});
   const filtered = useMemo(() => view.sources.filter((source) => (
     (availability === "all" || source.availability === availability)
     && (
@@ -247,11 +253,6 @@ function SourcesView({
   )), [availability, query, view.sources]);
   const selected = view.sources.find((source) => source.id === selectedId) ?? filtered[0] ?? null;
   const mayReview = can(role, "review_source");
-
-  function review(status: SourceRegistryItem["reviewStatus"]): void {
-    if (!selected || !mayReview) return;
-    setLocalReviews((current) => ({ ...current, [selected.id]: status }));
-  }
 
   return (
     <div className="grid gap-4 xl:grid-cols-[1fr_21rem]">
@@ -298,7 +299,7 @@ function SourcesView({
             </thead>
             <tbody>
               {filtered.map((source) => {
-                const reviewStatus = localReviews[source.id] ?? source.reviewStatus;
+                const reviewStatus = source.reviewStatus;
                 return (
                   <tr
                     key={source.id}
@@ -337,7 +338,7 @@ function SourcesView({
           <>
             <div className="mt-2 flex items-center justify-between gap-3">
               <h2 className="font-display text-2xl font-semibold">{selected.displayCode}</h2>
-              <Badge tone={sourceTone(selected)}>{localReviews[selected.id] ?? selected.reviewStatus}</Badge>
+              <Badge tone={sourceTone(selected)}>{selected.reviewStatus}</Badge>
             </div>
             <dl className="mt-4 space-y-3 text-sm">
               <div>
@@ -362,17 +363,19 @@ function SourcesView({
               </div>
             </dl>
             <div className="mt-5 grid gap-2">
-              <button type="button" disabled={!mayReview} onClick={() => review("confirmed")} className="btn-primary">
+              <button type="button" disabled className="btn-primary">
                 {projectCeoRu.actions.confirmSource}
               </button>
-              <button type="button" disabled={!mayReview} onClick={() => review("clarification_requested")} className="btn-ghost">
+              <button type="button" disabled className="btn-ghost">
                 {projectCeoRu.actions.clarification}
               </button>
-              <button type="button" disabled={!mayReview} onClick={() => review("rejected")} className="rounded-lg border border-red-200 px-3 py-2 text-sm font-medium text-red-700 disabled:opacity-40">
+              <button type="button" disabled className="rounded-lg border border-red-200 px-3 py-2 text-sm font-medium text-red-700 disabled:opacity-40">
                 {projectCeoRu.actions.reject}
               </button>
             </div>
-            {!mayReview && <p className="mt-3 text-xs text-muted">{projectCeoRu.workspace.sources.noReviewCapability}</p>}
+            <p className="mt-3 text-xs text-muted">
+              {!mayReview ? projectCeoRu.workspace.sources.noReviewCapability : projectCeoRu.common.commandUnavailable}
+            </p>
           </>
         ) : (
           <p className="mt-3 text-sm text-muted">{projectCeoRu.workspace.sources.notSelected}</p>
@@ -389,7 +392,7 @@ function DecisionsView({
   readonly view: ProjectWorkspaceView;
   readonly role: ProjectCeoRole;
 }) {
-  const [selectionStatus, setSelectionStatus] = useState(view.selections[0]?.reviewStatus ?? "draft");
+  const selectionStatus = view.selections[0]?.reviewStatus ?? "draft";
   const mayReview = can(role, "review_selection");
   const mayCreate = can(role, "create_selection");
 
@@ -401,7 +404,7 @@ function DecisionsView({
             <p className="text-xs font-semibold uppercase tracking-[0.14em] text-muted">{projectCeoRu.workspace.decisions.exactRevisions}</p>
             <h2 className="mt-1 font-display text-2xl font-semibold">{projectCeoRu.workspace.decisions.decisions}</h2>
           </div>
-          {mayCreate && <button type="button" className="btn-ghost text-xs">{projectCeoRu.actions.createDecision}</button>}
+          {mayCreate && <button type="button" disabled className="btn-ghost text-xs">{projectCeoRu.actions.createDecision}</button>}
         </div>
         <div className="mt-4 space-y-3">
           {view.decisions.map((decision) => (
@@ -469,30 +472,29 @@ function DecisionsView({
             <div className="mt-4 flex flex-wrap gap-2">
               <button
                 type="button"
-                disabled={!mayReview}
-                onClick={() => setSelectionStatus("approved")}
+                disabled
                 className="btn-primary"
               >
                 {projectCeoRu.actions.approve}
               </button>
               <button
                 type="button"
-                disabled={!mayReview}
-                onClick={() => setSelectionStatus("change_requested")}
+                disabled
                 className="btn-ghost"
               >
                 {projectCeoRu.actions.change}
               </button>
               <button
                 type="button"
-                disabled={!mayReview}
-                onClick={() => setSelectionStatus("rejected")}
+                disabled
                 className="rounded-lg border border-red-200 px-4 py-2 text-sm font-medium text-red-700 disabled:opacity-40"
               >
                 {projectCeoRu.actions.reject}
               </button>
             </div>
-            {!mayReview && <p className="mt-3 text-xs text-muted">{projectCeoRu.workspace.decisions.noReviewCapability}</p>}
+            <p className="mt-3 text-xs text-muted">
+              {!mayReview ? projectCeoRu.workspace.decisions.noReviewCapability : projectCeoRu.common.commandUnavailable}
+            </p>
 
             <div className="mt-5 border-t border-line pt-4">
               <p className="text-xs font-semibold uppercase tracking-[0.12em] text-muted">{projectCeoRu.workspace.decisions.revisionHistory}</p>
@@ -525,13 +527,8 @@ function BaselineView({
   readonly view: ProjectWorkspaceView;
   readonly role: ProjectCeoRole;
 }) {
-  const [published, setPublished] = useState(view.baseline.status === "published");
+  const published = view.baseline.status === "published";
   const mayPublish = can(role, "publish_baseline");
-
-  function publish(): void {
-    if (!window.confirm(projectCeoRu.workspace.baseline.publishConfirm)) return;
-    setPublished(true);
-  }
 
   return (
     <div className="grid gap-4 lg:grid-cols-[1fr_20rem]">
@@ -557,9 +554,12 @@ function BaselineView({
           <p className="mt-2 text-xs text-muted">{projectCeoRu.workspace.baseline.published} {formatDate(view.baseline.publishedAt)}</p>
         </div>
         {!published && (
-          <button type="button" disabled={!mayPublish || view.baseline.blockerCount > 0} onClick={publish} className="btn-primary mt-5">
+          <button type="button" disabled className="btn-primary mt-5">
             {projectCeoRu.actions.publish}
           </button>
+        )}
+        {!published && mayPublish && (
+          <p className="mt-2 text-xs text-muted">{projectCeoRu.common.commandUnavailable}</p>
         )}
       </section>
 
@@ -589,13 +589,15 @@ function BaselineView({
 function ReleaseCard({
   release,
   role,
+  projectId,
+  operationAvailable,
 }: {
   readonly release: ReleaseSummary;
   readonly role: ProjectCeoRole;
+  readonly projectId: string;
+  readonly operationAvailable: boolean;
 }) {
-  const [acknowledged, setAcknowledged] = useState(
-    release.distributionStatus === "acknowledged",
-  );
+  const acknowledged = release.distributionStatus === "acknowledged";
   const mayAcknowledge = can(role, "acknowledge_release");
   return (
     <article className={`rounded-2xl border bg-white p-5 shadow-sm ${
@@ -626,10 +628,19 @@ function ReleaseCard({
         <span className="text-xs text-muted">
           {release.acknowledgementCount}/{release.recipientCount} {projectCeoRu.workspace.releases.recipients}
         </span>
-        {release.status === "current" && mayAcknowledge && (
-          <button type="button" onClick={() => setAcknowledged(true)} className="btn-primary ml-auto">
+        {release.status === "current" && mayAcknowledge && release.pendingDistributionId && (
+          <ProjectCeoCommandButton
+            command={{
+              contractVersion: PROJECTCEO_COMMAND_CONTRACT_VERSION,
+              kind: "acknowledge_release",
+              projectId,
+              payload: { distributionId: release.pendingDistributionId },
+            }}
+            disabled={!operationAvailable}
+            className="btn-primary ml-auto"
+          >
             {projectCeoRu.actions.acknowledge}
-          </button>
+          </ProjectCeoCommandButton>
         )}
       </div>
     </article>
@@ -649,7 +660,13 @@ function ReleasesView({
         {projectCeoRu.workspace.releases.exactContract}
       </section>
       {view.releases.map((release) => (
-        <ReleaseCard key={release.id} release={release} role={role} />
+        <ReleaseCard
+          key={release.id}
+          release={release}
+          role={role}
+          projectId={view.project.id}
+          operationAvailable={view.operations.acknowledge_release.status === "available"}
+        />
       ))}
     </div>
   );
@@ -662,28 +679,47 @@ function ChangesView({
   readonly view: ProjectWorkspaceView;
   readonly role: ProjectCeoRole;
 }) {
-  const [changes, setChanges] = useState<readonly ChangeRequestView[]>(view.changes);
+  const router = useRouter();
   const [reason, setReason] = useState("");
+  const [submitState, setSubmitState] = useState<"idle" | "pending" | "error">("idle");
+  const commandId = useRef(crypto.randomUUID());
   const mayCreate = can(role, "create_change");
   const mayReview = can(role, "review_change_impact");
+  const changeOperation = view.operations.create_change;
 
-  function createChange(event: React.FormEvent<HTMLFormElement>): void {
+  async function createChange(event: React.FormEvent<HTMLFormElement>): Promise<void> {
     event.preventDefault();
-    if (!reason.trim() || !mayCreate) return;
-    setChanges((current) => [{
-      id: "change-request-local-preview",
-      title: projectCeoRu.workspace.changes.newTitle,
-      status: "submitted",
-      fromBaseline: `Baseline V${view.baseline.versionNo}`,
-      toBaseline: null,
-      deltaRub: 0,
-      deltaDays: 0,
-      requestedAt: new Date("2026-07-17T10:00:00Z").toISOString(),
-      impactCount: 0,
-      reviewedImpactCount: 0,
-      reason,
-    }, ...current]);
-    setReason("");
+    if (
+      !reason.trim()
+      || !mayCreate
+      || submitState === "pending"
+      || changeOperation.status !== "available"
+      || !changeOperation.commandTargetId
+    ) return;
+    setSubmitState("pending");
+    try {
+      const response = await sendProjectCeoCommand({
+        contractVersion: PROJECTCEO_COMMAND_CONTRACT_VERSION,
+        kind: "create_change",
+        projectId: view.project.id,
+        payload: {
+          reason,
+          fromProductionPackageVersionId: changeOperation.commandTargetId,
+          deltaCostRub: 0,
+          deltaDays: 0,
+        },
+      }, commandId.current);
+      if (response.status !== "completed") {
+        setSubmitState("error");
+        return;
+      }
+      setReason("");
+      commandId.current = crypto.randomUUID();
+      setSubmitState("idle");
+      router.refresh();
+    } catch {
+      setSubmitState("error");
+    }
   }
 
   return (
@@ -702,14 +738,22 @@ function ChangesView({
             className="mt-1 w-full rounded-lg border border-line p-3 text-base text-ink outline-none focus:border-accent focus:ring-2 focus:ring-accent/20 disabled:bg-paper"
           />
         </label>
-        <button type="submit" disabled={!mayCreate || !reason.trim()} className="btn-primary mt-3 w-full">
-          {projectCeoRu.actions.requestChange}
+        <button
+          type="submit"
+          disabled={!mayCreate || !reason.trim() || submitState === "pending" || changeOperation.status !== "available"}
+          className="btn-primary mt-3 w-full"
+        >
+          {submitState === "pending" ? projectCeoRu.actions.refresh : projectCeoRu.actions.requestChange}
         </button>
         {!mayCreate && <p className="mt-3 text-xs text-muted">{projectCeoRu.workspace.changes.noCreateCapability}</p>}
+        {mayCreate && changeOperation.status !== "available" && (
+          <p className="mt-3 text-xs text-muted">{projectCeoRu.common.commandUnavailable}</p>
+        )}
+        {submitState === "error" && <p className="mt-3 text-xs text-red-700">{projectCeoRu.common.commandUnavailable}</p>}
       </form>
 
       <section className="space-y-3">
-        {changes.map((change) => (
+        {view.changes.map((change) => (
           <article key={change.id} className="rounded-2xl border border-line bg-white p-5 shadow-sm">
             <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
               <div>
@@ -764,13 +808,6 @@ function ChangesView({
 }
 
 function ParticipantsView({ view }: { readonly view: ProjectWorkspaceView }) {
-  const [revoked, setRevoked] = useState<readonly string[]>([]);
-
-  function revoke(grant: AccessGrantView): void {
-    if (!window.confirm(projectCeoRu.workspace.participants.revokeConfirm(grant.label))) return;
-    setRevoked((current) => [...current, grant.id]);
-  }
-
   return (
     <div className="space-y-5">
       <section className="rounded-2xl border border-line bg-white p-5 shadow-sm">
@@ -820,28 +857,33 @@ function ParticipantsView({ view }: { readonly view: ProjectWorkspaceView }) {
             </article>
           ))}
           {view.grants.map((grant) => {
-            const localRevoked = revoked.includes(grant.id);
             return (
               <article key={grant.id} className="rounded-xl border border-line p-4">
                 <div className="flex items-start justify-between gap-2">
                   <p className="text-sm font-medium">{grant.label}</p>
-                  <Badge tone={grant.status === "active" && !localRevoked ? "success" : "danger"}>
-                    {localRevoked ? "revoked" : grant.status}
+                  <Badge tone={grant.status === "active" ? "success" : "danger"}>
+                    {grant.status}
                   </Badge>
                 </div>
                 <p className="mt-2 text-xs text-muted">
                   {projectCeoRu.workspace.participants.exactUntil} {formatDate(grant.expiresAt)}
                 </p>
                 <div className="mt-3 flex flex-wrap gap-2">
-                  {grant.shareUrl && !localRevoked && <CopyLinkButton url={grant.shareUrl} compact />}
-                  {grant.status === "active" && !localRevoked && (
-                    <button
-                      type="button"
-                      onClick={() => revoke(grant)}
+                  {grant.shareUrl && <CopyLinkButton url={grant.shareUrl} compact />}
+                  {grant.status === "active" && (
+                    <ProjectCeoCommandButton
+                      command={{
+                        contractVersion: PROJECTCEO_COMMAND_CONTRACT_VERSION,
+                        kind: "revoke_guest_grant",
+                        projectId: view.project.id,
+                        payload: { grantId: grant.id },
+                      }}
+                      confirmation={projectCeoRu.workspace.participants.revokeConfirm(grant.label)}
                       className="rounded-lg border border-red-200 px-3 py-2 text-xs font-medium text-red-700"
+                      disabled={view.operations.revoke_guest_grant.status !== "available"}
                     >
                       {projectCeoRu.actions.revoke}
-                    </button>
+                    </ProjectCeoCommandButton>
                   )}
                 </div>
               </article>

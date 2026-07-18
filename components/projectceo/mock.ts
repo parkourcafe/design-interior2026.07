@@ -11,6 +11,7 @@ import {
   type ParticipantView,
   type PhotoMilestoneView,
   type PortfolioView,
+  type ProjectCeoOperationStates,
   type ProjectCeoActor,
   type ProjectCeoRole,
   type ProjectPackageView,
@@ -33,6 +34,25 @@ export const KORA_PROJECT_ID = "kora-food-hall";
 export const KORA_ROOT_PACKAGE_ID = "kora-project-root";
 export const KORA_ARCHITECTURE_PACKAGE_ID = "kora-architecture-release";
 const fixtureRu = ru.projectCeo.fixture;
+
+const fixtureOperations: ProjectCeoOperationStates = {
+  create_invitation: { status: "unavailable", reason: "fixture_read_only" },
+  revoke_invitation: { status: "unavailable", reason: "fixture_read_only" },
+  revoke_guest_grant: { status: "unavailable", reason: "fixture_read_only" },
+  register_source: { status: "unavailable", reason: "fixture_read_only" },
+  review_source: { status: "unavailable", reason: "fixture_read_only" },
+  review_selection: { status: "unavailable", reason: "fixture_read_only" },
+  publish_baseline: { status: "unavailable", reason: "fixture_read_only" },
+  publish_release: { status: "unavailable", reason: "fixture_read_only" },
+  distribute_release: { status: "unavailable", reason: "fixture_read_only" },
+  acknowledge_release: { status: "unavailable", reason: "fixture_read_only" },
+  create_change: { status: "unavailable", reason: "fixture_read_only" },
+  review_change_impact: { status: "unavailable", reason: "fixture_read_only" },
+  upload_photo_evidence: { status: "unavailable", reason: "fixture_read_only" },
+  review_photo_evidence: { status: "unavailable", reason: "fixture_read_only" },
+  accept_milestone: { status: "unavailable", reason: "fixture_read_only" },
+  build_handover: { status: "unavailable", reason: "fixture_read_only" },
+};
 
 function semanticHash(character: string): `sha256:${string}` {
   return `sha256:${character.repeat(64)}`;
@@ -80,6 +100,7 @@ const koraCurrentRelease: ReleaseSummary = {
   acknowledgementCount: 3,
   recipientCount: 4,
   publishedAt: "2026-07-17T09:35:00Z",
+  pendingDistributionId: null,
 };
 
 const koraSummary: ProjectSummary = {
@@ -105,6 +126,25 @@ const koraSummary: ProjectSummary = {
   openChangeCount: 1,
   participantCount: 7,
   secondProjectSignal: true,
+};
+
+const koraGuestSummary: ProjectSummary = {
+  ...koraSummary,
+  areaM2: 0,
+  stage: "release",
+  packageCount: 1,
+  sourceStats: {
+    physicalRecords: 0,
+    materializedRecords: 0,
+    placeholders: 0,
+    uniqueBlobs: 0,
+    duplicateGroups: 0,
+    quarantinedGroups: 0,
+    reviewQueue: 0,
+  },
+  openChangeCount: 0,
+  participantCount: 0,
+  secondProjectSignal: false,
 };
 
 const otherProjects: readonly ProjectSummary[] = [
@@ -346,6 +386,7 @@ const releases: readonly ReleaseSummary[] = [
     acknowledgementCount: 4,
     recipientCount: 4,
     publishedAt: "2026-07-15T11:00:00Z",
+    pendingDistributionId: null,
   },
 ];
 
@@ -510,7 +551,7 @@ function roleScopedWorkspace(role: ProjectCeoRole): ProjectWorkspaceView {
   const isCore = role === "owner" || role === "architect";
   const isGuest = role === "guest";
   return {
-    project: koraSummary,
+    project: isGuest ? koraGuestSummary : koraSummary,
     actor,
     packages: isGuest
       ? packages.filter((item) => item.id === KORA_ARCHITECTURE_PACKAGE_ID)
@@ -529,15 +570,24 @@ function roleScopedWorkspace(role: ProjectCeoRole): ProjectWorkspaceView {
     milestones: role === "owner" || role === "architect" || role === "builder" || role === "client"
       ? milestones
       : [],
-    handover: {
-      status: "not_ready",
-      acceptedAreaCount: 1,
-      totalAreaCount: 2,
-      warrantyDocumentCount: 4,
-      archiveHash: null,
-    },
+    handover: isGuest
+      ? {
+          status: "not_ready",
+          acceptedAreaCount: 0,
+          totalAreaCount: 0,
+          warrantyDocumentCount: 0,
+          archiveHash: null,
+        }
+      : {
+          status: "not_ready",
+          acceptedAreaCount: 1,
+          totalAreaCount: 2,
+          warrantyDocumentCount: 4,
+          archiveHash: null,
+        },
     history: isCore ? history : [],
     controlledAnalytics: isCore ? analytics : [],
+    operations: fixtureOperations,
   };
 }
 
@@ -563,9 +613,11 @@ function failure<T>(
   });
 }
 
-export function createProjectCeoMockPort(): ProjectCeoUiReadPort {
+export function createProjectCeoMockPort(
+  role: ProjectCeoRole = "owner",
+): ProjectCeoUiReadPort {
   return {
-    async getPortfolio({ role, requestId }) {
+    async getPortfolio({ requestId }) {
       const portfolio: PortfolioView = {
         organization: {
           id: ORGANIZATION_ID,
@@ -574,7 +626,7 @@ export function createProjectCeoMockPort(): ProjectCeoUiReadPort {
           paidPilotScopeCount: 3,
         },
         actor: actorFor(role, KORA_PROJECT_ID),
-        projects: role === "guest" ? [koraSummary] : [koraSummary, ...otherProjects],
+        projects: role === "guest" ? [koraGuestSummary] : [koraSummary, ...otherProjects],
         onboarding,
         invitations: role === "owner" ? invitations : [],
         grants: role === "owner" ? grants : [],
@@ -583,11 +635,12 @@ export function createProjectCeoMockPort(): ProjectCeoUiReadPort {
       return success(requestId, portfolio);
     },
 
-    async getProjectWorkspace({ projectId, role, packageId, requestId }) {
+    async getProjectWorkspace({ projectId, requestId }) {
       if (projectId !== KORA_PROJECT_ID) {
         return failure(requestId, "not_found", "project_not_found");
       }
       const actor = actorFor(role, projectId);
+      const packageId = actor.packageId;
       if (!assertExactPackageScope({
         role,
         actorPackageId: actor.packageId,

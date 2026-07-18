@@ -5,11 +5,9 @@ import {
 } from "../../components/projectceo/mock";
 
 describe("ProjectCEO RU pilot workflow projection", () => {
-  const port = createProjectCeoMockPort();
-
   it("maps all three paid pilot scopes and the second-project signal", async () => {
+    const port = createProjectCeoMockPort("owner");
     const result = await port.getPortfolio({
-      role: "owner",
       requestId: "paid-pilots",
     });
 
@@ -19,8 +17,8 @@ describe("ProjectCEO RU pilot workflow projection", () => {
   });
 
   it("covers invitation and guest grant lifecycle states", async () => {
+    const port = createProjectCeoMockPort("owner");
     const result = await port.getPortfolio({
-      role: "owner",
       requestId: "access-lifecycle",
     });
 
@@ -36,10 +34,9 @@ describe("ProjectCEO RU pilot workflow projection", () => {
   });
 
   it("shows exact decision and selection revisions with evidence and checked price", async () => {
+    const port = createProjectCeoMockPort("client");
     const result = await port.getProjectWorkspace({
       projectId: KORA_PROJECT_ID,
-      role: "client",
-      packageId: null,
       requestId: "selection-flow",
     });
     const selection = result.data?.selections[0];
@@ -65,10 +62,9 @@ describe("ProjectCEO RU pilot workflow projection", () => {
   });
 
   it("projects immutable replacement releases and a real change impact", async () => {
+    const port = createProjectCeoMockPort("architect");
     const result = await port.getProjectWorkspace({
       projectId: KORA_PROJECT_ID,
-      role: "architect",
-      packageId: null,
       requestId: "release-change",
     });
 
@@ -97,10 +93,9 @@ describe("ProjectCEO RU pilot workflow projection", () => {
   });
 
   it("includes photo milestone evidence and handover readiness without inventing completion", async () => {
+    const port = createProjectCeoMockPort("builder");
     const result = await port.getProjectWorkspace({
       projectId: KORA_PROJECT_ID,
-      role: "builder",
-      packageId: null,
       requestId: "field-handover",
     });
 
