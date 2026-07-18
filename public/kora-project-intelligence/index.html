@@ -3,196 +3,27 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="robots" content="noindex,nofollow" />
     <meta
       name="description"
-      content="Read-only демонстрация Project Intelligence для строительного пакета Kora Food Hall."
+      content="Защищённый демонстрационный контур ProjectCEO перенесён в приложение."
     />
-    <meta name="theme-color" content="#171814" />
-    <title>Kora Food Hall · ProjectCEO</title>
-    <link rel="stylesheet" href="./styles.css" />
+    <meta http-equiv="refresh" content="0;url=/dashboard/projectceo" />
+    <title>ProjectCEO · защищённый контур</title>
+    <style>
+      body { margin: 0; font-family: system-ui, sans-serif; background: #f4f1eb; color: #171814; }
+      main { max-width: 42rem; margin: 12vh auto; padding: 2rem; }
+      a { color: #a44d1d; font-weight: 700; }
+    </style>
   </head>
   <body>
-    <a class="skip-link" href="#documents">Перейти к реестру документов</a>
-
-    <header class="topbar">
-      <div class="brand" aria-label="ProjectCEO Project Intelligence">
-        <span class="brand-mark" aria-hidden="true">P</span>
-        <span>
-          <strong>ProjectCEO</strong>
-          <small>Project Intelligence</small>
-        </span>
-      </div>
-      <div class="topbar-meta">
-        <span class="readonly-badge">Только просмотр</span>
-        <span class="sync-state">
-          <span class="sync-dot" aria-hidden="true"></span>
-          Локальный снимок · 16 июля 2026
-        </span>
-      </div>
-    </header>
-
     <main>
-      <section class="hero" aria-labelledby="project-title">
-        <div class="hero-copy">
-          <p class="eyebrow">RU PILOT · CONSTRUCTION BASELINE</p>
-          <h1 id="project-title">Kora Food Hall</h1>
-          <p class="hero-subtitle">
-            Единый реестр чертежей, ведомостей и проектных решений
-          </p>
-          <div class="project-tags" aria-label="Параметры проекта">
-            <span>Ubud, Bali</span>
-            <span>2 этажа</span>
-            <span>Строительство</span>
-            <span>Демо на реальных источниках</span>
-          </div>
-        </div>
-        <div class="hero-status">
-          <div class="readiness-ring" aria-label="Готовность baseline: 68 процентов">
-            <span>68%</span>
-            <small>baseline</small>
-          </div>
-          <div>
-            <strong>Требуется проверка</strong>
-            <p>Ревизии распознаны, но утверждённая выдача подтверждена не для всех листов.</p>
-          </div>
-        </div>
-      </section>
-
-      <section class="summary-grid" id="summary" aria-label="Сводка проекта"></section>
-
-      <section class="pipeline-card" aria-labelledby="pipeline-title">
-        <div class="section-heading">
-          <div>
-            <p class="eyebrow">КАК РАБОТАЕТ PROJECTCEO</p>
-            <h2 id="pipeline-title">Из файлов — в управляемое исполнение</h2>
-          </div>
-          <p class="section-note">Нажмите на этап, чтобы отфильтровать связанные документы</p>
-        </div>
-        <ol class="pipeline" id="pipeline"></ol>
-      </section>
-
-      <section class="workspace">
-        <div class="workspace-main">
-          <div class="section-heading compact">
-            <div>
-              <p class="eyebrow">SOURCE REGISTER</p>
-              <h2 id="documents">Полный реестр документов и пакетов</h2>
-            </div>
-            <div class="register-meta">
-              <span>209 физических источников свёрнуты в управляемый реестр</span>
-              <p class="result-count" id="result-count" aria-live="polite"></p>
-            </div>
-          </div>
-
-          <div class="toolbar" role="search">
-            <label class="search-field">
-              <span class="visually-hidden">Поиск по документам</span>
-              <span aria-hidden="true">⌕</span>
-              <input
-                id="search"
-                type="search"
-                autocomplete="off"
-                placeholder="Название, код листа, зона, материал…"
-              />
-              <kbd>⌘ K</kbd>
-            </label>
-            <label>
-              <span class="visually-hidden">Фильтр по этажу или пакету</span>
-              <select id="package-filter">
-                <option value="all">Все пакеты</option>
-              </select>
-            </label>
-            <label>
-              <span class="visually-hidden">Фильтр по статусу</span>
-              <select id="status-filter">
-                <option value="all">Все статусы</option>
-                <option value="current">Действующий кандидат</option>
-                <option value="needs_review">Нужна проверка</option>
-                <option value="previous_revision">Предыдущая ревизия</option>
-                <option value="reference">Справочный</option>
-                <option value="duplicate">Дубликат</option>
-                <option value="conflict">Конфликт hash/имени</option>
-                <option value="cloud">Только в облаке</option>
-                <option value="excluded">Не входит в baseline</option>
-              </select>
-            </label>
-            <button class="secondary-button" id="reset-filters" type="button">Сбросить</button>
-          </div>
-
-          <div class="active-filter" id="active-filter" hidden>
-            <span id="active-filter-label"></span>
-            <button type="button" id="clear-stage">Убрать фильтр ×</button>
-          </div>
-
-          <div class="table-shell">
-            <table>
-              <thead>
-                <tr>
-                  <th scope="col">Документ / пакет</th>
-                  <th scope="col">Зона</th>
-                  <th scope="col">Ревизия</th>
-                  <th scope="col">Роль источника</th>
-                  <th scope="col">Статус</th>
-                  <th scope="col">Связи</th>
-                </tr>
-              </thead>
-              <tbody id="documents-body"></tbody>
-            </table>
-            <div class="empty-state" id="empty-state" hidden>
-              <strong>Ничего не найдено</strong>
-              <p>Измените запрос или сбросьте фильтры.</p>
-            </div>
-          </div>
-        </div>
-
-        <aside class="insight-rail" aria-label="Выводы и пробелы">
-          <section class="rail-card signal-card">
-            <p class="eyebrow">PROJECT SIGNALS</p>
-            <h2>Что уже извлечено</h2>
-            <div id="insights"></div>
-          </section>
-
-          <section class="rail-card">
-            <div class="rail-heading">
-              <div>
-                <p class="eyebrow">REVIEW QUEUE</p>
-                <h2>Пробелы baseline</h2>
-              </div>
-              <span class="count-badge" id="gap-count"></span>
-            </div>
-            <div id="gaps"></div>
-          </section>
-
-          <section class="rail-card provenance-legend">
-            <p class="eyebrow">PROVENANCE</p>
-            <h2>Статус каждого вывода</h2>
-            <ul>
-              <li><span class="claim extracted"></span><strong>Извлечено</strong><small>Факт есть в источнике</small></li>
-              <li><span class="claim interpreted"></span><strong>Интерпретировано</strong><small>Требует проверки человека</small></li>
-              <li><span class="claim unknown"></span><strong>Неизвестно</strong><small>В документах нет ответа</small></li>
-              <li><span class="claim confirmed"></span><strong>Подтверждено</strong><small>Принято человеком</small></li>
-            </ul>
-          </section>
-        </aside>
-      </section>
+      <h1>Демонстрация перенесена в защищённый ProjectCEO</h1>
+      <p>
+        Публичный файловый манифест отключён. Проектные данные доступны только
+        после проверки пользователя и его точного доступа к проекту или пакету.
+      </p>
+      <p><a href="/dashboard/projectceo">Открыть ProjectCEO</a></p>
     </main>
-
-    <dialog id="document-dialog" aria-labelledby="dialog-title">
-      <div class="dialog-header">
-        <div>
-          <p class="eyebrow" id="dialog-kicker">SOURCE DETAIL</p>
-          <h2 id="dialog-title"></h2>
-        </div>
-        <button class="icon-button" id="dialog-close" type="button" aria-label="Закрыть">×</button>
-      </div>
-      <div id="dialog-content"></div>
-    </dialog>
-
-    <noscript>
-      <div class="noscript">Для интерактивной фильтрации включите JavaScript.</div>
-    </noscript>
-
-    <script src="./data.js"></script>
-    <script src="./app.js"></script>
   </body>
 </html>
