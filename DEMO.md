@@ -5,7 +5,7 @@
 ## Подготовка (один раз)
 
 1. `.env.local` заполнен реальными значениями (шаблон — `.env.example`):
-   - Supabase: `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`.
+   - Supabase: `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`, `SUPABASE_SERVICE_ROLE_KEY`.
    - Yandex Cloud: `YC_FOLDER_ID`, `YC_API_KEY` (`LLM_PROVIDER=yandex`, `LLM_MODEL=yandexgpt-lite`).
    - `NEXT_PUBLIC_APP_URL` (для локали — `http://localhost:3000`).
 2. Применить миграцию `supabase/migrations/0001_init.sql` к проекту Supabase.

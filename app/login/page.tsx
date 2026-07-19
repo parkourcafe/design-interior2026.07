@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { ru } from "@/lib/i18n/ru";
+import { safeDashboardPath } from "@/lib/auth/redirect";
 
 // Supabase-клиент (~70 КБ) грузим лениво — только когда пользователь реально
 // отправляет форму. Так стартовый бандл страницы входа остаётся лёгким.
@@ -12,6 +13,7 @@ async function supabaseClient() {
 }
 
 type Tab = "password" | "code";
+type OtpType = "email" | "signup";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -19,27 +21,37 @@ export default function LoginPage() {
   const [tab, setTab] = useState<Tab>("password");
   const [email, setEmail] = useState("");
   const [callbackError, setCallbackError] = useState<string | null>(null);
+  const [nextPath, setNextPath] = useState("/dashboard");
 
   // Показываем реальную причину, если /auth/callback вернул сюда с ?error=...
   useEffect(() => {
-    const err = new URLSearchParams(window.location.search).get("error");
+    const params = new URLSearchParams(window.location.search);
+    const err = params.get("error");
     if (err) setCallbackError(err);
+    setNextPath(safeDashboardPath(params.get("next")));
   }, []);
 
-  function goToDashboard() {
-    router.push("/dashboard");
+  function callbackUrl() {
+    const url = new URL("/auth/callback", window.location.origin);
+    url.searchParams.set("next", nextPath);
+    return url.toString();
+  }
+
+  function goToProtectedPage() {
+    router.push(nextPath);
     router.refresh();
   }
 
   // ── Вход через Google (OAuth) ──────────────────────────────
   async function google() {
     const supabase = await supabaseClient();
-    await supabase.auth.signInWithOAuth({
+    const { error } = await supabase.auth.signInWithOAuth({
       provider: "google",
       // Возврат на текущий origin (не из env) — иначе Supabase не найдёт адрес
       // в allow-list и увезёт на Site URL (главную).
-      options: { redirectTo: `${window.location.origin}/auth/callback` },
+      options: { redirectTo: callbackUrl() },
     });
+    if (error) setCallbackError(error.message);
   }
 
   // ── Вход/регистрация по паролю ─────────────────────────────
@@ -55,29 +67,34 @@ export default function LoginPage() {
     const supabase = await supabaseClient();
 
     if (signup) {
-      // Регистрация через серверный роут: аккаунт создаётся сразу подтверждённым
-      // (без письма). Потом — обычный вход по паролю.
-      const res = await fetch("/api/auth/register", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, password }),
+      const { data, error } = await supabase.auth.signUp({
+        email,
+        password,
+        options: { emailRedirectTo: callbackUrl() },
       });
-      const json = (await res.json().catch(() => ({}))) as { error?: string };
-      if (!res.ok) {
-        setPwBusy(false);
-        return setPwError(json.error ?? "Не удалось создать аккаунт.");
-      }
+      setPwBusy(false);
+      if (error) return setPwError(error.message);
+      if (data.session) return goToProtectedPage();
+
+      // При включённом Confirm email Supabase не создаёт сессию до проверки
+      // ссылки или 6-значного кода из письма.
+      setSignup(false);
+      setOtpType("signup");
+      setOtp("sent");
+      setTab("code");
+      return;
     }
 
     const { error } = await supabase.auth.signInWithPassword({ email, password });
     setPwBusy(false);
     if (error) return setPwError(error.message);
-    goToDashboard();
+    goToProtectedPage();
   }
 
   // ── Вход по коду на почту (passwordless OTP) ───────────────
   const [code, setCode] = useState("");
   const [otp, setOtp] = useState<"idle" | "sending" | "sent" | "error">("idle");
+  const [otpType, setOtpType] = useState<OtpType>("email");
   const [otpDetail, setOtpDetail] = useState<string | null>(null);
   const [verifying, setVerifying] = useState(false);
   const [codeError, setCodeError] = useState<string | null>(null);
@@ -85,10 +102,14 @@ export default function LoginPage() {
   async function sendCode(e: React.FormEvent) {
     e.preventDefault();
     setOtp("sending");
+    setOtpType("email");
     const supabase = await supabaseClient();
     const { error } = await supabase.auth.signInWithOtp({
       email,
-      options: { emailRedirectTo: `${window.location.origin}/auth/callback` },
+      options: {
+        emailRedirectTo: callbackUrl(),
+        shouldCreateUser: false,
+      },
     });
     setOtpDetail(error ? error.message : null);
     setOtp(error ? "error" : "sent");
@@ -99,10 +120,14 @@ export default function LoginPage() {
     setVerifying(true);
     setCodeError(null);
     const supabase = await supabaseClient();
-    const { error } = await supabase.auth.verifyOtp({ email, token: code.trim(), type: "email" });
+    const { error } = await supabase.auth.verifyOtp({
+      email,
+      token: code.trim(),
+      type: otpType,
+    });
     setVerifying(false);
     if (error) return setCodeError(error.message);
-    goToDashboard();
+    goToProtectedPage();
   }
 
   const inCodeEntry = tab === "code" && otp === "sent";
@@ -174,10 +199,11 @@ export default function LoginPage() {
           <div>
             <label className="label" htmlFor="password">{ru.auth.passwordLabel}</label>
             <input
-              id="password" type="password" required minLength={6}
+              id="password" type="password" required minLength={signup ? 8 : 6}
               autoComplete={signup ? "new-password" : "current-password"}
               value={password} onChange={(e) => setPassword(e.target.value)}
-              placeholder={ru.auth.passwordPlaceholder} className="input"
+              placeholder={signup ? ru.auth.passwordPlaceholder : ru.auth.passwordLoginPlaceholder}
+              className="input"
             />
           </div>
           <button type="submit" disabled={pwBusy} className="btn-primary w-full">
@@ -221,7 +247,9 @@ export default function LoginPage() {
 
       {inCodeEntry && (
         <div className="mt-6 space-y-5">
-          <p className="rounded-md border border-accent/30 bg-accent/5 p-4 text-sm">{ru.auth.sent}</p>
+          <p className="rounded-md border border-accent/30 bg-accent/5 p-4 text-sm">
+            {otpType === "signup" ? ru.auth.confirmSent : ru.auth.sent}
+          </p>
           <form onSubmit={verifyCode} className="space-y-3">
             <div>
               <label className="label" htmlFor="code">{ru.auth.codeLabel}</label>
@@ -237,7 +265,10 @@ export default function LoginPage() {
             </button>
             {codeError && <p className="text-sm text-red-600">{ru.auth.codeInvalid}</p>}
           </form>
-          <button onClick={() => setOtp("idle")} className="text-sm text-muted hover:text-ink">
+          <button
+            onClick={() => { setOtp("idle"); setOtpType("email"); }}
+            className="text-sm text-muted hover:text-ink"
+          >
             {ru.auth.otherEmail}
           </button>
         </div>

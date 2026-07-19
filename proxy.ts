@@ -1,40 +1,45 @@
-import { createServerClient, type CookieOptions } from "@supabase/ssr";
+import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
-
-type CookieToSet = { name: string; value: string; options?: CookieOptions };
+import { getSupabaseConfig } from "@/lib/supabase/config";
 
 // Обновляет сессию Supabase на каждом запросе к кабинету дизайнера и
 // защищает /dashboard: без сессии — редирект на /login.
 export async function proxy(request: NextRequest) {
   let response = NextResponse.next({ request });
+  const { url, publishableKey } = getSupabaseConfig();
 
   const supabase = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    url,
+    publishableKey,
     {
       cookies: {
         getAll() {
           return request.cookies.getAll();
         },
-        setAll(cookiesToSet: CookieToSet[]) {
+        setAll(cookiesToSet, headers) {
           cookiesToSet.forEach(({ name, value }) => request.cookies.set(name, value));
           response = NextResponse.next({ request });
           cookiesToSet.forEach(({ name, value, options }) =>
             response.cookies.set(name, value, options),
           );
+          Object.entries(headers).forEach(([name, value]) => response.headers.set(name, value));
         },
       },
     },
   );
 
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  // getClaims() проверяет подпись JWT. Доверять user из getSession() здесь нельзя:
+  // cookie приходит от браузера и может быть подделана.
+  const { data, error } = await supabase.auth.getClaims();
 
-  if (!user && request.nextUrl.pathname.startsWith("/dashboard")) {
+  if ((!data?.claims || error) && request.nextUrl.pathname.startsWith("/dashboard")) {
     const url = request.nextUrl.clone();
     url.pathname = "/login";
-    return NextResponse.redirect(url);
+    url.search = "";
+    url.searchParams.set("next", `${request.nextUrl.pathname}${request.nextUrl.search}`);
+    const redirectResponse = NextResponse.redirect(url);
+    response.cookies.getAll().forEach((cookie) => redirectResponse.cookies.set(cookie));
+    return redirectResponse;
   }
 
   return response;

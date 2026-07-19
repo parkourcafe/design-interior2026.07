@@ -14,7 +14,9 @@ export function GET() {
 
   const env = {
     supabase: Boolean(
-      process.env.NEXT_PUBLIC_SUPABASE_URL && process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
+      process.env.NEXT_PUBLIC_SUPABASE_URL &&
+        (process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY ||
+          process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY),
     ),
     supabase_service_role: Boolean(process.env.SUPABASE_SERVICE_ROLE_KEY),
     llm_provider: provider,

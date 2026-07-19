@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import type { EmailOtpType } from "@supabase/supabase-js";
 import { createClient } from "@/lib/supabase/server";
+import { safeDashboardPath } from "@/lib/auth/redirect";
 
 export const dynamic = "force-dynamic";
 
@@ -18,10 +19,9 @@ export async function GET(request: Request) {
   const code = searchParams.get("code");
   const tokenHash = searchParams.get("token_hash");
   const type = searchParams.get("type") as EmailOtpType | null;
-  // Только внутренний путь ("/dashboard", "/dashboard/..."), никаких внешних
-  // редиректов: next должен начинаться с одной "/" (не "//" и не "/\").
-  const nextParam = searchParams.get("next");
-  const next = nextParam && /^\/(?![/\\])/.test(nextParam) ? nextParam : "/dashboard";
+  // Только защищённый кабинет ("/dashboard", "/dashboard/..."), никаких
+  // внешних или служебных редиректов.
+  const next = safeDashboardPath(searchParams.get("next"));
 
   const supabase = await createClient();
 
