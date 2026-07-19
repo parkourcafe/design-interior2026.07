@@ -2,10 +2,10 @@
 
 import { useState } from "react";
 import { ru } from "@/lib/i18n/ru";
+import { createClient } from "@/lib/supabase/browser";
 
-// Задать/сменить пароль для уже залогиненного дизайнера. Включает вход по
-// почте+паролю с любого устройства (и передачу доступа общим логином/паролем).
-// Через серверный роут (service role) — в обход проверки «слабый пароль».
+// Задать/сменить пароль для уже залогиненного дизайнера. Supabase применяет
+// серверную политику сложности и проверку утёкших паролей, если она включена.
 export default function SetPassword({ email }: { email: string }) {
   const [password, setPassword] = useState("");
   const [busy, setBusy] = useState(false);
@@ -17,15 +17,11 @@ export default function SetPassword({ email }: { email: string }) {
     setBusy(true);
     setError(null);
     setOk(false);
-    const res = await fetch("/api/auth/set-password", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ password }),
-    });
-    const json = (await res.json().catch(() => ({}))) as { error?: string };
+    const supabase = createClient();
+    const { error: updateError } = await supabase.auth.updateUser({ password });
     setBusy(false);
-    if (!res.ok) {
-      setError(json.error ?? "Не удалось сохранить пароль.");
+    if (updateError) {
+      setError(updateError.message || "Не удалось сохранить пароль.");
     } else {
       setOk(true);
       setPassword("");
@@ -50,7 +46,7 @@ export default function SetPassword({ email }: { email: string }) {
             id="new-password"
             type="password"
             required
-            minLength={6}
+            minLength={8}
             autoComplete="new-password"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
@@ -58,7 +54,7 @@ export default function SetPassword({ email }: { email: string }) {
             className="input"
           />
         </div>
-        <button type="submit" disabled={busy || password.length < 6} className="btn-primary">
+        <button type="submit" disabled={busy || password.length < 8} className="btn-primary">
           {busy ? ru.setPassword.saving : ru.setPassword.submit}
         </button>
       </form>
