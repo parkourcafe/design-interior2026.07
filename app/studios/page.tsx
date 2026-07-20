@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import { pageMetadata } from "@/lib/seo";
 import Image from "next/image";
 import Link from "next/link";
 import { ru } from "@/lib/i18n/ru";
@@ -11,10 +11,12 @@ import { MEDIA } from "@/components/landing/media";
 const p = ru.landing.pageStudios;
 const L = ru.landing;
 
-export const metadata: Metadata = {
-  title: `${L.nav.studios} — ${ru.app.name}`,
-  description: p.sub,
-};
+export const metadata = pageMetadata({
+  title: "Сервис для дизайн-студии: заявки, бриф, КП",
+  description:
+    "Единый вход заявок, бриф клиента, риски и коммерческое предложение для студии. Прозрачность сделки до договора.",
+  path: "/studios",
+});
 
 export default function StudiosPage() {
   return (

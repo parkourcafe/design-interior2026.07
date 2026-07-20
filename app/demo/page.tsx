@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import { pageMetadata } from "@/lib/seo";
 import Image from "next/image";
 import Link from "next/link";
 import { ru } from "@/lib/i18n/ru";
@@ -10,10 +10,11 @@ import { MEDIA } from "@/components/landing/media";
 
 const d = ru.landing.demo;
 
-export const metadata: Metadata = {
-  title: `${d.loopTitle} — ${ru.app.name}`,
+export const metadata = pageMetadata({
+  title: d.loopTitle,
   description: d.loopSub,
-};
+  path: "/demo",
+});
 
 // Иллюстрации к шагам контура (индексы соответствуют d.loopSteps).
 const STEP_MEDIA: Record<number, { src: string; alt: string }> = {

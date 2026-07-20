@@ -1,6 +1,10 @@
+import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { ru } from "@/lib/i18n/ru";
+
+// Токен-страница — вне индекса (сверх X-Robots-Tag/robots.txt).
+export const metadata: Metadata = { robots: { index: false, follow: false } };
 import type { Passport } from "@/lib/types";
 import PassportView from "@/components/passport-view";
 import PrintButton from "@/components/print-button";

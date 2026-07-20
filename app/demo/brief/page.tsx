@@ -1,13 +1,14 @@
-import type { Metadata } from "next";
-import { ru } from "@/lib/i18n/ru";
+import { pageMetadata } from "@/lib/seo";
 import LandingNav from "@/components/landing/nav";
 import LandingFooter from "@/components/landing/footer";
 import DemoWizard from "./demo-wizard";
 
-export const metadata: Metadata = {
-  title: `${ru.landing.demo.briefTitle} — ${ru.app.name}`,
-  description: ru.landing.demo.briefSub,
-};
+export const metadata = pageMetadata({
+  title: "Бриф для дизайнера интерьера онлайн",
+  description:
+    "Отправьте клиенту ссылку — он заполнит бриф сам, а ArhiDom соберёт паспорт проекта и риски. Бесплатно в пилоте.",
+  path: "/demo/brief",
+});
 
 // Демо-бриф: открывается без регистрации, помечен как демо, ничего не
 // отправляет. Настоящий бриф создаётся кнопкой на финальном экране.

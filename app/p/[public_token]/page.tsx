@@ -1,6 +1,10 @@
+import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { ru } from "@/lib/i18n/ru";
+
+// Публичное КП клиента — суммы/ПДн, вне индекса (сверх X-Robots-Tag/robots.txt).
+export const metadata: Metadata = { robots: { index: false, follow: false } };
 import type { ProposalSection } from "@/lib/types";
 import { RESPONSE_TYPES } from "@/lib/proposal/respond";
 import PrintButton from "./print-button";

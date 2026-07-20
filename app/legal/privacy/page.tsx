@@ -1,14 +1,15 @@
-import type { Metadata } from "next";
+import { pageMetadata } from "@/lib/seo";
 import { ru } from "@/lib/i18n/ru";
 import LandingNav from "@/components/landing/nav";
 import LandingFooter from "@/components/landing/footer";
 
 const l = ru.landing.legal;
 
-export const metadata: Metadata = {
-  title: `${l.privacyTitle} — ${ru.app.name}`,
+export const metadata = pageMetadata({
+  title: l.privacyTitle,
   description: l.pilotBanner,
-};
+  path: "/legal/privacy",
+});
 
 // Юридические страницы — намеренно спокойные и читабельные, без «кино».
 // Реквизиты оператора НЕ выдумываем: их отсутствие — блокер публичного

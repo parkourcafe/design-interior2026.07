@@ -1,6 +1,10 @@
+import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { getProjectByIntakeToken } from "@/lib/intake";
 import { getDesignerPublic, type DesignerPublic } from "@/lib/designer";
+
+// Клиентский бриф по ссылке — ПДн, вне индекса (сверх X-Robots-Tag/robots.txt).
+export const metadata: Metadata = { robots: { index: false, follow: false } };
 import { requestBaseUrl } from "@/lib/base-url";
 import { ru } from "@/lib/i18n/ru";
 import ShareBrief from "@/components/share-brief";

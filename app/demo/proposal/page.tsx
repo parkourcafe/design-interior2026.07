@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import { pageMetadata } from "@/lib/seo";
 import Link from "next/link";
 import { ru } from "@/lib/i18n/ru";
 import LandingNav from "@/components/landing/nav";
@@ -10,10 +10,12 @@ import RespondDemo from "./respond-demo";
 const d = ru.landing.demo;
 const dp = ru.landing.demoProposal;
 
-export const metadata: Metadata = {
-  title: `${d.proposalTitle} — ${ru.app.name}`,
-  description: d.proposalSub,
-};
+export const metadata = pageMetadata({
+  title: "Генератор КП для дизайнера интерьера",
+  description:
+    "Коммерческое предложение из брифа за минуты: объём, стоимость, сроки. Без ручной вёрстки в Word. Бесплатно в пилоте.",
+  path: "/demo/proposal",
+});
 
 // Demo-КП: премиальный «бумажный» документ на тёмной сцене + витрина CTA
 // принятия. Все данные демонстрационные; настоящий поток живёт на /p/[token].

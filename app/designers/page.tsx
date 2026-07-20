@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import { pageMetadata } from "@/lib/seo";
 import Image from "next/image";
 import Link from "next/link";
 import { ru } from "@/lib/i18n/ru";
@@ -7,14 +7,27 @@ import LandingFooter from "@/components/landing/footer";
 import { Cine, Parallax } from "@/components/landing/cinema";
 import { delay } from "@/components/landing/delay";
 import { MEDIA } from "@/components/landing/media";
+import { FaqJsonLd } from "@/components/faq-json-ld";
+
+const FAQ = ru.seo.designersFaq;
+const RELATED = [
+  ["Бриф онлайн", "/demo/brief"],
+  ["Генератор КП", "/demo/proposal"],
+  ["Паспорт проекта", "/product/passport"],
+  ["Для студий", "/studios"],
+  ["Почему теряются согласования", "/guides/lost-approvals"],
+  ["Контроль изменений", "/solutions/changes"],
+] as const;
 
 const p = ru.landing.pageDesigners;
 const L = ru.landing;
 
-export const metadata: Metadata = {
-  title: `${L.nav.designers} — ${ru.app.name}`,
-  description: p.sub,
-};
+export const metadata = pageMetadata({
+  title: "Программа для дизайнера интерьера: бриф, риски, КП",
+  description:
+    "Мутный запрос клиента → бриф, паспорт проекта, карточки рисков и КП. Пресейл без Excel. Бесплатно в закрытом пилоте.",
+  path: "/designers",
+});
 
 export default function DesignersPage() {
   const stepMedia = [MEDIA.clientBrief, MEDIA.risks, MEDIA.proposal];
@@ -112,6 +125,38 @@ export default function DesignersPage() {
               {L.cta.trust}
             </p>
           </Cine>
+        </section>
+
+        {/* FAQ (видимый + FAQPage-разметка) */}
+        <section className="border-t border-linedark px-5 py-16 md:px-8">
+          <div className="mx-auto max-w-[760px]">
+            <Cine>
+              <h2 className="cine font-display text-[clamp(26px,3.6vw,40px)] font-semibold leading-[1.1] text-ivory">
+                Частые вопросы
+              </h2>
+              <div className="cine mt-8 divide-y divide-linedark border-y border-linedark" style={delay(1)}>
+                {FAQ.map((f) => (
+                  <details key={f.q} className="group px-1 py-4">
+                    <summary className="cursor-pointer list-none text-[15.5px] font-medium text-ivory marker:content-none">
+                      {f.q}
+                    </summary>
+                    <p className="mt-3 text-[14px] leading-relaxed text-ivory/65">{f.a}</p>
+                  </details>
+                ))}
+              </div>
+            </Cine>
+            <nav
+              aria-label={ru.seo.relatedLabel}
+              className="mt-12 flex flex-wrap items-center justify-center gap-x-5 gap-y-2 text-center text-[13.5px] text-ivory/55"
+            >
+              {RELATED.map(([label, href]) => (
+                <Link key={href} href={href} className="hover:text-ivory">
+                  {label}
+                </Link>
+              ))}
+            </nav>
+            <FaqJsonLd items={FAQ} />
+          </div>
         </section>
       </main>
       <LandingFooter />
