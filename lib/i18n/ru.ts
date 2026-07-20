@@ -341,6 +341,8 @@ export const ru = {
       login: "Войти",
       menu: "Меню",
       close: "Закрыть",
+      passport: "Паспорт проекта",
+      forClients: "Заказчику",
     },
     hero: {
       eyebrow: "AI-пресейл для интерьерных дизайнеров",
@@ -1067,6 +1069,7 @@ export const ru = {
       finalSub: "Бесплатно в закрытом пилоте.",
       finalCta: { label: "Попробовать бриф", href: "/demo/brief" },
       related: [
+        { label: "Программа для дизайнера", href: "/designers" },
         { label: "Контроль изменений", href: "/solutions/changes" },
         { label: "Как учитывать изменения заказчика", href: "/guides/client-changes" },
         { label: "Паспорт проекта", href: "/product/passport" },
@@ -1105,6 +1108,7 @@ export const ru = {
       finalSub: "Бесплатно в закрытом пилоте.",
       finalCta: { label: "Попробовать бриф", href: "/demo/brief" },
       related: [
+        { label: "Программа для дизайнера", href: "/designers" },
         { label: "Контроль изменений", href: "/solutions/changes" },
         { label: "Почему теряются согласования", href: "/guides/lost-approvals" },
         { label: "Перерасход бюджета", href: "/guides/budget-overrun" },
