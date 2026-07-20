@@ -8,7 +8,6 @@ import { ru } from "@/lib/i18n/ru";
 import type { Passport, PricingConfig, ProposalDefaults, ProposalSection } from "@/lib/types";
 import { calcPrice, type PriceResult } from "@/lib/pricing/calc";
 import { buildProposalSections } from "@/lib/proposal/build";
-import { RESPONSE_TYPES } from "@/lib/proposal/respond";
 import type { RiskCardRow } from "@/lib/review";
 import ProposalEditor from "./editor";
 
@@ -65,7 +64,7 @@ export default async function ProposalPage({ params }: { params: Promise<{ id: s
   // Обеспечить наличие черновика КП (public_token + событие proposal_created).
   const { data: existing } = await supabase
     .from("proposals")
-    .select("id, sections, status, public_token")
+    .select("id, sections, status, public_token, client_response, first_viewed_at")
     .eq("project_id", p.id)
     .eq("version", 1)
     .maybeSingle();
@@ -103,14 +102,10 @@ export default async function ProposalPage({ params }: { params: Promise<{ id: s
 
   const publicUrl = `${await requestBaseUrl()}/p/${publicToken}`;
 
-  // Петля обратной связи (audit S4): открывал ли клиент КП и его ответ.
-  const { data: feedbackEvents } = await supabase
-    .from("events")
-    .select("type")
-    .eq("project_id", p.id)
-    .in("type", [...RESPONSE_TYPES, "proposal_viewed"]);
-  const feedback = new Set((feedbackEvents ?? []).map((e) => (e as { type: string }).type));
-  const clientResponse = RESPONSE_TYPES.find((t) => feedback.has(t)) ?? null;
+  // Петля обратной связи (S3/S4): открывал ли клиент КП и его ответ —
+  // читаем прямо со строки proposals (уже выбрана выше, migration 0007).
+  const clientResponse = (existing as { client_response?: string | null } | null)?.client_response ?? null;
+  const clientViewed = Boolean((existing as { first_viewed_at?: string | null } | null)?.first_viewed_at);
 
   return (
     <div>
@@ -121,9 +116,9 @@ export default async function ProposalPage({ params }: { params: Promise<{ id: s
         <h1 className="mt-1 font-display text-3xl font-semibold">{ru.proposal.draftTitle}</h1>
         <p className="mt-1 text-sm text-muted">{ru.proposal.editHint}</p>
         {!pricing && <p className="mt-1 text-sm text-amber-800">{ru.proposal.noPrice}</p>}
-        {(clientResponse || feedback.has("proposal_viewed")) && (
+        {(clientResponse || clientViewed) && (
           <div className="mt-3 flex flex-wrap gap-2">
-            {feedback.has("proposal_viewed") && (
+            {clientViewed && (
               <span className="rounded-full border border-line bg-white px-3 py-1 text-xs text-muted">
                 {ru.proposal.clientViewed}
               </span>

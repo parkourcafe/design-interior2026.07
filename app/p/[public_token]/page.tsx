@@ -6,7 +6,6 @@ import { ru } from "@/lib/i18n/ru";
 // Публичное КП клиента — суммы/ПДн, вне индекса (сверх X-Robots-Tag/robots.txt).
 export const metadata: Metadata = { robots: { index: false, follow: false } };
 import type { ProposalSection } from "@/lib/types";
-import { RESPONSE_TYPES } from "@/lib/proposal/respond";
 import PrintButton from "./print-button";
 import ProposalRespond from "./respond";
 
@@ -23,7 +22,7 @@ export default async function PublicProposalPage({
   const admin = createAdminClient();
   const { data: proposal } = await admin
     .from("proposals")
-    .select("sections, status, project_id")
+    .select("sections, status, project_id, client_response, first_viewed_at")
     .eq("public_token", public_token)
     .maybeSingle();
 
@@ -36,27 +35,23 @@ export default async function PublicProposalPage({
   const projectId = (proposal as { project_id: string }).project_id;
   const { data: project } = await admin
     .from("projects")
-    .select("client_name, designer_id")
+    .select("client_name")
     .eq("id", projectId)
     .maybeSingle();
 
   const sections = (proposal.sections ?? []) as ProposalSection[];
   const clientName = (project as { client_name?: string } | null)?.client_name ?? "";
 
-  // Ответ клиента (если уже был) + событие «КП просмотрено» (один раз).
-  const { data: pastEvents } = await admin
-    .from("events")
-    .select("type")
-    .eq("project_id", projectId)
-    .in("type", [...RESPONSE_TYPES, "proposal_viewed"]);
-  const seen = new Set((pastEvents ?? []).map((e) => (e as { type: string }).type));
-  const response = RESPONSE_TYPES.find((t) => seen.has(t)) ?? null;
-  if (!seen.has("proposal_viewed")) {
-    await admin.from("events").insert({
-      designer_id: (project as { designer_id?: string | null } | null)?.designer_id ?? null,
-      project_id: projectId,
-      type: "proposal_viewed",
-    });
+  // Ответ клиента (если уже был) — читаем сразу со строки proposals (S3).
+  const response = (proposal as { client_response?: string | null }).client_response ?? null;
+
+  // Первый просмотр — фиксируем один раз (условие в WHERE, без гонки).
+  if (!(proposal as { first_viewed_at?: string | null }).first_viewed_at) {
+    await admin
+      .from("proposals")
+      .update({ first_viewed_at: new Date().toISOString() })
+      .eq("public_token", public_token)
+      .is("first_viewed_at", null);
   }
 
   return (

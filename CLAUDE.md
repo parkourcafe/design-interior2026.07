@@ -49,7 +49,9 @@ risk_cards: id, project_id,
   status ('proposed'|'accepted'|'rejected'), source ('rule'|'llm')
 
 proposals: id, project_id, version int, sections jsonb,
-  status ('draft'|'sent'), public_token text, sent_at
+  status ('draft'|'sent'), public_token text, sent_at,
+  client_response ('proposal_accepted'|'proposal_discussion_requested'|'proposal_changes_requested'|null),
+  client_response_at, first_viewed_at   -- S3, migration 0007 (20.07.2026)
 
 events: id, designer_id, project_id, type text, created_at
 ```
@@ -219,7 +221,7 @@ range_confirmations (новая):
 
 - **S1. Ценовое поведение КП согласовано с выводами WTP.** Gate — не «цена обязана быть», а «как КП показывает цену — решено по итогам интервью». Решение принимает WTP, не документ заранее. Граница «Пилот → Расширение» — **по завершении WTP-интервью**, не по числу бюро/времени (S1 зависит именно от выводов интервью).
 - **S2. Rule-based risk engine реально срабатывает.** Реализация hybrid contradiction detection уже есть (`lib/risks/rules.ts` + `lib/risks/llm.ts`) — не новьё, нужна верификация на эталонных противоречиях (свежий прогон: движок молчит всегда или был таймаут вызова к LLM-провайдеру).
-- **S3. Завершение сделки в публичном КП.** Не построено: `proposals.status` сейчас только `draft`/`sent`, нет `accepted`/`declined`, нет CTA «Принять / Обсудить / Запросить правки» на публичной странице `/p/…`.
+- **S3. Завершение сделки в публичном КП.** ✅ Готово (20.07.2026): CTA «Принять / Обсудить / Запросить правки» на `/p/…` — с 05.07; решение клиента и факт первого просмотра теперь персистятся на самой строке `proposals` (`client_response`, `client_response_at`, `first_viewed_at` — migration `0007_proposal_client_response.sql`), а не только сканированием `events`. Ответ фиксируется атомарным `UPDATE ... WHERE client_response IS NULL` — без гонки при параллельных кликах. `proposals.status` (`draft`/`sent`) не тронут — это workflow отправки, решение клиента живёт отдельно. Открытый вопрос: явного «declined» нет, три опции (accept/discuss/changes) — уже существовавший продуктовый выбор, не менялся.
 - **S4. Петля обратной связи.** Не построено: нет уведомления дизайнеру о заполненном брифе, нет tracking открытия КП.
 
 ### Стадия «Публичный запуск» — полный публичный запуск
