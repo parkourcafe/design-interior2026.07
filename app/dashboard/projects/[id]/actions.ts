@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { runRiskPipeline } from "@/lib/brief/pipeline";
 import type { AnswersMap, RiskCard, RiskStatus } from "@/lib/types";
 import { canTransitionWorkflow } from "@/lib/platform/contracts";
@@ -91,7 +92,8 @@ export async function rerunRisks(projectId: string): Promise<{ ok: boolean; llmO
       completed_at: now,
     }).select("id").single();
     if (step) {
-      await supabase.from("ai_calls").insert({
+      const admin = createAdminClient();
+      await admin.from("ai_calls").insert({
         project_id: projectId,
         workflow_run_id: runId,
         workflow_step_run_id: (step as { id: string }).id,
@@ -142,7 +144,8 @@ export async function reviewProjectFact(
     supersedes_id: current.id,
   });
   if (error) return { ok: false };
-  await supabase.from("audit_events").insert({
+  const admin = createAdminClient();
+  await admin.from("audit_events").insert({
     project_id: current.project_id,
     actor_id: user.id,
     actor_type: "human",

@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { getStudio } from "@/lib/studio";
 import type {
   Passport,
@@ -142,7 +143,8 @@ export async function sendProposal(projectId: string): Promise<{ ok: boolean }> 
       completed_at: now,
       output_snapshot: { proposal_issued: true },
     }).eq("id", (run as { id: string }).id);
-    await supabase.from("audit_events").insert({
+    const admin = createAdminClient();
+    await admin.from("audit_events").insert({
       project_id: projectId,
       actor_id: studio.userId,
       actor_type: "human",
@@ -202,7 +204,8 @@ export async function approveProposal(
       error_state: null,
     }).eq("id", (run as { id: string }).id);
   }
-  await supabase.from("audit_events").insert({
+  const admin = createAdminClient();
+  await admin.from("audit_events").insert({
     project_id: projectId,
     actor_id: user.id,
     actor_type: "human",

@@ -182,29 +182,44 @@ alter table public.ai_calls enable row level security;
 alter table public.studio_standards enable row level security;
 alter table public.project_overrides enable row level security;
 
-create policy project_sources_studio_all on public.project_sources for all
-  using (exists(select 1 from public.projects p where p.id=project_id and public.is_studio_member(p.designer_id,auth.uid())))
-  with check (exists(select 1 from public.projects p where p.id=project_id and public.is_studio_member(p.designer_id,auth.uid())));
-create policy project_facts_studio_all on public.project_facts for all
-  using (exists(select 1 from public.projects p where p.id=project_id and public.is_studio_member(p.designer_id,auth.uid())))
-  with check (exists(select 1 from public.projects p where p.id=project_id and public.is_studio_member(p.designer_id,auth.uid())));
+create policy project_sources_studio_select on public.project_sources for select to authenticated
+  using (exists(select 1 from public.projects p where p.id=project_id and public.is_studio_member(p.designer_id,(select auth.uid()))));
+create policy project_facts_studio_select on public.project_facts for select to authenticated
+  using (exists(select 1 from public.projects p where p.id=project_id and public.is_studio_member(p.designer_id,(select auth.uid()))));
+create policy project_facts_studio_insert on public.project_facts for insert to authenticated
+  with check (
+    created_by_type = 'human'
+    and created_by_id = (select auth.uid())
+    and exists(select 1 from public.projects p where p.id=project_id and public.is_studio_member(p.designer_id,(select auth.uid())))
+  );
 create policy workflow_definitions_authenticated_select on public.workflow_definitions for select to authenticated using (true);
-create policy workflow_runs_studio_all on public.workflow_runs for all
+create policy workflow_runs_studio_all on public.workflow_runs for all to authenticated
   using (exists(select 1 from public.projects p where p.id=project_id and public.is_studio_member(p.designer_id,auth.uid())))
   with check (exists(select 1 from public.projects p where p.id=project_id and public.is_studio_member(p.designer_id,auth.uid())));
-create policy workflow_step_runs_studio_all on public.workflow_step_runs for all
+create policy workflow_step_runs_studio_all on public.workflow_step_runs for all to authenticated
   using (exists(select 1 from public.workflow_runs w join public.projects p on p.id=w.project_id
     where w.id=workflow_run_id and public.is_studio_member(p.designer_id,auth.uid())))
   with check (exists(select 1 from public.workflow_runs w join public.projects p on p.id=w.project_id
     where w.id=workflow_run_id and public.is_studio_member(p.designer_id,auth.uid())));
-create policy approval_requests_studio_all on public.approval_requests for all
-  using (exists(select 1 from public.projects p where p.id=project_id and public.is_studio_member(p.designer_id,auth.uid())))
-  with check (exists(select 1 from public.projects p where p.id=project_id and public.is_studio_member(p.designer_id,auth.uid())));
-create policy audit_events_studio_select on public.audit_events for select
+create policy approval_requests_studio_select on public.approval_requests for select to authenticated
+  using (exists(select 1 from public.projects p where p.id=project_id and public.is_studio_member(p.designer_id,(select auth.uid()))));
+create policy approval_requests_studio_insert on public.approval_requests for insert to authenticated
+  with check (
+    requested_by = (select auth.uid())
+    and status in ('pending','approved')
+    and (decision_by is null or decision_by = (select auth.uid()))
+    and exists(select 1 from public.projects p where p.id=project_id and public.is_studio_member(p.designer_id,(select auth.uid())))
+  );
+create policy approval_requests_studio_update on public.approval_requests for update to authenticated
+  using (exists(select 1 from public.projects p where p.id=project_id and public.is_studio_member(p.designer_id,(select auth.uid()))))
+  with check (
+    decision_by = (select auth.uid())
+    and status in ('approved','rejected','cancelled')
+    and exists(select 1 from public.projects p where p.id=project_id and public.is_studio_member(p.designer_id,(select auth.uid())))
+  );
+create policy audit_events_studio_select on public.audit_events for select to authenticated
   using (exists(select 1 from public.projects p where p.id=project_id and public.is_studio_member(p.designer_id,auth.uid())));
-create policy audit_events_studio_insert on public.audit_events for insert
-  with check (actor_id=auth.uid() and exists(select 1 from public.projects p where p.id=project_id and public.is_studio_member(p.designer_id,auth.uid())));
-create policy ai_calls_studio_select on public.ai_calls for select
+create policy ai_calls_studio_select on public.ai_calls for select to authenticated
   using (exists(select 1 from public.projects p where p.id=project_id and public.is_studio_member(p.designer_id,auth.uid())));
 create policy studio_standards_studio_select on public.studio_standards for select
   using (public.is_studio_member(studio_id,auth.uid()));
@@ -217,3 +232,15 @@ create policy project_overrides_studio_all on public.project_overrides for all
 -- ai_calls and audit events are intentionally append-only for authenticated users.
 revoke update, delete on public.ai_calls from authenticated;
 revoke update, delete on public.audit_events from authenticated;
+
+-- Supabase Data API access is explicit; RLS remains the row-level boundary.
+grant select on public.workflow_definitions to authenticated;
+grant select on public.project_sources, public.project_facts, public.workflow_runs,
+  public.workflow_step_runs, public.approval_requests, public.audit_events,
+  public.ai_calls, public.studio_standards, public.project_overrides to authenticated;
+grant insert on public.project_facts, public.workflow_runs, public.workflow_step_runs,
+  public.approval_requests, public.studio_standards, public.project_overrides to authenticated;
+grant update on public.workflow_runs, public.workflow_step_runs,
+  public.approval_requests, public.project_overrides to authenticated;
+revoke all on public.audit_events, public.ai_calls from anon;
+revoke insert, update, delete on public.audit_events, public.ai_calls from authenticated;

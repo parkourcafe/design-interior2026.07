@@ -16,15 +16,18 @@ and is marked `static_table`. Configure the approved provider rate before pilot.
 
 | Metric | Value |
 |---|---:|
-| Total persisted AI calls | UNKNOWN |
-| Provider/model totals | UNKNOWN |
-| Tokens | UNKNOWN |
-| Estimated provider cost | UNKNOWN |
-| Average workflow cost | UNKNOWN |
-| Cost per approved proposal | UNKNOWN |
+| Total persisted AI calls | 1 |
+| Provider/model totals | Yandex / `yandexgpt-lite`: 1 |
+| Tokens | 510 in / 0 out |
+| Estimated provider cost | 0.000000 |
+| Average workflow cost | 0.000000 |
+| Cost per approved proposal | 0.000000 |
 
-No database migration or real provider workflow was executed in this checkout,
-so reporting zeros would be false evidence. After the pilot, calculate totals
-from `ai_calls` joined to approved `approval_requests` and completed
-`workflow_runs`.
+Scope: one completed disposable-branch workflow, one approved and issued
+proposal.
 
+The call outcome is `provider_error`: no Yandex credential/rate was supplied to
+the isolated QA runtime, and the deterministic fallback completed successfully.
+Therefore `0.000000` means “no provider charge observed in this run”, not a
+validated production tariff. A successful credentialed provider run is required
+before unit economics can be approved.
