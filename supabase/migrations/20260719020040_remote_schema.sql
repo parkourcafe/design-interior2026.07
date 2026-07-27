@@ -1,0 +1,6 @@
+-- Production migration-history marker.
+--
+-- Production already records version 20260719020040 as `remote_schema`.
+-- The exact 182-statement snapshot is archived under docs/baselines, outside
+-- the executable migration chain, because it overlaps migrations 0001-0006.
+-- This marker keeps version history aligned without replaying overlapping DDL.
