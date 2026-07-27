@@ -121,6 +121,7 @@ credentials from gitignored `.env.local`. Authenticated browser QA passed:
 - local server runtime errors during the verified flow: 0.
 
 The database race remains independently covered by live disposable SQL.
-The newer reservation/finalization migrations are locally verified but still
-await disposable-preview SQL execution; they have not been applied to
-production or to the paused pilot branch.
+The newer reservation/finalization migrations passed Supabase PR Preview on
+`krspwzipzfuwumzotpmb`; catalog checks confirmed function privileges,
+`search_path` hardening and lifecycle constraints. They have not been applied
+to production or to the paused pilot branch.

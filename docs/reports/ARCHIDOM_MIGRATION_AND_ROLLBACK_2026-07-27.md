@@ -52,6 +52,7 @@ audit evidence after any authorization or issue operation.
 
 Disposable branch status: all seven Sprint/corrective migrations applied
 successfully on 27.07.2026.
-PR #51 AI reservation/finalization migrations: local contract verification
-passed; disposable-preview application pending.
+PR #51 AI reservation/finalization migrations: applied successfully to
+disposable Supabase PR Preview `krspwzipzfuwumzotpmb`; local contract
+verification and catalog privilege/constraint checks passed.
 Production migration status: not applied.

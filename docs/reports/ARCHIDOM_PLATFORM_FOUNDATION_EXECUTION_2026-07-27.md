@@ -58,9 +58,11 @@ row-locked retry commands, revision-bound approval, approval invalidation after
 editing, monotonic re-approval, exact revision issue and immutable sent content.
 
 The later PR #51 review fix adds two more additive migrations for durable
-AI-call reservation and atomic finalization. Their local contract tests,
-TypeScript, lint and production build pass; disposable-preview SQL proof is a
-separate pending gate and is not represented as live evidence here.
+AI-call reservation, independent usage persistence and atomic business
+finalization. Supabase PR Preview `krspwzipzfuwumzotpmb` applied both migrations.
+Catalog proof confirmed all five command RPCs use an empty `search_path`, deny
+`anon`, and grant only authenticated execution; lifecycle/outcome constraints
+include explicit reserved and abandoned states.
 
 ## Remaining production gate
 

@@ -32,6 +32,14 @@ corrective migrations, and the post-review issuance guard migration applied.
 The branch is paused; the two later PR #51 AI reservation/finalization
 migrations have not been applied there.
 
+Supabase PR Preview `krspwzipzfuwumzotpmb` applied both later migrations.
+Catalog verification found all five new command RPCs with
+`security_definer = true`, `search_path = ''`, `anon_execute = false`, and
+`authenticated_execute = true`. The Security Advisor reports the expected
+guarded-command warnings plus the pre-existing service-only `rate_limits` INFO;
+no unexpected RLS regression was introduced
+([advisor remediation reference](https://supabase.com/docs/guides/database/database-linter?lint=0029_authenticated_security_definer_function_executable)).
+
 Live role-session results:
 
 - studio A sees 1 own fact and 0 studio B facts;
