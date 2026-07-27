@@ -1,0 +1,9 @@
+Resource,Anonymous,Studio member,Studio owner,Service route
+project_sources,None,Project scoped read/write,Project scoped read/write,Token-bound intake write
+project_facts,None,Project scoped review,Project scoped review,Token-bound extraction write
+workflow_runs,None,Project scoped read/write,Project scoped read/write,Token-bound orchestration
+approval_requests,None,Required-role decision,Required-role decision,No human decision
+audit_events,None,Read and actor-bound insert,Read and actor-bound insert,System insert
+ai_calls,None,Read,Read,Append only
+studio_standards,None,Read,Version insert,No
+project_overrides,None,Project scoped,Project scoped,No

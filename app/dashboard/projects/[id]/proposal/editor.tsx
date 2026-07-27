@@ -3,7 +3,7 @@
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import type { ProposalSection } from "@/lib/types";
-import { saveProposal, sendProposal, rebuildProposal } from "./actions";
+import { saveProposal, sendProposal, rebuildProposal, approveProposal } from "./actions";
 import { ru } from "@/lib/i18n/ru";
 
 export default function ProposalEditor({
@@ -11,15 +11,21 @@ export default function ProposalEditor({
   initialSections,
   publicUrl,
   alreadySent,
+  approved,
+  selfApproved,
 }: {
   projectId: string;
   initialSections: ProposalSection[];
   publicUrl: string;
   alreadySent: boolean;
+  approved: boolean;
+  selfApproved: boolean;
 }) {
   const [sections, setSections] = useState(initialSections);
   const [saved, setSaved] = useState(false);
   const [sent, setSent] = useState(alreadySent);
+  const [releaseApproved, setReleaseApproved] = useState(approved);
+  const [authorApproved, setAuthorApproved] = useState(selfApproved);
   const [pending, startTransition] = useTransition();
   const router = useRouter();
 
@@ -42,6 +48,16 @@ export default function ProposalEditor({
       if (res.ok) {
         setSent(true);
         router.refresh();
+      }
+    });
+  }
+
+  function approve() {
+    startTransition(async () => {
+      const res = await approveProposal(projectId);
+      if (res.ok) {
+        setReleaseApproved(true);
+        setAuthorApproved(Boolean(res.selfApproved));
       }
     });
   }
@@ -79,10 +95,25 @@ export default function ProposalEditor({
         <button onClick={() => window.print()} className="btn-ghost">
           {ru.proposal.print}
         </button>
-        <button onClick={send} disabled={pending || sent} className="btn-primary">
+        {!sent && !releaseApproved && (
+          <button onClick={approve} disabled={pending} className="btn-ghost">
+            Подтвердить выпуск
+          </button>
+        )}
+        <button onClick={send} disabled={pending || sent || !releaseApproved} className="btn-primary">
           {sent ? ru.proposal.sent : pending ? ru.proposal.sending : ru.proposal.send}
         </button>
       </div>
+
+      {releaseApproved ? (
+        <p className="no-print rounded-md border border-line bg-white p-3 text-sm text-muted">
+          {authorApproved ? "Подтверждено автором действия" : "Выпуск подтверждён"}
+        </p>
+      ) : (
+        <p className="no-print rounded-md border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900">
+          Выпуск КП заблокирован до подтверждения человеком.
+        </p>
+      )}
 
       <div className="no-print rounded-md border border-line bg-white p-3 text-sm">
         {sent ? (

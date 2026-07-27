@@ -1,5 +1,5 @@
 import type { Passport, RiskCard } from "@/lib/types";
-import { completeJSON } from "@/lib/llm/provider";
+import { completeJSON, type LlmUsage } from "@/lib/llm/provider";
 import { RiskCardsLlmSchema } from "./schema";
 
 // Слой 2 — LLM-проход. Один серверный вызов с паспортом + сырыми ответами.
@@ -86,6 +86,7 @@ export interface LlmRisksResult {
   cards: RiskCard[];
   error?: string;
   repaired?: boolean;
+  usage: LlmUsage;
 }
 
 // Возвращает LLM-карточки как RiskCard[] (source='llm'). При провале ok=false и
@@ -95,8 +96,8 @@ export async function generateLlmRisks(
   answers: Record<string, unknown>,
 ): Promise<LlmRisksResult> {
   const result = await completeJSON(buildRiskPrompt(passport, answers), RiskCardsLlmSchema);
-  if (!result.ok) return { ok: false, cards: [], error: result.error };
+  if (!result.ok) return { ok: false, cards: [], error: result.error, usage: result.usage };
 
   const cards: RiskCard[] = result.data.map((c) => ({ ...c, source: "llm" as const }));
-  return { ok: true, cards, repaired: result.repaired };
+  return { ok: true, cards, repaired: result.repaired, usage: result.usage };
 }

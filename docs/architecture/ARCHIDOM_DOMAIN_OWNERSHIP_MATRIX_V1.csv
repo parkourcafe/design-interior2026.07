@@ -1,0 +1,12 @@
+Entity,Owner,Writer,Human gate
+project_sources,M1,server intake/system,None
+project_facts,M1,system or authenticated studio,Human review
+workflow_definitions,Platform,migration,None
+workflow_runs,Platform,server workflow adapter,State machine
+workflow_step_runs,Platform,server workflow adapter,Step-specific
+approval_requests,Platform,authenticated studio,Required role
+audit_events,Platform,server/authenticated actor,Append-only
+ai_calls,Platform,server provider adapter,Append-only
+studio_standards,Studio Memory,studio owner,Versioned
+project_overrides,Studio Memory,authenticated studio,Approved flag
+

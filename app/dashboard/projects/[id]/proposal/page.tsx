@@ -111,6 +111,10 @@ export default async function ProposalPage({ params }: { params: Promise<{ id: s
     .in("type", [...RESPONSE_TYPES, "proposal_viewed"]);
   const feedback = new Set((feedbackEvents ?? []).map((e) => (e as { type: string }).type));
   const clientResponse = RESPONSE_TYPES.find((t) => feedback.has(t)) ?? null;
+  const { data: releaseApproval } = await supabase.from("approval_requests")
+    .select("status,self_approved").eq("project_id", p.id)
+    .eq("subject_type", "proposal").eq("approval_type", "RELEASE_AUTHORIZED")
+    .eq("status", "approved").maybeSingle();
 
   return (
     <div>
@@ -142,6 +146,8 @@ export default async function ProposalPage({ params }: { params: Promise<{ id: s
         initialSections={sections}
         publicUrl={publicUrl}
         alreadySent={sent}
+        approved={Boolean(releaseApproval)}
+        selfApproved={Boolean((releaseApproval as { self_approved?: boolean } | null)?.self_approved)}
       />
     </div>
   );

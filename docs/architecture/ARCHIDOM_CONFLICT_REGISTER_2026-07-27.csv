@@ -1,0 +1,9 @@
+ID,Conflict,Status,Resolution
+C-001,Default branch differs from production branch,LIVE,"Implement on isolated Sprint branch; production adoption remains gated"
+C-002,Canonical package newer than production code,LIVE,"Use Charter v0.5 as product contract and repository as factual baseline"
+C-003,Legacy risk rerun deletes accepted cards,PARTIAL,"Documented; do not claim immutable risk versions"
+C-004,Current proposal draft generation is deterministic while catalog classifies action metered_ai,PARTIAL,"No fictitious ai_call is written; only actual provider calls are metered"
+C-005,Provider responses do not expose normalized cost,PARTIAL,"Static configurable ₽/1K token estimate with estimate_source=static_table"
+C-006,Original local Git index is iCloud dataless,BLOCKED,"Preserved; clean checkout created in archidom-sprint1"
+C-007,No disposable/production Supabase credentials in clean checkout,BLOCKED,"Static RLS contract tested; live RLS/browser evidence remains required"
+

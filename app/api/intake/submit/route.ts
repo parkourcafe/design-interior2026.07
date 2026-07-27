@@ -4,6 +4,7 @@ import { getProjectByIntakeToken } from "@/lib/intake";
 import { runRiskPipeline } from "@/lib/brief/pipeline";
 import { checkRateLimit, clientIp } from "@/lib/rate-limit";
 import type { AnswersMap, RiskCard } from "@/lib/types";
+import { persistBriefWorkflow } from "@/lib/platform/m1-workflow";
 
 export const dynamic = "force-dynamic";
 
@@ -40,7 +41,7 @@ export async function POST(request: Request) {
   }
 
   // 2. Полный проход: паспорт + карточки (деградация внутри пайплайна).
-  const { passport, cards, llmOk } = await runRiskPipeline(answers);
+  const { passport, cards, llmOk, llmUsage } = await runRiskPipeline(answers);
 
   // 3. Записать паспорт. Имя клиента — из контакта (чтобы дизайнер понимал,
   // чья это заявка среди множества).
@@ -74,5 +75,19 @@ export async function POST(request: Request) {
     type: "brief_completed",
   });
 
-  return NextResponse.json({ ok: true, llmOk });
+  const workflow = await persistBriefWorkflow(admin, {
+    projectId: project.id,
+    initiatedBy: project.designer_id,
+    answers,
+    passport,
+    llmUsage,
+  });
+  if (!workflow.ok) {
+    return NextResponse.json(
+      { error: "workflow_persistence_failed", detail: workflow.error },
+      { status: 500 },
+    );
+  }
+
+  return NextResponse.json({ ok: true, llmOk, workflowRunId: workflow.workflowRunId });
 }
