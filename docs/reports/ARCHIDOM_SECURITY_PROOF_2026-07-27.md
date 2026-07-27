@@ -22,7 +22,7 @@
 ## Evidence
 
 Disposable Supabase branch `archidom-sprint1-pilot`
-(`udtjczcnemndubsyuqxc`) has migrations `0007` and `0008` applied.
+(`udtjczcnemndubsyuqxc`) has migrations `0007`–`0009` applied.
 
 Live role-session results:
 
@@ -33,10 +33,14 @@ Live role-session results:
 - approval identity mutation: blocked;
 - anon fact select privilege: false;
 - public membership helper execute privilege: false.
+- concurrent active retry attempt: blocked by database uniqueness.
 
 Supabase Security Advisor after migration reports no Sprint 1 warning/error.
 The only remaining notice is INFO for the intentionally service-only legacy
-`rate_limits` table ([advisor reference](https://supabase.com/docs/guides/database/database-linter?lint=0008_rls_enabled_no_policy)).
+`rate_limits` table and an Auth configuration warning that leaked-password
+protection is disabled
+([RLS advisor reference](https://supabase.com/docs/guides/database/database-linter?lint=0008_rls_enabled_no_policy),
+[Auth remediation](https://supabase.com/docs/guides/auth/password-security#password-strength-and-leaked-password-protection)).
 
 `migration-contract.test.ts` also verifies additive DDL, RLS coverage, private
 helper configuration, AI confirmation prohibition and governed mutations.

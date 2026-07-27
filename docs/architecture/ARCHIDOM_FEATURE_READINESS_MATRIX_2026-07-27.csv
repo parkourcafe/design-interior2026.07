@@ -7,7 +7,7 @@ M1,Risk register,PARTIAL,lib/risks plus review UI,Rerun still replaces accepted 
 M1,Pricing,IMPLEMENTED,lib/pricing/calc.ts and tests,No production DB proof
 M1,Proposal links,IMPLEMENTED,Disposable issue and public mobile link passed,Production regression pending
 Platform,Project sources/facts,IMPLEMENTED,0007/0008 live branch plus fact-version browser test,Migration not applied to production
-Platform,Workflow runs/resume,PARTIAL,Completed workflow persisted and transition guards passed,Failed-step browser replay unproved
+Platform,Workflow runs/resume,IMPLEMENTED,Authenticated failed-step replay created attempt 2 with linked audit/AI evidence,Production regression pending
 Platform,Skill registry,IMPLEMENTED,lib/platform/contracts.ts,Internal only
 Platform,Approval/self approval,IMPLEMENTED,Live branch approval and self-approved UI passed,Migration not applied to production
 Platform,AI call measurement,IMPLEMENTED,Live metered provider_error call persisted with 510 input tokens,Successful provider rate must be configured

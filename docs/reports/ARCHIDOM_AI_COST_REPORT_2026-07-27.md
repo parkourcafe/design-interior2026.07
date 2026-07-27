@@ -16,17 +16,18 @@ and is marked `static_table`. Configure the approved provider rate before pilot.
 
 | Metric | Value |
 |---|---:|
-| Total persisted AI calls | 1 |
-| Provider/model totals | Yandex / `yandexgpt-lite`: 1 |
-| Tokens | 510 in / 0 out |
+| Total persisted AI calls | 3 |
+| Provider/model totals | Yandex / `yandexgpt-lite`: 3 |
+| Tokens | 1,120 in / 0 out |
 | Estimated provider cost | 0.000000 |
 | Average workflow cost | 0.000000 |
 | Cost per approved proposal | 0.000000 |
 
-Scope: one completed disposable-branch workflow, one approved and issued
-proposal.
+Scope: one completed disposable-branch proposal workflow plus one controlled
+failed/retried workflow for the same project. One call is explicitly linked as a
+retry through `retry_of_id`.
 
-The call outcome is `provider_error`: no Yandex credential/rate was supplied to
+All call outcomes are `provider_error`: no Yandex credential/rate was supplied to
 the isolated QA runtime, and the deterministic fallback completed successfully.
 Therefore `0.000000` means “no provider charge observed in this run”, not a
 validated production tariff. A successful credentialed provider run is required
