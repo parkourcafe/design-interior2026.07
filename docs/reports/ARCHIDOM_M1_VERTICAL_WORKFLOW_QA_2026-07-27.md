@@ -107,10 +107,14 @@ pipeline, persists and checks the `ai_calls` record before changing passport or
 risk-card state, and fails on every checked persistence error. Successful
 proposal rebuild now invalidates both local release-approval flags.
 
-The post-review local browser login reached the disposable Auth service, but
-authenticated dashboard rendering requires the disposable service-role key
-through the legacy `getStudio()` resolver. The connector exposes only a
-publishable key, so this incremental browser recheck is
-`BLOCKED_BY_DISPOSABLE_SERVICE_KEY`; no production key was substituted.
-The rebuild behavior is covered by a focused regression contract, while the
-database race is covered by live disposable SQL.
+The post-review local production build used disposable Auth and service-role
+credentials from gitignored `.env.local`. Authenticated browser QA passed:
+
+- release approval enabled proposal send;
+- successful rebuild replaced the proposal sections;
+- rebuild immediately invalidated release/self-approval state;
+- send became disabled and human confirmation was required again;
+- browser console warnings/errors: 0;
+- local server runtime errors during the verified flow: 0.
+
+The database race remains independently covered by live disposable SQL.
