@@ -26,20 +26,34 @@ Legacy tables remain the read models; no graph database or future module was add
 - Compact workflow/fact review UI.
 - Legacy setup defaults normalized after authenticated browser QA exposed an
   empty-JSON compatibility failure.
+- Failed risk-step replay with immutable attempts, idempotency guard, linked AI
+  retry measurement and start/completed/failed audit events.
+- Corrective exact-revision proposal approval, monotonic issue marker and issued
+  content immutability.
+- Read-only authenticated workflow/approval ledgers with guarded command RPCs
+  and atomic audit writes.
 
-Commands: `npm run test` (72 passing), `npm run lint` (passing),
+Commands: `npm run test` (85 passing), `npm run lint` (passing),
 `npm run typecheck` (passing),
 `npm run build` (passing).
 
 ## LIVE DISPOSABLE EVIDENCE
 
-Both migrations are applied to Supabase branch `archidom-sprint1-pilot`
+Migrations `0007`–`0009` and three timestamped corrective migrations are
+applied to Supabase branch `archidom-sprint1-pilot`
 (`udtjczcnemndubsyuqxc`). Role negatives and the authenticated end-to-end path
 brief → persisted workflow/facts → fact version → passport → proposal → human
 approval → issue → public proposal passed.
 
-The completed run persisted 1 workflow, 3 step attempts, 9 fact rows (including
+The completed proposal run persisted 1 workflow, 3 step attempts, 9 fact rows (including
 one immutable confirmation version), 1 measured AI call and 4 audit events.
+A separate controlled failed workflow proved UI retry/resume: attempt 2 completed,
+the earlier completed step remained unchanged, and the linked retry call/audit
+events were persisted.
+
+Corrective live proof additionally covered table-API mutation revocation,
+row-locked retry commands, revision-bound approval, approval invalidation after
+editing, monotonic re-approval, exact revision issue and immutable sent content.
 
 ## Remaining production gate
 

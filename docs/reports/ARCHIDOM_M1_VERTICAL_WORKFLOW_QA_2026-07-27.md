@@ -2,7 +2,7 @@
 
 ## Automated evidence
 
-- 15 test files, 72 tests passing.
+- 17 test files, 85 tests passing.
 - Passport regression: 12 tests.
 - Pricing regression: 4 tests.
 - Risk rules/schema/dedupe/LLM tests passing.
@@ -41,10 +41,51 @@ Final database evidence for the browser run:
 - fact version created through `supersedes_id`;
 - 4 audit events and 1 metered AI-call record.
 
+## Retry/resume evidence
+
+A controlled `generate_risk_register` failure was created on the disposable
+branch and replayed through the authenticated project UI.
+
+- failed attempt 1 remained immutable;
+- retry created exactly attempt 2;
+- previously completed `build_project_passport` attempt 1 was not replayed;
+- attempt 2 completed with deterministic fallback and recorded the provider
+  failure separately in `ai_calls`;
+- workflow resumed to `waiting_for_human · human_review`;
+- audit trail contains `workflow_retry_started` and
+  `workflow_retry_completed`;
+- retry AI call points to the first call through `retry_of_id`;
+- concurrent second active attempt was rejected by the partial unique index;
+- fresh browser console contained no warning/error.
+
+## Corrective approval/ledger evidence
+
+The PR #49 corrective branch adds exact proposal revisions and removes direct
+authenticated mutations from `workflow_runs`, `workflow_step_runs` and
+`approval_requests`.
+
+- authenticated roles retain ledger SELECT but have no INSERT/UPDATE privilege;
+- retry/rerun/authorize/issue mutations use six guarded command RPCs;
+- proposal approval references one immutable `proposal_revisions` row;
+- editing after approval immediately invalidates the UI release state;
+- re-approval creates a new monotonic revision;
+- issue consumes the exact approval/revision and is idempotent only for that
+  same issued revision;
+- issued proposal content is protected by a database trigger;
+- SQL retry replay reached `waiting_for_human · human_review`, while a second
+  terminal replay was rejected;
+- authenticated browser QA passed
+  `approve revision A → edit to B → approval invalidated → approve B → issue B`;
+- after issue the editor is disabled and Save is absent;
+- no new browser warning/error appeared during the corrective flow.
+
+The corrective migrations were executed against the disposable branch. The
+first attempt failed transactionally on invalid PL/pgSQL composite assignment;
+the query was corrected and the clean migration then applied successfully.
+
 ## Remaining gate
 
 Production migration/deployment, production browser regression and a successful
-credentialed YandexGPT call were not executed. Retry state/guard logic passes
-unit and SQL tests, but a browser-driven failed-step replay remains unproved.
+credentialed YandexGPT call were not executed.
 
 Verdict: `M1_VERTICAL_WORKFLOW: PARTIAL`.

@@ -67,7 +67,8 @@ export default async function ProposalPage({ params }: { params: Promise<{ id: s
     .from("proposals")
     .select("id, sections, status, public_token")
     .eq("project_id", p.id)
-    .eq("version", 1)
+    .order("created_at", { ascending: false })
+    .limit(1)
     .maybeSingle();
 
   let sections: ProposalSection[];
@@ -112,9 +113,25 @@ export default async function ProposalPage({ params }: { params: Promise<{ id: s
   const feedback = new Set((feedbackEvents ?? []).map((e) => (e as { type: string }).type));
   const clientResponse = RESPONSE_TYPES.find((t) => feedback.has(t)) ?? null;
   const { data: releaseApproval } = await supabase.from("approval_requests")
-    .select("status,self_approved").eq("project_id", p.id)
+    .select("status,self_approved,proposal_revision_id").eq("project_id", p.id)
     .eq("subject_type", "proposal").eq("approval_type", "RELEASE_AUTHORIZED")
-    .eq("status", "approved").maybeSingle();
+    .eq("status", "approved")
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  const approvedRevisionId = (
+    releaseApproval as { proposal_revision_id?: string | null } | null
+  )?.proposal_revision_id;
+  const { data: approvedRevision } = approvedRevisionId
+    ? await supabase.from("proposal_revisions")
+      .select("sections")
+      .eq("id", approvedRevisionId)
+      .maybeSingle()
+    : { data: null };
+  const releaseIsCurrent = Boolean(
+    approvedRevision
+    && JSON.stringify(approvedRevision.sections) === JSON.stringify(sections),
+  );
 
   return (
     <div>
@@ -146,8 +163,11 @@ export default async function ProposalPage({ params }: { params: Promise<{ id: s
         initialSections={sections}
         publicUrl={publicUrl}
         alreadySent={sent}
-        approved={Boolean(releaseApproval)}
-        selfApproved={Boolean((releaseApproval as { self_approved?: boolean } | null)?.self_approved)}
+        approved={releaseIsCurrent}
+        selfApproved={
+          releaseIsCurrent
+          && Boolean((releaseApproval as { self_approved?: boolean } | null)?.self_approved)
+        }
       />
     </div>
   );

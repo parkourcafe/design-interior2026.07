@@ -115,9 +115,12 @@ export async function persistBriefWorkflow(
     workflow_run_id: workflowRunId,
     step_key: "generate_risk_register",
     attempt,
-    status: input.llmUsage.outcome === "success" ? "completed" : "failed",
-    output_snapshot: { llm_outcome: input.llmUsage.outcome },
-    error: input.llmUsage.outcome === "success" ? null : { outcome: input.llmUsage.outcome },
+    status: "completed",
+    output_snapshot: {
+      llm_outcome: input.llmUsage.outcome,
+      fallback_used: input.llmUsage.outcome !== "success",
+    },
+    error: null,
     started_at: now,
     completed_at: now,
   }).select("id").single();
