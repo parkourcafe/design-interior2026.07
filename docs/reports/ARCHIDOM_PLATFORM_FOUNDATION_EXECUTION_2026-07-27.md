@@ -33,7 +33,7 @@ Legacy tables remain the read models; no graph database or future module was add
 - Read-only authenticated workflow/approval ledgers with guarded command RPCs
   and atomic audit writes.
 
-Commands: `npm run test` (85 passing), `npm run lint` (passing),
+Commands: `npm run test` (88 passing), `npm run lint` (passing),
 `npm run typecheck` (passing),
 `npm run build` (passing).
 

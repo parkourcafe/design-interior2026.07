@@ -80,6 +80,8 @@ export default function ProposalEditor({
       if (res.ok && res.sections) {
         setSections(res.sections);
         setSaved(true);
+        setReleaseApproved(false);
+        setAuthorApproved(false);
       } else if (res.reason === "sent") {
         window.alert("КП уже отправлено — пересборка недоступна.");
       }

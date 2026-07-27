@@ -2,7 +2,7 @@
 
 ## Automated evidence
 
-- 17 test files, 85 tests passing.
+- 19 test files, 88 tests passing.
 - Passport regression: 12 tests.
 - Pricing regression: 4 tests.
 - Risk rules/schema/dedupe/LLM tests passing.
@@ -89,3 +89,28 @@ Production migration/deployment, production browser regression and a successful
 credentialed YandexGPT call were not executed.
 
 Verdict: `M1_VERTICAL_WORKFLOW: PARTIAL`.
+
+## PR #50 post-merge review correction
+
+The additive `20260727114500_guard_proposal_revision_issuance.sql` migration
+moves the stale-approval comparison into the locked issuance command. Live
+disposable-branch proof covered both directions:
+
+- a draft changed after approval remained `draft`; its revision was not issued,
+  approval was not consumed and workflow remained running;
+- an unchanged exact approved revision advanced the proposal to version 2,
+  consumed the approval and completed the workflow;
+- a cross-studio caller remained denied.
+
+`rerunRisks` now resolves the governed workflow before executing the metered
+pipeline, persists and checks the `ai_calls` record before changing passport or
+risk-card state, and fails on every checked persistence error. Successful
+proposal rebuild now invalidates both local release-approval flags.
+
+The post-review local browser login reached the disposable Auth service, but
+authenticated dashboard rendering requires the disposable service-role key
+through the legacy `getStudio()` resolver. The connector exposes only a
+publishable key, so this incremental browser recheck is
+`BLOCKED_BY_DISPOSABLE_SERVICE_KEY`; no production key was substituted.
+The rebuild behavior is covered by a focused regression contract, while the
+database race is covered by live disposable SQL.

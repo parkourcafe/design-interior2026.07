@@ -15,12 +15,15 @@ command RPCs while revoking direct authenticated ledger mutations.
 `20260727113109_lock_issued_proposal_content.sql` prevents in-place changes to
 an issued proposal. `20260727113235_index_corrective_foreign_keys.sql` covers
 the new foreign keys reported by the database advisor.
+`20260727114500_guard_proposal_revision_issuance.sql` additively replaces the
+issuance command so the locked draft must still equal its approved immutable
+revision. Existing timestamped migrations are not rewritten.
 
 ## Controlled adoption
 
 1. Snapshot/fingerprint target DB and confirm migrations `0001`–`0006`.
-2. Apply `0007`, `0008`, `0009`, then the three timestamped corrective
-   migrations to a disposable branch.
+2. Apply `0007`, `0008`, `0009`, the three PR #50 timestamped migrations, then
+   `20260727114500_guard_proposal_revision_issuance.sql` to a disposable branch.
 3. Run policy/role negatives and M1 E2E.
 4. Only then schedule production adoption.
 
@@ -41,6 +44,6 @@ the statement, all migrations applied successfully. Rollback must therefore
 retain `proposal_revisions`, approval revision references and issued-revision
 audit evidence after any authorization or issue operation.
 
-Disposable branch status: all six Sprint/corrective migrations applied
+Disposable branch status: all seven Sprint/corrective migrations applied
 successfully on 27.07.2026.
 Production migration status: not applied.

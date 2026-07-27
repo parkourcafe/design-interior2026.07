@@ -57,14 +57,56 @@ export async function rerunRisks(projectId: string): Promise<{ ok: boolean; llmO
     answers[(row as { question_id: string }).question_id] = (row as { value: unknown }).value as never;
   }
 
+  const { data: run, error: runError } = await supabase.from("workflow_runs").select("id")
+    .eq("project_id", projectId).eq("workflow_key", "client_intake_to_issued_proposal")
+    .order("created_at", { ascending: false }).limit(1).maybeSingle();
+  if (runError || !run) return { ok: false, llmOk: false };
+  const runId = (run as { id: string }).id;
+
   const { passport, cards, llmOk, llmUsage } = await runRiskPipeline(answers);
 
-  await supabase.from("projects").update({ passport }).eq("id", projectId);
-  await supabase.from("risk_cards").delete()
+  const { data: stepId, error: commandError } = await supabase.rpc(
+    "record_m1_risk_rerun",
+    {
+      p_project_id: projectId,
+      p_workflow_run_id: runId,
+      p_payload: {
+        llm_outcome: llmUsage.outcome,
+        fallback_used: llmUsage.outcome !== "success",
+        risk_card_count: cards.length,
+      },
+    },
+  );
+  if (commandError) return { ok: false, llmOk };
+  if (!stepId) return { ok: false, llmOk };
+
+  const admin = createAdminClient();
+  const { error: aiCallError } = await admin.from("ai_calls").insert({
+    project_id: projectId,
+    workflow_run_id: runId,
+    workflow_step_run_id: stepId as string,
+    action_key: "generate_risk_register",
+    cost_class: "metered_ai",
+    provider: llmUsage.provider,
+    model: llmUsage.model,
+    tokens_in: llmUsage.tokensIn,
+    tokens_out: llmUsage.tokensOut,
+    duration_ms: llmUsage.durationMs,
+    provider_cost_estimate: llmUsage.providerCostEstimate,
+    estimate_source: llmUsage.estimateSource,
+    outcome: llmUsage.outcome,
+  });
+  if (aiCallError) return { ok: false, llmOk };
+
+  const { error: passportError } = await supabase.from("projects")
+    .update({ passport }).eq("id", projectId);
+  if (passportError) return { ok: false, llmOk };
+  const { error: deleteError } = await supabase.from("risk_cards").delete()
     .eq("project_id", projectId)
     .eq("status", "proposed");
+  if (deleteError) return { ok: false, llmOk };
   if (cards.length > 0) {
-    await supabase.from("risk_cards").insert(
+    const { error: cardsError } = await supabase.from("risk_cards").insert(
       cards.map((c: RiskCard) => ({
         project_id: projectId,
         risk_type: c.risk_type,
@@ -77,44 +119,7 @@ export async function rerunRisks(projectId: string): Promise<{ ok: boolean; llmO
         source: c.source,
       })),
     );
-  }
-
-  const { data: run } = await supabase.from("workflow_runs").select("id")
-    .eq("project_id", projectId).eq("workflow_key", "client_intake_to_issued_proposal")
-    .order("created_at", { ascending: false }).limit(1).maybeSingle();
-  if (run) {
-    const runId = (run as { id: string }).id;
-    const { data: stepId, error: commandError } = await supabase.rpc(
-      "record_m1_risk_rerun",
-      {
-        p_project_id: projectId,
-        p_workflow_run_id: runId,
-        p_payload: {
-          llm_outcome: llmUsage.outcome,
-          fallback_used: llmUsage.outcome !== "success",
-          risk_card_count: cards.length,
-        },
-      },
-    );
-    if (commandError) return { ok: false, llmOk };
-    if (stepId) {
-      const admin = createAdminClient();
-      await admin.from("ai_calls").insert({
-        project_id: projectId,
-        workflow_run_id: runId,
-        workflow_step_run_id: stepId as string,
-        action_key: "generate_risk_register",
-        cost_class: "metered_ai",
-        provider: llmUsage.provider,
-        model: llmUsage.model,
-        tokens_in: llmUsage.tokensIn,
-        tokens_out: llmUsage.tokensOut,
-        duration_ms: llmUsage.durationMs,
-        provider_cost_estimate: llmUsage.providerCostEstimate,
-        estimate_source: llmUsage.estimateSource,
-        outcome: llmUsage.outcome,
-      });
-    }
+    if (cardsError) return { ok: false, llmOk };
   }
 
   revalidatePath(`/dashboard/projects/${projectId}`);

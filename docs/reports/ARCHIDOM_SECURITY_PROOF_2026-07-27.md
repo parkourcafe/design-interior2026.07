@@ -27,8 +27,8 @@
 ## Evidence
 
 Disposable Supabase branch `archidom-sprint1-pilot`
-(`udtjczcnemndubsyuqxc`) has migrations `0007`–`0009` and the three corrective
-timestamped migrations applied.
+(`udtjczcnemndubsyuqxc`) has migrations `0007`–`0009`, the three PR #50
+corrective migrations, and the post-review issuance guard migration applied.
 
 Live role-session results:
 
@@ -44,6 +44,10 @@ Live role-session results:
 - anon command RPC execution: revoked;
 - retry terminal replay after completion: blocked;
 - sent proposal content update: blocked by trigger.
+- proposal issuance after a concurrent draft edit: blocked inside the locked
+  command; proposal, approval and workflow remained unissued.
+- exact unchanged revision issuance: passed.
+- cross-studio execution of the replacement issuance command: blocked.
 
 Supabase Security Advisor reports the six intentionally exposed guarded
 `SECURITY DEFINER` command RPCs as warnings. Each function explicitly checks
