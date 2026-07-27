@@ -1,149 +1,297 @@
-import { readFileSync } from "node:fs";
-import { join } from "node:path";
-import { describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const actionsSource = readFileSync(
-  join(process.cwd(), "app/dashboard/projects/[id]/actions.ts"),
-  "utf8",
-);
+const mocks = vi.hoisted(() => ({
+  createClient: vi.fn(),
+  runRiskPipeline: vi.fn(),
+  revalidatePath: vi.fn(),
+}));
 
-function exportedFunctionSource(name: string, nextExport: string): string {
-  const start = actionsSource.indexOf(`export async function ${name}`);
-  const end = actionsSource.indexOf(`export async function ${nextExport}`, start);
+vi.mock("@/lib/supabase/server", () => ({
+  createClient: mocks.createClient,
+}));
+vi.mock("@/lib/supabase/admin", () => ({
+  createAdminClient: vi.fn(),
+}));
+vi.mock("@/lib/brief/pipeline", () => ({
+  runRiskPipeline: mocks.runRiskPipeline,
+}));
+vi.mock("next/cache", () => ({
+  revalidatePath: mocks.revalidatePath,
+}));
 
-  if (start < 0 || end < 0) {
-    throw new Error(`Cannot isolate ${name} from dashboard project actions`);
-  }
+import { rerunRisks } from "@/app/dashboard/projects/[id]/actions";
 
-  return actionsSource.slice(start, end);
+const projectId = "11111111-1111-4111-8111-111111111111";
+const workflowRunId = "22222222-2222-4222-8222-222222222222";
+const stepRunId = "33333333-3333-4333-8333-333333333333";
+const aiCallId = "44444444-4444-4444-8444-444444444444";
+
+function createSupabase({
+  reservationError = null,
+  reservation = {
+    workflow_step_run_id: stepRunId,
+    ai_call_id: aiCallId,
+  },
+  finalizeError = null,
+  usageError = null,
+  closeError = null,
+}: {
+  reservationError?: { message: string } | null;
+  reservation?: {
+    workflow_step_run_id?: string;
+    ai_call_id?: string;
+  } | null;
+  finalizeError?: { message: string } | null;
+  usageError?: { message: string } | null;
+  closeError?: { message: string } | null;
+} = {}) {
+  const calls: string[] = [];
+  const rpc = vi.fn(async (name: string, payload: unknown) => {
+    calls.push(`rpc:${name}`);
+    if (name === "reserve_m1_risk_rerun") {
+      return { data: reservation, error: reservationError };
+    }
+    if (name === "finalize_m1_risk_rerun") {
+      return { data: null, error: finalizeError, payload };
+    }
+    if (name === "record_m1_risk_ai_usage") {
+      return { data: null, error: usageError, payload };
+    }
+    if (name === "close_m1_risk_ai_reservation") {
+      return { data: null, error: closeError, payload };
+    }
+    throw new Error(`Unexpected RPC ${name}`);
+  });
+
+  const from = vi.fn((table: string) => {
+    calls.push(`from:${table}`);
+    if (table === "projects") {
+      return {
+        select: () => ({
+          eq: () => ({
+            maybeSingle: async () => ({ data: { id: projectId }, error: null }),
+          }),
+        }),
+      };
+    }
+    if (table === "answers") {
+      return {
+        select: () => ({
+          eq: async () => ({
+            data: [{ question_id: "object", value: { type: "flat" } }],
+            error: null,
+          }),
+        }),
+      };
+    }
+    if (table === "workflow_runs") {
+      return {
+        select: () => ({
+          eq: () => ({
+            eq: () => ({
+              order: () => ({
+                limit: () => ({
+                  maybeSingle: async () => ({
+                    data: { id: workflowRunId },
+                    error: null,
+                  }),
+                }),
+              }),
+            }),
+          }),
+        }),
+      };
+    }
+    throw new Error(`Unexpected table mutation/query: ${table}`);
+  });
+
+  return { client: { from, rpc }, calls, from, rpc };
 }
 
-function expectMutationErrorChecked(
-  source: string,
-  table: string,
-  operation: "update" | "delete" | "insert",
-): { index: number; errorName: string } | null {
-  const mutation = new RegExp(
-    String.raw`const\s*\{[^}]*\berror\s*(?::\s*([A-Za-z_$][\w$]*))?[^}]*\}\s*=\s*await\s+[^;]*?\.from\(\s*["']${table}["']\s*\)[^;]*?\.${operation}\s*\(`,
-    "m",
-  ).exec(source);
-  const label = `${table}.${operation}`;
+const pipelineResult = {
+  passport: { object: { type: "flat", area_m2: 40, city: "Москва" } },
+  cards: [],
+  llmOk: true,
+  llmUsage: {
+    provider: "yandex",
+    model: "yandexgpt-lite",
+    tokensIn: 120,
+    tokensOut: 48,
+    durationMs: 350,
+    providerCostEstimate: 0.42,
+    estimateSource: "provider_pricing",
+    outcome: "success",
+  },
+};
 
-  expect.soft(
-    mutation,
-    `${label} must capture the database error instead of discarding the mutation result`,
-  ).not.toBeNull();
-  if (!mutation) return null;
+describe("rerunRisks governed AI accounting behavior", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mocks.runRiskPipeline.mockResolvedValue(pipelineResult);
+  });
 
-  const errorName = mutation[1] ?? "error";
-  const success = source.indexOf("return { ok: true", mutation.index);
-  const afterMutation = source.slice(
-    mutation.index + mutation[0].length,
-    success < 0 ? source.length : success,
-  );
+  it("reserves durable accounting before invoking the metered provider", async () => {
+    const { client, calls, rpc } = createSupabase();
+    mocks.createClient.mockResolvedValue(client);
+    mocks.runRiskPipeline.mockImplementation(async () => {
+      calls.push("provider");
+      return pipelineResult;
+    });
 
-  expect.soft(
-    afterMutation,
-    `${label} error must be checked before rerunRisks can report success`,
-  ).toMatch(new RegExp(String.raw`\bif\s*\([^)]*\b${errorName}\b[^)]*\)`));
+    await expect(rerunRisks(projectId)).resolves.toEqual({ ok: true, llmOk: true });
 
-  return { index: mutation.index, errorName };
-}
-
-function mutationCallIndex(
-  source: string,
-  table: string,
-  operation: "update" | "delete" | "insert",
-): number {
-  return source.search(
-    new RegExp(
-      String.raw`\.from\(\s*["']${table}["']\s*\)[^;]*?\.${operation}\s*\(`,
-      "m",
-    ),
-  );
-}
-
-describe("rerunRisks governed AI accounting contract", () => {
-  it("resolves the workflow before AI and checks every persistence error before success", () => {
-    const source = exportedFunctionSource("rerunRisks", "reviewProjectFact");
-    const pipelineIndex = source.indexOf("runRiskPipeline(");
-    const workflowLookupIndex = source.search(
-      /\.from\(\s*["']workflow_runs["']\s*\)/,
+    expect(calls.indexOf("rpc:reserve_m1_risk_rerun")).toBeLessThan(
+      calls.indexOf("provider"),
     );
+    expect(calls.indexOf("provider")).toBeLessThan(
+      calls.indexOf("rpc:record_m1_risk_ai_usage"),
+    );
+    expect(calls.indexOf("rpc:record_m1_risk_ai_usage")).toBeLessThan(
+      calls.indexOf("rpc:finalize_m1_risk_rerun"),
+    );
+    expect(rpc).toHaveBeenNthCalledWith(
+      1,
+      "reserve_m1_risk_rerun",
+      expect.objectContaining({
+        p_project_id: projectId,
+        p_workflow_run_id: workflowRunId,
+      }),
+    );
+  });
 
-    expect.soft(pipelineIndex, "rerunRisks must execute the risk pipeline").toBeGreaterThan(-1);
-    expect.soft(
-      workflowLookupIndex,
-      "rerunRisks must resolve its governed M1 workflow run",
-    ).toBeGreaterThan(-1);
-    expect.soft(
-      workflowLookupIndex,
-      "the workflow run must be resolved before the metered AI pipeline executes",
-    ).toBeLessThan(pipelineIndex);
+  it.each([
+    [{ message: "reservation failed" }, null],
+    [null, null],
+    [null, { workflow_step_run_id: stepRunId }],
+  ])("does not invoke AI when reservation is unusable", async (error, reservation) => {
+    const { client, rpc } = createSupabase({
+      reservationError: error,
+      reservation,
+    });
+    mocks.createClient.mockResolvedValue(client);
 
-    const beforePipeline = source.slice(0, pipelineIndex);
-    const workflowResolution = new RegExp(
-      String.raw`const\s*\{\s*data\s*:\s*([A-Za-z_$][\w$]*)\s*,\s*error\s*:\s*([A-Za-z_$][\w$]*)\s*\}\s*=\s*await\s+[^;]*?\.from\(\s*["']workflow_runs["']\s*\)[^;]*?;`,
-      "m",
-    ).exec(beforePipeline);
+    await expect(rerunRisks(projectId)).resolves.toEqual({
+      ok: false,
+      llmOk: false,
+    });
 
-    expect.soft(
-      workflowResolution,
-      "workflow lookup must expose both data and error before AI execution",
-    ).not.toBeNull();
-    if (workflowResolution) {
-      const [, runName, runErrorName] = workflowResolution;
-      const afterResolution = beforePipeline.slice(
-        (workflowResolution.index ?? 0) + workflowResolution[0].length,
-      );
-      expect.soft(
-        afterResolution,
-        "missing or failed workflow resolution must stop rerunRisks before AI execution",
-      ).toMatch(
-        new RegExp(
-          String.raw`\bif\s*\([^)]*(?:\b${runErrorName}\b[^)]*!\s*${runName}|!\s*${runName}[^)]*\b${runErrorName}\b)[^)]*\)\s*(?:return|throw)`,
-        ),
-      );
-    }
+    expect(mocks.runRiskPipeline).not.toHaveBeenCalled();
+    expect(rpc).toHaveBeenCalledTimes(1);
+  });
 
-    expectMutationErrorChecked(source, "projects", "update");
-    expectMutationErrorChecked(source, "risk_cards", "delete");
-    expectMutationErrorChecked(source, "risk_cards", "insert");
-    const aiCallMutation = expectMutationErrorChecked(source, "ai_calls", "insert");
+  it("finalizes the same reservation with usage and business output atomically", async () => {
+    const { client, from, rpc } = createSupabase();
+    mocks.createClient.mockResolvedValue(client);
 
-    const businessMutationIndexes = [
-      mutationCallIndex(source, "projects", "update"),
-      mutationCallIndex(source, "risk_cards", "delete"),
-      mutationCallIndex(source, "risk_cards", "insert"),
-    ].filter((index) => index >= 0);
-    const firstBusinessMutationIndex = Math.min(...businessMutationIndexes);
+    await expect(rerunRisks(projectId)).resolves.toEqual({ ok: true, llmOk: true });
 
-    expect.soft(
-      businessMutationIndexes,
-      "rerunRisks must persist its passport or risk-card business state",
-    ).not.toHaveLength(0);
-    if (aiCallMutation && Number.isFinite(firstBusinessMutationIndex)) {
-      expect.soft(
-        aiCallMutation.index,
-        "the completed metered call must be persisted after the AI pipeline returns",
-      ).toBeGreaterThan(pipelineIndex);
-      expect.soft(
-        aiCallMutation.index,
-        "AI accounting must be persisted before passport or risk-card state changes",
-      ).toBeLessThan(firstBusinessMutationIndex);
+    expect(rpc).toHaveBeenNthCalledWith(
+      3,
+      "finalize_m1_risk_rerun",
+      expect.objectContaining({
+        p_workflow_step_run_id: stepRunId,
+        p_ai_call_id: aiCallId,
+        p_passport: pipelineResult.passport,
+        p_risk_cards: pipelineResult.cards,
+        p_provider: pipelineResult.llmUsage.provider,
+        p_model: pipelineResult.llmUsage.model,
+        p_tokens_in: pipelineResult.llmUsage.tokensIn,
+        p_tokens_out: pipelineResult.llmUsage.tokensOut,
+        p_duration_ms: pipelineResult.llmUsage.durationMs,
+        p_provider_cost_estimate:
+          pipelineResult.llmUsage.providerCostEstimate,
+        p_estimate_source: pipelineResult.llmUsage.estimateSource,
+        p_outcome: pipelineResult.llmUsage.outcome,
+      }),
+    );
+    expect(from).not.toHaveBeenCalledWith("ai_calls");
+    expect(from).not.toHaveBeenCalledWith("risk_cards");
+    expect(mocks.revalidatePath).toHaveBeenCalledWith(
+      `/dashboard/projects/${projectId}`,
+    );
+  });
 
-      const accountingBeforeBusinessMutation = source.slice(
-        aiCallMutation.index,
-        firstBusinessMutationIndex,
-      );
-      expect.soft(
-        accountingBeforeBusinessMutation,
-        "the ai_calls insert error must be checked before business state changes",
-      ).toMatch(
-        new RegExp(
-          String.raw`\bif\s*\([^)]*\b${aiCallMutation.errorName}\b[^)]*\)`,
-        ),
-      );
-    }
+  it("does not report success when atomic finalization fails", async () => {
+    const { client, rpc } = createSupabase({
+      finalizeError: { message: "finalize failed" },
+    });
+    mocks.createClient.mockResolvedValue(client);
+
+    await expect(rerunRisks(projectId)).resolves.toEqual({
+      ok: false,
+      llmOk: true,
+    });
+    expect(rpc).toHaveBeenNthCalledWith(
+      4,
+      "close_m1_risk_ai_reservation",
+      expect.objectContaining({
+        p_workflow_step_run_id: stepRunId,
+        p_ai_call_id: aiCallId,
+        p_provider_completed: true,
+        p_tokens_in: pipelineResult.llmUsage.tokensIn,
+        p_provider_cost_estimate:
+          pipelineResult.llmUsage.providerCostEstimate,
+      }),
+    );
+    expect(mocks.revalidatePath).not.toHaveBeenCalled();
+  });
+
+  it("persists charged usage before business finalization", async () => {
+    const { client, rpc } = createSupabase();
+    mocks.createClient.mockResolvedValue(client);
+
+    await rerunRisks(projectId);
+
+    expect(rpc).toHaveBeenNthCalledWith(
+      2,
+      "record_m1_risk_ai_usage",
+      expect.objectContaining({
+        p_ai_call_id: aiCallId,
+        p_tokens_in: pipelineResult.llmUsage.tokensIn,
+        p_provider_cost_estimate:
+          pipelineResult.llmUsage.providerCostEstimate,
+      }),
+    );
+    expect(rpc).toHaveBeenNthCalledWith(
+      3,
+      "finalize_m1_risk_rerun",
+      expect.any(Object),
+    );
+  });
+
+  it("returns a distinct error when usage and fallback terminalization both fail", async () => {
+    const { client } = createSupabase({
+      usageError: { message: "usage unavailable" },
+      closeError: { message: "close unavailable" },
+    });
+    mocks.createClient.mockResolvedValue(client);
+
+    await expect(rerunRisks(projectId)).resolves.toEqual({
+      ok: false,
+      llmOk: true,
+      error: "usage_terminalization_failed",
+    });
+  });
+
+  it("abandons the durable reservation when the pipeline throws before usage is returned", async () => {
+    const { client, rpc } = createSupabase();
+    mocks.createClient.mockResolvedValue(client);
+    mocks.runRiskPipeline.mockRejectedValue(new Error("pipeline crashed"));
+
+    await expect(rerunRisks(projectId)).resolves.toEqual({
+      ok: false,
+      llmOk: false,
+    });
+
+    expect(rpc).toHaveBeenNthCalledWith(
+      2,
+      "close_m1_risk_ai_reservation",
+      expect.objectContaining({
+        p_workflow_step_run_id: stepRunId,
+        p_ai_call_id: aiCallId,
+        p_provider_completed: false,
+        p_error: expect.objectContaining({ message: "pipeline crashed" }),
+      }),
+    );
   });
 });

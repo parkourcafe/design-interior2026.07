@@ -2,7 +2,7 @@
 
 ## Automated evidence
 
-- 19 test files, 88 tests passing.
+- 21 test files, 104 tests passing.
 - Passport regression: 12 tests.
 - Pricing regression: 4 tests.
 - Risk rules/schema/dedupe/LLM tests passing.
@@ -102,10 +102,13 @@ disposable-branch proof covered both directions:
   consumed the approval and completed the workflow;
 - a cross-studio caller remained denied.
 
-`rerunRisks` now resolves the governed workflow before executing the metered
-pipeline, persists and checks the `ai_calls` record before changing passport or
-risk-card state, and fails on every checked persistence error. Successful
-proposal rebuild now invalidates both local release-approval flags.
+Both `rerunRisks` and failed-workflow retry now reserve a linked workflow step
+and `ai_calls` row before executing the metered pipeline. Actual provider usage
+is persisted idempotently before a separate authenticated command atomically
+finalizes passport, proposed risk cards, workflow state and audit evidence. A failed/empty
+reservation prevents provider execution. Successful proposal rebuild now
+invalidates both local release-approval flags through an executable state
+transition test rather than source-text parsing.
 
 The post-review local production build used disposable Auth and service-role
 credentials from gitignored `.env.local`. Authenticated browser QA passed:
@@ -118,3 +121,6 @@ credentials from gitignored `.env.local`. Authenticated browser QA passed:
 - local server runtime errors during the verified flow: 0.
 
 The database race remains independently covered by live disposable SQL.
+The newer reservation/finalization migrations are locally verified but still
+await disposable-preview SQL execution; they have not been applied to
+production or to the paused pilot branch.

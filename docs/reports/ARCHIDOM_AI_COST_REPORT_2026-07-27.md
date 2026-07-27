@@ -6,6 +6,17 @@ Every actual call through `completeJSON` now measures provider, model, estimated
 input/output tokens, duration, outcome and attempts. The M1 risk action writes
 that measurement to `ai_calls` with workflow/run/step linkage.
 
+PR #51 additionally creates the linked `ai_calls` reservation before either
+metered rerun path may invoke the provider. Successful completion idempotently
+updates that same row with actual usage before a separate transaction commits
+the derived business state. A later business validation/commit failure therefore
+cannot roll back measured spend. Reservation failure is non-billable because provider execution is
+skipped; an interrupted process retains a durable `reserved` ledger row rather
+than losing evidence of the attempted call. An exception before usage is
+returned closes it as `abandoned`; a failure after provider completion persists
+the measured usage and terminal outcome even when business-state finalization
+cannot commit.
+
 Cost estimate is:
 
 `(tokens_in + tokens_out) / 1000 × LLM_ESTIMATED_RUB_PER_1K_TOKENS`

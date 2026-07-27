@@ -19,6 +19,29 @@ export type ProposalApproval = {
   readonly approvedBy: string;
 };
 
+export type ProposalEditorApprovalState = {
+  readonly releaseApproved: boolean;
+  readonly authorApproved: boolean;
+};
+
+export type ProposalEditorApprovalEvent =
+  | "rebuild_succeeded"
+  | "rebuild_failed";
+
+export function transitionProposalEditorApprovalState(
+  current: ProposalEditorApprovalState,
+  event: ProposalEditorApprovalEvent,
+): ProposalEditorApprovalState {
+  if (event === "rebuild_succeeded") {
+    return {
+      releaseApproved: false,
+      authorApproved: false,
+    };
+  }
+
+  return { ...current };
+}
+
 export function approveProposalRevision({
   revision,
   approvedBy,

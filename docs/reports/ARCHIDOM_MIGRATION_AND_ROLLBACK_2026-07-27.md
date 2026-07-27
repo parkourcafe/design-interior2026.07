@@ -18,12 +18,18 @@ the new foreign keys reported by the database advisor.
 `20260727114500_guard_proposal_revision_issuance.sql` additively replaces the
 issuance command so the locked draft must still equal its approved immutable
 revision. Existing timestamped migrations are not rewritten.
+`20260727213000_reserve_m1_risk_ai_call.sql` adds a lifecycle marker plus
+authenticated, row-locked reservation commands for direct reruns and failed
+workflow retries. `20260727220000_finalize_m1_risk_ai_call.sql` validates and
+atomically commits the exact reservation, actual usage, passport, risk cards,
+step/run transition and audit evidence.
 
 ## Controlled adoption
 
 1. Snapshot/fingerprint target DB and confirm migrations `0001`–`0006`.
-2. Apply `0007`, `0008`, `0009`, the three PR #50 timestamped migrations, then
-   `20260727114500_guard_proposal_revision_issuance.sql` to a disposable branch.
+2. Apply `0007`, `0008`, `0009`, the three PR #50 timestamped migrations,
+   `20260727114500_guard_proposal_revision_issuance.sql`, and the two PR #51
+   AI reservation/finalization migrations to a disposable branch.
 3. Run policy/role negatives and M1 E2E.
 4. Only then schedule production adoption.
 
@@ -46,4 +52,6 @@ audit evidence after any authorization or issue operation.
 
 Disposable branch status: all seven Sprint/corrective migrations applied
 successfully on 27.07.2026.
+PR #51 AI reservation/finalization migrations: local contract verification
+passed; disposable-preview application pending.
 Production migration status: not applied.

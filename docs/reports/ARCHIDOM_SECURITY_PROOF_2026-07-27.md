@@ -6,9 +6,9 @@
 - Project policies reuse server-derived studio membership.
 - No anonymous policies exist on facts, workflows, approvals or AI calls.
 - `anon` has no privileges on the ten Sprint 1 tables.
-- `authenticated` has explicit least-privilege grants; it cannot insert audit or
-  AI cost rows. Those writes occur only after authenticated/RLS checks through
-  the server-side service client.
+- `authenticated` has explicit least-privilege table grants; it cannot directly
+  insert audit or AI cost rows. Guarded command RPCs perform those writes only
+  after authentication, studio/project identity validation and row locking.
 - The membership helper is in the non-exposed `private` schema; execute access
   to the legacy public SECURITY DEFINER helper is revoked.
 - AI-created `human_confirmed` is prohibited by DB check and application tests.
@@ -29,6 +29,8 @@
 Disposable Supabase branch `archidom-sprint1-pilot`
 (`udtjczcnemndubsyuqxc`) has migrations `0007`–`0009`, the three PR #50
 corrective migrations, and the post-review issuance guard migration applied.
+The branch is paused; the two later PR #51 AI reservation/finalization
+migrations have not been applied there.
 
 Live role-session results:
 

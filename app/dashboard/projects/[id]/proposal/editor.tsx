@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import type { ProposalSection } from "@/lib/types";
 import { saveProposal, sendProposal, rebuildProposal, approveProposal } from "./actions";
 import { ru } from "@/lib/i18n/ru";
+import { transitionProposalEditorApprovalState } from "@/lib/platform/proposal-approval";
 
 export default function ProposalEditor({
   projectId,
@@ -77,11 +78,15 @@ export default function ProposalEditor({
     }
     startTransition(async () => {
       const res = await rebuildProposal(projectId);
+      const nextApprovalState = transitionProposalEditorApprovalState(
+        { releaseApproved, authorApproved },
+        res.ok && res.sections ? "rebuild_succeeded" : "rebuild_failed",
+      );
+      setReleaseApproved(nextApprovalState.releaseApproved);
+      setAuthorApproved(nextApprovalState.authorApproved);
       if (res.ok && res.sections) {
         setSections(res.sections);
         setSaved(true);
-        setReleaseApproved(false);
-        setAuthorApproved(false);
       } else if (res.reason === "sent") {
         window.alert("КП уже отправлено — пересборка недоступна.");
       }
