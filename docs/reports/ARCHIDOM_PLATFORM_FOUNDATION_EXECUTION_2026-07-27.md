@@ -20,6 +20,8 @@ Legacy tables remain the read models; no graph database or future module was add
 - Eight-action internal registry.
 - Human proposal release gate and explicit self-approval presentation.
 - AI usage measurement and `ai_calls` persistence for actual provider calls.
+- Durable pre-provider AI reservations and one-transaction finalization of
+  usage, passport, risks, workflow step and audit state for both rerun paths.
 - Versioned studio standards, project overrides and resolver precedence.
 - Append-only audit ledger, least-privilege grants, private membership helper,
   RLS policies and database mutation guards.
@@ -33,13 +35,13 @@ Legacy tables remain the read models; no graph database or future module was add
 - Read-only authenticated workflow/approval ledgers with guarded command RPCs
   and atomic audit writes.
 
-Commands: `npm run test` (85 passing), `npm run lint` (passing),
+Commands: `npm run test` (104 passing), `npm run lint` (passing),
 `npm run typecheck` (passing),
 `npm run build` (passing).
 
 ## LIVE DISPOSABLE EVIDENCE
 
-Migrations `0007`–`0009` and three timestamped corrective migrations are
+Migrations `0007`–`0009` and four timestamped corrective migrations are
 applied to Supabase branch `archidom-sprint1-pilot`
 (`udtjczcnemndubsyuqxc`). Role negatives and the authenticated end-to-end path
 brief → persisted workflow/facts → fact version → passport → proposal → human
@@ -54,6 +56,13 @@ events were persisted.
 Corrective live proof additionally covered table-API mutation revocation,
 row-locked retry commands, revision-bound approval, approval invalidation after
 editing, monotonic re-approval, exact revision issue and immutable sent content.
+
+The later PR #51 review fix adds two more additive migrations for durable
+AI-call reservation, independent usage persistence and atomic business
+finalization. Supabase PR Preview `krspwzipzfuwumzotpmb` applied both migrations.
+Catalog proof confirmed all five command RPCs use an empty `search_path`, deny
+`anon`, and grant only authenticated execution; lifecycle/outcome constraints
+include explicit reserved and abandoned states.
 
 ## Remaining production gate
 

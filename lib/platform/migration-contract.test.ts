@@ -1,4 +1,4 @@
-import { readFileSync } from "node:fs";
+import { readFileSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 
@@ -28,6 +28,22 @@ const issuedLockSql = readFileSync(
   ),
   "utf8",
 );
+const proposalIssuanceDefinitions = readdirSync(
+  join(process.cwd(), "supabase/migrations"),
+)
+  .filter((filename) => filename.endsWith(".sql"))
+  .sort()
+  .map((filename) =>
+    readFileSync(join(process.cwd(), "supabase/migrations", filename), "utf8"),
+  )
+  .flatMap((sql) =>
+    Array.from(
+      sql.matchAll(
+        /create\s+or\s+replace\s+function\s+public\.issue_proposal_revision\b[\s\S]*?\n\$\$;/gi,
+      ),
+      (match) => match[0],
+    ),
+  );
 
 describe("platform migration security contract", () => {
   it("is additive and enables RLS on every new project table", () => {
@@ -148,6 +164,14 @@ describe("corrective workflow and proposal revision contract", () => {
     );
     expect(issuedLockSql).toMatch(
       /old\.status\s*=\s*'sent'[\s\S]+new\.sections\s+is\s+distinct\s+from\s+old\.sections/i,
+    );
+  });
+
+  it("rejects issuance when the locked proposal draft differs from its approved revision", () => {
+    const issueCommand = proposalIssuanceDefinitions.at(-1) ?? "";
+
+    expect(issueCommand).toMatch(
+      /select\s+pr\.\*\s+into\s+v_proposal[\s\S]*?from\s+public\.proposals\s+pr[\s\S]*?for\s+update\s*;[\s\S]*?if\s+(?:v_proposal\.sections\s+is\s+distinct\s+from\s+v_revision\.sections|v_revision\.sections\s+is\s+distinct\s+from\s+v_proposal\.sections)\s+then[\s\S]*?raise\s+exception/i,
     );
   });
 });

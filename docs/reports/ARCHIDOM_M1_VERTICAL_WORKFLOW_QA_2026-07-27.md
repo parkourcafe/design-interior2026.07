@@ -2,7 +2,7 @@
 
 ## Automated evidence
 
-- 17 test files, 85 tests passing.
+- 21 test files, 104 tests passing.
 - Passport regression: 12 tests.
 - Pricing regression: 4 tests.
 - Risk rules/schema/dedupe/LLM tests passing.
@@ -89,3 +89,39 @@ Production migration/deployment, production browser regression and a successful
 credentialed YandexGPT call were not executed.
 
 Verdict: `M1_VERTICAL_WORKFLOW: PARTIAL`.
+
+## PR #50 post-merge review correction
+
+The additive `20260727114500_guard_proposal_revision_issuance.sql` migration
+moves the stale-approval comparison into the locked issuance command. Live
+disposable-branch proof covered both directions:
+
+- a draft changed after approval remained `draft`; its revision was not issued,
+  approval was not consumed and workflow remained running;
+- an unchanged exact approved revision advanced the proposal to version 2,
+  consumed the approval and completed the workflow;
+- a cross-studio caller remained denied.
+
+Both `rerunRisks` and failed-workflow retry now reserve a linked workflow step
+and `ai_calls` row before executing the metered pipeline. Actual provider usage
+is persisted idempotently before a separate authenticated command atomically
+finalizes passport, proposed risk cards, workflow state and audit evidence. A failed/empty
+reservation prevents provider execution. Successful proposal rebuild now
+invalidates both local release-approval flags through an executable state
+transition test rather than source-text parsing.
+
+The post-review local production build used disposable Auth and service-role
+credentials from gitignored `.env.local`. Authenticated browser QA passed:
+
+- release approval enabled proposal send;
+- successful rebuild replaced the proposal sections;
+- rebuild immediately invalidated release/self-approval state;
+- send became disabled and human confirmation was required again;
+- browser console warnings/errors: 0;
+- local server runtime errors during the verified flow: 0.
+
+The database race remains independently covered by live disposable SQL.
+The newer reservation/finalization migrations passed Supabase PR Preview on
+`krspwzipzfuwumzotpmb`; catalog checks confirmed function privileges,
+`search_path` hardening and lifecycle constraints. They have not been applied
+to production or to the paused pilot branch.

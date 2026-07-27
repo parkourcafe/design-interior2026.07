@@ -6,9 +6,9 @@
 - Project policies reuse server-derived studio membership.
 - No anonymous policies exist on facts, workflows, approvals or AI calls.
 - `anon` has no privileges on the ten Sprint 1 tables.
-- `authenticated` has explicit least-privilege grants; it cannot insert audit or
-  AI cost rows. Those writes occur only after authenticated/RLS checks through
-  the server-side service client.
+- `authenticated` has explicit least-privilege table grants; it cannot directly
+  insert audit or AI cost rows. Guarded command RPCs perform those writes only
+  after authentication, studio/project identity validation and row locking.
 - The membership helper is in the non-exposed `private` schema; execute access
   to the legacy public SECURITY DEFINER helper is revoked.
 - AI-created `human_confirmed` is prohibited by DB check and application tests.
@@ -27,8 +27,18 @@
 ## Evidence
 
 Disposable Supabase branch `archidom-sprint1-pilot`
-(`udtjczcnemndubsyuqxc`) has migrations `0007`–`0009` and the three corrective
-timestamped migrations applied.
+(`udtjczcnemndubsyuqxc`) has migrations `0007`–`0009`, the three PR #50
+corrective migrations, and the post-review issuance guard migration applied.
+The branch is paused; the two later PR #51 AI reservation/finalization
+migrations have not been applied there.
+
+Supabase PR Preview `krspwzipzfuwumzotpmb` applied both later migrations.
+Catalog verification found all five new command RPCs with
+`security_definer = true`, `search_path = ''`, `anon_execute = false`, and
+`authenticated_execute = true`. The Security Advisor reports the expected
+guarded-command warnings plus the pre-existing service-only `rate_limits` INFO;
+no unexpected RLS regression was introduced
+([advisor remediation reference](https://supabase.com/docs/guides/database/database-linter?lint=0029_authenticated_security_definer_function_executable)).
 
 Live role-session results:
 
@@ -44,6 +54,10 @@ Live role-session results:
 - anon command RPC execution: revoked;
 - retry terminal replay after completion: blocked;
 - sent proposal content update: blocked by trigger.
+- proposal issuance after a concurrent draft edit: blocked inside the locked
+  command; proposal, approval and workflow remained unissued.
+- exact unchanged revision issuance: passed.
+- cross-studio execution of the replacement issuance command: blocked.
 
 Supabase Security Advisor reports the six intentionally exposed guarded
 `SECURITY DEFINER` command RPCs as warnings. Each function explicitly checks

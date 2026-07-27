@@ -37,7 +37,9 @@ export async function setCardStatus(cardId: string, status: RiskStatus): Promise
 }
 
 // Пересобрать карточки (AI): перечитать ответы, прогнать пайплайн, заменить.
-export async function rerunRisks(projectId: string): Promise<{ ok: boolean; llmOk: boolean }> {
+export async function rerunRisks(
+  projectId: string,
+): Promise<{ ok: boolean; llmOk: boolean; error?: string }> {
   const supabase = await createClient();
 
   const { data: project } = await supabase
@@ -57,64 +59,156 @@ export async function rerunRisks(projectId: string): Promise<{ ok: boolean; llmO
     answers[(row as { question_id: string }).question_id] = (row as { value: unknown }).value as never;
   }
 
-  const { passport, cards, llmOk, llmUsage } = await runRiskPipeline(answers);
-
-  await supabase.from("projects").update({ passport }).eq("id", projectId);
-  await supabase.from("risk_cards").delete()
-    .eq("project_id", projectId)
-    .eq("status", "proposed");
-  if (cards.length > 0) {
-    await supabase.from("risk_cards").insert(
-      cards.map((c: RiskCard) => ({
-        project_id: projectId,
-        risk_type: c.risk_type,
-        evidence: c.evidence,
-        impact: c.impact,
-        confidence: c.confidence,
-        designer_action: c.designer_action,
-        proposal_implication: c.proposal_implication,
-        status: "proposed",
-        source: c.source,
-      })),
-    );
-  }
-
-  const { data: run } = await supabase.from("workflow_runs").select("id")
+  const { data: run, error: runError } = await supabase.from("workflow_runs").select("id")
     .eq("project_id", projectId).eq("workflow_key", "client_intake_to_issued_proposal")
     .order("created_at", { ascending: false }).limit(1).maybeSingle();
-  if (run) {
-    const runId = (run as { id: string }).id;
-    const { data: stepId, error: commandError } = await supabase.rpc(
-      "record_m1_risk_rerun",
+  if (runError || !run) return { ok: false, llmOk: false };
+  const runId = (run as { id: string }).id;
+  const configuredProvider = process.env.LLM_PROVIDER;
+  const reservationProvider = configuredProvider === "gigachat" || configuredProvider === "zai"
+    ? configuredProvider
+    : "yandex";
+
+  const { data: reservation, error: reservationError } = await supabase.rpc(
+    "reserve_m1_risk_rerun",
+    {
+      p_project_id: projectId,
+      p_workflow_run_id: runId,
+      p_provider: reservationProvider,
+      p_model: process.env.LLM_MODEL ?? "unknown",
+    },
+  );
+  if (reservationError || !reservation) return { ok: false, llmOk: false };
+  const {
+    workflow_step_run_id: reservedStepId,
+    ai_call_id: reservedAiCallId,
+  } = reservation as {
+    workflow_step_run_id: string;
+    ai_call_id: string;
+  };
+  if (!reservedStepId || !reservedAiCallId) return { ok: false, llmOk: false };
+
+  let pipelineResult: Awaited<ReturnType<typeof runRiskPipeline>>;
+  try {
+    pipelineResult = await runRiskPipeline(answers);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "risk_pipeline_failed";
+    const { error: closeError } = await supabase.rpc("close_m1_risk_ai_reservation", {
+      p_workflow_step_run_id: reservedStepId,
+      p_ai_call_id: reservedAiCallId,
+      p_provider_completed: false,
+      p_provider: reservationProvider,
+      p_model: process.env.LLM_MODEL ?? "unknown",
+      p_tokens_in: 0,
+      p_tokens_out: 0,
+      p_duration_ms: 0,
+      p_provider_cost_estimate: 0,
+      p_estimate_source: "static_table",
+      p_outcome: "provider_error",
+      p_error: { phase: "pipeline", message },
+    });
+    return {
+      ok: false,
+      llmOk: false,
+      ...(closeError ? { error: "reservation_terminalization_failed" } : {}),
+    };
+  }
+  const { passport, cards, llmOk, llmUsage } = pipelineResult;
+
+  const usagePayload = {
+    p_workflow_step_run_id: reservedStepId,
+    p_ai_call_id: reservedAiCallId,
+    p_provider: llmUsage.provider,
+    p_model: llmUsage.model,
+    p_tokens_in: llmUsage.tokensIn,
+    p_tokens_out: llmUsage.tokensOut,
+    p_duration_ms: llmUsage.durationMs,
+    p_provider_cost_estimate: llmUsage.providerCostEstimate,
+    p_estimate_source: llmUsage.estimateSource,
+    p_outcome: llmUsage.outcome,
+  };
+  const { error: usageError } = await supabase.rpc(
+    "record_m1_risk_ai_usage",
+    usagePayload,
+  );
+  if (usageError) {
+    const { error: closeError } = await supabase.rpc(
+      "close_m1_risk_ai_reservation",
       {
-        p_project_id: projectId,
-        p_workflow_run_id: runId,
-        p_payload: {
-          llm_outcome: llmUsage.outcome,
-          fallback_used: llmUsage.outcome !== "success",
-          risk_card_count: cards.length,
-        },
+        ...usagePayload,
+        p_provider_completed: true,
+        p_error: { phase: "usage", message: usageError.message },
       },
     );
-    if (commandError) return { ok: false, llmOk };
-    if (stepId) {
-      const admin = createAdminClient();
-      await admin.from("ai_calls").insert({
-        project_id: projectId,
-        workflow_run_id: runId,
-        workflow_step_run_id: stepId as string,
-        action_key: "generate_risk_register",
-        cost_class: "metered_ai",
-        provider: llmUsage.provider,
-        model: llmUsage.model,
-        tokens_in: llmUsage.tokensIn,
-        tokens_out: llmUsage.tokensOut,
-        duration_ms: llmUsage.durationMs,
-        provider_cost_estimate: llmUsage.providerCostEstimate,
-        estimate_source: llmUsage.estimateSource,
-        outcome: llmUsage.outcome,
-      });
-    }
+    return {
+      ok: false,
+      llmOk,
+      error: closeError ? "usage_terminalization_failed" : "usage_persist_failed",
+    };
+  }
+
+  type FinalizeRiskRerunPayload = {
+    p_workflow_step_run_id: string;
+    p_ai_call_id: string;
+    p_passport: typeof passport;
+    p_risk_cards: RiskCard[];
+    p_output_snapshot: {
+      llm_outcome: typeof llmUsage.outcome;
+      fallback_used: boolean;
+      risk_card_count: number;
+    };
+    p_provider: string;
+    p_model: string;
+    p_tokens_in: number;
+    p_tokens_out: number;
+    p_duration_ms: number;
+    p_provider_cost_estimate: number;
+    p_estimate_source: typeof llmUsage.estimateSource;
+    p_outcome: typeof llmUsage.outcome;
+  };
+  const finalizePayload: FinalizeRiskRerunPayload = {
+    p_workflow_step_run_id: reservedStepId,
+    p_ai_call_id: reservedAiCallId,
+    p_passport: passport,
+    p_risk_cards: cards,
+    p_output_snapshot: {
+      llm_outcome: llmUsage.outcome,
+      fallback_used: llmUsage.outcome !== "success",
+      risk_card_count: cards.length,
+    },
+    p_provider: llmUsage.provider,
+    p_model: llmUsage.model,
+    p_tokens_in: llmUsage.tokensIn,
+    p_tokens_out: llmUsage.tokensOut,
+    p_duration_ms: llmUsage.durationMs,
+    p_provider_cost_estimate: llmUsage.providerCostEstimate,
+    p_estimate_source: llmUsage.estimateSource,
+    p_outcome: llmUsage.outcome,
+  };
+  const { error: finalizeError } = await supabase.rpc(
+    "finalize_m1_risk_rerun",
+    finalizePayload
+  );
+  if (finalizeError) {
+    const { error: closeError } = await supabase.rpc("close_m1_risk_ai_reservation", {
+      p_workflow_step_run_id: reservedStepId,
+      p_ai_call_id: reservedAiCallId,
+      p_provider_completed: true,
+      p_provider: llmUsage.provider,
+      p_model: llmUsage.model,
+      p_tokens_in: llmUsage.tokensIn,
+      p_tokens_out: llmUsage.tokensOut,
+      p_duration_ms: llmUsage.durationMs,
+      p_provider_cost_estimate: llmUsage.providerCostEstimate,
+      p_estimate_source: llmUsage.estimateSource,
+      p_outcome: llmUsage.outcome,
+      p_error: { phase: "finalize", message: finalizeError.message },
+    });
+    return {
+      ok: false,
+      llmOk,
+      ...(closeError ? { error: "finalize_terminalization_failed" } : {}),
+    };
   }
 
   revalidatePath(`/dashboard/projects/${projectId}`);
@@ -212,9 +306,17 @@ export async function retryWorkflow(
     return { ok: false, error: plan.kind === "blocked" ? plan.reason : "invalid_transition" };
   }
 
+  const configuredProvider = process.env.LLM_PROVIDER;
+  const reservationProvider = configuredProvider === "gigachat" || configuredProvider === "zai"
+    ? configuredProvider
+    : "yandex";
   const { data: retryStep, error: prepareError } = await supabase.rpc(
-    "prepare_m1_risk_retry",
-    { p_workflow_run_id: runId },
+    "reserve_m1_risk_retry",
+    {
+      p_workflow_run_id: runId,
+      p_provider: reservationProvider,
+      p_model: process.env.LLM_MODEL ?? "unknown",
+    },
   );
   if (prepareError || !retryStep) {
     // A concurrent request may have won the unique active-attempt race.
@@ -231,10 +333,14 @@ export async function retryWorkflow(
   }
 
   const prepared = Array.isArray(retryStep) ? retryStep[0] : retryStep;
-  const stepId = (prepared as { id: string }).id;
+  const stepId = (prepared as { workflow_step_run_id: string }).workflow_step_run_id;
+  const aiCallId = (prepared as { ai_call_id: string }).ai_call_id;
   const preparedAttempt = Number((prepared as { attempt?: number }).attempt ?? plan.attempt);
-  const admin = createAdminClient();
+  if (!stepId || !aiCallId) {
+    return { ok: false, error: "retry_reservation_invalid" };
+  }
 
+  let pipelineResult: Awaited<ReturnType<typeof runRiskPipeline>> | null = null;
   try {
     const { data: answerRows, error: answersError } = await supabase
       .from("answers")
@@ -247,74 +353,69 @@ export async function retryWorkflow(
         (row as { value: unknown }).value as never;
     }
 
-    const { passport, cards, llmOk, llmUsage } = await runRiskPipeline(answers);
-    const { error: passportError } = await supabase.from("projects")
-      .update({ passport }).eq("id", current.project_id);
-    if (passportError) throw new Error(passportError.message);
-    const { error: deleteError } = await supabase.from("risk_cards")
-      .delete().eq("project_id", current.project_id).eq("status", "proposed");
-    if (deleteError) throw new Error(deleteError.message);
-    if (cards.length > 0) {
-      const { error: cardsError } = await supabase.from("risk_cards").insert(
-        cards.map((card: RiskCard) => ({
-          project_id: current.project_id,
-          risk_type: card.risk_type,
-          evidence: card.evidence,
-          impact: card.impact,
-          confidence: card.confidence,
-          designer_action: card.designer_action,
-          proposal_implication: card.proposal_implication,
-          status: "proposed",
-          source: card.source,
-        })),
-      );
-      if (cardsError) throw new Error(cardsError.message);
-    }
-
-    const { data: priorCall } = await supabase.from("ai_calls").select("id")
-      .eq("workflow_run_id", runId)
-      .eq("action_key", "generate_risk_register")
-      .order("created_at", { ascending: false })
-      .limit(1)
-      .maybeSingle();
-    const { error: aiCallError } = await admin.from("ai_calls").insert({
-      project_id: current.project_id,
-      workflow_run_id: runId,
-      workflow_step_run_id: stepId,
-      action_key: "generate_risk_register",
-      cost_class: "metered_ai",
-      provider: llmUsage.provider,
-      model: llmUsage.model,
-      tokens_in: llmUsage.tokensIn,
-      tokens_out: llmUsage.tokensOut,
-      duration_ms: llmUsage.durationMs,
-      provider_cost_estimate: llmUsage.providerCostEstimate,
-      estimate_source: llmUsage.estimateSource,
-      retry_of_id: (priorCall as { id?: string } | null)?.id ?? null,
-      outcome: llmUsage.outcome,
-    });
-    if (aiCallError) throw new Error(aiCallError.message);
-
-    const { error: completeError } = await supabase.rpc("complete_m1_risk_retry", {
-      p_workflow_run_id: runId,
-      p_step_run_id: stepId,
+    pipelineResult = await runRiskPipeline(answers);
+    const { passport, cards, llmOk, llmUsage } = pipelineResult;
+    const usagePayload = {
+      p_workflow_step_run_id: stepId,
+      p_ai_call_id: aiCallId,
+      p_provider: llmUsage.provider,
+      p_model: llmUsage.model,
+      p_tokens_in: llmUsage.tokensIn,
+      p_tokens_out: llmUsage.tokensOut,
+      p_duration_ms: llmUsage.durationMs,
+      p_provider_cost_estimate: llmUsage.providerCostEstimate,
+      p_estimate_source: llmUsage.estimateSource,
+      p_outcome: llmUsage.outcome,
+    };
+    const { error: usageError } = await supabase.rpc(
+      "record_m1_risk_ai_usage",
+      usagePayload,
+    );
+    if (usageError) throw new Error(`usage_persist_failed: ${usageError.message}`);
+    const { error: completeError } = await supabase.rpc("finalize_m1_risk_rerun", {
+      p_workflow_step_run_id: stepId,
+      p_ai_call_id: aiCallId,
+      p_passport: passport,
+      p_risk_cards: cards,
       p_output_snapshot: {
         llm_outcome: llmUsage.outcome,
         fallback_used: !llmOk,
         risk_card_count: cards.length,
       },
+      p_provider: llmUsage.provider,
+      p_model: llmUsage.model,
+      p_tokens_in: llmUsage.tokensIn,
+      p_tokens_out: llmUsage.tokensOut,
+      p_duration_ms: llmUsage.durationMs,
+      p_provider_cost_estimate: llmUsage.providerCostEstimate,
+      p_estimate_source: llmUsage.estimateSource,
+      p_outcome: llmUsage.outcome,
     });
     if (completeError) throw new Error(completeError.message);
     revalidatePath(`/dashboard/projects/${current.project_id}`);
     return { ok: true, attempt: preparedAttempt };
   } catch (error) {
     const message = error instanceof Error ? error.message : "retry_failed";
-    await supabase.rpc("fail_m1_risk_retry", {
-      p_workflow_run_id: runId,
-      p_step_run_id: stepId,
+    const usage = pipelineResult?.llmUsage;
+    const { error: closeError } = await supabase.rpc("close_m1_risk_ai_reservation", {
+      p_workflow_step_run_id: stepId,
+      p_ai_call_id: aiCallId,
+      p_provider_completed: Boolean(usage),
+      p_provider: usage?.provider ?? reservationProvider,
+      p_model: usage?.model ?? process.env.LLM_MODEL ?? "unknown",
+      p_tokens_in: usage?.tokensIn ?? 0,
+      p_tokens_out: usage?.tokensOut ?? 0,
+      p_duration_ms: usage?.durationMs ?? 0,
+      p_provider_cost_estimate: usage?.providerCostEstimate ?? 0,
+      p_estimate_source: usage?.estimateSource ?? "static_table",
+      p_outcome: usage?.outcome ?? "provider_error",
       p_error: { step: plan.stepKey, attempt: preparedAttempt, message },
     });
     revalidatePath(`/dashboard/projects/${current.project_id}`);
-    return { ok: false, attempt: preparedAttempt, error: message };
+    return {
+      ok: false,
+      attempt: preparedAttempt,
+      error: closeError ? `terminalization_failed: ${message}` : message,
+    };
   }
 }
