@@ -2,7 +2,7 @@
 
 ## Automated evidence
 
-- 15 test files, 72 tests passing.
+- 16 test files, 77 tests passing.
 - Passport regression: 12 tests.
 - Pricing regression: 4 tests.
 - Risk rules/schema/dedupe/LLM tests passing.
@@ -41,10 +41,26 @@ Final database evidence for the browser run:
 - fact version created through `supersedes_id`;
 - 4 audit events and 1 metered AI-call record.
 
+## Retry/resume evidence
+
+A controlled `generate_risk_register` failure was created on the disposable
+branch and replayed through the authenticated project UI.
+
+- failed attempt 1 remained immutable;
+- retry created exactly attempt 2;
+- previously completed `build_project_passport` attempt 1 was not replayed;
+- attempt 2 completed with deterministic fallback and recorded the provider
+  failure separately in `ai_calls`;
+- workflow resumed to `waiting_for_human · human_review`;
+- audit trail contains `workflow_retry_started` and
+  `workflow_retry_completed`;
+- retry AI call points to the first call through `retry_of_id`;
+- concurrent second active attempt was rejected by the partial unique index;
+- fresh browser console contained no warning/error.
+
 ## Remaining gate
 
 Production migration/deployment, production browser regression and a successful
-credentialed YandexGPT call were not executed. Retry state/guard logic passes
-unit and SQL tests, but a browser-driven failed-step replay remains unproved.
+credentialed YandexGPT call were not executed.
 
 Verdict: `M1_VERTICAL_WORKFLOW: PARTIAL`.

@@ -7,11 +7,13 @@ constraints, one fixed workflow definition and RLS policies.
 `0008_platform_security_hardening.sql` adds least-privilege grants, a private
 membership helper, mutation guards and covering indexes. Existing timestamped
 migrations and legacy columns are unchanged.
+`0009_workflow_retry_idempotency.sql` adds a partial unique index that permits
+historical attempts but prevents two active attempts for the same workflow step.
 
 ## Controlled adoption
 
 1. Snapshot/fingerprint target DB and confirm migrations `0001`–`0006`.
-2. Apply `0007`, then `0008`, to a disposable branch.
+2. Apply `0007`, `0008`, then `0009`, to a disposable branch.
 3. Run policy/role negatives and M1 E2E.
 4. Only then schedule production adoption.
 
@@ -26,5 +28,5 @@ After workflow writes, prefer application rollback: deploy the previous app,
 retain additive tables as dormant evidence, and do not destroy audit/fact history.
 Physical table removal then requires an explicit retention/export decision.
 
-Disposable branch status: both migrations applied successfully on 27.07.2026.
+Disposable branch status: all three migrations applied successfully on 27.07.2026.
 Production migration status: not applied.

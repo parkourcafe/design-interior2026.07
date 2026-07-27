@@ -10,6 +10,10 @@ const hardeningSql = readFileSync(
   join(process.cwd(), "supabase/migrations/0008_platform_security_hardening.sql"),
   "utf8",
 );
+const retrySql = readFileSync(
+  join(process.cwd(), "supabase/migrations/0009_workflow_retry_idempotency.sql"),
+  "utf8",
+);
 
 describe("platform migration security contract", () => {
   it("is additive and enables RLS on every new project table", () => {
@@ -36,5 +40,9 @@ describe("platform migration security contract", () => {
     expect(hardeningSql).toContain("set search_path = ''");
     expect(hardeningSql).toContain("approval request identity is immutable");
     expect(hardeningSql).toContain("invalid workflow transition");
+  });
+  it("prevents concurrent duplicate active step attempts", () => {
+    expect(retrySql).toContain("workflow_step_runs_one_active_attempt_idx");
+    expect(retrySql).toContain("where status in ('queued', 'running', 'waiting_for_human', 'pending_cost_confirmation')");
   });
 });
