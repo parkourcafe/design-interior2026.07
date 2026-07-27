@@ -60,7 +60,9 @@ export async function rerunRisks(projectId: string): Promise<{ ok: boolean; llmO
   const { passport, cards, llmOk, llmUsage } = await runRiskPipeline(answers);
 
   await supabase.from("projects").update({ passport }).eq("id", projectId);
-  await supabase.from("risk_cards").delete().eq("project_id", projectId);
+  await supabase.from("risk_cards").delete()
+    .eq("project_id", projectId)
+    .eq("status", "proposed");
   if (cards.length > 0) {
     await supabase.from("risk_cards").insert(
       cards.map((c: RiskCard) => ({
@@ -82,29 +84,25 @@ export async function rerunRisks(projectId: string): Promise<{ ok: boolean; llmO
     .order("created_at", { ascending: false }).limit(1).maybeSingle();
   if (run) {
     const runId = (run as { id: string }).id;
-    const { data: prior } = await supabase.from("workflow_step_runs").select("attempt")
-      .eq("workflow_run_id", runId).eq("step_key", "generate_risk_register")
-      .order("attempt", { ascending: false }).limit(1);
-    const attempt = Number((prior?.[0] as { attempt?: number } | undefined)?.attempt ?? 0) + 1;
-    const now = new Date().toISOString();
-    const { data: step } = await supabase.from("workflow_step_runs").insert({
-      workflow_run_id: runId,
-      step_key: "generate_risk_register",
-      attempt,
-      status: "completed",
-      output_snapshot: {
-        llm_outcome: llmUsage.outcome,
-        fallback_used: llmUsage.outcome !== "success",
+    const { data: stepId, error: commandError } = await supabase.rpc(
+      "record_m1_risk_rerun",
+      {
+        p_project_id: projectId,
+        p_workflow_run_id: runId,
+        p_payload: {
+          llm_outcome: llmUsage.outcome,
+          fallback_used: llmUsage.outcome !== "success",
+          risk_card_count: cards.length,
+        },
       },
-      started_at: now,
-      completed_at: now,
-    }).select("id").single();
-    if (step) {
+    );
+    if (commandError) return { ok: false, llmOk };
+    if (stepId) {
       const admin = createAdminClient();
       await admin.from("ai_calls").insert({
         project_id: projectId,
         workflow_run_id: runId,
-        workflow_step_run_id: (step as { id: string }).id,
+        workflow_step_run_id: stepId as string,
         action_key: "generate_risk_register",
         cost_class: "metered_ai",
         provider: llmUsage.provider,
@@ -214,26 +212,11 @@ export async function retryWorkflow(
     return { ok: false, error: plan.kind === "blocked" ? plan.reason : "invalid_transition" };
   }
 
-  const { error: retryError } = await supabase.from("workflow_runs").update({
-    status: "retrying",
-    error_state: null,
-  }).eq("id", runId).eq("status", "failed");
-  if (retryError) return { ok: false, error: retryError.message };
-
-  const startedAt = new Date().toISOString();
-  const { data: retryStep, error: stepInsertError } = await supabase
-    .from("workflow_step_runs")
-    .insert({
-      workflow_run_id: runId,
-      step_key: plan.stepKey,
-      attempt: plan.attempt,
-      status: "running",
-      input_snapshot: latest?.input_snapshot ?? {},
-      started_at: startedAt,
-    })
-    .select("id")
-    .single();
-  if (stepInsertError || !retryStep) {
+  const { data: retryStep, error: prepareError } = await supabase.rpc(
+    "prepare_m1_risk_retry",
+    { p_workflow_run_id: runId },
+  );
+  if (prepareError || !retryStep) {
     // A concurrent request may have won the unique active-attempt race.
     const { data: concurrent } = await supabase.from("workflow_step_runs")
       .select("attempt")
@@ -244,26 +227,13 @@ export async function retryWorkflow(
       .limit(1)
       .maybeSingle();
     if (concurrent) return { ok: true, attempt: Number((concurrent as { attempt: number }).attempt) };
-    await supabase.from("workflow_runs").update({
-      status: "failed",
-      error_state: { step: plan.stepKey, message: stepInsertError?.message ?? "retry_step_insert_failed" },
-    }).eq("id", runId);
-    return { ok: false, error: stepInsertError?.message ?? "retry_step_insert_failed" };
+    return { ok: false, error: prepareError?.message ?? "retry_step_prepare_failed" };
   }
 
-  const stepId = (retryStep as { id: string }).id;
+  const prepared = Array.isArray(retryStep) ? retryStep[0] : retryStep;
+  const stepId = (prepared as { id: string }).id;
+  const preparedAttempt = Number((prepared as { attempt?: number }).attempt ?? plan.attempt);
   const admin = createAdminClient();
-  await supabase.from("workflow_runs").update({ status: "running" }).eq("id", runId);
-  await admin.from("audit_events").insert({
-    project_id: current.project_id,
-    actor_id: user.id,
-    actor_type: "human",
-    event_type: "workflow_retry_started",
-    entity_type: "WorkflowStepRun",
-    entity_id: stepId,
-    workflow_run_id: runId,
-    payload: { step_key: plan.stepKey, attempt: plan.attempt, previous_attempt: latest?.attempt },
-  });
 
   try {
     const { data: answerRows, error: answersError } = await supabase
@@ -325,69 +295,26 @@ export async function retryWorkflow(
     });
     if (aiCallError) throw new Error(aiCallError.message);
 
-    const completedAt = new Date().toISOString();
-    const { error: stepUpdateError } = await supabase.from("workflow_step_runs").update({
-      status: "completed",
-      output_snapshot: {
+    const { error: completeError } = await supabase.rpc("complete_m1_risk_retry", {
+      p_workflow_run_id: runId,
+      p_step_run_id: stepId,
+      p_output_snapshot: {
         llm_outcome: llmUsage.outcome,
         fallback_used: !llmOk,
         risk_card_count: cards.length,
-      },
-      completed_at: completedAt,
-      error: null,
-    }).eq("id", stepId);
-    if (stepUpdateError) throw new Error(stepUpdateError.message);
-    const { error: runUpdateError } = await supabase.from("workflow_runs").update({
-      status: "waiting_for_human",
-      current_step: "human_review",
-      error_state: null,
-      output_snapshot: {
-        resumed_from: plan.stepKey,
-        retry_attempt: plan.attempt,
-        risk_card_count: cards.length,
-      },
-    }).eq("id", runId);
-    if (runUpdateError) throw new Error(runUpdateError.message);
-    await admin.from("audit_events").insert({
-      project_id: current.project_id,
-      actor_id: user.id,
-      actor_type: "human",
-      event_type: "workflow_retry_completed",
-      entity_type: "WorkflowStepRun",
-      entity_id: stepId,
-      workflow_run_id: runId,
-      payload: {
-        step_key: plan.stepKey,
-        attempt: plan.attempt,
-        llm_outcome: llmUsage.outcome,
-        fallback_used: !llmOk,
       },
     });
+    if (completeError) throw new Error(completeError.message);
     revalidatePath(`/dashboard/projects/${current.project_id}`);
-    return { ok: true, attempt: plan.attempt };
+    return { ok: true, attempt: preparedAttempt };
   } catch (error) {
     const message = error instanceof Error ? error.message : "retry_failed";
-    const completedAt = new Date().toISOString();
-    await supabase.from("workflow_step_runs").update({
-      status: "failed",
-      error: { message },
-      completed_at: completedAt,
-    }).eq("id", stepId);
-    await supabase.from("workflow_runs").update({
-      status: "failed",
-      error_state: { step: plan.stepKey, attempt: plan.attempt, message },
-    }).eq("id", runId);
-    await admin.from("audit_events").insert({
-      project_id: current.project_id,
-      actor_id: user.id,
-      actor_type: "human",
-      event_type: "workflow_retry_failed",
-      entity_type: "WorkflowStepRun",
-      entity_id: stepId,
-      workflow_run_id: runId,
-      payload: { step_key: plan.stepKey, attempt: plan.attempt, message },
+    await supabase.rpc("fail_m1_risk_retry", {
+      p_workflow_run_id: runId,
+      p_step_run_id: stepId,
+      p_error: { step: plan.stepKey, attempt: preparedAttempt, message },
     });
     revalidatePath(`/dashboard/projects/${current.project_id}`);
-    return { ok: false, attempt: plan.attempt, error: message };
+    return { ok: false, attempt: preparedAttempt, error: message };
   }
 }

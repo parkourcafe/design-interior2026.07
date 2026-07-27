@@ -32,6 +32,8 @@ export default function ProposalEditor({
   function edit(id: string, body: string) {
     setSections((prev) => prev.map((s) => (s.id === id ? { ...s, body } : s)));
     setSaved(false);
+    setReleaseApproved(false);
+    setAuthorApproved(false);
   }
 
   function save() {
@@ -43,7 +45,8 @@ export default function ProposalEditor({
 
   function send() {
     startTransition(async () => {
-      await saveProposal(projectId, sections);
+      const savedResult = await saveProposal(projectId, sections);
+      if (!savedResult.ok) return;
       const res = await sendProposal(projectId);
       if (res.ok) {
         setSent(true);
@@ -54,6 +57,8 @@ export default function ProposalEditor({
 
   function approve() {
     startTransition(async () => {
+      const savedResult = await saveProposal(projectId, sections);
+      if (!savedResult.ok) return;
       const res = await approveProposal(projectId);
       if (res.ok) {
         setReleaseApproved(true);
@@ -84,9 +89,11 @@ export default function ProposalEditor({
   return (
     <div className="space-y-6">
       <div className="no-print flex flex-wrap items-center gap-3">
-        <button onClick={save} disabled={pending} className="btn-ghost">
-          {pending ? ru.proposal.saving : saved ? ru.proposal.saved : ru.proposal.save}
-        </button>
+        {!sent && (
+          <button onClick={save} disabled={pending} className="btn-ghost">
+            {pending ? ru.proposal.saving : saved ? ru.proposal.saved : ru.proposal.save}
+          </button>
+        )}
         {!sent && (
           <button onClick={rebuild} disabled={pending} className="btn-ghost">
             Пересобрать
@@ -138,6 +145,7 @@ export default function ProposalEditor({
             <textarea
               value={s.body}
               onChange={(e) => edit(s.id, e.target.value)}
+              disabled={sent}
               className="input min-h-32 font-sans leading-relaxed"
             />
           </div>
