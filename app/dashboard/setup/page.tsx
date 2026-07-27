@@ -15,6 +15,12 @@ export default async function SetupPage() {
 
   const designer = studio.designer;
   const members = await listStudioMembers(studio.studioId);
+  const proposalDefaults = {
+    exclusions: [],
+    revision_limit: 2,
+    stage_completion: "",
+    ...((designer.proposal_defaults ?? {}) as Partial<ProposalDefaults>),
+  } satisfies ProposalDefaults;
 
   return (
     <>
@@ -35,11 +41,7 @@ export default async function SetupPage() {
           name: designer.name ?? "",
           studio_name: designer.studio_name ?? "",
           pricing: (designer.pricing ?? null) as PricingConfig | null,
-          proposal_defaults: (designer.proposal_defaults ?? {
-            exclusions: [],
-            revision_limit: 2,
-            stage_completion: "",
-          }) as ProposalDefaults,
+          proposal_defaults: proposalDefaults,
           profile: (designer.profile ?? {}) as DesignerProfile,
         }}
       />

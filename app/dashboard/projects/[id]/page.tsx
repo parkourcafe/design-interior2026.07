@@ -14,6 +14,7 @@ import IntakeLink from "@/components/intake-link";
 import CopyTextButton from "@/components/copy-text-button";
 import ReviewCards from "./review";
 import CustomQuestions from "./custom-questions";
+import FactReview, { type FactView } from "./fact-review";
 
 export const dynamic = "force-dynamic";
 
@@ -102,6 +103,17 @@ async function ReviewBoard({
 
   const cards = (cardRows ?? []) as RiskCardRow[];
   const passport = project.passport!;
+  const { data: factRows } = await supabase.from("project_facts")
+    .select("id,fact_type,value,evidence_locator,status,version,supersedes_id")
+    .eq("project_id", project.id).order("created_at", { ascending: false });
+  const latestByLocator = new Map<string, FactView>();
+  for (const row of (factRows ?? []) as FactView[]) {
+    if (!latestByLocator.has(row.evidence_locator)) latestByLocator.set(row.evidence_locator, row);
+  }
+  const { data: workflowRow } = await supabase.from("workflow_runs")
+    .select("id,status,current_step").eq("project_id", project.id)
+    .eq("workflow_key", "client_intake_to_issued_proposal")
+    .order("created_at", { ascending: false }).limit(1).maybeSingle();
   const missing = missingFields(passport);
   const questions = firstMeetingQuestions(cards);
   const llmDegraded = cards.length > 0 && cards.every((c) => c.source === "rule");
@@ -182,6 +194,11 @@ async function ReviewBoard({
           {ru.review.degraded}
         </p>
       )}
+
+      <FactReview
+        facts={[...latestByLocator.values()]}
+        workflow={(workflowRow as { id: string; status: string; current_step: string } | null) ?? null}
+      />
 
       <section>
         <h2 className="mb-3 font-display text-2xl font-semibold">{ru.review.passport}</h2>

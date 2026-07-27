@@ -3,12 +3,14 @@ import { buildPassport } from "@/lib/brief/passport";
 import { evaluateRules } from "@/lib/risks/rules";
 import { generateLlmRisks } from "@/lib/risks/llm";
 import { dedupeRisks } from "@/lib/risks/dedupe";
+import type { LlmUsage } from "@/lib/llm/provider";
 
 export interface RiskPipelineResult {
   passport: Passport;
   cards: RiskCard[];
   llmOk: boolean; // false → сработала деградация, показаны только rule-карточки
   llmError?: string;
+  llmUsage: LlmUsage;
 }
 
 // Полный проход брифа: buildPassport → слой правил → LLM-проход → дедуп.
@@ -20,9 +22,9 @@ export async function runRiskPipeline(answers: AnswersMap): Promise<RiskPipeline
 
   const llm = await generateLlmRisks(passport, answers);
   if (!llm.ok) {
-    return { passport, cards: ruleCards, llmOk: false, llmError: llm.error };
+    return { passport, cards: ruleCards, llmOk: false, llmError: llm.error, llmUsage: llm.usage };
   }
 
   const cards = dedupeRisks(ruleCards, llm.cards);
-  return { passport, cards, llmOk: true };
+  return { passport, cards, llmOk: true, llmUsage: llm.usage };
 }

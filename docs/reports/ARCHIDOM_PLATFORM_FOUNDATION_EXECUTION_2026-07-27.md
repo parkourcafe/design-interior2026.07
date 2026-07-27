@@ -1,0 +1,58 @@
+# ArchiDom Platform Foundation Execution — 27.07.2026
+
+## EXTRACTED
+
+Production deployment evidence: `main@1072536`; canonical default:
+`claude/new-session-gsayp3@7fd3512`. Baseline migrations were `0001`–`0006`.
+M1 already contained intake, passport, risks, pricing and proposal flows.
+
+## INTERPRETED
+
+The smallest compatible foundation is an additive relational ledger around M1.
+Legacy tables remain the read models; no graph database or future module was added.
+
+## IMPLEMENTED
+
+- Migrations `0007_platform_foundation_m1.sql` and
+  `0008_platform_security_hardening.sql`.
+- Immutable, sourced/versioned ProjectFact adapter.
+- Persisted M1 workflow and immutable step attempts with resume/retry state.
+- Eight-action internal registry.
+- Human proposal release gate and explicit self-approval presentation.
+- AI usage measurement and `ai_calls` persistence for actual provider calls.
+- Versioned studio standards, project overrides and resolver precedence.
+- Append-only audit ledger, least-privilege grants, private membership helper,
+  RLS policies and database mutation guards.
+- Compact workflow/fact review UI.
+- Legacy setup defaults normalized after authenticated browser QA exposed an
+  empty-JSON compatibility failure.
+
+Commands: `npm run test` (72 passing), `npm run lint` (passing),
+`npm run typecheck` (passing),
+`npm run build` (passing).
+
+## LIVE DISPOSABLE EVIDENCE
+
+Both migrations are applied to Supabase branch `archidom-sprint1-pilot`
+(`udtjczcnemndubsyuqxc`). Role negatives and the authenticated end-to-end path
+brief → persisted workflow/facts → fact version → passport → proposal → human
+approval → issue → public proposal passed.
+
+The completed run persisted 1 workflow, 3 step attempts, 9 fact rows (including
+one immutable confirmation version), 1 measured AI call and 4 audit events.
+
+## Remaining production gate
+
+Production migration/deployment and production browser verification are not
+executed. The disposable AI call correctly recorded `provider_error` because
+pilot provider credentials/rate were intentionally not supplied; deterministic
+fallback completed the workflow.
+
+## Changed implementation files
+
+`supabase/migrations/0007_platform_foundation_m1.sql`,
+`lib/platform/*`, `lib/llm/provider.ts`, `lib/risks/llm.ts`,
+`lib/brief/pipeline.ts`, intake submit route, project review UI/actions and
+proposal page/editor/actions.
+
+Initial implementation commit: `000626ef959145e8e149cf5b9ddf7e7ea68556a8`.
