@@ -138,8 +138,27 @@ The empty local database portion of Gate B passed on 28.07.2026:
 The lint run retained one non-blocking warning in the pre-existing
 `public.finalize_m1_risk_rerun` function: variable `v_ai_call` is never read.
 
-The disposable Supabase branch portion of Gate B remains required before any
-production history repair.
+The disposable Supabase branch portion of Gate B also passed on 28.07.2026:
+
+- PR #52 automatically created disposable preview
+  `wmqjmbjrqcwqllmsmgoj`;
+- the preview reached `FUNCTIONS_DEPLOYED` / `ACTIVE_HEALTHY`;
+- its migration ledger contained the same 17 versions from `0001` through
+  `20260727220000`;
+- all 12 checked platform and compatibility tables had RLS enabled;
+- all four compatibility policies and both extended status constraints were
+  present.
+
+The Supabase security advisor reported existing review items rather than a
+baseline replay failure:
+
+- `rate_limits` has RLS enabled without a policy (`INFO`);
+- several existing `SECURITY DEFINER` workflow RPCs remain executable by the
+  `authenticated` role (`WARN`) and must retain explicit server-side actor,
+  organization, project and workflow authorization.
+
+These warnings must be evaluated in the security review before production
+adoption. They are not silently re-scoped into this baseline-only PR.
 
 ### Gate C — production history repair
 
@@ -168,11 +187,13 @@ After repair:
 
 ## Current verdict
 
-The repository baseline is now replayable from an empty local database.
-Production history remains intentionally unchanged until the disposable branch
-gate and a separate production decision.
+The repository baseline is now replayable from both an empty local database and
+a disposable Supabase preview. Production history remains intentionally
+unchanged until security review and a separate production decision.
 
 `LOCAL_BASELINE_REPLAY: RECONCILED`
+
+`DISPOSABLE_BASELINE_REPLAY: RECONCILED`
 
 `PRODUCTION_MIGRATION_BASELINE: NOT_RECONCILED`
 
