@@ -10,11 +10,11 @@ Status: `PARTIAL_WITH_OWNER_ACTIONS`
 - Working branch / PR: `codex/sprint1-completion-20260728`, PR #53, currently not draft.
 - Pre-rename head: `16b80d9`.
 - Rename implementation head after preview canonical fix: `ebc3fe7`.
-- Latest preview redeploy head after owner-side env update: `e4465ed`.
+- Latest preview QA evidence head: `563495f`.
 - Vercel project from PR checks: `yulaboober/design-interior2026-07`.
 - Supabase parent project observed: `ztnycrchwxqczqbyegnp`.
 - Supabase Preview branch observed: `qudnbhkvzufotlsskcdc`.
-- Current Sprint 1 authenticated preview QA is blocked by missing confirmed Auth user in the disposable branch `qudnbhkvzufotlsskcdc`. A stale parent-project intake token now returns `not_found` instead of the previous `PGRST202` RPC error after redeploy, but full persisted M1 flow must still be proven with a confirmed preview Auth user.
+- Current Sprint 1 authenticated preview QA passed on disposable branch `qudnbhkvzufotlsskcdc` for the fallback LLM path: login, project, profile gate, public brief submit, fact confirmation, passport, proposal, human approval, self-approved label, issue, and public proposal page.
 
 ## IMPLEMENTED changes
 
@@ -89,7 +89,7 @@ Updated current setup docs to use:
 - Supabase Auth Site URL and allowed redirect URLs must be updated by owner.
 - Email sender domain `remhaos.com` must be verified by owner.
 - Search Console / Bing / Yandex Webmaster / analytics domain settings must be updated by owner.
-- PR #53 preview persisted M1 flow remains blocked until a confirmed test Auth user exists in Supabase Preview branch `qudnbhkvzufotlsskcdc` and authenticated Browser QA is rerun.
+- PR #53 preview live provider-output QA remains not proven because preview health reports `llm_configured=false`; fallback workflow QA passed and the AI-call ledger row was recorded.
 
 ## Files changed
 
