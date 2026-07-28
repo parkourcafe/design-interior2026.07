@@ -27,5 +27,5 @@ Security,RLS and least privilege,IMPLEMENTED,"Independent SQL/RLS proof and cont
 Security,Formal external security scan,UNKNOWN,"Manual review and SQL proof only; formal scanner did not access workspace"
 QA,Desktop browser QA,PARTIAL,"Preliminary full desktop flow passed; final exact-hash reset blocked by approval limit"
 QA,Mobile browser QA,PARTIAL,"Mobile header overflow fixed and preliminary mobile path passed; final exact-hash reset blocked by approval limit"
-Release,Draft PR,PLANNED,"Pending final git packaging"
+Release,Draft PR,IMPLEMENTED,"PR #53 exists as draft, is mergeable, and has green Vercel/Supabase preview checks at head 84e6890"
 Release,Production migration, BLOCKED,"Requires separate production decision and baseline reconciliation"

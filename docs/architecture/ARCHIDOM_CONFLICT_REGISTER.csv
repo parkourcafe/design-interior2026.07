@@ -5,4 +5,5 @@ C-003,Browser QA,"Final exact-hash browser QA requires local Supabase reset appr
 C-004,Security scan,"Formal external scanner could not access workspace","Use manual diff review, tests and independent SQL proof as current evidence",PARTIAL
 C-005,Local filesystem,"iCloud offloaded repo files caused git/test hangs","Restore node_modules, .next and migrations locally; keep repo downloaded on workstation",PARTIAL
 C-006,Module scope,"M2-M5 and integrations remain out of Sprint 1 scope","No implementation in this package",IMPLEMENTED
-C-007,Production branch,"Draft PR must not be merged automatically","Open draft only after final packaging; merge requires separate decision",PLANNED
+C-007,Production branch,"Draft PR must not be merged automatically","PR #53 is draft and must remain unmerged until final browser QA and production-adoption gate are separately approved",PARTIAL
+C-008,Repository evidence,"Feature readiness matrix was stale after PR packaging","Updated Release/Draft PR evidence to PR #53 draft, mergeable, checks green at head 84e6890",IMPLEMENTED
