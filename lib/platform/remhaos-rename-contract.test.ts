@@ -32,8 +32,10 @@ describe("RemHaos brand rename contract", () => {
   });
 
   it("uses RemHaos and remhaos.com in app metadata and generated discovery files", () => {
+    const layout = read("app/layout.tsx");
     expect(read("lib/i18n/ru.ts")).toContain('name: "RemHaos"');
-    expect(read("app/layout.tsx")).toContain("https://remhaos.com");
+    expect(layout).toContain("https://remhaos.com");
+    expect(layout).toContain('process.env.VERCEL_ENV !== "preview"');
     expect(read("app/robots.ts")).toContain("https://remhaos.com/sitemap.xml");
     expect(read("app/sitemap.ts")).toContain("https://remhaos.com");
     expect(read("app/llms.txt/route.ts")).toContain("Canonical host: https://remhaos.com");

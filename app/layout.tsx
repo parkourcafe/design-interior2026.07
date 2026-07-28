@@ -6,6 +6,7 @@ import Pwa from "@/components/pwa";
 const siteUrl = process.env.NEXT_PUBLIC_APP_URL ?? "https://remhaos.com";
 if (
   process.env.NODE_ENV === "production" &&
+  process.env.VERCEL_ENV !== "preview" &&
   /(?:vercel\.app|arhidom\.space)$/i.test(new URL(siteUrl).hostname)
 ) {
   throw new Error("Production metadata host must be https://remhaos.com, not a preview or legacy host.");
