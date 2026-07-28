@@ -5,7 +5,7 @@ Status: `PARTIAL`
 
 ## Verified Locally
 
-- Full unit/contract suite passed: 61 files, 250 tests.
+- Full unit/contract suite passed: 62 files, 253 tests.
 - Targeted high-risk workflow suite passed: 11 files, 61 tests.
 - Production build passed on Next.js 16.2.10.
 - Workflow persistence, retry, proposal approval, issue binding, pricing and passport contracts passed.
@@ -22,34 +22,22 @@ Status: `PARTIAL`
   `/api/client/create` returns `503 self_serve_intake_unavailable`;
   invalid `/api/intake/submit` returns `400 invalid_payload`;
   empty `/api/intake/upload` returns `400 bad_request`.
-- Authenticated preview login passed on PR #53 preview with the provided
-  confirmed test account `booberid@gmail.com`.
-- Authenticated dashboard project creation passed in Supabase Preview project
-  `qudnbhkvzufotlsskcdc`: test project
-  `QA Sprint1 2026-07-28 08:43` was created and opened.
-- Designer profile gate passed: public client brief link is hidden before
-  profile completion and appears after minimum profile fields are saved.
-- Public client brief link generation and clipboard copy passed.
-- Public client quick brief entry passed through all 7 currently implemented
-  quick questions with no browser console warnings/errors.
-- Public client quick brief finalization currently fails on PR #53 preview:
-  `POST /api/intake/submit` returns
-  `500 {"error":"workflow_reservation_failed"}`.
-- Vercel server log evidence for that failure:
-  Supabase PostgREST returned `PGRST202` because its schema cache could not
-  find `public.reserve_initial_brief_ai_call(p_answer_digest, p_idempotency_key, p_project_id)`.
-  Additive migration `20260728090000_reload_m1_workflow_rpc_schema_cache.sql`
-  was added to preflight the governed M1 RPCs and trigger `notify pgrst,
-  'reload schema'`.
-- Follow-up Supabase SQL evidence confirmed this is an environment routing
-  mismatch, not a missing migration in the disposable branch:
-  parent project `ztnycrchwxqczqbyegnp` does not contain
-  `public.reserve_initial_brief_ai_call(uuid,text,text)` or
-  `public.finalize_initial_brief(...)`, while preview branch project
-  `qudnbhkvzufotlsskcdc` contains both RPCs.
-- Therefore the current PR #53 Vercel preview runtime is using the parent
-  Supabase project while the Supabase Preview check applies migrations to the
-  disposable branch. Production/parent migrations were not applied.
+- PR #53 was redeployed at head `e4465ed` after owner-side Vercel environment
+  variable changes.
+- PR #53 Vercel/Supabase checks are green at head `e4465ed`.
+- A previously created parent-project intake token now returns
+  `404 {"error":"not_found"}` instead of the earlier
+  `500 {"error":"workflow_reservation_failed"}` / `PGRST202` path, which is
+  consistent with the preview runtime no longer reading the old parent-project
+  test row.
+- Supabase SQL evidence for preview branch `qudnbhkvzufotlsskcdc` shows the
+  previously supplied test accounts are not present in preview Auth.
+- Password login on PR #53 preview with the supplied test account currently
+  returns `Invalid login credentials`.
+- Self-service signup on PR #53 preview creates an unconfirmed Auth user and
+  requires email confirmation. The connector allows read-only inspection of
+  `auth.users` but rejected the attempted confirmation update, so no manual
+  private Auth-table mutation was used to bypass confirmation.
 
 ## Workflow Evidence
 
@@ -65,11 +53,13 @@ The persisted implementation remains legacy-compatible. Because clarifying quest
 
 ## Browser QA Gap
 
-Authenticated dashboard QA is no longer blocked by login with the confirmed test
-account. It is blocked later at public brief finalization because Supabase
-Preview migrations are present on branch `qudnbhkvzufotlsskcdc`, but the Vercel
-preview runtime is routed to parent project `ztnycrchwxqczqbyegnp`, where the
-governed M1 RPCs are absent. Production was not touched.
+Authenticated persisted workflow QA is currently blocked before dashboard entry
+because preview branch `qudnbhkvzufotlsskcdc` has no confirmed test Auth user.
+Owner action is required to create or confirm a preview Auth user, then rerun:
+
+`login -> dashboard -> project -> profile gate -> public brief -> fact/risk review -> proposal -> approval -> issue`
+
+Production was not touched.
 
 ## Verdict
 

@@ -7,13 +7,14 @@ Status: `PARTIAL_WITH_OWNER_ACTIONS`
 - Repository root: `/Users/msnigmatullaeva/Documents/designinterior2026/archidom-sprint1`.
 - GitHub repository: `parkourcafe/design-interior2026.07`.
 - Default branch: `claude/new-session-gsayp3`.
-- Working branch / PR: `codex/sprint1-completion-20260728`, PR #53, draft.
+- Working branch / PR: `codex/sprint1-completion-20260728`, PR #53, currently not draft.
 - Pre-rename head: `16b80d9`.
 - Rename implementation head after preview canonical fix: `ebc3fe7`.
+- Latest preview redeploy head after owner-side env update: `e4465ed`.
 - Vercel project from PR checks: `yulaboober/design-interior2026-07`.
 - Supabase parent project observed: `ztnycrchwxqczqbyegnp`.
 - Supabase Preview branch observed: `qudnbhkvzufotlsskcdc`.
-- Current Sprint 1 preview runtime remains blocked by Supabase env routing: Vercel preview uses parent project where governed M1 RPCs are absent, while the disposable branch contains them.
+- Current Sprint 1 authenticated preview QA is blocked by missing confirmed Auth user in the disposable branch `qudnbhkvzufotlsskcdc`. A stale parent-project intake token now returns `not_found` instead of the previous `PGRST202` RPC error after redeploy, but full persisted M1 flow must still be proven with a confirmed preview Auth user.
 
 ## IMPLEMENTED changes
 
@@ -88,7 +89,7 @@ Updated current setup docs to use:
 - Supabase Auth Site URL and allowed redirect URLs must be updated by owner.
 - Email sender domain `remhaos.com` must be verified by owner.
 - Search Console / Bing / Yandex Webmaster / analytics domain settings must be updated by owner.
-- PR #53 preview persisted M1 flow remains blocked until Vercel Preview env is routed to Supabase Preview branch `qudnbhkvzufotlsskcdc` or parent/production migration is separately approved.
+- PR #53 preview persisted M1 flow remains blocked until a confirmed test Auth user exists in Supabase Preview branch `qudnbhkvzufotlsskcdc` and authenticated Browser QA is rerun.
 
 ## Files changed
 
