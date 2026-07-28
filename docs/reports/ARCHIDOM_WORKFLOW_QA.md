@@ -11,6 +11,17 @@ Status: `PARTIAL`
 - Workflow persistence, retry, proposal approval, issue binding, pricing and passport contracts passed.
 - Preliminary browser QA passed for desktop full flow.
 - Preliminary mobile QA passed after dashboard header overflow fix.
+- PR #53 Vercel preview browser smoke passed on 2026-07-28 at head `69cacbb`:
+  desktop `/`, `/demo/brief`, `/demo/proposal`, `/login`, `/security`, `/api/health`;
+  mobile 390x844 for `/`, `/demo/brief`, `/demo/proposal`, `/login`, `/security`.
+- Browser console warnings/errors: `0` on checked public routes.
+- Horizontal overflow: `0` on checked desktop and mobile routes.
+- Interactive mobile demo brief transitions passed through four steps with input,
+  choice selection and `Далее`.
+- Public API guardrails passed:
+  `/api/client/create` returns `503 self_serve_intake_unavailable`;
+  invalid `/api/intake/submit` returns `400 invalid_payload`;
+  empty `/api/intake/upload` returns `400 bad_request`.
 
 ## Workflow Evidence
 
@@ -26,7 +37,10 @@ The persisted implementation remains legacy-compatible. Because clarifying quest
 
 ## Browser QA Gap
 
-Final exact-hash browser QA is pending. A local Supabase reset was required for final verification, but approval execution was blocked by system approval limits. Production was not touched.
+Authenticated dashboard QA for the full persisted flow remains blocked on preview:
+the app requires a real Supabase Auth session/test account for project creation,
+review, proposal approval and issue. Self-serve ownerless project creation is
+intentionally disabled. Production was not touched.
 
 ## Verdict
 
