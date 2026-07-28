@@ -3,7 +3,10 @@ import "./globals.css";
 import { ru } from "@/lib/i18n/ru";
 import Pwa from "@/components/pwa";
 
-const siteUrl = process.env.NEXT_PUBLIC_APP_URL ?? "https://remhaos.com";
+const siteUrl =
+  process.env.VERCEL_ENV === "preview"
+    ? "https://remhaos.com"
+    : process.env.NEXT_PUBLIC_APP_URL ?? "https://remhaos.com";
 if (
   process.env.NODE_ENV === "production" &&
   process.env.VERCEL_ENV !== "preview" &&
