@@ -33,6 +33,12 @@ export async function reserveInitialBriefAiCall(
     p_idempotency_key: input.idempotencyKey,
   });
   if (error) {
+    console.error("[m1-workflow] reserve_initial_brief_ai_call failed", {
+      code: error.code,
+      message: error.message,
+      details: error.details,
+      hint: error.hint,
+    });
     return {
       ok: false,
       error: error.message.includes("initial_brief_request_conflict")
