@@ -1,5 +1,13 @@
 # ArchiDom Platform Foundation Execution — 27.07.2026
 
+> **Superseded current-state note (28.07.2026).** This file preserves
+> branch-specific historical evidence only. Current code makes both initial and
+> risk terminal AI RPCs `service_role`-only, adds 10-minute stale-initial-call
+> recovery, atomic proposal creation, exact-digest project-decision approval and
+> removes `zai`. Final digest/replay/browser evidence is pending, and the
+> canonical target order still conflicts with the observed legacy-compatible
+> persisted order. Use `ARCHIDOM_PLATFORM_FOUNDATION_REPORT.md` for verdicts.
+
 ## EXTRACTED
 
 Production deployment evidence: `main@1072536`; canonical default:

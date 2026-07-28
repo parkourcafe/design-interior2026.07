@@ -1,5 +1,11 @@
 # ArchiDom Migration and Rollback — 27.07.2026
 
+> **Superseded chain note (28.07.2026).** This report predates the completion
+> migration hardening. The final digest and exact-hash replay are still pending;
+> the historical disposable branch was deleted and is not final-hash evidence.
+> Production `ztnycrchwxqczqbyegnp` remains `MIGRATIONS_FAILED` and untouched.
+> Use `ARCHIDOM_MIGRATION_REPORT.md` for the current gate.
+
 ## Migration
 
 `0007_platform_foundation_m1.sql` is additive. It creates ten tables, indexes,

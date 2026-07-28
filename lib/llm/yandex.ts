@@ -34,6 +34,7 @@ export async function completeYandex(prompt: string): Promise<string> {
 
   const res = await fetch(YANDEX_COMPLETION_URL, {
     method: "POST",
+    signal: AbortSignal.timeout(30_000),
     headers: {
       "Content-Type": "application/json",
       Authorization: `Api-Key ${apiKey}`,

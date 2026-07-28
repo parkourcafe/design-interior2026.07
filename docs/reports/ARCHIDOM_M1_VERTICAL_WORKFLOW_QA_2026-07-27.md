@@ -1,5 +1,12 @@
 # ArchiDom M1 Vertical Workflow QA — 27.07.2026
 
+> **Superseded current-state note (28.07.2026).** The browser and database
+> results below belong to an earlier disposable package. That branch is no
+> longer final-package evidence. Current target order is
+> `Facts → Review → Questions → Passport → Risk`, while observed persisted
+> legacy order is `Facts → Passport → Risk → Review → Questions`; this keeps M1
+> `PARTIAL`. Use `ARCHIDOM_WORKFLOW_QA.md` for current evidence and verdict.
+
 ## Automated evidence
 
 - 21 test files, 104 tests passing.

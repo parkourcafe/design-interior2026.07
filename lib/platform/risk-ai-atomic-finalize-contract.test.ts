@@ -2,13 +2,12 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 
-const sql = readFileSync(
-  join(
-    process.cwd(),
-    "supabase/migrations/20260727220000_finalize_m1_risk_ai_call.sql",
-  ),
-  "utf8",
-);
+const sql = [
+  "supabase/migrations/20260727220000_finalize_m1_risk_ai_call.sql",
+  "supabase/migrations/20260728013000_complete_m1_governed_runtime.sql",
+]
+  .map((migration) => readFileSync(join(process.cwd(), migration), "utf8"))
+  .join("\n");
 
 function functionBody(name: string): string {
   const match = sql.match(

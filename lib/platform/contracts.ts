@@ -76,13 +76,13 @@ export const M1_ACTIONS = {
   extract_client_brief: {
     key: "extract_client_brief", version: 1, allowedRoles: ["owner", "member"],
     reads: ["answers", "project_sources"], writes: ["project_facts"],
-    auditEvents: ["facts_extracted"], costClass: "metered_ai", approval: "human_review",
+    auditEvents: ["facts_extracted"], costClass: "free_deterministic", approval: "human_review",
     inputSchema: jsonObject, outputSchema: z.array(jsonObject),
   },
   generate_clarifying_questions: {
     key: "generate_clarifying_questions", version: 1, allowedRoles: ["owner", "member"],
     reads: ["project_facts"], writes: ["project_facts"],
-    auditEvents: ["clarifying_questions_generated"], costClass: "metered_ai", approval: "human_review",
+    auditEvents: ["clarifying_questions_generated"], costClass: "free_deterministic", approval: "human_review",
     inputSchema: z.array(jsonObject), outputSchema: z.array(jsonObject),
   },
   build_project_passport: {
@@ -112,7 +112,7 @@ export const M1_ACTIONS = {
   generate_proposal_draft: {
     key: "generate_proposal_draft", version: 1, allowedRoles: ["owner", "member"],
     reads: ["projects.passport", "risk_cards", "designers"], writes: ["proposals"],
-    auditEvents: ["proposal_draft_generated"], costClass: "metered_ai", approval: "human_review",
+    auditEvents: ["proposal_draft_generated"], costClass: "free_deterministic", approval: "human_review",
     inputSchema: jsonObject, outputSchema: z.array(jsonObject),
   },
   issue_proposal: {

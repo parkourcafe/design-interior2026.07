@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
   createClient: vi.fn(),
+  createAdminClient: vi.fn(),
   runRiskPipeline: vi.fn(),
   revalidatePath: vi.fn(),
 }));
@@ -10,7 +11,7 @@ vi.mock("@/lib/supabase/server", () => ({
   createClient: mocks.createClient,
 }));
 vi.mock("@/lib/supabase/admin", () => ({
-  createAdminClient: vi.fn(),
+  createAdminClient: mocks.createAdminClient,
 }));
 vi.mock("@/lib/brief/pipeline", () => ({
   runRiskPipeline: mocks.runRiskPipeline,
@@ -46,11 +47,15 @@ function createSupabase({
   closeError?: { message: string } | null;
 } = {}) {
   const calls: string[] = [];
-  const rpc = vi.fn(async (name: string, payload: unknown) => {
-    calls.push(`rpc:${name}`);
+  const userRpc = vi.fn(async (name: string, payload: unknown) => {
+    calls.push(`user:rpc:${name}`);
     if (name === "reserve_m1_risk_rerun") {
       return { data: reservation, error: reservationError };
     }
+    throw new Error(`Unexpected user RPC ${name}: ${JSON.stringify(payload)}`);
+  });
+  const adminRpc = vi.fn(async (name: string, payload: unknown) => {
+    calls.push(`admin:rpc:${name}`);
     if (name === "finalize_m1_risk_rerun") {
       return { data: null, error: finalizeError, payload };
     }
@@ -60,7 +65,7 @@ function createSupabase({
     if (name === "close_m1_risk_ai_reservation") {
       return { data: null, error: closeError, payload };
     }
-    throw new Error(`Unexpected RPC ${name}`);
+    throw new Error(`Unexpected admin RPC ${name}`);
   });
 
   const from = vi.fn((table: string) => {
@@ -105,7 +110,14 @@ function createSupabase({
     throw new Error(`Unexpected table mutation/query: ${table}`);
   });
 
-  return { client: { from, rpc }, calls, from, rpc };
+  return {
+    client: { from, rpc: userRpc },
+    adminClient: { rpc: adminRpc },
+    calls,
+    from,
+    userRpc,
+    adminRpc,
+  };
 }
 
 const pipelineResult = {
@@ -131,8 +143,9 @@ describe("rerunRisks governed AI accounting behavior", () => {
   });
 
   it("reserves durable accounting before invoking the metered provider", async () => {
-    const { client, calls, rpc } = createSupabase();
+    const { client, adminClient, calls, userRpc, adminRpc } = createSupabase();
     mocks.createClient.mockResolvedValue(client);
+    mocks.createAdminClient.mockReturnValue(adminClient);
     mocks.runRiskPipeline.mockImplementation(async () => {
       calls.push("provider");
       return pipelineResult;
@@ -140,22 +153,26 @@ describe("rerunRisks governed AI accounting behavior", () => {
 
     await expect(rerunRisks(projectId)).resolves.toEqual({ ok: true, llmOk: true });
 
-    expect(calls.indexOf("rpc:reserve_m1_risk_rerun")).toBeLessThan(
+    expect(calls.indexOf("user:rpc:reserve_m1_risk_rerun")).toBeLessThan(
       calls.indexOf("provider"),
     );
     expect(calls.indexOf("provider")).toBeLessThan(
-      calls.indexOf("rpc:record_m1_risk_ai_usage"),
+      calls.indexOf("admin:rpc:record_m1_risk_ai_usage"),
     );
-    expect(calls.indexOf("rpc:record_m1_risk_ai_usage")).toBeLessThan(
-      calls.indexOf("rpc:finalize_m1_risk_rerun"),
+    expect(calls.indexOf("admin:rpc:record_m1_risk_ai_usage")).toBeLessThan(
+      calls.indexOf("admin:rpc:finalize_m1_risk_rerun"),
     );
-    expect(rpc).toHaveBeenNthCalledWith(
+    expect(userRpc).toHaveBeenNthCalledWith(
       1,
       "reserve_m1_risk_rerun",
       expect.objectContaining({
         p_project_id: projectId,
         p_workflow_run_id: workflowRunId,
       }),
+    );
+    expect(adminRpc).not.toHaveBeenCalledWith(
+      "reserve_m1_risk_rerun",
+      expect.anything(),
     );
   });
 
@@ -164,7 +181,7 @@ describe("rerunRisks governed AI accounting behavior", () => {
     [null, null],
     [null, { workflow_step_run_id: stepRunId }],
   ])("does not invoke AI when reservation is unusable", async (error, reservation) => {
-    const { client, rpc } = createSupabase({
+    const { client, userRpc } = createSupabase({
       reservationError: error,
       reservation,
     });
@@ -176,17 +193,19 @@ describe("rerunRisks governed AI accounting behavior", () => {
     });
 
     expect(mocks.runRiskPipeline).not.toHaveBeenCalled();
-    expect(rpc).toHaveBeenCalledTimes(1);
+    expect(userRpc).toHaveBeenCalledTimes(1);
+    expect(mocks.createAdminClient).not.toHaveBeenCalled();
   });
 
   it("finalizes the same reservation with usage and business output atomically", async () => {
-    const { client, from, rpc } = createSupabase();
+    const { client, adminClient, from, adminRpc, userRpc } = createSupabase();
     mocks.createClient.mockResolvedValue(client);
+    mocks.createAdminClient.mockReturnValue(adminClient);
 
     await expect(rerunRisks(projectId)).resolves.toEqual({ ok: true, llmOk: true });
 
-    expect(rpc).toHaveBeenNthCalledWith(
-      3,
+    expect(adminRpc).toHaveBeenNthCalledWith(
+      2,
       "finalize_m1_risk_rerun",
       expect.objectContaining({
         p_workflow_step_run_id: stepRunId,
@@ -204,6 +223,7 @@ describe("rerunRisks governed AI accounting behavior", () => {
         p_outcome: pipelineResult.llmUsage.outcome,
       }),
     );
+    expect(userRpc).toHaveBeenCalledTimes(1);
     expect(from).not.toHaveBeenCalledWith("ai_calls");
     expect(from).not.toHaveBeenCalledWith("risk_cards");
     expect(mocks.revalidatePath).toHaveBeenCalledWith(
@@ -212,17 +232,18 @@ describe("rerunRisks governed AI accounting behavior", () => {
   });
 
   it("does not report success when atomic finalization fails", async () => {
-    const { client, rpc } = createSupabase({
+    const { client, adminClient, adminRpc } = createSupabase({
       finalizeError: { message: "finalize failed" },
     });
     mocks.createClient.mockResolvedValue(client);
+    mocks.createAdminClient.mockReturnValue(adminClient);
 
     await expect(rerunRisks(projectId)).resolves.toEqual({
       ok: false,
       llmOk: true,
     });
-    expect(rpc).toHaveBeenNthCalledWith(
-      4,
+    expect(adminRpc).toHaveBeenNthCalledWith(
+      3,
       "close_m1_risk_ai_reservation",
       expect.objectContaining({
         p_workflow_step_run_id: stepRunId,
@@ -231,19 +252,21 @@ describe("rerunRisks governed AI accounting behavior", () => {
         p_tokens_in: pipelineResult.llmUsage.tokensIn,
         p_provider_cost_estimate:
           pipelineResult.llmUsage.providerCostEstimate,
+        p_error: { code: "risk_finalize_failed" },
       }),
     );
     expect(mocks.revalidatePath).not.toHaveBeenCalled();
   });
 
   it("persists charged usage before business finalization", async () => {
-    const { client, rpc } = createSupabase();
+    const { client, adminClient, adminRpc, userRpc } = createSupabase();
     mocks.createClient.mockResolvedValue(client);
+    mocks.createAdminClient.mockReturnValue(adminClient);
 
     await rerunRisks(projectId);
 
-    expect(rpc).toHaveBeenNthCalledWith(
-      2,
+    expect(adminRpc).toHaveBeenNthCalledWith(
+      1,
       "record_m1_risk_ai_usage",
       expect.objectContaining({
         p_ai_call_id: aiCallId,
@@ -252,19 +275,28 @@ describe("rerunRisks governed AI accounting behavior", () => {
           pipelineResult.llmUsage.providerCostEstimate,
       }),
     );
-    expect(rpc).toHaveBeenNthCalledWith(
-      3,
+    expect(adminRpc).toHaveBeenNthCalledWith(
+      2,
       "finalize_m1_risk_rerun",
       expect.any(Object),
+    );
+    expect(userRpc).not.toHaveBeenCalledWith(
+      "record_m1_risk_ai_usage",
+      expect.anything(),
+    );
+    expect(userRpc).not.toHaveBeenCalledWith(
+      "finalize_m1_risk_rerun",
+      expect.anything(),
     );
   });
 
   it("returns a distinct error when usage and fallback terminalization both fail", async () => {
-    const { client } = createSupabase({
+    const { client, adminClient } = createSupabase({
       usageError: { message: "usage unavailable" },
       closeError: { message: "close unavailable" },
     });
     mocks.createClient.mockResolvedValue(client);
+    mocks.createAdminClient.mockReturnValue(adminClient);
 
     await expect(rerunRisks(projectId)).resolves.toEqual({
       ok: false,
@@ -274,8 +306,9 @@ describe("rerunRisks governed AI accounting behavior", () => {
   });
 
   it("abandons the durable reservation when the pipeline throws before usage is returned", async () => {
-    const { client, rpc } = createSupabase();
+    const { client, adminClient, adminRpc } = createSupabase();
     mocks.createClient.mockResolvedValue(client);
+    mocks.createAdminClient.mockReturnValue(adminClient);
     mocks.runRiskPipeline.mockRejectedValue(new Error("pipeline crashed"));
 
     await expect(rerunRisks(projectId)).resolves.toEqual({
@@ -283,14 +316,14 @@ describe("rerunRisks governed AI accounting behavior", () => {
       llmOk: false,
     });
 
-    expect(rpc).toHaveBeenNthCalledWith(
-      2,
+    expect(adminRpc).toHaveBeenNthCalledWith(
+      1,
       "close_m1_risk_ai_reservation",
       expect.objectContaining({
         p_workflow_step_run_id: stepRunId,
         p_ai_call_id: aiCallId,
         p_provider_completed: false,
-        p_error: expect.objectContaining({ message: "pipeline crashed" }),
+        p_error: { code: "risk_pipeline_failed" },
       }),
     );
   });

@@ -3,8 +3,20 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { getProjectByIntakeToken } from "@/lib/intake";
 import { runRiskPipeline } from "@/lib/brief/pipeline";
 import { checkRateLimit, clientIp } from "@/lib/rate-limit";
-import type { AnswersMap, RiskCard } from "@/lib/types";
-import { persistBriefWorkflow } from "@/lib/platform/m1-workflow";
+import type { AnswersMap } from "@/lib/types";
+import {
+  declaredInitialBriefRequestTooLarge,
+  InitialBriefRequestTooLargeError,
+  parseInitialBriefInput,
+  readBoundedInitialBriefBody,
+} from "@/lib/platform/initial-brief-input-validation";
+import {
+  closeInitialBriefAiCall,
+  finalizeInitialBrief,
+  recordInitialBriefAiUsage,
+  reserveInitialBriefAiCall,
+} from "@/lib/platform/m1-workflow";
+import { deriveInitialBriefRequestIdentity } from "@/lib/platform/initial-brief-request-identity";
 
 export const dynamic = "force-dynamic";
 
@@ -20,74 +32,241 @@ export async function POST(request: Request) {
     );
   }
 
-  const body = (await request.json().catch(() => ({}))) as {
-    token?: string;
-    answers?: AnswersMap;
-  };
-  const project = await getProjectByIntakeToken(body.token ?? "");
-  if (!project) return NextResponse.json({ error: "not_found" }, { status: 404 });
-
-  const answers = body.answers ?? {};
-  const admin = createAdminClient();
-
-  // 1. Сохранить сырые ответы (upsert по project_id + question_id).
-  const answerRows = Object.entries(answers).map(([question_id, value]) => ({
-    project_id: project.id,
-    question_id,
-    value,
-  }));
-  if (answerRows.length > 0) {
-    await admin.from("answers").upsert(answerRows, { onConflict: "project_id,question_id" });
-  }
-
-  // 2. Полный проход: паспорт + карточки (деградация внутри пайплайна).
-  const { passport, cards, llmOk, llmUsage } = await runRiskPipeline(answers);
-
-  // 3. Записать паспорт. Имя клиента — из контакта (чтобы дизайнер понимал,
-  // чья это заявка среди множества).
-  const update: Record<string, unknown> = { passport, status: "brief_completed" };
-  const contactName = passport.contact?.name?.trim();
-  if (contactName) update.client_name = contactName;
-  await admin.from("projects").update(update).eq("id", project.id);
-
-  // 4. Пересобрать карточки: удалить прежние, вставить новые как 'proposed'.
-  await admin.from("risk_cards").delete().eq("project_id", project.id);
-  if (cards.length > 0) {
-    await admin.from("risk_cards").insert(
-      cards.map((c: RiskCard) => ({
-        project_id: project.id,
-        risk_type: c.risk_type,
-        evidence: c.evidence,
-        impact: c.impact,
-        confidence: c.confidence,
-        designer_action: c.designer_action,
-        proposal_implication: c.proposal_implication,
-        status: "proposed",
-        source: c.source,
-      })),
+  if (declaredInitialBriefRequestTooLarge(request.headers)) {
+    return NextResponse.json(
+      { error: "request_too_large" },
+      { status: 413 },
     );
   }
 
-  // 5. Событие brief_completed.
-  await admin.from("events").insert({
-    designer_id: project.designer_id,
-    project_id: project.id,
-    type: "brief_completed",
-  });
+  let body: ReturnType<typeof parseInitialBriefInput>;
+  try {
+    const rawBody = await readBoundedInitialBriefBody(request);
+    if (rawBody === null) {
+      return NextResponse.json({ error: "invalid_payload" }, { status: 400 });
+    }
+    body = parseInitialBriefInput(rawBody);
+  } catch (error) {
+    if (error instanceof InitialBriefRequestTooLargeError) {
+      return NextResponse.json(
+        { error: "request_too_large" },
+        { status: 413 },
+      );
+    }
+    return NextResponse.json({ error: "invalid_payload" }, { status: 400 });
+  }
 
-  const workflow = await persistBriefWorkflow(admin, {
-    projectId: project.id,
-    initiatedBy: project.designer_id,
-    answers,
-    passport,
-    llmUsage,
-  });
-  if (!workflow.ok) {
+  const project = await getProjectByIntakeToken(body.token);
+  if (!project) return NextResponse.json({ error: "not_found" }, { status: 404 });
+  if (!project.designer_id) {
     return NextResponse.json(
-      { error: "workflow_persistence_failed", detail: workflow.error },
+      { error: "intake_owner_required" },
+      { status: 409 },
+    );
+  }
+
+  const answers = body.answers as AnswersMap;
+  const admin = createAdminClient();
+  // The identity helper hashes a recursively canonical answer snapshot with
+  // SHA256 so retries cannot depend on object insertion order.
+  const { answerDigest, idempotencyKey } =
+    deriveInitialBriefRequestIdentity(project.id, answers);
+
+  // Reserve before any mutable intake write or provider request. The project row
+  // lock inside the command makes the accepted answer snapshot the only one
+  // allowed to proceed for this run.
+  const reservation = await reserveInitialBriefAiCall(admin, {
+    projectId: project.id,
+    answerDigest: answerDigest,
+    idempotencyKey: idempotencyKey,
+  });
+  if (
+    !reservation.ok ||
+    !reservation.workflowRunId ||
+    !reservation.workflowStepRunId ||
+    !reservation.aiCallId
+  ) {
+    return NextResponse.json(
+      {
+        error:
+          reservation.error === "initial_brief_request_conflict"
+            ? "initial_brief_request_conflict"
+            : "workflow_reservation_failed",
+      },
+      {
+        status:
+          reservation.error === "initial_brief_request_conflict" ? 409 : 500,
+      },
+    );
+  }
+  if (reservation.replayed && reservation.resultSnapshot) {
+    return NextResponse.json(reservation.resultSnapshot);
+  }
+
+  // The provider runs only after the durable reservation. Every failure closes
+  // that exact reservation, and a closure failure gets its own stable response.
+  let pipeline: Awaited<ReturnType<typeof runRiskPipeline>>;
+  try {
+    pipeline = await runRiskPipeline(answers);
+  } catch {
+    try {
+      const providerClosure = await closeInitialBriefAiCall(admin, {
+        projectId: project.id,
+        workflowRunId: reservation.workflowRunId,
+        workflowStepRunId: reservation.workflowStepRunId,
+        aiCallId: reservation.aiCallId,
+        errorCode: "provider_execution_failed",
+      });
+      if (!providerClosure.ok) {
+        return NextResponse.json(
+          { error: "workflow_terminalization_failed" },
+          { status: 500 },
+        );
+      }
+    } catch {
+      return NextResponse.json(
+        { error: "workflow_terminalization_failed" },
+        { status: 500 },
+      );
+    }
+    return NextResponse.json(
+      { error: "brief_analysis_failed" },
+      { status: 502 },
+    );
+  }
+  const { passport, cards, llmOk, llmUsage } = pipeline;
+
+  let usage: Awaited<ReturnType<typeof recordInitialBriefAiUsage>>;
+  try {
+    usage = await recordInitialBriefAiUsage(admin, {
+      projectId: project.id,
+      workflowRunId: reservation.workflowRunId,
+      workflowStepRunId: reservation.workflowStepRunId,
+      aiCallId: reservation.aiCallId,
+      llmUsage,
+    });
+  } catch {
+    try {
+      const usageExceptionClosure = await closeInitialBriefAiCall(admin, {
+        projectId: project.id,
+        workflowRunId: reservation.workflowRunId,
+        workflowStepRunId: reservation.workflowStepRunId,
+        aiCallId: reservation.aiCallId,
+        errorCode: "usage_persistence_failed",
+      });
+      if (!usageExceptionClosure.ok) {
+        return NextResponse.json(
+          { error: "workflow_terminalization_failed" },
+          { status: 500 },
+        );
+      }
+    } catch {
+      return NextResponse.json(
+        { error: "workflow_terminalization_failed" },
+        { status: 500 },
+      );
+    }
+    return NextResponse.json(
+      { error: "workflow_usage_persistence_failed" },
+      { status: 500 },
+    );
+  }
+  if (!usage.ok) {
+    try {
+      const usageFailureClosure = await closeInitialBriefAiCall(admin, {
+        projectId: project.id,
+        workflowRunId: reservation.workflowRunId,
+        workflowStepRunId: reservation.workflowStepRunId,
+        aiCallId: reservation.aiCallId,
+        errorCode: "usage_persistence_failed",
+      });
+      if (!usageFailureClosure.ok) {
+        return NextResponse.json(
+          { error: "workflow_terminalization_failed" },
+          { status: 500 },
+        );
+      }
+    } catch {
+      return NextResponse.json(
+        { error: "workflow_terminalization_failed" },
+        { status: 500 },
+      );
+    }
+    return NextResponse.json(
+      { error: "workflow_usage_persistence_failed" },
       { status: 500 },
     );
   }
 
-  return NextResponse.json({ ok: true, llmOk, workflowRunId: workflow.workflowRunId });
+  // Legacy M1 state and governed workflow state commit in one database
+  // transaction. The finalizer validates the measured call but never rewrites it.
+  try {
+    const finalization = await finalizeInitialBrief(admin, {
+      projectId: project.id,
+      workflowRunId: reservation.workflowRunId,
+      workflowStepRunId: reservation.workflowStepRunId,
+      aiCallId: reservation.aiCallId,
+      answerDigest,
+      answers,
+      passport,
+      riskCards: cards,
+    });
+    if (!finalization.ok) {
+      try {
+        const finalizationFailureClosure = await closeInitialBriefAiCall(admin, {
+          projectId: project.id,
+          workflowRunId: reservation.workflowRunId,
+          workflowStepRunId: reservation.workflowStepRunId,
+          aiCallId: reservation.aiCallId,
+          errorCode: "workflow_finalization_failed",
+        });
+        if (!finalizationFailureClosure.ok) {
+          return NextResponse.json(
+            { error: "workflow_terminalization_failed" },
+            { status: 500 },
+          );
+        }
+      } catch {
+        return NextResponse.json(
+          { error: "workflow_terminalization_failed" },
+          { status: 500 },
+        );
+      }
+      return NextResponse.json(
+        { error: "workflow_persistence_failed" },
+        { status: 500 },
+      );
+    }
+
+    return NextResponse.json({
+      ok: true,
+      llmOk,
+      workflowRunId: finalization.workflowRunId,
+    });
+  } catch {
+    try {
+      const finalizationExceptionClosure = await closeInitialBriefAiCall(admin, {
+        projectId: project.id,
+        workflowRunId: reservation.workflowRunId,
+        workflowStepRunId: reservation.workflowStepRunId,
+        aiCallId: reservation.aiCallId,
+        errorCode: "workflow_finalization_failed",
+      });
+      if (!finalizationExceptionClosure.ok) {
+        return NextResponse.json(
+          { error: "workflow_terminalization_failed" },
+          { status: 500 },
+        );
+      }
+    } catch {
+      return NextResponse.json(
+        { error: "workflow_terminalization_failed" },
+        { status: 500 },
+      );
+    }
+    return NextResponse.json(
+      { error: "workflow_persistence_failed" },
+      { status: 500 },
+    );
+  }
 }

@@ -1,5 +1,7 @@
 "use server";
 
+import { Buffer } from "node:buffer";
+import { createHash } from "node:crypto";
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { getStudio } from "@/lib/studio";
@@ -10,23 +12,90 @@ import type {
   ProposalSection,
 } from "@/lib/types";
 import { calcPrice, type PriceResult } from "@/lib/pricing/calc";
+import { resolveM1ProposalComplexity } from "@/lib/platform/proposal-studio-decisions";
 import { buildProposalSections } from "@/lib/proposal/build";
-import type { RiskCardRow } from "@/lib/review";
+import { firstMeetingQuestions, type RiskCardRow } from "@/lib/review";
+
+function proposalContentDigest(sections: ProposalSection[]): string {
+  const canonicalContent = sections
+    .map((section) =>
+      [section.id, section.title, section.body]
+        .map((value) => `${Buffer.byteLength(value, "utf8")}:${value}`)
+        .join(""),
+    )
+    .join("");
+
+  return createHash("sha256").update(canonicalContent, "utf8").digest("hex");
+}
+
+async function persistProposalSections(
+  projectId: string,
+  sections: ProposalSection[],
+): Promise<boolean> {
+  const supabase = await createClient();
+  const [
+    { data: proposal },
+    { data: project },
+    { data: cardRows },
+  ] = await Promise.all([
+    supabase
+      .from("proposals")
+      .select("id,status")
+      .eq("project_id", projectId)
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle(),
+    supabase
+      .from("projects")
+      .select("passport")
+      .eq("id", projectId)
+      .maybeSingle(),
+    supabase
+      .from("risk_cards")
+      .select("designer_action,status")
+      .eq("project_id", projectId)
+      .eq("status", "accepted"),
+  ]);
+
+  const proposalId = (proposal as { id?: string; status?: string } | null)?.id;
+  const passport = (project as { passport?: Passport | null } | null)?.passport;
+  if (
+    !proposalId
+    || (proposal as { status?: string }).status !== "draft"
+    || !passport
+    || sections.length < 1
+  ) {
+    return false;
+  }
+
+  const acceptedCards = (cardRows ?? []) as Array<
+    Pick<RiskCardRow, "designer_action" | "status">
+  >;
+  const packageChoice = passport.scope.package ?? "full";
+  const { data, error } = await supabase.rpc(
+    "save_and_persist_m1_proposal_draft",
+    {
+      p_project_id: projectId,
+      p_proposal_id: proposalId,
+      p_sections: sections,
+      question_count: firstMeetingQuestions(acceptedCards).length,
+      package_key: packageChoice,
+      has_fee: sections.some((section) => section.id === "price"),
+      section_count: sections.length,
+      content_digest: proposalContentDigest(sections),
+    },
+  );
+
+  return !error && Boolean(data);
+}
 
 export async function saveProposal(
   projectId: string,
   sections: ProposalSection[],
 ): Promise<{ ok: boolean }> {
-  const supabase = await createClient();
-  const { data, error } = await supabase
-    .from("proposals")
-    .update({ sections })
-    .eq("project_id", projectId)
-    .eq("status", "draft")
-    .select("id")
-    .maybeSingle();
-  if (!error && data) revalidatePath(`/dashboard/projects/${projectId}/proposal`);
-  return { ok: !error && Boolean(data) };
+  const ok = await persistProposalSections(projectId, sections);
+  if (ok) revalidatePath(`/dashboard/projects/${projectId}/proposal`);
+  return { ok };
 }
 
 // Пересборка КП из актуальных данных: паспорт, цена (если настроена),
@@ -75,11 +144,15 @@ export async function rebuildProposal(
   const acceptedCards = (cardRows ?? []) as RiskCardRow[];
 
   const packageChoice = passport.scope.package ?? "full";
+  const proposalComplexity = await resolveM1ProposalComplexity(
+    supabase,
+    projectId,
+  );
   let price: PriceResult | null = null;
   if (pricing && passport.object.area_m2) {
     price = calcPrice(pricing, {
       area_m2: passport.object.area_m2,
-      complexity: "mid",
+      complexity: proposalComplexity.value,
       urgent: passport.timeline.urgency === "urgent",
       package: packageChoice,
     });
@@ -93,11 +166,8 @@ export async function rebuildProposal(
     packageChoice,
   });
 
-  const { error } = await supabase
-    .from("proposals")
-    .update({ sections })
-    .eq("id", (proposal as { id: string }).id);
-  if (error) return { ok: false };
+  const saved = await persistProposalSections(projectId, sections);
+  if (!saved) return { ok: false };
 
   revalidatePath(`/dashboard/projects/${projectId}/proposal`);
   return { ok: true, sections };

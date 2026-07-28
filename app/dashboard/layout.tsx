@@ -13,12 +13,14 @@ export default async function DashboardLayout({ children }: { children: React.Re
   return (
     <div className="min-h-screen">
       <header className="border-b border-line bg-white">
-        <div className="mx-auto flex max-w-5xl items-center justify-between px-6 py-3">
+        <div className="mx-auto flex max-w-5xl flex-col items-start gap-3 px-4 py-3 sm:flex-row sm:items-center sm:justify-between sm:px-6">
           <Link href="/dashboard" className="flex items-baseline gap-2">
             <span className="font-display text-xl font-semibold">{ru.app.name}</span>
-            <span className="text-[10px] uppercase tracking-[0.16em] text-muted">{ru.app.tagline}</span>
+            <span className="hidden text-[10px] uppercase tracking-[0.16em] text-muted sm:inline">
+              {ru.app.tagline}
+            </span>
           </Link>
-          <nav className="flex items-center gap-4 text-sm">
+          <nav className="flex w-full items-center justify-between gap-2 text-xs sm:w-auto sm:justify-start sm:gap-4 sm:text-sm">
             <Link href="/dashboard" className="text-muted hover:text-ink">
               {ru.nav.projects}
             </Link>
@@ -32,7 +34,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
           </nav>
         </div>
       </header>
-      <main className="mx-auto max-w-5xl px-6 py-8">{children}</main>
+      <main className="mx-auto max-w-5xl px-4 py-8 sm:px-6">{children}</main>
     </div>
   );
 }
