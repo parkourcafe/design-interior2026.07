@@ -9,6 +9,7 @@ Status: `PARTIAL_WITH_OWNER_ACTIONS`
 - Default branch: `claude/new-session-gsayp3`.
 - Working branch / PR: `codex/sprint1-completion-20260728`, PR #53, draft.
 - Pre-rename head: `16b80d9`.
+- Rename implementation head after preview canonical fix: `ebc3fe7`.
 - Vercel project from PR checks: `yulaboober/design-interior2026-07`.
 - Supabase parent project observed: `ztnycrchwxqczqbyegnp`.
 - Supabase Preview branch observed: `qudnbhkvzufotlsskcdc`.
@@ -137,6 +138,14 @@ Docs:
 - Browser QA on local production server:
   - Desktop `/`, `/login`, `/demo/brief`, `/demo/proposal`: PASS, console warnings/errors 0, overflow 0, old public brand absent.
   - Mobile 390x844 `/`, `/login`, `/security`: PASS, console warnings/errors 0, overflow 0, old public brand absent.
+- PR #53 preview after commit `ebc3fe7`:
+  - Vercel: PASS.
+  - Supabase Preview: PASS.
+  - Vercel Preview Comments: PASS.
+  - Preview home title: `RemHaos — Бриф · Цена · КП`.
+  - Preview canonical: `https://remhaos.com`.
+  - Preview `og:url`: `https://remhaos.com`.
+  - Preview sitemap/robots: `remhaos.com`, no Vercel preview canonical URLs.
 
 ## Residual scan
 
@@ -192,4 +201,3 @@ ARCHITECTURE_CHANGED: NO
 DATA_LOSS: NO
 OWNER_ACTIONS: DOCUMENTED
 ```
-
