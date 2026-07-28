@@ -41,6 +41,15 @@ Status: `PARTIAL`
   Additive migration `20260728090000_reload_m1_workflow_rpc_schema_cache.sql`
   was added to preflight the governed M1 RPCs and trigger `notify pgrst,
   'reload schema'`.
+- Follow-up Supabase SQL evidence confirmed this is an environment routing
+  mismatch, not a missing migration in the disposable branch:
+  parent project `ztnycrchwxqczqbyegnp` does not contain
+  `public.reserve_initial_brief_ai_call(uuid,text,text)` or
+  `public.finalize_initial_brief(...)`, while preview branch project
+  `qudnbhkvzufotlsskcdc` contains both RPCs.
+- Therefore the current PR #53 Vercel preview runtime is using the parent
+  Supabase project while the Supabase Preview check applies migrations to the
+  disposable branch. Production/parent migrations were not applied.
 
 ## Workflow Evidence
 
@@ -58,8 +67,9 @@ The persisted implementation remains legacy-compatible. Because clarifying quest
 
 Authenticated dashboard QA is no longer blocked by login with the confirmed test
 account. It is blocked later at public brief finalization because Supabase
-Preview PostgREST did not expose the governed M1 reservation RPC through its
-schema cache. Production was not touched.
+Preview migrations are present on branch `qudnbhkvzufotlsskcdc`, but the Vercel
+preview runtime is routed to parent project `ztnycrchwxqczqbyegnp`, where the
+governed M1 RPCs are absent. Production was not touched.
 
 ## Verdict
 
