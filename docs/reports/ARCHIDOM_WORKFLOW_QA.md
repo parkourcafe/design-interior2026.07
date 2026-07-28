@@ -22,6 +22,25 @@ Status: `PARTIAL`
   `/api/client/create` returns `503 self_serve_intake_unavailable`;
   invalid `/api/intake/submit` returns `400 invalid_payload`;
   empty `/api/intake/upload` returns `400 bad_request`.
+- Authenticated preview login passed on PR #53 preview with the provided
+  confirmed test account `booberid@gmail.com`.
+- Authenticated dashboard project creation passed in Supabase Preview project
+  `qudnbhkvzufotlsskcdc`: test project
+  `QA Sprint1 2026-07-28 08:43` was created and opened.
+- Designer profile gate passed: public client brief link is hidden before
+  profile completion and appears after minimum profile fields are saved.
+- Public client brief link generation and clipboard copy passed.
+- Public client quick brief entry passed through all 7 currently implemented
+  quick questions with no browser console warnings/errors.
+- Public client quick brief finalization currently fails on PR #53 preview:
+  `POST /api/intake/submit` returns
+  `500 {"error":"workflow_reservation_failed"}`.
+- Vercel server log evidence for that failure:
+  Supabase PostgREST returned `PGRST202` because its schema cache could not
+  find `public.reserve_initial_brief_ai_call(p_answer_digest, p_idempotency_key, p_project_id)`.
+  Additive migration `20260728090000_reload_m1_workflow_rpc_schema_cache.sql`
+  was added to preflight the governed M1 RPCs and trigger `notify pgrst,
+  'reload schema'`.
 
 ## Workflow Evidence
 
@@ -37,10 +56,10 @@ The persisted implementation remains legacy-compatible. Because clarifying quest
 
 ## Browser QA Gap
 
-Authenticated dashboard QA for the full persisted flow remains blocked on preview:
-the app requires a real Supabase Auth session/test account for project creation,
-review, proposal approval and issue. Self-serve ownerless project creation is
-intentionally disabled. Production was not touched.
+Authenticated dashboard QA is no longer blocked by login with the confirmed test
+account. It is blocked later at public brief finalization because Supabase
+Preview PostgREST did not expose the governed M1 reservation RPC through its
+schema cache. Production was not touched.
 
 ## Verdict
 
