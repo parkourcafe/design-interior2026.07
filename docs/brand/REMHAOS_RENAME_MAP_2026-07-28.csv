@@ -1,0 +1,16 @@
+old_value,new_value,classification,status,files_or_scope
+ArchiDom,RemHaos,PUBLIC_REPLACE,IMPLEMENTED,"active UI/content via lib/i18n/ru.ts and metadata"
+ArchiDom Space,RemHaos,PUBLIC_REPLACE,IMPLEMENTED,"active docs successors and public contract"
+ARHIDOM,RemHaos,PUBLIC_REPLACE,IMPLEMENTED,"active UI, PWA, store/setup docs"
+ARCHIDOM,REMHAOS,ACTIVE_DOC_RENAME,IMPLEMENTED,"docs/canonical/remhaos-v1 successors"
+arhidom.space,remhaos.com,PUBLIC_REPLACE,IMPLEMENTED,"env examples, setup docs, default support email"
+arhidom.space,https://remhaos.com/:path*,LEGACY_REDIRECT,IMPLEMENTED,"next.config.mjs redirects"
+www.arhidom.space,https://remhaos.com/:path*,LEGACY_REDIRECT,IMPLEMENTED,"next.config.mjs redirects"
+www.remhaos.com,https://remhaos.com/:path*,LEGACY_REDIRECT,IMPLEMENTED,"next.config.mjs redirects"
+support@arhidom.space,support@remhaos.com,EXTERNAL_CONFIG,IMPLEMENTED,".env.example, lib/env.ts, setup docs"
+noreply@arhidom.space,noreply@remhaos.com,EXTERNAL_CONFIG,IMPLEMENTED,"email setup docs"
+space.arhidom.twa,com.remhaos.twa,EXTERNAL_CONFIG,IMPLEMENTED,".env.example, store/release docs"
+ARCHIDOM_* env vars,REMHAOS_* env vars,TECHNICAL_ALIAS,NOT_APPLICABLE,"No active ARCHIDOM_* env vars found"
+Historical documents,unchanged,HISTORICAL_KEEP,IMPLEMENTED,"docs/reports historical evidence, HANDOFF/LANDING historical docs"
+Immutable migrations,unchanged,MIGRATION_KEEP,IMPLEMENTED,"supabase/migrations comments/history not edited"
+

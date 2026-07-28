@@ -1,6 +1,7 @@
-> SUPERSEDED_BY_BRAND_RENAME_2026-07-28. CURRENT_BRAND: RemHaos. Successor package: docs/canonical/remhaos-v1/. Historical content preserved for provenance.
+> Brand-only successor of the corresponding ARCHIDOM document. Product scope and architecture are unchanged except where a later approved addendum explicitly says otherwise.
+> Current public brand: RemHaos. Russian pronunciation: РемХаос. Primary host: https://remhaos.com.
 
-# ARCHIDOM — WORKFLOW CATALOG v1
+# REMHAOS — WORKFLOW CATALOG v1
 
 ## WF-M1-001 · Client Intake to Issued Proposal
 

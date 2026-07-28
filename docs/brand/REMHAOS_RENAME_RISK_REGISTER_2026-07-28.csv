@@ -1,0 +1,10 @@
+id,risk,status,owner,mitigation
+RR-001,Vercel production domain remhaos.com is not proven attached,BLOCKED,OWNER,"Attach remhaos.com in Vercel and redeploy production"
+RR-002,DNS ownership/configuration for remhaos.com is not verifiable from repository,OWNER_ACTION_REQUIRED,OWNER,"Configure DNS records for Vercel and verify apex 200"
+RR-003,Supabase Auth Site URL and allowed redirect URLs may still point at old host,OWNER_ACTION_REQUIRED,OWNER,"Set Site URL to https://remhaos.com and add callback/login URLs"
+RR-004,Email sender domain may still be old arhidom.space,OWNER_ACTION_REQUIRED,OWNER,"Verify remhaos.com sender domain and use noreply@remhaos.com"
+RR-005,Legacy public token links require host-level redirects,PARTIAL,CODEX+OWNER,"Code redirects preserve path/query, but old host must remain controlled in Vercel/DNS"
+RR-006,PR #53 Vercel preview currently routes to parent Supabase instead of disposable branch,BLOCKED,OWNER,"Point preview env to qudnbhkvzufotlsskcdc or separately approve parent migration"
+RR-007,Historical old-brand strings remain in archived evidence and migrations,ACCEPTED,CODEX,"Explicitly classified as HISTORICAL_KEEP/MIGRATION_KEEP"
+RR-008,Trademark/logo/slogan not verified,OWNER_ACTION_REQUIRED,OWNER,"Run legal/brand checks before broad marketing launch"
+

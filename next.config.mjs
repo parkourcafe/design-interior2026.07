@@ -14,6 +14,28 @@ const nextConfig = {
       },
     ],
   },
+  async redirects() {
+    return [
+      {
+        source: "/:path*",
+        has: [{ type: "host", value: "arhidom.space" }],
+        destination: "https://remhaos.com/:path*",
+        permanent: true,
+      },
+      {
+        source: "/:path*",
+        has: [{ type: "host", value: "www.arhidom.space" }],
+        destination: "https://remhaos.com/:path*",
+        permanent: true,
+      },
+      {
+        source: "/:path*",
+        has: [{ type: "host", value: "www.remhaos.com" }],
+        destination: "https://remhaos.com/:path*",
+        permanent: true,
+      },
+    ];
+  },
   async rewrites() {
     return [
       // Digital Asset Links для TWA (Google Play / RuStore) —

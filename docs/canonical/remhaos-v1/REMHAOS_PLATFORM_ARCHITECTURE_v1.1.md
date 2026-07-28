@@ -1,6 +1,7 @@
-> SUPERSEDED_BY_BRAND_RENAME_2026-07-28. CURRENT_BRAND: RemHaos. Successor package: docs/canonical/remhaos-v1/. Historical content preserved for provenance.
+> Brand-only successor of the corresponding ARCHIDOM document. Product scope and architecture are unchanged except where a later approved addendum explicitly says otherwise.
+> Current public brand: RemHaos. Russian pronunciation: РемХаос. Primary host: https://remhaos.com.
 
-# ARCHIDOM SPACE — PLATFORM ARCHITECTURE V1.1
+# REMHAOS — PLATFORM ARCHITECTURE V1.1
 
 **Дата:** 27 июля 2026  
 **Статус:** целевая техническая архитектура. Подчинена Product Charter v0.5 Canonical.  
@@ -11,9 +12,9 @@
 
 ## 1. Финальное решение
 
-ArchiDom Space — единая операционная система интерьерного и архитектурного проекта. Заказчик, дизайнер, архитектор и команда исполнения работают с одним Project Graph, одной историей решений, единой системой версий и единым audit trail.
+RemHaos — единая операционная система интерьерного и архитектурного проекта. Заказчик, дизайнер, архитектор и команда исполнения работают с одним Project Graph, одной историей решений, единой системой версий и единым audit trail.
 
-AI в ArchiDom не является отдельным чатом и не получает право молча переписывать проектную правду. Он запускает контролируемые действия и workflows, показывает источники, формирует предложения изменений и передаёт результат уполномоченному человеку на проверку и утверждение.
+AI в RemHaos не является отдельным чатом и не получает право молча переписывать проектную правду. Он запускает контролируемые действия и workflows, показывает источники, формирует предложения изменений и передаёт результат уполномоченному человеку на проверку и утверждение.
 
 ### Архитектурная классификация
 
@@ -28,7 +29,7 @@ AI в ArchiDom не является отдельным чатом и не по�
 ## 2. Целевая архитектура
 
 ```text
-ARCHIDOM EXPERIENCE LAYER
+REMHAOS EXPERIENCE LAYER
 │
 ├── Studio Home
 ├── Project Workspace
@@ -60,7 +61,7 @@ AI ORCHESTRATION LAYER
 └── AI Audit
      │
      ▼
-ARCHIDOM PLATFORM CORE
+REMHAOS PLATFORM CORE
 │
 ├── Project Graph
 ├── Project Memory
@@ -396,4 +397,4 @@ queued
 
 ### 15.7 Project Graph Contract
 
-Допустимые ребра и обязательные связи определены в `ARCHIDOM_ENTITY_CATALOG_v1.md`. Новые типы связей не добавляются ad hoc.
+Допустимые ребра и обязательные связи определены в `REMHAOS_ENTITY_CATALOG_v1.md`. Новые типы связей не добавляются ad hoc.

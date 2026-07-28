@@ -9,5 +9,5 @@ export function appUrl(): string {
 // на обработку ПДн. Владелец должен убедиться, что этот адрес реально
 // принимает почту (тот же домен, что и SMTP-отправитель).
 export function supportEmail(): string {
-  return process.env.NEXT_PUBLIC_SUPPORT_EMAIL ?? "support@arhidom.space";
+  return process.env.NEXT_PUBLIC_SUPPORT_EMAIL ?? "support@remhaos.com";
 }

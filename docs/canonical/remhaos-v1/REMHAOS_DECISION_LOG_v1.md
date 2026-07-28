@@ -1,6 +1,7 @@
-> SUPERSEDED_BY_BRAND_RENAME_2026-07-28. CURRENT_BRAND: RemHaos. Successor package: docs/canonical/remhaos-v1/. Historical content preserved for provenance.
+> Brand-only successor of the corresponding ARCHIDOM document. Product scope and architecture are unchanged except where a later approved addendum explicitly says otherwise.
+> Current public brand: RemHaos. Russian pronunciation: РемХаос. Primary host: https://remhaos.com.
 
-# ARCHIDOM — PRODUCT & ARCHITECTURE DECISION LOG v1
+# REMHAOS — PRODUCT & ARCHITECTURE DECISION LOG v1
 
 **Дата freeze:** 27.07.2026  
 **Правило:** решение не переоткрывается без новых фактов и OWNER DECISION или утверждённого Addendum.
@@ -25,3 +26,4 @@
 | DEC-016 | Процентные readiness scores отменены | LOCKED | A1 §7.4 | Использовать status + evidence level |
 | DEC-017 | Новые документы не называются Source of Truth | LOCKED | Charter hierarchy | Классы документов фиксированы |
 | DEC-018 | Architecture freeze после Canonical Package | LOCKED | Owner command | Изменения через Addendum/Decision Log |
+| DEC-019 | Публичный бренд RemHaos; основной домен `remhaos.com` | LOCKED | OWNER DECISION 28.07.2026 / Addendum A3 | Актуальные UI, docs, metadata и public URLs используют RemHaos; архитектура не меняется |

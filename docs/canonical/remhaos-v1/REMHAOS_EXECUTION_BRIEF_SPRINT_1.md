@@ -1,6 +1,7 @@
-> SUPERSEDED_BY_BRAND_RENAME_2026-07-28. CURRENT_BRAND: RemHaos. Successor package: docs/canonical/remhaos-v1/. Historical content preserved for provenance.
+> Brand-only successor of the corresponding ARCHIDOM document. Product scope and architecture are unchanged except where a later approved addendum explicitly says otherwise.
+> Current public brand: RemHaos. Russian pronunciation: РемХаос. Primary host: https://remhaos.com.
 
-# ARCHIDOM — EXECUTION BRIEF SPRINT 1: PLATFORM FOUNDATION + M1 VERTICAL WORKFLOW
+# REMHAOS — EXECUTION BRIEF SPRINT 1: PLATFORM FOUNDATION + M1 VERTICAL WORKFLOW
 
 **Версия:** 1.0  
 **Дата:** 27 июля 2026  
@@ -12,7 +13,7 @@
 
 ## 0. Команда Codex
 
-Выполни спринт `ARCHIDOM PLATFORM FOUNDATION + M1 VERTICAL WORKFLOW`.
+Выполни спринт `REMHAOS PLATFORM FOUNDATION + M1 VERTICAL WORKFLOW`.
 
 Это не просьба написать ещё одну архитектуру. Сначала восстанови фактическое состояние текущего репозитория, затем внеси минимальные production-grade изменения, которые превращают работающий M1 из набора связанных экранов и JSON-полей в первый управляемый vertical workflow поверх общего платформенного фундамента.
 
@@ -24,11 +25,11 @@
 
 Используй разделение норм и фактов:
 
-0. `ARCHIDOM_CHARTER_v0.5_CANONICAL.md` — Product Contract. При конфликте по продукту, коммерции, публичным обещаниям, ролям и безопасности действует Charter.
+0. `REMHAOS_CHARTER_v0.5_CANONICAL.md` — Product Contract. При конфликте по продукту, коммерции, публичным обещаниям, ролям и безопасности действует Charter.
 1. Фактический код и migrations production branch — источник факта о текущем состоянии.
 2. Реальное production behavior.
 3. `CLAUDE.md` для текущего M1.
-4. `ARCHIDOM_PLATFORM_ARCHITECTURE_v1.1.md` — Technical Architecture.
+4. `REMHAOS_PLATFORM_ARCHITECTURE_v1.1.md` — Technical Architecture.
 5. `BACKLOG.md`.
 6. Остальные документы.
 
@@ -64,9 +65,9 @@
    - существующие audit/SEO reports.
 
 3. Создай:
-   - `docs/architecture/ARCHIDOM_REPOSITORY_REALITY_2026-07-27.md`;
-   - `docs/architecture/ARCHIDOM_FEATURE_READINESS_MATRIX_2026-07-27.csv`;
-   - `docs/architecture/ARCHIDOM_CONFLICT_REGISTER_2026-07-27.csv`.
+   - `docs/architecture/REMHAOS_REPOSITORY_REALITY_2026-07-27.md`;
+   - `docs/architecture/REMHAOS_FEATURE_READINESS_MATRIX_2026-07-27.csv`;
+   - `docs/architecture/REMHAOS_CONFLICT_REGISTER_2026-07-27.csv`.
 
 Статусы:
 `LIVE`, `IMPLEMENTED`, `PARTIAL`, `STARTED`, `PLANNED`, `BLOCKED`, `UNKNOWN`.
@@ -78,13 +79,13 @@
 Добавь в repository docs утверждённую архитектуру без превращения Studio Intelligence в Module 5.
 
 Создай:
-- `docs/architecture/ARCHIDOM_PLATFORM_ARCHITECTURE_V1.md`;
-- `docs/architecture/ARCHIDOM_DOMAIN_OWNERSHIP_MATRIX_V1.csv`;
-- `docs/architecture/ARCHIDOM_AI_ACTION_CONTRACT_V1.md`;
-- `docs/architecture/ARCHIDOM_SKILL_CONTRACT_V1.md`;
-- `docs/architecture/ARCHIDOM_WORKFLOW_CONTRACT_V1.md`;
-- `docs/architecture/ARCHIDOM_EVENT_CATALOG_V1.md`;
-- `docs/architecture/ARCHIDOM_PERMISSION_MATRIX_V1.csv`.
+- `docs/architecture/REMHAOS_PLATFORM_ARCHITECTURE_V1.md`;
+- `docs/architecture/REMHAOS_DOMAIN_OWNERSHIP_MATRIX_V1.csv`;
+- `docs/architecture/REMHAOS_AI_ACTION_CONTRACT_V1.md`;
+- `docs/architecture/REMHAOS_SKILL_CONTRACT_V1.md`;
+- `docs/architecture/REMHAOS_WORKFLOW_CONTRACT_V1.md`;
+- `docs/architecture/REMHAOS_EVENT_CATALOG_V1.md`;
+- `docs/architecture/REMHAOS_PERMISSION_MATRIX_V1.csv`.
 
 Документы должны соответствовать фактическим именам таблиц и кода. Не переписывай существующие working contracts вымышленными сущностями.
 
@@ -418,10 +419,10 @@ Brand assets, workflow builder, skills marketplace, integrations и design syste
 
 Создать:
 
-1. `docs/reports/ARCHIDOM_PLATFORM_FOUNDATION_EXECUTION_2026-07-27.md`
-2. `docs/reports/ARCHIDOM_M1_VERTICAL_WORKFLOW_QA_2026-07-27.md`
-3. `docs/reports/ARCHIDOM_MIGRATION_AND_ROLLBACK_2026-07-27.md`
-4. `docs/reports/ARCHIDOM_SECURITY_PROOF_2026-07-27.md`
+1. `docs/reports/REMHAOS_PLATFORM_FOUNDATION_EXECUTION_2026-07-27.md`
+2. `docs/reports/REMHAOS_M1_VERTICAL_WORKFLOW_QA_2026-07-27.md`
+3. `docs/reports/REMHAOS_MIGRATION_AND_ROLLBACK_2026-07-27.md`
+4. `docs/reports/REMHAOS_SECURITY_PROOF_2026-07-27.md`
 
 Каждый отчёт:
 - EXTRACTED;
@@ -458,7 +459,7 @@ Brand assets, workflow builder, skills marketplace, integrations и design syste
 15. Не создан Module 5.
 16. Не реализованы будущие модули под видом готовых.
 17. Production/public claims не расширены.
-18. Entity mapping соответствует `ARCHIDOM_ENTITY_CATALOG_v1.md`.
+18. Entity mapping соответствует `REMHAOS_ENTITY_CATALOG_v1.md`.
 19. Decision и workflow state machines покрыты tests.
 
 ## 17. Final verdict

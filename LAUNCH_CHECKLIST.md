@@ -1,4 +1,4 @@
-# LAUNCH CHECKLIST — ARHIDOM (arhidom.space)
+# LAUNCH CHECKLIST — RemHaos (remhaos.com)
 
 Обновлено: 09.07.2026. Цель v0.1 — рабочее демо для платного пилота и WTP-интервью.
 
@@ -50,7 +50,7 @@
 
 **По желанию / на потом:**
 - [ ] **Активировать rate-limit:** применить миграцию `supabase/migrations/0005_rate_limits.sql` в Supabase (SQL Editor → вставить → Run). До этого лимит просто неактивен, продукт работает (fail-open).
-- [ ] Доделать **Resend** (надёжная почта): Resend → API key → Supabase → Emails → SMTP (host `smtp.resend.com`, port `587`, user `resend`, пароль = ключ, sender `noreply@arhidom.space`) → Save. Инструкция: `supabase/email-templates/README.md`. Для пилота не обязательно (вход по Google/паролю писем не требует).
+- [ ] Доделать **Resend** (надёжная почта): Resend → API key → Supabase → Emails → SMTP (host `smtp.resend.com`, port `587`, user `resend`, пароль = ключ, sender `noreply@remhaos.com`) → Save. Инструкция: `supabase/email-templates/README.md`. Для пилота не обязательно (вход по Google/паролю писем не требует).
 
 *Тумблеры «Confirm email» и «Leaked password» в Supabase трогать НЕ нужно — обойдены в коде.*
 
@@ -58,7 +58,7 @@
 
 ## Ручная проверка за 5 минут (перед показом)
 
-1. Открыть `arhidom.space` — лендинг грузится.
+1. Открыть `remhaos.com` — лендинг грузится.
 2. «Войти» → задать пароль в Настройках → выйти → войти по почте+паролю → в кабинете.
 3. Создать проект → скопировать ссылку брифа → пройти бриф как клиент (`/i/…`) → завершить.
 4. В кабинете: появился паспорт + карточки рисков → принять пару → «Собрать КП».
