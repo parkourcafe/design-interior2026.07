@@ -1,4 +1,4 @@
-# RemHaOS Platform Foundation Execution — 27.07.2026
+# RemhaOS Platform Foundation Execution — 27.07.2026
 
 > **Superseded current-state note (28.07.2026).** This file preserves
 > branch-specific historical evidence only. Current code makes both initial and

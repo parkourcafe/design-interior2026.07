@@ -1,4 +1,4 @@
-# RemHaOS AI Cost Report — 27.07.2026
+# RemhaOS AI Cost Report — 27.07.2026
 
 > **Historical dataset note (28.07.2026).** The three-call totals below are
 > retained only as evidence from the earlier disposable package, whose branch

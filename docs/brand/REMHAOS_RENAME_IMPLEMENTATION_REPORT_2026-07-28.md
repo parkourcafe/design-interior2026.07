@@ -1,4 +1,4 @@
-# RemHaOS Rename Implementation Report — 2026-07-28
+# RemhaOS Rename Implementation Report — 2026-07-28
 
 Status: `PARTIAL_WITH_OWNER_ACTIONS`
 
@@ -20,14 +20,14 @@ Status: `PARTIAL_WITH_OWNER_ACTIONS`
 
 ### Public runtime
 
-- Public product name changed to `RemHaOS` in active UI strings.
+- Public product name changed to `RemhaOS` in active UI strings.
 - Default support email changed to `support@remhaos.com`.
 - PWA cache namespace changed to `remhaos-v1`.
 - Metadata now uses `https://remhaos.com` as `metadataBase`.
-- Open Graph and Twitter metadata use `RemHaOS`.
+- Open Graph and Twitter metadata use `RemhaOS`.
 - `robots.txt`, `sitemap.xml` and `llms.txt` routes were added.
 - Private/token/auth routes are excluded from robots indexing.
-- Active alt/comment strings were updated to `RemHaOS`.
+- Active alt/comment strings were updated to `RemhaOS`.
 
 ### Redirects
 
@@ -58,9 +58,9 @@ Created `docs/canonical/remhaos-v1/` successor package:
 - `REMHAOS_EXECUTION_BRIEF_SPRINT_1.md`
 - `README.md`
 
-Added `DEC-019` to the RemHaOS decision log.
+Added `DEC-019` to the RemhaOS decision log.
 
-Imported RemHaOS package docs under `docs/brand/`.
+Imported RemhaOS package docs under `docs/brand/`.
 
 Marked old `docs/canonical/archidom-v1/*.md` documents with a superseded banner. Historical content was preserved.
 
@@ -75,10 +75,10 @@ Updated current setup docs to use:
 
 ## INTERPRETED decisions
 
-- `RemHaOS` is the only current public brand spelling.
+- `RemhaOS` is the only current public brand spelling.
 - Public category: `операционная система полного цикла ремонта`.
 - Public promise: `от первого брифа до финальной приёмки`.
-- Primary positioning: `RemHaOS — операционная система полного цикла ремонта: от первого брифа до финальной приёмки.`
+- Primary positioning: `RemhaOS — операционная система полного цикла ремонта: от первого брифа до финальной приёмки.`
 - This is brand positioning, not evidence that M2–M4 are production-ready in Sprint 1.
 - `REMHAOS` is allowed only as a technical document/file prefix.
 - Legacy host mentions are retained only in redirect compatibility, package instructions and historical evidence.
@@ -147,7 +147,7 @@ Docs:
   - Vercel: PASS.
   - Supabase Preview: PASS.
   - Vercel Preview Comments: PASS.
-  - Preview home title: `RemHaOS — Бриф · Цена · КП`.
+  - Preview home title: `RemhaOS — Бриф · Цена · КП`.
   - Preview canonical: `https://remhaos.com`.
   - Preview `og:url`: `https://remhaos.com`.
   - Preview sitemap/robots: `remhaos.com`, no Vercel preview canonical URLs.
@@ -169,7 +169,7 @@ rg -n -i --hidden \
 
 Result: 168 matches, all classified exceptions:
 
-- RemHaOS package docs quoting old names to define rename.
+- RemhaOS package docs quoting old names to define rename.
 - `docs/canonical/archidom-v1/**` historical package with superseded banner.
 - `docs/canonical/remhaos-v1/**` successor banner phrase "corresponding ARCHIDOM document".
 - Historical reports/handoffs preserving audit provenance.

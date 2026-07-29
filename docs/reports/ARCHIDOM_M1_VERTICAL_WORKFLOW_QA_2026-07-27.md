@@ -1,4 +1,4 @@
-# RemHaOS M1 Vertical Workflow QA — 27.07.2026
+# RemhaOS M1 Vertical Workflow QA — 27.07.2026
 
 > **Superseded current-state note (28.07.2026).** The browser and database
 > results below belong to an earlier disposable package. That branch is no

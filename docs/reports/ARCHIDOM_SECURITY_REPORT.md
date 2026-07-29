@@ -1,4 +1,4 @@
-# RemHaOS Security Report
+# RemhaOS Security Report
 
 Date: 2026-07-28
 Status: `PARTIAL`

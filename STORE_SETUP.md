@@ -1,6 +1,6 @@
-# STORE_SETUP — Публикация RemHaOS в Google Play и RuStore
+# STORE_SETUP — Публикация RemhaOS в Google Play и RuStore
 
-RemHaOS — это PWA. В магазины она попадает как **TWA** (Trusted Web Activity):
+RemhaOS — это PWA. В магазины она попадает как **TWA** (Trusted Web Activity):
 тонкая Android-обёртка, которая открывает сайт remhaos.com в полноэкранном
 режиме без адресной строки. Один и тот же сайт → один AAB/APK → оба магазина.
 
@@ -130,7 +130,7 @@ bubblewrap build      # → app-release-signed.aab и app-release-signed.apk
    - Ads — нет. Target audience — 18+ (деловой инструмент). Content rating —
      заполнить анкету (получится «для всех / 3+», без чувствительного контента).
    - Government app — нет. Financial features — нет.
-3. **Store listing**: название «RemHaOS», короткое/полное описание (§8),
+3. **Store listing**: название «RemhaOS», короткое/полное описание (§8),
    иконка 512, feature graphic 1024×500, скриншоты.
 4. **Production → Create release**: загрузить `.aab`. Play App Signing включить
    (по умолчанию) → отсюда взять SHA-256 для §4.
@@ -148,7 +148,7 @@ bubblewrap build      # → app-release-signed.aab и app-release-signed.apk
 7. Отправить на модерацию.
 
 > Важный риск: RuStore не приветствует приложения, единственная цель которых —
-> перенаправить на сайт. RemHaOS нужно подавать как самостоятельный продукт:
+> перенаправить на сайт. RemhaOS нужно подавать как самостоятельный продукт:
 > полноэкранная TWA, рабочие demo-сценарии без регистрации, PWA/offline shell,
 > реальные скриншоты интерфейса и комментарий модератору из `RUSTORE_RELEASE.md`.
 
@@ -156,13 +156,13 @@ bubblewrap build      # → app-release-signed.aab и app-release-signed.apk
 
 ## 8. Готовые тексты для карточек (RU)
 
-**Название:** RemHaOS
+**Название:** RemhaOS
 
 **Короткое описание (≤80):**
 > Операционная система ремонта: от первого брифа до финальной приёмки.
 
 **Полное описание (черновик):**
-> RemHaOS — операционная система полного цикла ремонта: от первого брифа до
+> RemhaOS — операционная система полного цикла ремонта: от первого брифа до
 > финальной приёмки.
 >
 > Весь ремонтный проект в одной системе: бриф, дизайн, рабочая документация,

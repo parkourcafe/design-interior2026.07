@@ -1,4 +1,4 @@
-# RemHaOS Workflow QA
+# RemhaOS Workflow QA
 
 Date: 2026-07-28
 Status: `PARTIAL`

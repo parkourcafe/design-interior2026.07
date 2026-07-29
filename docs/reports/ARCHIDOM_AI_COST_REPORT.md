@@ -1,4 +1,4 @@
-# RemHaOS AI Cost Report
+# RemhaOS AI Cost Report
 
 Date: 2026-07-28
 Status: `PARTIAL`

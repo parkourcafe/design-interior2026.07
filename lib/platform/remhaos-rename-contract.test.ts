@@ -8,8 +8,8 @@ function read(path: string) {
   return readFileSync(resolve(root, path), "utf8");
 }
 
-describe("RemHaOS brand rename contract", () => {
-  const legacyFirstSpelling = ["Rem", "ha", "OS"].join("");
+describe("RemhaOS brand rename contract", () => {
+  const legacyFirstSpelling = ["Rem", "Ha", "OS"].join("");
   const legacySecondSpelling = ["Rem", "Haos"].join("");
   const legacyProductBrand = ["Archi", "Dom"].join("");
   const legacyUpperBrand = "ARHIDOM";
@@ -39,9 +39,9 @@ describe("RemHaOS brand rename contract", () => {
     }
   });
 
-  it("uses RemHaOS and remhaos.com in app metadata and generated discovery files", () => {
+  it("uses RemhaOS and remhaos.com in app metadata and generated discovery files", () => {
     const layout = read("app/layout.tsx");
-    expect(read("lib/i18n/ru.ts")).toContain('name: "RemHaOS"');
+    expect(read("lib/i18n/ru.ts")).toContain('name: "RemhaOS"');
     expect(layout).toContain("https://remhaos.com");
     expect(layout).toContain('process.env.VERCEL_ENV === "preview"');
     expect(layout).toContain('process.env.VERCEL_ENV !== "preview"');

@@ -1,4 +1,4 @@
-> SUPERSEDED_BY_BRAND_RENAME_2026-07-28. CURRENT_BRAND: RemHaOS. Successor package: docs/canonical/remhaos-v1/. Historical content preserved for provenance.
+> SUPERSEDED_BY_BRAND_RENAME_2026-07-28. CURRENT_BRAND: RemhaOS. Successor package: docs/canonical/remhaos-v1/. Historical content preserved for provenance.
 
 # ARCHIDOM — PRODUCT & ARCHITECTURE DECISION LOG v1
 

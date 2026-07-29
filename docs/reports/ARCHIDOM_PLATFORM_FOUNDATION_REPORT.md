@@ -1,4 +1,4 @@
-# RemHaOS Platform Foundation Report
+# RemhaOS Platform Foundation Report
 
 Date: 2026-07-28
 Status: `PARTIAL`

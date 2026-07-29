@@ -1,4 +1,4 @@
-# RemHaOS Security Proof — 27.07.2026
+# RemhaOS Security Proof — 27.07.2026
 
 > **Superseded current-state note (28.07.2026).** The statement below that
 > terminal AI commands are authenticated-member RPCs is historical. Current

@@ -1,7 +1,7 @@
 old_value,new_value,classification,status,files_or_scope
-RemHaOS,RemHaOS,PUBLIC_REPLACE,IMPLEMENTED,"active UI/content via lib/i18n/ru.ts and metadata"
-RemHaOS Space,RemHaOS,PUBLIC_REPLACE,IMPLEMENTED,"active docs successors and public contract"
-ARHIDOM,RemHaOS,PUBLIC_REPLACE,IMPLEMENTED,"active UI, PWA, store/setup docs"
+RemhaOS,RemhaOS,PUBLIC_REPLACE,IMPLEMENTED,"active UI/content via lib/i18n/ru.ts and metadata"
+RemhaOS Space,RemhaOS,PUBLIC_REPLACE,IMPLEMENTED,"active docs successors and public contract"
+ARHIDOM,RemhaOS,PUBLIC_REPLACE,IMPLEMENTED,"active UI, PWA, store/setup docs"
 ARCHIDOM,REMHAOS,ACTIVE_DOC_RENAME,IMPLEMENTED,"docs/canonical/remhaos-v1 successors"
 arhidom.space,remhaos.com,PUBLIC_REPLACE,IMPLEMENTED,"env examples, setup docs, default support email"
 arhidom.space,https://remhaos.com/:path*,LEGACY_REDIRECT,IMPLEMENTED,"next.config.mjs redirects"
