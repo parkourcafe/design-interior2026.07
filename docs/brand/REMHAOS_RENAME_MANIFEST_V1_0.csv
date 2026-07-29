@@ -1,6 +1,6 @@
 area,old_value,new_value,action,compatibility_rule
-Public brand,RemhaOS,RemhaOS,REPLACE,No old brand in current UI
-Extended public brand,RemhaOS Space,RemhaOS,REPLACE,Do not retain Space in main brand
+Public brand,RemHaOS,RemHaOS,REPLACE,No old brand in current UI
+Extended public brand,RemHaOS Space,RemHaOS,REPLACE,Do not retain Space in main brand
 Technical prefix,ARCHIDOM,REMHAOS,RENAME_ACTIVE_DOCS,Keep in archive and immutable history only
 Legacy typo/domain prefix,ARHIDOM,REMHAOS,REPLACE_OR_REDIRECT,Keep only in old host compatibility
 Primary host,arhidom.space,remhaos.com,DOMAIN_CUTOVER,301 equivalent paths if old host controlled
@@ -9,6 +9,6 @@ Experience layer label,ARCHIDOM EXPERIENCE LAYER,REMHAOS EXPERIENCE LAYER,REPLAC
 Platform core label,ARCHIDOM PLATFORM CORE,REMHAOS PLATFORM CORE,REPLACE,Brand label only
 Sprint label,ARCHIDOM PLATFORM FOUNDATION,REMHAOS PLATFORM FOUNDATION,REPLACE,Scope unchanged
 Neutral technical IDs,project_* / workflow_* / validation_*,UNCHANGED,KEEP,Do not brand domain model
-Historical documents,RemhaOS references,UNCHANGED,ARCHIVE_KEEP,Mark superseded; preserve provenance
-Immutable migrations,RemhaOS references,UNCHANGED,MIGRATION_KEEP,Do not edit historical SQL
+Historical documents,RemHaOS references,UNCHANGED,ARCHIVE_KEEP,Mark superseded; preserve provenance
+Immutable migrations,RemHaOS references,UNCHANGED,MIGRATION_KEEP,Do not edit historical SQL
 Environment variables,ARCHIDOM_*,REMHAOS_*,ALIAS_THEN_DEPRECATE,One release compatibility when required

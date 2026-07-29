@@ -1,4 +1,4 @@
-# RemhaOS Platform Architecture V1 — Sprint 1 implementation
+# RemHaOS Platform Architecture V1 — Sprint 1 implementation
 
 The canonical architecture remains `docs/canonical/archidom-v1/ARCHIDOM_PLATFORM_ARCHITECTURE_v1.1.md`.
 This implementation mapping introduces only the M1 vertical foundation through additive relational tables:

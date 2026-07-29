@@ -1,4 +1,4 @@
-# RemhaOS Repository Reality
+# RemHaOS Repository Reality
 
 Date: 2026-07-28
 Branch: `codex/sprint1-completion-20260728`

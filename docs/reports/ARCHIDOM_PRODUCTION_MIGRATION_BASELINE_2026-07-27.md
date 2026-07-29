@@ -1,4 +1,4 @@
-# RemhaOS Production Migration Baseline — 27.07.2026
+# RemHaOS Production Migration Baseline — 27.07.2026
 
 ## Status
 

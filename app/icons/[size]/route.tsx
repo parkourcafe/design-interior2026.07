@@ -4,7 +4,7 @@ export const dynamic = "force-static";
 
 // Генерируем иконки приложения кодом (без бинарных файлов). Full-bleed угольный
 // фон → безопасно и как "any", и как maskable (Android обрежет углы, контент в
-// центральной safe-zone). Палитра бренда RemhaOS: уголь · слоновая кость ·
+// центральной safe-zone). Палитра бренда RemHaOS: уголь · слоновая кость ·
 // бронза · олива. Используется манифестом и как иконка в Google Play / RuStore.
 export async function GET(_req: Request, { params }: { params: Promise<{ size: string }> }) {
   const { size: rawSize } = await params;

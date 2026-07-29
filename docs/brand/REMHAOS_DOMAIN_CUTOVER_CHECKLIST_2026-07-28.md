@@ -1,4 +1,4 @@
-# RemhaOS Domain Cutover Checklist — 2026-07-28
+# RemHaOS Domain Cutover Checklist — 2026-07-28
 
 ## Code/config implemented
 

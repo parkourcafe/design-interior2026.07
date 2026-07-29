@@ -8,13 +8,13 @@ function read(path: string) {
   return readFileSync(resolve(root, path), "utf8");
 }
 
-describe("RemhaOS brand rename contract", () => {
-  const legacyRemhaos = ["Rem", "Haos"].join("");
-  const legacySecondSpelling = ["Rem", "Ha", "OS"].join("");
+describe("RemHaOS brand rename contract", () => {
+  const legacyFirstSpelling = ["Rem", "ha", "OS"].join("");
+  const legacySecondSpelling = ["Rem", "Haos"].join("");
   const legacyProductBrand = ["Archi", "Dom"].join("");
   const legacyUpperBrand = "ARHIDOM";
   const legacyPublicBrandPattern = new RegExp(
-    `\\b(?:${legacyRemhaos}|${legacySecondSpelling}|${legacyProductBrand}|${legacyUpperBrand})\\b`,
+    `\\b(?:${legacyFirstSpelling}|${legacySecondSpelling}|${legacyProductBrand}|${legacyUpperBrand})\\b`,
   );
 
   const activePublicFiles = [
@@ -39,9 +39,9 @@ describe("RemhaOS brand rename contract", () => {
     }
   });
 
-  it("uses RemhaOS and remhaos.com in app metadata and generated discovery files", () => {
+  it("uses RemHaOS and remhaos.com in app metadata and generated discovery files", () => {
     const layout = read("app/layout.tsx");
-    expect(read("lib/i18n/ru.ts")).toContain('name: "RemhaOS"');
+    expect(read("lib/i18n/ru.ts")).toContain('name: "RemHaOS"');
     expect(layout).toContain("https://remhaos.com");
     expect(layout).toContain('process.env.VERCEL_ENV === "preview"');
     expect(layout).toContain('process.env.VERCEL_ENV !== "preview"');
