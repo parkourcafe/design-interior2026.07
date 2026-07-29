@@ -1,4 +1,4 @@
-# ArchiDom Sprint 1 — Completion Plan
+# RemhaOS Sprint 1 — Completion Plan
 
 Date: 2026-07-28  
 Execution mode: four parallel streams  

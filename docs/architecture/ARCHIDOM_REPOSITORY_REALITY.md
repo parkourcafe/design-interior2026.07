@@ -1,4 +1,4 @@
-# ArchiDom Repository Reality
+# RemhaOS Repository Reality
 
 Date: 2026-07-28
 Branch: `codex/sprint1-completion-20260728`

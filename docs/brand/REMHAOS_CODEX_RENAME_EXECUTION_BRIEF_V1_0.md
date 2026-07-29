@@ -3,14 +3,14 @@
 **Дата:** 28 июля 2026  
 **Тип:** repository audit + controlled rename + deployment verification  
 **Статус:** EXECUTION-READY  
-**Новый публичный бренд:** `RemHaos`  
+**Новый публичный бренд:** `RemhaOS`  
 **Новый основной домен:** `remhaos.com`
 
 ---
 
 ## 0. Команда Codex
 
-Выполни контролируемое переименование публичного продукта `ArchiDom / ArchiDom Space` в `RemHaos` и миграцию primary host на `https://remhaos.com`.
+Выполни контролируемое переименование публичного продукта `RemhaOS / RemhaOS Space` в `RemhaOS` и миграцию primary host на `https://remhaos.com`.
 
 Это **не новая архитектура**, не redesign и не разрешение расширять функциональный scope. Не создавай новые модули, не переписывай M1–M4, не меняй доменную модель и не добавляй функции под видом rebrand.
 
@@ -116,7 +116,7 @@ rg -n -i --hidden \
 Используй:
 
 ```text
-Official brand: RemHaos
+Official brand: RemhaOS
 Russian pronunciation: РемХаос
 Technical prefix: REMHAOS
 Primary host: https://remhaos.com
@@ -132,7 +132,7 @@ Rem Haos
 Ремхаос
 ```
 
-В обычном тексте бренд всегда `RemHaos`. `REMHAOS` допустим только в технических префиксах и диаграммах.
+В обычном тексте бренд всегда `RemhaOS`. `REMHAOS` допустим только в технических префиксах и диаграммах.
 
 ---
 

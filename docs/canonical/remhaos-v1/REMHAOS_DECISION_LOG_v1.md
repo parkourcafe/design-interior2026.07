@@ -1,5 +1,5 @@
 > Brand-only successor of the corresponding ARCHIDOM document. Product scope and architecture are unchanged except where a later approved addendum explicitly says otherwise.
-> Current public brand: RemHaos. Russian pronunciation: РемХаос. Primary host: https://remhaos.com.
+> Current public brand: RemhaOS. Russian pronunciation: РемХаос. Primary host: https://remhaos.com.
 
 # REMHAOS — PRODUCT & ARCHITECTURE DECISION LOG v1
 
@@ -26,4 +26,4 @@
 | DEC-016 | Процентные readiness scores отменены | LOCKED | A1 §7.4 | Использовать status + evidence level |
 | DEC-017 | Новые документы не называются Source of Truth | LOCKED | Charter hierarchy | Классы документов фиксированы |
 | DEC-018 | Architecture freeze после Canonical Package | LOCKED | Owner command | Изменения через Addendum/Decision Log |
-| DEC-019 | Публичный бренд RemHaos; основной домен `remhaos.com` | LOCKED | OWNER DECISION 28.07.2026 / Addendum A3 | Актуальные UI, docs, metadata и public URLs используют RemHaos; архитектура не меняется |
+| DEC-019 | Публичный бренд RemhaOS; основной домен `remhaos.com` | LOCKED | OWNER DECISION 28.07.2026 / Addendum A3 | Актуальные UI, docs, metadata и public URLs используют RemhaOS; архитектура не меняется |

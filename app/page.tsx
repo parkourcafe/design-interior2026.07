@@ -469,7 +469,7 @@ function DataSafety() {
   );
 }
 
-// 14. Что создаёт RemHaos
+// 14. Что создаёт RemhaOS
 function WhatItCreates() {
   const s = L.creates;
   return (
