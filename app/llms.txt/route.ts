@@ -3,9 +3,9 @@ export const dynamic = "force-static";
 export function GET() {
   return new Response(
     [
-      "# RemHaos",
+      "# RemHaOS",
       "",
-      "RemHaos is an AI-assisted pre-sale workflow for interior designers and studios in Russia.",
+      "RemHaOS is an AI-assisted pre-sale workflow for interior designers and studios in Russia.",
       "Canonical host: https://remhaos.com",
       "",
       "Public routes:",

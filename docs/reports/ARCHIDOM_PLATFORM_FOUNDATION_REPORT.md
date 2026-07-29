@@ -1,4 +1,4 @@
-# ArchiDom Platform Foundation Report
+# RemHaOS Platform Foundation Report
 
 Date: 2026-07-28
 Status: `PARTIAL`

@@ -1,4 +1,4 @@
-# ArchiDom Migration Report
+# RemHaOS Migration Report
 
 Date: 2026-07-28
 Status: `PARTIAL`

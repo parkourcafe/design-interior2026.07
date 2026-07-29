@@ -1,4 +1,4 @@
-# RemHaos Rename Inventory — 2026-07-28
+# RemHaOS Rename Inventory — 2026-07-28
 
 Status: IMPLEMENTED_WITH_BLOCKERS
 
@@ -16,7 +16,7 @@ Status: IMPLEMENTED_WITH_BLOCKERS
 
 ## Canonical rename contract
 
-- Official public brand: `RemHaos`.
+- Official public brand: `RemHaOS`.
 - Russian pronunciation: `РемХаос`.
 - Technical prefix: `REMHAOS`.
 - Primary host: `https://remhaos.com`.
@@ -26,13 +26,13 @@ Status: IMPLEMENTED_WITH_BLOCKERS
 
 | Surface | Classification | Action |
 |---|---|---|
-| `lib/i18n/ru.ts` | PUBLIC_REPLACE | Replaced visible `ARHIDOM` strings with `RemHaos`. |
+| `lib/i18n/ru.ts` | PUBLIC_REPLACE | Replaced visible `ARHIDOM` strings with `RemHaOS`. |
 | `app/layout.tsx` | PUBLIC_REPLACE | Added `metadataBase`, canonical, Open Graph, Twitter metadata using `remhaos.com`. |
-| `app/manifest.ts` | PUBLIC_REPLACE | Inherits `RemHaos` from i18n. |
+| `app/manifest.ts` | PUBLIC_REPLACE | Inherits `RemHaOS` from i18n. |
 | `public/sw.js` | PUBLIC_REPLACE | Cache namespace changed to `remhaos-v1`. |
 | `lib/env.ts`, `.env.example` | PUBLIC_REPLACE / EXTERNAL_CONFIG | Default support email changed to `support@remhaos.com`. |
-| `components/landing/loop-scene.tsx` | PUBLIC_REPLACE | Image alt text changed to `RemHaos`. |
-| `app/icons/[size]/route.tsx` | PUBLIC_REPLACE | Brand comment changed to `RemHaos`. |
+| `components/landing/loop-scene.tsx` | PUBLIC_REPLACE | Image alt text changed to `RemHaOS`. |
+| `app/icons/[size]/route.tsx` | PUBLIC_REPLACE | Brand comment changed to `RemHaOS`. |
 | `app/api/assetlinks/route.ts`, `.env.example` | EXTERNAL_CONFIG | TWA package-name examples changed to `com.remhaos.twa`. |
 | `next.config.mjs` | LEGACY_REDIRECT | Added one-hop host redirects to `https://remhaos.com/:path*`. |
 | `app/robots.ts`, `app/sitemap.ts`, `app/llms.txt/route.ts` | PUBLIC_REPLACE | Added discovery files using canonical `remhaos.com`. |

@@ -1,4 +1,4 @@
-# ArchiDom Workflow QA
+# RemHaOS Workflow QA
 
 Date: 2026-07-28
 Status: `PARTIAL`

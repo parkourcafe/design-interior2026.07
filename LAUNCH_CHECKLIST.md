@@ -1,4 +1,4 @@
-# LAUNCH CHECKLIST — RemHaos (remhaos.com)
+# LAUNCH CHECKLIST — RemHaOS (remhaos.com)
 
 Обновлено: 09.07.2026. Цель v0.1 — рабочее демо для платного пилота и WTP-интервью.
 

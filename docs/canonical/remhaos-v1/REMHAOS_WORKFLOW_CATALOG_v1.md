@@ -1,5 +1,5 @@
 > Brand-only successor of the corresponding ARCHIDOM document. Product scope and architecture are unchanged except where a later approved addendum explicitly says otherwise.
-> Current public brand: RemHaos. Russian pronunciation: РемХаос. Primary host: https://remhaos.com.
+> Current public brand: RemHaOS. Russian pronunciation: РемХаос. Primary host: https://remhaos.com.
 
 # REMHAOS — WORKFLOW CATALOG v1
 

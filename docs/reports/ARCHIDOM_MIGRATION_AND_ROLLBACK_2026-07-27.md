@@ -1,4 +1,4 @@
-# ArchiDom Migration and Rollback — 27.07.2026
+# RemHaOS Migration and Rollback — 27.07.2026
 
 > **Superseded chain note (28.07.2026).** This report predates the completion
 > migration hardening. The final digest and exact-hash replay are still pending;

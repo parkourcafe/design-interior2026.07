@@ -1,5 +1,5 @@
 > Brand-only successor of the corresponding ARCHIDOM document. Product scope and architecture are unchanged except where a later approved addendum explicitly says otherwise.
-> Current public brand: RemHaos. Russian pronunciation: РемХаос. Primary host: https://remhaos.com.
+> Current public brand: RemHaOS. Russian pronunciation: РемХаос. Primary host: https://remhaos.com.
 
 # REMHAOS — PLATFORM ARCHITECTURE V1.1
 
@@ -12,9 +12,9 @@
 
 ## 1. Финальное решение
 
-RemHaos — единая операционная система интерьерного и архитектурного проекта. Заказчик, дизайнер, архитектор и команда исполнения работают с одним Project Graph, одной историей решений, единой системой версий и единым audit trail.
+RemHaOS — единая операционная система интерьерного и архитектурного проекта. Заказчик, дизайнер, архитектор и команда исполнения работают с одним Project Graph, одной историей решений, единой системой версий и единым audit trail.
 
-AI в RemHaos не является отдельным чатом и не получает право молча переписывать проектную правду. Он запускает контролируемые действия и workflows, показывает источники, формирует предложения изменений и передаёт результат уполномоченному человеку на проверку и утверждение.
+AI в RemHaOS не является отдельным чатом и не получает право молча переписывать проектную правду. Он запускает контролируемые действия и workflows, показывает источники, формирует предложения изменений и передаёт результат уполномоченному человеку на проверку и утверждение.
 
 ### Архитектурная классификация
 
