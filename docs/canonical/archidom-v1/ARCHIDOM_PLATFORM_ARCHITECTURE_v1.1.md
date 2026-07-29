@@ -1,3 +1,5 @@
+> SUPERSEDED_BY_BRAND_RENAME_2026-07-28. CURRENT_BRAND: RemHaos. Successor package: docs/canonical/remhaos-v1/. Historical content preserved for provenance.
+
 # ARCHIDOM SPACE — PLATFORM ARCHITECTURE V1.1
 
 **Дата:** 27 июля 2026  

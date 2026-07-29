@@ -1,9 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { AnswersMap, Passport } from "@/lib/types";
+import type { AnswersMap, Passport, RiskCard } from "@/lib/types";
 import type { LlmUsage } from "@/lib/llm/provider";
-import { normalizeBriefFacts } from "./facts";
-
-const WORKFLOW_KEY = "client_intake_to_issued_proposal";
 
 export interface PersistWorkflowResult {
   ok: boolean;
@@ -11,175 +8,182 @@ export interface PersistWorkflowResult {
   error?: string;
 }
 
-// Adapter around the existing M1 pipeline. It is deliberately fail-closed in its
-// result but does not throw, so legacy intake can return a controlled error.
-export async function persistBriefWorkflow(
+export interface ReserveInitialBriefAiCallResult extends PersistWorkflowResult {
+  workflowStepRunId?: string;
+  aiCallId?: string;
+  replayed?: boolean;
+  resultSnapshot?: {
+    ok: true;
+    llmOk: boolean;
+    workflowRunId: string;
+  };
+}
+
+export async function reserveInitialBriefAiCall(
   db: SupabaseClient,
   input: {
     projectId: string;
-    initiatedBy: string | null;
-    answers: AnswersMap;
-    passport: Passport;
+    answerDigest: string;
+    idempotencyKey: string;
+  },
+): Promise<ReserveInitialBriefAiCallResult> {
+  const { data, error } = await db.rpc("reserve_initial_brief_ai_call", {
+    p_project_id: input.projectId,
+    p_answer_digest: input.answerDigest,
+    p_idempotency_key: input.idempotencyKey,
+  });
+  if (error) {
+    console.error("[m1-workflow] reserve_initial_brief_ai_call failed", {
+      code: error.code,
+      message: error.message,
+      details: error.details,
+      hint: error.hint,
+    });
+    return {
+      ok: false,
+      error: error.message.includes("initial_brief_request_conflict")
+        ? "initial_brief_request_conflict"
+        : "initial_brief_reservation_failed",
+    };
+  }
+
+  const reservation = data as {
+    workflow_run_id?: string;
+    workflow_step_run_id?: string;
+    ai_call_id?: string;
+    replayed?: boolean;
+    result_snapshot?: unknown;
+  } | null;
+  if (
+    !reservation?.workflow_run_id ||
+    !reservation.workflow_step_run_id ||
+    !reservation.ai_call_id
+  ) {
+    return { ok: false, error: "invalid_initial_brief_ai_reservation" };
+  }
+
+  const snapshot = reservation.result_snapshot as {
+    ok?: unknown;
+    llmOk?: unknown;
+    workflowRunId?: unknown;
+  } | null;
+  if (
+    reservation.replayed === true &&
+    (
+      snapshot?.ok !== true ||
+      typeof snapshot.llmOk !== "boolean" ||
+      snapshot.workflowRunId !== reservation.workflow_run_id
+    )
+  ) {
+    return { ok: false, error: "invalid_initial_brief_replay" };
+  }
+
+  return {
+    ok: true,
+    workflowRunId: reservation.workflow_run_id,
+    workflowStepRunId: reservation.workflow_step_run_id,
+    aiCallId: reservation.ai_call_id,
+    replayed: reservation.replayed === true,
+    resultSnapshot:
+      reservation.replayed === true
+        ? {
+            ok: true,
+            llmOk: snapshot!.llmOk as boolean,
+            workflowRunId: snapshot!.workflowRunId as string,
+          }
+        : undefined,
+  };
+}
+
+export async function recordInitialBriefAiUsage(
+  db: SupabaseClient,
+  input: {
+    projectId: string;
+    workflowRunId: string;
+    workflowStepRunId: string;
+    aiCallId: string;
     llmUsage: LlmUsage;
   },
+): Promise<{ ok: boolean; error?: string }> {
+  const { error } = await db.rpc("record_initial_brief_ai_usage", {
+    p_project_id: input.projectId,
+    p_workflow_run_id: input.workflowRunId,
+    p_workflow_step_run_id: input.workflowStepRunId,
+    p_ai_call_id: input.aiCallId,
+    p_provider: input.llmUsage.provider,
+    p_model: input.llmUsage.model,
+    p_tokens_in: input.llmUsage.tokensIn,
+    p_tokens_out: input.llmUsage.tokensOut,
+    p_duration_ms: input.llmUsage.durationMs,
+    p_provider_cost_estimate: input.llmUsage.providerCostEstimate,
+    p_estimate_source: input.llmUsage.estimateSource,
+    p_outcome: input.llmUsage.outcome,
+  });
+  if (error) return { ok: false, error: "initial_brief_usage_not_recorded" };
+  return { ok: true };
+}
+
+export type InitialBriefFailureCode =
+  | "provider_execution_failed"
+  | "usage_persistence_failed"
+  | "legacy_persistence_failed"
+  | "workflow_finalization_failed";
+
+export async function closeInitialBriefAiCall(
+  db: SupabaseClient,
+  input: {
+    projectId: string;
+    workflowRunId: string;
+    workflowStepRunId: string;
+    aiCallId: string;
+    errorCode: InitialBriefFailureCode;
+  },
+): Promise<{ ok: boolean; error?: string }> {
+  const { data, error } = await db.rpc("close_initial_brief_ai_call", {
+    p_project_id: input.projectId,
+    p_workflow_run_id: input.workflowRunId,
+    p_workflow_step_run_id: input.workflowStepRunId,
+    p_ai_call_id: input.aiCallId,
+    p_error_code: input.errorCode,
+  });
+  const closure = data as { closed?: unknown } | null;
+  if (error || closure?.closed !== true) {
+    return { ok: false, error: "initial_brief_call_not_closed" };
+  }
+  return { ok: true };
+}
+
+export async function finalizeInitialBrief(
+  db: SupabaseClient,
+  input: {
+    projectId: string;
+    workflowRunId: string;
+    workflowStepRunId: string;
+    aiCallId: string;
+    answerDigest: string;
+    answers: AnswersMap;
+    passport: Passport;
+    riskCards: RiskCard[];
+  },
 ): Promise<PersistWorkflowResult> {
-  const { data: source, error: sourceError } = await db
-    .from("project_sources")
-    .upsert({
-      project_id: input.projectId,
-      source_type: "client_brief",
-      source_ref: "answers",
-      title: "Клиентский бриф",
-      created_by: input.initiatedBy,
-    }, { onConflict: "project_id,source_type,source_ref" })
-    .select("id")
-    .single();
-  if (sourceError || !source) return { ok: false, error: sourceError?.message ?? "source_failed" };
-
-  const { data: existingRun } = await db
-    .from("workflow_runs")
-    .select("id")
-    .eq("project_id", input.projectId)
-    .eq("workflow_key", WORKFLOW_KEY)
-    .in("status", ["queued", "running", "waiting_for_human", "pending_cost_confirmation", "retrying", "failed"])
-    .maybeSingle();
-
-  let workflowRunId = (existingRun as { id?: string } | null)?.id;
-  if (!workflowRunId) {
-    const { data: run, error } = await db.from("workflow_runs").insert({
-      project_id: input.projectId,
-      workflow_key: WORKFLOW_KEY,
-      workflow_version: 1,
-      status: "running",
-      current_step: "extract_client_brief",
-      initiated_by: input.initiatedBy,
-      input_snapshot: { answer_keys: Object.keys(input.answers) },
-      started_at: new Date().toISOString(),
-    }).select("id").single();
-    if (error || !run) return { ok: false, error: error?.message ?? "workflow_run_failed" };
-    workflowRunId = (run as { id: string }).id;
-  } else {
-    await db.from("workflow_runs").update({
-      status: "running",
-      current_step: "extract_client_brief",
-      error_state: null,
-    }).eq("id", workflowRunId);
+  const { data, error } = await db.rpc("finalize_initial_brief", {
+    p_project_id: input.projectId,
+    p_workflow_run_id: input.workflowRunId,
+    p_workflow_step_run_id: input.workflowStepRunId,
+    p_ai_call_id: input.aiCallId,
+    p_answer_digest: input.answerDigest,
+    p_answers: input.answers,
+    p_passport: input.passport,
+    p_risk_cards: input.riskCards,
+  });
+  if (error) {
+    return { ok: false, error: "initial_brief_finalization_failed" };
   }
 
-  const { data: priorSteps } = await db.from("workflow_step_runs")
-    .select("attempt").eq("workflow_run_id", workflowRunId).eq("step_key", "extract_client_brief")
-    .order("attempt", { ascending: false }).limit(1);
-  const attempt = Number((priorSteps?.[0] as { attempt?: number } | undefined)?.attempt ?? 0) + 1;
-  const { data: step, error: stepError } = await db.from("workflow_step_runs").insert({
-    workflow_run_id: workflowRunId,
-    step_key: "extract_client_brief",
-    attempt,
-    status: "running",
-    input_snapshot: { answer_keys: Object.keys(input.answers) },
-    started_at: new Date().toISOString(),
-  }).select("id").single();
-  if (stepError || !step) return { ok: false, workflowRunId, error: stepError?.message ?? "step_failed" };
-  const stepId = (step as { id: string }).id;
-
-  for (const fact of normalizeBriefFacts(input.answers)) {
-    const { data: previous } = await db.from("project_facts")
-      .select("id,version").eq("project_id", input.projectId)
-      .eq("evidence_locator", fact.evidence_locator)
-      .order("version", { ascending: false }).limit(1).maybeSingle();
-    const prev = previous as { id: string; version: number } | null;
-    const { error } = await db.from("project_facts").insert({
-      ...fact,
-      project_id: input.projectId,
-      source_id: (source as { id: string }).id,
-      version: prev ? prev.version + 1 : 1,
-      supersedes_id: prev?.id ?? null,
-    });
-    if (error) {
-      await db.from("workflow_step_runs").update({ status: "failed", error: { message: error.message }, completed_at: new Date().toISOString() }).eq("id", stepId);
-      await db.from("workflow_runs").update({ status: "failed", error_state: { step: "extract_client_brief", message: error.message } }).eq("id", workflowRunId);
-      return { ok: false, workflowRunId, error: error.message };
-    }
+  const result = data as { workflow_run_id?: unknown } | null;
+  if (result?.workflow_run_id !== input.workflowRunId) {
+    return { ok: false, error: "invalid_initial_brief_finalization" };
   }
 
-  const now = new Date().toISOString();
-  await db.from("workflow_step_runs").insert({
-    workflow_run_id: workflowRunId,
-    step_key: "build_project_passport",
-    attempt,
-    status: "completed",
-    output_snapshot: { passport_present: Boolean(input.passport) },
-    started_at: now,
-    completed_at: now,
-  });
-  const { data: riskStep, error: riskStepError } = await db.from("workflow_step_runs").insert({
-    workflow_run_id: workflowRunId,
-    step_key: "generate_risk_register",
-    attempt,
-    status: "completed",
-    output_snapshot: {
-      llm_outcome: input.llmUsage.outcome,
-      fallback_used: input.llmUsage.outcome !== "success",
-    },
-    error: null,
-    started_at: now,
-    completed_at: now,
-  }).select("id").single();
-  if (riskStepError || !riskStep) return { ok: false, workflowRunId, error: riskStepError?.message ?? "risk_step_failed" };
-
-  const { error: aiCallError } = await db.from("ai_calls").insert({
-    project_id: input.projectId,
-    workflow_run_id: workflowRunId,
-    workflow_step_run_id: (riskStep as { id: string }).id,
-    action_key: "generate_risk_register",
-    cost_class: "metered_ai",
-    provider: input.llmUsage.provider,
-    model: input.llmUsage.model,
-    tokens_in: input.llmUsage.tokensIn,
-    tokens_out: input.llmUsage.tokensOut,
-    duration_ms: input.llmUsage.durationMs,
-    provider_cost_estimate: input.llmUsage.providerCostEstimate,
-    estimate_source: input.llmUsage.estimateSource,
-    outcome: input.llmUsage.outcome,
-  });
-  if (aiCallError) return { ok: false, workflowRunId, error: aiCallError.message };
-
-  await db.from("workflow_step_runs").update({
-    status: "completed",
-    output_snapshot: { fact_count: Object.keys(input.answers).length },
-    completed_at: now,
-  }).eq("id", stepId);
-  if (input.initiatedBy) {
-    const { data: pendingApproval } = await db.from("approval_requests").select("id")
-      .eq("project_id", input.projectId).eq("subject_type", "project_facts")
-      .eq("approval_type", "INTERNAL_REVIEWED").eq("status", "pending").maybeSingle();
-    if (!pendingApproval) {
-      await db.from("approval_requests").insert({
-        project_id: input.projectId,
-        workflow_run_id: workflowRunId,
-        subject_type: "project_facts",
-        subject_id: null,
-        approval_type: "INTERNAL_REVIEWED",
-        required_role: "member",
-        requested_by: input.initiatedBy,
-        status: "pending",
-      });
-    }
-  }
-  await db.from("workflow_runs").update({
-    status: "waiting_for_human",
-    current_step: "human_review",
-    output_snapshot: { passport_present: true },
-  }).eq("id", workflowRunId);
-  await db.from("audit_events").insert({
-    project_id: input.projectId,
-    actor_id: input.initiatedBy,
-    actor_type: input.initiatedBy ? "human" : "system",
-    event_type: "brief_workflow_waiting_for_review",
-    entity_type: "WorkflowRun",
-    entity_id: workflowRunId,
-    workflow_run_id: workflowRunId,
-    payload: { current_step: "human_review" },
-  });
-
-  return { ok: true, workflowRunId };
+  return { ok: true, workflowRunId: input.workflowRunId };
 }

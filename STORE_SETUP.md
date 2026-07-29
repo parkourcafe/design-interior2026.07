@@ -1,7 +1,7 @@
-# STORE_SETUP — Публикация ARHIDOM в Google Play и RuStore
+# STORE_SETUP — Публикация RemHaos в Google Play и RuStore
 
-ARHIDOM — это PWA. В магазины она попадает как **TWA** (Trusted Web Activity):
-тонкая Android-обёртка, которая открывает сайт arhidom.space в полноэкранном
+RemHaos — это PWA. В магазины она попадает как **TWA** (Trusted Web Activity):
+тонкая Android-обёртка, которая открывает сайт remhaos.com в полноэкранном
 режиме без адресной строки. Один и тот же сайт → один AAB/APK → оба магазина.
 
 Этот файл: (1) что уже готово в коде, (2) что делает владелец в консолях.
@@ -17,7 +17,7 @@ ARHIDOM — это PWA. В магазины она попадает как **TWA
 | Иконки 192/512, «any» + «maskable», брендовые | `app/icons/[size]` | ✅ |
 | Apple touch icon | `app/apple-icon.tsx` | ✅ |
 | Service worker (офлайн-оболочка, установимость) | `public/sw.js` | ✅ |
-| HTTPS | Vercel (arhidom.space) | ✅ |
+| HTTPS | Vercel (remhaos.com) | ✅ |
 | Digital Asset Links `/.well-known/assetlinks.json` | `app/api/assetlinks` + rewrite | ⏳ ждёт env |
 | PWA screenshots для упаковщика | `app/manifest.ts` screenshots | ✅ |
 | Скриншоты для карточки RuStore | снять реальные экраны и загрузить руками | ⏳ |
@@ -33,22 +33,22 @@ ARHIDOM — это PWA. В магазины она попадает как **TWA
 1. **Аккаунты:**
    - Google Play Console — разовый взнос $25, верификация до 2 недель.
    - RuStore — аккаунт разработчика (юрлицо/самозанятый/физлицо), бесплатно.
-2. **Package name** — выбрать раз и навсегда, напр. `space.arhidom.twa`
+2. **Package name** — выбрать раз и навсегда, напр. `com.remhaos.twa`
    (обратный домен). Менять потом нельзя.
-3. **Домен arhidom.space** должен указывать на прод (уже так).
+3. **Домен remhaos.com** должен указывать на прод (уже так).
 4. Решить, кто «издатель» в карточке (имя студии/юрлицо) — показывается в сторе.
 
 ---
 
 ## 3. Сборка приложения (AAB/APK из PWA)
 
-Два пути, оба берут манифест с arhidom.space и генерируют проект.
+Два пути, оба берут манифест с remhaos.com и генерируют проект.
 
 ### Вариант A — PWABuilder (проще, через браузер)
-1. Открыть <https://www.pwabuilder.com>, ввести `https://arhidom.space`.
+1. Открыть <https://www.pwabuilder.com>, ввести `https://remhaos.com`.
 2. Дождаться анализа (манифест/SW/иконки должны быть зелёными — они готовы).
 3. Package → **Android** → Store package.
-4. Package ID = ваш package name (`space.arhidom.twa`).
+4. Package ID = ваш package name (`com.remhaos.twa`).
 5. Скачать zip: внутри `.aab` (для Play), `.apk` (для RuStore/сайдлоуд),
    `signing.keystore` + `signing-key-info.txt` (пароли/алиас) и
    `assetlinks.json` с **вашим** отпечатком.
@@ -58,8 +58,8 @@ ARHIDOM — это PWA. В магазины она попадает как **TWA
 ### Вариант B — Bubblewrap (CLI, больше контроля)
 ```bash
 npm i -g @bubblewrap/cli
-bubblewrap init --manifest https://arhidom.space/manifest.webmanifest
-# ответить на вопросы (packageId = space.arhidom.twa), создастся keystore
+bubblewrap init --manifest https://remhaos.com/manifest.webmanifest
+# ответить на вопросы (packageId = com.remhaos.twa), создастся keystore
 bubblewrap build      # → app-release-signed.aab и app-release-signed.apk
 ```
 Отпечаток SHA-256 забрать: `bubblewrap fingerprint` или
@@ -80,12 +80,12 @@ bubblewrap build      # → app-release-signed.aab и app-release-signed.apk
      подписан APK для RuStore): `keytool -list -v -keystore <ваш>.keystore`.
 2. В **Vercel → Settings → Environment Variables** (Production) задать:
    ```
-   ANDROID_PACKAGE_NAME = space.arhidom.twa
+   ANDROID_PACKAGE_NAME = com.remhaos.twa
    ANDROID_CERT_SHA256  = <отпечаток Google Play>,<отпечаток RuStore>
    ```
    Через запятую — оба, потому что домен должен доверять обоим приложениям.
 3. Redeploy (или он произойдёт сам). Проверить:
-   `https://arhidom.space/.well-known/assetlinks.json` — там должны быть ваши
+   `https://remhaos.com/.well-known/assetlinks.json` — там должны быть ваши
    значения (сейчас, без env, отдаётся `[]` — это норма до заполнения).
 4. Проверка Google: <https://developers.google.com/digital-asset-links/tools/generator>
 
@@ -109,7 +109,7 @@ bubblewrap build      # → app-release-signed.aab и app-release-signed.apk
 | Короткое описание | до 80 симв. | есть поле |
 | Полное описание | до 4000 симв. | есть поле |
 
-- **Иконку 512×512** можно взять с сайта: `https://arhidom.space/icons/512`
+- **Иконку 512×512** можно взять с сайта: `https://remhaos.com/icons/512`
   (сохранить как PNG).
 - **Скриншоты RuStore**: лучше настоящие 9:16 экраны приложения после установки
   TWA: главная, демо-бриф, demo-КП, кабинет/паспорт, risk cards. Не используйте
@@ -123,14 +123,14 @@ bubblewrap build      # → app-release-signed.aab и app-release-signed.apk
 
 1. Создать приложение → язык по умолчанию **русский**, тип **App**, бесплатное.
 2. **App content** (обязательные декларации):
-   - Privacy Policy: `https://arhidom.space/legal/privacy`
+   - Privacy Policy: `https://remhaos.com/legal/privacy`
    - Data safety: указать, что собираются email/имя/контакты и ответы брифа;
      передача третьим лицам — нет; шифрование в транзите — да; удаление по
      запросу — да (см. `/legal/privacy`).
    - Ads — нет. Target audience — 18+ (деловой инструмент). Content rating —
      заполнить анкету (получится «для всех / 3+», без чувствительного контента).
    - Government app — нет. Financial features — нет.
-3. **Store listing**: название «ARHIDOM», короткое/полное описание (§8),
+3. **Store listing**: название «RemHaos», короткое/полное описание (§8),
    иконка 512, feature graphic 1024×500, скриншоты.
 4. **Production → Create release**: загрузить `.aab`. Play App Signing включить
    (по умолчанию) → отсюда взять SHA-256 для §4.
@@ -148,7 +148,7 @@ bubblewrap build      # → app-release-signed.aab и app-release-signed.apk
 7. Отправить на модерацию.
 
 > Важный риск: RuStore не приветствует приложения, единственная цель которых —
-> перенаправить на сайт. ARHIDOM нужно подавать как самостоятельный продукт:
+> перенаправить на сайт. RemHaos нужно подавать как самостоятельный продукт:
 > полноэкранная TWA, рабочие demo-сценарии без регистрации, PWA/offline shell,
 > реальные скриншоты интерфейса и комментарий модератору из `RUSTORE_RELEASE.md`.
 
@@ -156,17 +156,17 @@ bubblewrap build      # → app-release-signed.aab и app-release-signed.apk
 
 ## 8. Готовые тексты для карточек (RU)
 
-**Название:** ARHIDOM
+**Название:** RemHaos
 
 **Короткое описание (≤80):**
 > AI-пресейл для интерьерных дизайнеров: бриф, паспорт проекта, риски, цена, КП.
 
 **Полное описание (черновик):**
-> ARHIDOM — рабочий инструмент интерьерного дизайнера и студии для этапа до
+> RemHaos — рабочий инструмент интерьерного дизайнера и студии для этапа до
 > начала проекта.
 >
 > Дизайнер отправляет клиенту ссылку на бриф. Клиент отвечает без регистрации,
-> в спокойном брендированном интерфейсе. ARHIDOM превращает ответы в паспорт
+> в спокойном брендированном интерфейсе. RemHaos превращает ответы в паспорт
 > проекта, находит противоречия и риски (с основаниями и уверенностью),
 > помогает рассчитать стоимость по правилам студии и собирает черновик
 > коммерческого предложения.
@@ -195,7 +195,7 @@ bubblewrap build      # → app-release-signed.aab и app-release-signed.apk
 - **Медиа на свой хостинг** (снять зависимость от CDN Higgsfield):
   `npm run fetch:media` → `NEXT_PUBLIC_MEDIA_BASE=/landing` в env Vercel.
   Иначе скриншоты в манифесте ссылаются на внешний CDN.
-- **support@arhidom.space** должен принимать почту (или заменить
+- **support@remhaos.com** должен принимать почту (или заменить
   `NEXT_PUBLIC_SUPPORT_EMAIL`) — адрес идёт в карточки как контакт поддержки.
 - **Юрблок**: `/legal/*` — честные практики пилота, без реквизитов оператора.
   Для публичной раздачи в сторах Google/RuStore обычно требуют работающую
@@ -209,11 +209,11 @@ bubblewrap build      # → app-release-signed.aab и app-release-signed.apk
 
 ```bash
 # локально
-npm run build && ANDROID_PACKAGE_NAME=space.arhidom.twa \
+npm run build && ANDROID_PACKAGE_NAME=com.remhaos.twa \
   ANDROID_CERT_SHA256=AA:BB npm run start
 curl -s localhost:3000/manifest.webmanifest | head
 curl -s localhost:3000/.well-known/assetlinks.json
 curl -so /dev/null -w "%{http_code} %{content_type}\n" localhost:3000/icons/512
 ```
 Ожидаемо: манифест с id/screenshots/иконками; assetlinks с package/отпечатком;
-иконка `200 image/png`. На проде проверять те же URL на `https://arhidom.space`.
+иконка `200 image/png`. На проде проверять те же URL на `https://remhaos.com`.

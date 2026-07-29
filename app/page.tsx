@@ -469,7 +469,7 @@ function DataSafety() {
   );
 }
 
-// 14. Что создаёт ARHIDOM
+// 14. Что создаёт RemHaos
 function WhatItCreates() {
   const s = L.creates;
   return (

@@ -18,18 +18,18 @@
 
 ## Часть Б — свой SMTP через Resend (для боевой рассылки клиентам)
 
-**Конфигурация проекта:** домен `arhidom.space` (куплен на **Vercel** → DNS настраивается в Vercel).
-Отправитель: `noreply@arhidom.space`, имя `Свод`.
+**Конфигурация проекта:** домен `remhaos.com` (куплен на **Vercel** → DNS настраивается в Vercel).
+Отправитель: `noreply@remhaos.com`, имя `RemHaos`.
 
 ### Шаг 1. Resend: добавить домен
 1. **resend.com** → Sign up (можно через Google).
-2. Слева **Domains** → **Add Domain** → ввести `arhidom.space` → Add.
+2. Слева **Domains** → **Add Domain** → ввести `remhaos.com` → Add.
 3. Resend покажет **3 DNS-записи** (MX/TXT — SPF, TXT — DKIM, TXT — DMARC). Не закрывать эту страницу.
 
 ### Шаг 2. Vercel: добавить эти 3 записи в DNS
-1. **vercel.com** → аккаунт → вкладка **Domains** → выбрать **arhidom.space** → раздел **DNS Records**.
+1. **vercel.com** → аккаунт → вкладка **Domains** → выбрать **remhaos.com** → раздел **DNS Records**.
 2. Для каждой записи из Resend нажать **Add** и перенести Type / Name / Value.
-   - ⚠️ В поле **Name** вписывать только префикс без домена: Resend показывает `send.arhidom.space` → в Vercel ввести `send`; `resend._domainkey.arhidom.space` → `resend._domainkey`; `_dmarc.arhidom.space` → `_dmarc`. Для корня — оставить `@`.
+   - ⚠️ В поле **Name** вписывать только префикс без домена: Resend показывает `send.remhaos.com` → в Vercel ввести `send`; `resend._domainkey.remhaos.com` → `resend._domainkey`; `_dmarc.remhaos.com` → `_dmarc`. Для корня — оставить `@`.
    - Значение (Value) копировать целиком, особенно длинный DKIM (`p=...`).
 3. Сохранить каждую.
 
@@ -45,6 +45,6 @@ Supabase → проект **design2026** → **Project Settings** → **Authenti
 - Port: `465`
 - Username: `resend`
 - Password: ключ `re_…`
-- Sender email: `noreply@arhidom.space`
+- Sender email: `noreply@remhaos.com`
 - Sender name: `Свод`
 - Сохранить → отправить себе тестовое письмо (попробовать войти).

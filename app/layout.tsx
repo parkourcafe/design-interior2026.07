@@ -3,9 +3,35 @@ import "./globals.css";
 import { ru } from "@/lib/i18n/ru";
 import Pwa from "@/components/pwa";
 
+const siteUrl =
+  process.env.VERCEL_ENV === "preview"
+    ? "https://remhaos.com"
+    : process.env.NEXT_PUBLIC_APP_URL ?? "https://remhaos.com";
+if (
+  process.env.NODE_ENV === "production" &&
+  process.env.VERCEL_ENV !== "preview" &&
+  /(?:vercel\.app|arhidom\.space)$/i.test(new URL(siteUrl).hostname)
+) {
+  throw new Error("Production metadata host must be https://remhaos.com, not a preview or legacy host.");
+}
+
 export const metadata: Metadata = {
+  metadataBase: new URL(siteUrl),
   title: `${ru.app.name} — ${ru.app.tagline}`,
   description: ru.app.heroSub,
+  alternates: { canonical: "/" },
+  openGraph: {
+    type: "website",
+    url: "/",
+    siteName: ru.app.name,
+    title: `${ru.app.name} — ${ru.app.tagline}`,
+    description: ru.app.heroSub,
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: `${ru.app.name} — ${ru.app.tagline}`,
+    description: ru.app.heroSub,
+  },
   manifest: "/manifest.webmanifest",
   appleWebApp: { capable: true, title: ru.app.name, statusBarStyle: "default" },
 };

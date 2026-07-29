@@ -1,3 +1,5 @@
+> SUPERSEDED_BY_BRAND_RENAME_2026-07-28. CURRENT_BRAND: RemHaos. Successor package: docs/canonical/remhaos-v1/. Historical content preserved for provenance.
+
 # ARCHIDOM — GLOSSARY v1
 
 | Термин | Значение | Не означает |

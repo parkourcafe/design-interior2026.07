@@ -28,6 +28,13 @@ const issuedLockSql = readFileSync(
   ),
   "utf8",
 );
+const completionSql = readFileSync(
+  join(
+    process.cwd(),
+    "supabase/migrations/20260728013000_complete_m1_governed_runtime.sql",
+  ),
+  "utf8",
+);
 const proposalIssuanceDefinitions = readdirSync(
   join(process.cwd(), "supabase/migrations"),
 )
@@ -64,6 +71,14 @@ describe("platform migration security contract", () => {
   it("has no anonymous policy for facts, workflows, approvals or AI calls", () => {
     expect(foundationSql).not.toMatch(/create policy[\s\S]{0,180}\bto anon\b/i);
     expect(hardeningSql).not.toMatch(/create policy[\s\S]{0,180}\bto anon\b/i);
+  });
+  it("restores ordinary service-role DML after the production baseline bridge", () => {
+    expect(completionSql).toMatch(
+      /grant\s+select\s*,\s*insert\s*,\s*update\s*,\s*delete\s+on\s+all\s+tables\s+in\s+schema\s+public\s+to\s+service_role/i,
+    );
+    expect(completionSql).not.toMatch(
+      /grant\s+(?:all|truncate|trigger|references)[\s\S]{0,120}\bservice_role\b/i,
+    );
   });
   it("keeps the membership helper private and enforces governed mutations", () => {
     expect(hardeningSql).toContain("create schema if not exists private");
@@ -137,6 +152,24 @@ describe("corrective workflow and proposal revision contract", () => {
     expect(correctiveSql.match(/auth\.uid\(\)\s+is\s+null/gi)?.length).toBeGreaterThanOrEqual(
       commands.length,
     );
+  });
+
+  it("retires every pre-metering risk retry command in the final additive migration", () => {
+    const retiredCommands: Array<[string, string]> = [
+      ["prepare_m1_risk_retry", "uuid"],
+      ["complete_m1_risk_retry", "uuid\\s*,\\s*uuid\\s*,\\s*jsonb"],
+      ["fail_m1_risk_retry", "uuid\\s*,\\s*uuid\\s*,\\s*jsonb"],
+      ["record_m1_risk_rerun", "uuid\\s*,\\s*uuid\\s*,\\s*jsonb"],
+    ];
+
+    for (const [command, signature] of retiredCommands) {
+      expect(completionSql).toMatch(
+        new RegExp(
+          `revoke\\s+all\\s+on\\s+function\\s+public\\.${command}\\(\\s*${signature}\\s*\\)\\s+from\\s+public\\s*,\\s*anon\\s*,\\s*authenticated`,
+          "i",
+        ),
+      );
+    }
   });
 
   it("stores immutable proposal revisions and binds proposal approvals to one revision", () => {

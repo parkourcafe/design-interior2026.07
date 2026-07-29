@@ -9,12 +9,14 @@ import { questionById } from "@/lib/brief/questions";
 import { isProfileComplete } from "@/lib/designer";
 import { getStudio } from "@/lib/studio";
 import { missingFields, firstMeetingQuestions, type RiskCardRow } from "@/lib/review";
+import { isProjectClientUploadPath } from "@/lib/storage/client-upload";
 import PassportView from "@/components/passport-view";
 import IntakeLink from "@/components/intake-link";
 import CopyTextButton from "@/components/copy-text-button";
 import ReviewCards from "./review";
 import CustomQuestions from "./custom-questions";
 import FactReview, { type FactView } from "./fact-review";
+import { completeHumanReviewAndOpenProposal } from "./actions";
 
 export const dynamic = "force-dynamic";
 
@@ -110,10 +112,19 @@ async function ReviewBoard({
   for (const row of (factRows ?? []) as FactView[]) {
     if (!latestByLocator.has(row.evidence_locator)) latestByLocator.set(row.evidence_locator, row);
   }
+  const currentFacts = [...latestByLocator.values()];
+  const allFactsReviewed = currentFacts.length > 0
+    && currentFacts.every((fact) =>
+      ["human_confirmed", "rejected"].includes(fact.status)
+    );
   const { data: workflowRow } = await supabase.from("workflow_runs")
     .select("id,status,current_step").eq("project_id", project.id)
     .eq("workflow_key", "client_intake_to_issued_proposal")
+    .eq("workflow_version", 1)
     .order("created_at", { ascending: false }).limit(1).maybeSingle();
+  const workflow = (
+    workflowRow as { id: string; status: string; current_step: string } | null
+  ) ?? null;
   const missing = missingFields(passport);
   const questions = firstMeetingQuestions(cards);
   const llmDegraded = cards.length > 0 && cards.every((c) => c.source === "rule");
@@ -174,6 +185,7 @@ async function ReviewBoard({
     const signed = await Promise.all(
       attachMeta.map(async (a) => {
         const path = a.path as string;
+        if (!isProjectClientUploadPath(path, project.id)) return null;
         const name = typeof a.name === "string" ? a.name : path.split("/").pop() ?? "файл";
         const { data } = await admin.storage.from("client-uploads").createSignedUrl(path, 3600);
         if (!data?.signedUrl) return null;
@@ -196,8 +208,8 @@ async function ReviewBoard({
       )}
 
       <FactReview
-        facts={[...latestByLocator.values()]}
-        workflow={(workflowRow as { id: string; status: string; current_step: string } | null) ?? null}
+        facts={currentFacts}
+        workflow={workflow}
       />
 
       <section>
@@ -306,9 +318,35 @@ async function ReviewBoard({
       </div>
 
       <div>
-        <Link href={`/dashboard/projects/${project.id}/proposal`} className="btn-primary">
-          {ru.review.buildProposal}
-        </Link>
+        {workflow ? (
+          <form
+            action={completeHumanReviewAndOpenProposal.bind(
+              null,
+              project.id,
+              workflow.id,
+            )}
+          >
+            <button
+              type="submit"
+              className="btn-primary"
+              disabled={
+                workflow.status !== "waiting_for_human"
+                || workflow.current_step !== "human_review"
+                || cards.some((card) => card.status === "proposed")
+                || !allFactsReviewed
+              }
+            >
+              {ru.review.buildProposal}
+            </button>
+          </form>
+        ) : (
+          <Link
+            href={`/dashboard/projects/${project.id}/proposal`}
+            className="btn-primary inline-flex"
+          >
+            {ru.review.buildProposal}
+          </Link>
+        )}
       </div>
     </div>
   );

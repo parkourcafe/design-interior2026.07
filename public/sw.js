@@ -1,6 +1,6 @@
 // Минимальный service worker: делает приложение устанавливаемым (PWA) и даёт
 // простой офлайн-кэш оболочки. Без сторонних библиотек.
-const CACHE = "arhidom-v2";
+const CACHE = "remhaos-v1";
 const SHELL = ["/", "/login"];
 
 self.addEventListener("install", (event) => {

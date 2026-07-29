@@ -1,3 +1,5 @@
+> SUPERSEDED_BY_BRAND_RENAME_2026-07-28. CURRENT_BRAND: RemHaos. Successor package: docs/canonical/remhaos-v1/. Historical content preserved for provenance.
+
 # ARCHIDOM — EXECUTION BRIEF SPRINT 1: PLATFORM FOUNDATION + M1 VERTICAL WORKFLOW
 
 **Версия:** 1.0  

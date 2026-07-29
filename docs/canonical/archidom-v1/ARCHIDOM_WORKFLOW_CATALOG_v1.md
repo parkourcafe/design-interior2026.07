@@ -1,3 +1,5 @@
+> SUPERSEDED_BY_BRAND_RENAME_2026-07-28. CURRENT_BRAND: RemHaos. Successor package: docs/canonical/remhaos-v1/. Historical content preserved for provenance.
+
 # ARCHIDOM — WORKFLOW CATALOG v1
 
 ## WF-M1-001 · Client Intake to Issued Proposal

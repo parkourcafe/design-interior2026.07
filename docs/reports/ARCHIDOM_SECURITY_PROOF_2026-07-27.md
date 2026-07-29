@@ -1,5 +1,12 @@
 # ArchiDom Security Proof — 27.07.2026
 
+> **Superseded current-state note (28.07.2026).** The statement below that
+> terminal AI commands are authenticated-member RPCs is historical. Current
+> initial and risk terminal RPCs are `service_role`-only, approved project
+> decisions are exact-digest/immutable, and `zai` has been removed. The old
+> disposable proof branch was deleted and does not prove the pending final
+> migration digest. Use `ARCHIDOM_SECURITY_REPORT.md`.
+
 ## Implemented proof
 
 - RLS enabled for every new project/studio table.

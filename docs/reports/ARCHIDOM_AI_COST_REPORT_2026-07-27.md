@@ -1,5 +1,12 @@
 # ArchiDom AI Cost Report — 27.07.2026
 
+> **Historical dataset note (28.07.2026).** The three-call totals below are
+> retained only as evidence from the earlier disposable package, whose branch
+> has been deleted. They are not current-package or production totals. Current
+> initial/risk terminalization is `service_role`-only and stale initial
+> reservations receive 10-minute opportunistic recovery. Use
+> `ARCHIDOM_AI_COST_REPORT.md`; final totals there remain `PENDING`.
+
 ## Instrumentation
 
 Every actual call through `completeJSON` now measures provider, model, estimated

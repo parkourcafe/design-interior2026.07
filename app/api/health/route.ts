@@ -4,13 +4,12 @@ export const dynamic = "force-dynamic";
 
 // Healthcheck: не бьёт по сети, только сообщает, какие подсистемы сконфигурированы.
 export function GET() {
-  const provider = process.env.LLM_PROVIDER ?? "yandex";
+  const provider =
+    process.env.LLM_PROVIDER === "gigachat" ? "gigachat" : "yandex";
   const llmConfigured =
-    provider === "zai"
-      ? Boolean(process.env.ZAI_API_KEY)
-      : provider === "gigachat"
-        ? Boolean(process.env.GIGACHAT_AUTH_KEY)
-        : Boolean(process.env.YC_FOLDER_ID && process.env.YC_API_KEY);
+    provider === "gigachat"
+      ? Boolean(process.env.GIGACHAT_AUTH_KEY)
+      : Boolean(process.env.YC_FOLDER_ID && process.env.YC_API_KEY);
 
   const env = {
     supabase: Boolean(

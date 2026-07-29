@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { runRiskPipeline } from "@/lib/brief/pipeline";
@@ -36,6 +37,24 @@ export async function setCardStatus(cardId: string, status: RiskStatus): Promise
   return { ok: !error };
 }
 
+export async function completeHumanReviewAndOpenProposal(
+  projectId: string,
+  workflowRunId: string,
+): Promise<void> {
+  const supabase = await createClient();
+  const { error } = await supabase.rpc("complete_m1_human_review", {
+    p_project_id: projectId,
+    p_workflow_run_id: workflowRunId,
+  });
+
+  if (error) {
+    throw new Error("Не удалось завершить проверку проекта.");
+  }
+
+  revalidatePath(`/dashboard/projects/${projectId}`);
+  redirect(`/dashboard/projects/${projectId}/proposal`);
+}
+
 // Пересобрать карточки (AI): перечитать ответы, прогнать пайплайн, заменить.
 export async function rerunRisks(
   projectId: string,
@@ -65,9 +84,8 @@ export async function rerunRisks(
   if (runError || !run) return { ok: false, llmOk: false };
   const runId = (run as { id: string }).id;
   const configuredProvider = process.env.LLM_PROVIDER;
-  const reservationProvider = configuredProvider === "gigachat" || configuredProvider === "zai"
-    ? configuredProvider
-    : "yandex";
+  const reservationProvider =
+    configuredProvider === "gigachat" ? "gigachat" : "yandex";
 
   const { data: reservation, error: reservationError } = await supabase.rpc(
     "reserve_m1_risk_rerun",
@@ -87,13 +105,13 @@ export async function rerunRisks(
     ai_call_id: string;
   };
   if (!reservedStepId || !reservedAiCallId) return { ok: false, llmOk: false };
+  const terminalClient = createAdminClient();
 
   let pipelineResult: Awaited<ReturnType<typeof runRiskPipeline>>;
   try {
     pipelineResult = await runRiskPipeline(answers);
-  } catch (error) {
-    const message = error instanceof Error ? error.message : "risk_pipeline_failed";
-    const { error: closeError } = await supabase.rpc("close_m1_risk_ai_reservation", {
+  } catch {
+    const { error: closeError } = await terminalClient.rpc("close_m1_risk_ai_reservation", {
       p_workflow_step_run_id: reservedStepId,
       p_ai_call_id: reservedAiCallId,
       p_provider_completed: false,
@@ -105,7 +123,7 @@ export async function rerunRisks(
       p_provider_cost_estimate: 0,
       p_estimate_source: "static_table",
       p_outcome: "provider_error",
-      p_error: { phase: "pipeline", message },
+      p_error: { code: "risk_pipeline_failed" },
     });
     return {
       ok: false,
@@ -127,17 +145,17 @@ export async function rerunRisks(
     p_estimate_source: llmUsage.estimateSource,
     p_outcome: llmUsage.outcome,
   };
-  const { error: usageError } = await supabase.rpc(
+  const { error: usageError } = await terminalClient.rpc(
     "record_m1_risk_ai_usage",
     usagePayload,
   );
   if (usageError) {
-    const { error: closeError } = await supabase.rpc(
+    const { error: closeError } = await terminalClient.rpc(
       "close_m1_risk_ai_reservation",
       {
         ...usagePayload,
         p_provider_completed: true,
-        p_error: { phase: "usage", message: usageError.message },
+        p_error: { code: "risk_usage_persist_failed" },
       },
     );
     return {
@@ -185,12 +203,12 @@ export async function rerunRisks(
     p_estimate_source: llmUsage.estimateSource,
     p_outcome: llmUsage.outcome,
   };
-  const { error: finalizeError } = await supabase.rpc(
+  const { error: finalizeError } = await terminalClient.rpc(
     "finalize_m1_risk_rerun",
     finalizePayload
   );
   if (finalizeError) {
-    const { error: closeError } = await supabase.rpc("close_m1_risk_ai_reservation", {
+    const { error: closeError } = await terminalClient.rpc("close_m1_risk_ai_reservation", {
       p_workflow_step_run_id: reservedStepId,
       p_ai_call_id: reservedAiCallId,
       p_provider_completed: true,
@@ -202,7 +220,7 @@ export async function rerunRisks(
       p_provider_cost_estimate: llmUsage.providerCostEstimate,
       p_estimate_source: llmUsage.estimateSource,
       p_outcome: llmUsage.outcome,
-      p_error: { phase: "finalize", message: finalizeError.message },
+      p_error: { code: "risk_finalize_failed" },
     });
     return {
       ok: false,
@@ -220,41 +238,23 @@ export async function reviewProjectFact(
   status: "human_confirmed" | "rejected",
 ): Promise<{ ok: boolean }> {
   const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return { ok: false };
-  const { data: fact } = await supabase.from("project_facts")
-    .select("id,project_id,fact_type,value,source_id,evidence_locator,confidence,version")
-    .eq("id", factId).maybeSingle();
-  if (!fact) return { ok: false };
-  const current = fact as {
-    id: string; project_id: string; fact_type: string; value: unknown; source_id: string;
-    evidence_locator: string; confidence: number | null; version: number;
-  };
-  const { error } = await supabase.from("project_facts").insert({
-    project_id: current.project_id,
-    fact_type: current.fact_type,
-    value: current.value,
-    source_id: current.source_id,
-    evidence_locator: current.evidence_locator,
-    status,
-    confidence: current.confidence,
-    created_by_type: "human",
-    created_by_id: user.id,
-    version: current.version + 1,
-    supersedes_id: current.id,
-  });
-  if (error) return { ok: false };
-  const admin = createAdminClient();
-  await admin.from("audit_events").insert({
-    project_id: current.project_id,
-    actor_id: user.id,
-    actor_type: "human",
-    event_type: status === "human_confirmed" ? "fact_confirmed" : "fact_rejected",
-    entity_type: "ProjectFact",
-    entity_id: current.id,
-    payload: { evidence_locator: current.evidence_locator },
-  });
-  revalidatePath(`/dashboard/projects/${current.project_id}`);
+  const { data: reviewedFactId, error } = await supabase.rpc(
+    "review_project_fact",
+    {
+      p_fact_id: factId,
+      p_status: status,
+    },
+  );
+  if (error || !reviewedFactId) return { ok: false };
+
+  const { data: reviewedFact } = await supabase
+    .from("project_facts")
+    .select("project_id")
+    .eq("id", reviewedFactId)
+    .maybeSingle();
+  if (!reviewedFact) return { ok: false };
+  const projectId = (reviewedFact as { project_id: string }).project_id;
+  revalidatePath(`/dashboard/projects/${projectId}`);
   return { ok: true };
 }
 
@@ -307,9 +307,8 @@ export async function retryWorkflow(
   }
 
   const configuredProvider = process.env.LLM_PROVIDER;
-  const reservationProvider = configuredProvider === "gigachat" || configuredProvider === "zai"
-    ? configuredProvider
-    : "yandex";
+  const reservationProvider =
+    configuredProvider === "gigachat" ? "gigachat" : "yandex";
   const { data: retryStep, error: prepareError } = await supabase.rpc(
     "reserve_m1_risk_retry",
     {
@@ -329,7 +328,7 @@ export async function retryWorkflow(
       .limit(1)
       .maybeSingle();
     if (concurrent) return { ok: true, attempt: Number((concurrent as { attempt: number }).attempt) };
-    return { ok: false, error: prepareError?.message ?? "retry_step_prepare_failed" };
+    return { ok: false, error: "retry_step_prepare_failed" };
   }
 
   const prepared = Array.isArray(retryStep) ? retryStep[0] : retryStep;
@@ -339,20 +338,24 @@ export async function retryWorkflow(
   if (!stepId || !aiCallId) {
     return { ok: false, error: "retry_reservation_invalid" };
   }
+  const terminalClient = createAdminClient();
 
   let pipelineResult: Awaited<ReturnType<typeof runRiskPipeline>> | null = null;
+  let failureCode = "risk_retry_failed";
   try {
+    failureCode = "risk_answers_load_failed";
     const { data: answerRows, error: answersError } = await supabase
       .from("answers")
       .select("question_id,value")
       .eq("project_id", current.project_id);
-    if (answersError) throw new Error(answersError.message);
+    if (answersError) throw new Error(failureCode);
     const answers: AnswersMap = {};
     for (const row of answerRows ?? []) {
       answers[(row as { question_id: string }).question_id] =
         (row as { value: unknown }).value as never;
     }
 
+    failureCode = "risk_pipeline_failed";
     pipelineResult = await runRiskPipeline(answers);
     const { passport, cards, llmOk, llmUsage } = pipelineResult;
     const usagePayload = {
@@ -367,12 +370,14 @@ export async function retryWorkflow(
       p_estimate_source: llmUsage.estimateSource,
       p_outcome: llmUsage.outcome,
     };
-    const { error: usageError } = await supabase.rpc(
+    failureCode = "risk_usage_persist_failed";
+    const { error: usageError } = await terminalClient.rpc(
       "record_m1_risk_ai_usage",
       usagePayload,
     );
-    if (usageError) throw new Error(`usage_persist_failed: ${usageError.message}`);
-    const { error: completeError } = await supabase.rpc("finalize_m1_risk_rerun", {
+    if (usageError) throw new Error(failureCode);
+    failureCode = "risk_finalize_failed";
+    const { error: completeError } = await terminalClient.rpc("finalize_m1_risk_rerun", {
       p_workflow_step_run_id: stepId,
       p_ai_call_id: aiCallId,
       p_passport: passport,
@@ -391,13 +396,12 @@ export async function retryWorkflow(
       p_estimate_source: llmUsage.estimateSource,
       p_outcome: llmUsage.outcome,
     });
-    if (completeError) throw new Error(completeError.message);
+    if (completeError) throw new Error(failureCode);
     revalidatePath(`/dashboard/projects/${current.project_id}`);
     return { ok: true, attempt: preparedAttempt };
-  } catch (error) {
-    const message = error instanceof Error ? error.message : "retry_failed";
+  } catch {
     const usage = pipelineResult?.llmUsage;
-    const { error: closeError } = await supabase.rpc("close_m1_risk_ai_reservation", {
+    const { error: closeError } = await terminalClient.rpc("close_m1_risk_ai_reservation", {
       p_workflow_step_run_id: stepId,
       p_ai_call_id: aiCallId,
       p_provider_completed: Boolean(usage),
@@ -409,13 +413,13 @@ export async function retryWorkflow(
       p_provider_cost_estimate: usage?.providerCostEstimate ?? 0,
       p_estimate_source: usage?.estimateSource ?? "static_table",
       p_outcome: usage?.outcome ?? "provider_error",
-      p_error: { step: plan.stepKey, attempt: preparedAttempt, message },
+      p_error: { code: failureCode },
     });
     revalidatePath(`/dashboard/projects/${current.project_id}`);
     return {
       ok: false,
       attempt: preparedAttempt,
-      error: closeError ? `terminalization_failed: ${message}` : message,
+      error: closeError ? "reservation_terminalization_failed" : failureCode,
     };
   }
 }
