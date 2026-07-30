@@ -6,10 +6,40 @@
   color-scheme: light;
 }
 
+html {
+  scroll-padding-top: 6rem;
+}
+
 body {
   @apply bg-paper text-ink font-sans;
   font-feature-settings: "liga" 1, "kern" 1;
+  font-size: 16px;
+  line-height: 1.55;
   text-rendering: optimizeLegibility;
+}
+
+html body :where(
+  p:not([class*="uppercase"])[class*="text-[10"],
+  p:not([class*="uppercase"])[class*="text-[11"],
+  p:not([class*="uppercase"])[class*="text-[12"],
+  p:not([class*="uppercase"])[class*="text-[13"],
+  p:not([class*="uppercase"])[class*="text-[14"],
+  p:not([class*="uppercase"])[class~="text-xs"],
+  p:not([class*="uppercase"])[class~="text-sm"],
+  li[class*="text-[10"],
+  li[class*="text-[11"],
+  li[class*="text-[12"],
+  li[class*="text-[13"],
+  li[class*="text-[14"],
+  li[class~="text-xs"],
+  li[class~="text-sm"]
+) {
+  font-size: 18px !important;
+}
+
+:where(a, button, input, textarea, select):focus-visible {
+  outline: 3px solid rgba(156, 74, 40, 0.42);
+  outline-offset: 3px;
 }
 
 /* Заголовки-серифом (Cormorant Garamond). */
@@ -19,7 +49,7 @@ body {
 
 @layer components {
   .btn {
-    @apply inline-flex min-h-11 items-center justify-center rounded-md px-4 py-2.5 text-sm font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed;
+    @apply inline-flex min-h-11 items-center justify-center rounded-md px-4 py-2.5 text-[15px] font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed;
   }
   .btn-primary {
     @apply btn bg-accent text-white hover:bg-accent/90;
@@ -35,7 +65,7 @@ body {
     @apply w-full rounded-md border border-line bg-white px-3 py-2.5 text-base outline-none focus:border-accent;
   }
   .label {
-    @apply block text-sm font-medium text-ink mb-1;
+    @apply block text-[15px] font-medium text-ink mb-1;
   }
 }
 
@@ -52,6 +82,26 @@ body {
   /* Светлый текст на тёмном: сглаживание убирает «жирность» засечек. */
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+}
+
+/* Старые художественные opacity-модификаторы были слишком бледными для body copy. */
+.landing :where(
+  [class*="text-ivory/55"],
+  [class*="text-ivory/60"],
+  [class*="text-ivory/65"]
+) {
+  color: rgba(236, 228, 212, 0.8);
+}
+
+.landing :where(
+  [class*="text-ivory/70"],
+  [class*="text-ivory/75"]
+) {
+  color: rgba(236, 228, 212, 0.84);
+}
+
+.landing :where(a, button, input, textarea, select):focus-visible {
+  outline-color: rgba(236, 228, 212, 0.72);
 }
 
 .landing ::selection {
@@ -90,14 +140,30 @@ body {
 
 /* Кнопки лендинга. */
 .btn-bronze {
-  @apply inline-flex min-h-12 items-center justify-center gap-2 rounded-lg px-6 py-3 text-[15px] font-medium transition-all;
-  background: linear-gradient(160deg, #c08b5c, #8f6039);
+  @apply relative inline-flex min-h-12 items-center justify-center gap-2 overflow-hidden rounded-xl px-6 py-3 text-[16px] font-semibold transition-all duration-300;
+  background:
+    linear-gradient(180deg, rgba(255, 239, 219, 0.2), transparent 42%),
+    linear-gradient(135deg, #d6a16f 0%, #b97847 52%, #8f5934 100%);
   color: #14110d;
-  box-shadow: 0 12px 32px -12px rgba(192, 139, 92, 0.5);
+  border: 1px solid rgba(255, 225, 195, 0.24);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 245, 232, 0.3),
+    0 14px 34px -14px rgba(192, 139, 92, 0.72),
+    0 4px 12px -6px rgba(0, 0, 0, 0.65);
 }
 .btn-bronze:hover {
-  filter: brightness(1.08);
-  box-shadow: 0 16px 40px -12px rgba(192, 139, 92, 0.65);
+  filter: brightness(1.08) saturate(1.05);
+  transform: translateY(-2px);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 245, 232, 0.38),
+    0 18px 42px -14px rgba(192, 139, 92, 0.82),
+    0 6px 16px -7px rgba(0, 0, 0, 0.7);
+}
+.btn-bronze:active {
+  transform: translateY(0);
+  box-shadow:
+    inset 0 1px 2px rgba(74, 39, 17, 0.28),
+    0 8px 22px -12px rgba(192, 139, 92, 0.65);
 }
 .btn-dark-ghost {
   @apply inline-flex min-h-12 items-center justify-center gap-2 rounded-lg border px-6 py-3 text-[15px] font-medium transition-colors;

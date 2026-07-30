@@ -1,45 +1,173 @@
-# PHASE 1 — Brief Engine. Отчёт
+# PHASE 1 / MODULE 1 — Final QA Report
 
-## Что сделано
+Дата: 2026-07-10.
 
-- **Создание проекта → intake-ссылка.** Кабинет `/dashboard`: форма нового проекта (server action `createProject`) генерирует уникальный `intake_token`, пишет событие `intake_link_created`, редиректит на страницу проекта, где показана ссылка `/i/[token]` с кнопкой «скопировать».
-- **Публичный intake без регистрации** `/i/[token]`: мастер из `lib/brief/questions.ts` (10 содержательных вопросов + ветка `cooking_people` + опц. `attachments`), ветвление через `show_if`/`visibleQuestions`, прогресс-бар, поведенческий тон вопросов (JTBD).
-- **Server routes со сверкой токена** (service role): `POST /api/intake/start` (событие `brief_started`, статус `brief_in_progress`), `POST /api/intake/submit` (сохранение answers, полный проход, статус `brief_completed`, событие `brief_completed`), `POST /api/intake/upload` (загрузка плана/фото в Storage — только хранение, метаданные в `answers.attachments`).
-- **`buildPassport(answers)`** (`lib/brief/passport.ts`) — детерминированное отображение ответов в shadow-паспорт (тип объекта, площадь, горизонт актива, домохозяйство, lifestyle, бюджетный уровень по ₽/м², сроки, стиль, pain points). Покрыт unit-тестами.
-- **Гибрид выявления рисков:**
-  - Слой 1 — детерминированные правила `lib/risks/rules.ts` (5 правил из CLAUDE.md, `confidence='high'`, `source='rule'`).
-  - Слой 2 — LLM-проход `lib/risks/llm.ts`: один серверный вызов, строгий JSON по Zod-схеме, тон «Возможный риск… Рекомендуем обсудить…».
-  - Дедупликация `lib/risks/dedupe.ts` (rule-карточки авторитетнее, Unicode-aware сравнение словоформ).
-  - Оркестрация `lib/brief/pipeline.ts` с **обязательной деградацией**: LLM недоступен/вернул мусор → только rule-карточки, UX не падает.
+Статус: **M1 engineering-ready для пилотной проверки** в границах pre-sale контура:
 
-## Тесты (все зелёные, 43 шт.)
+**Brief -> Passport -> Risks -> Review Board -> Pricing -> Proposal**.
 
-- `buildPassport` — профили, бюджетные уровни, ветки хранения/санузлов.
-- Правила рисков — все 5 правил + бесконфликтный бриф → `[]`.
-- Логика ветвления вопросов (`visibleQuestions`).
-- Парсер LLM-ответа на фикстурах (без сетевых вызовов): валидный/пустой/битый JSON.
-- Дедупликация карточек.
+Важно: текущая рабочая копия содержит незакоммиченные изменения будущих контуров `project-room` / `concept-pack`. Они не входят в M1 и не были частью QA-вывода M1. M1-проверки ниже прогнаны на текущей рабочей копии и проходят.
 
-**Все LLM-тесты — на фикстурах, без сети** (архитектурное требование соблюдено).
+## Что входит в готовый M1
 
-## Mini-eval
+- Создание pre-sale проекта дизайнером и публичной intake-ссылки `/i/[token]`.
+- Designer Brief Builder: стандартный бриф уже включён автоматически, дизайнер может добавить свои структурированные вопросы вручную, пресетом, текстом или голосом.
+- AI Brief Pack: дизайнер описывает задачу проекта, площадь/локацию и при необходимости прикладывает план; система через существующий LLM-provider собирает дополнительные вопросы для клиента, а при недоступном LLM возвращает детерминированный fallback.
+- Public brief без регистрации клиента, с ветвлением и локальным draft autosave.
+- Сохранение `answers`, загрузка файлов как metadata-only, без анализа изображений.
+- Детерминированный `buildPassport(answers)` без LLM-вызова.
+- Risk pipeline: deterministic rules + один LLM-pass через provider abstraction + fallback к rule cards.
+- Review Board: паспорт, ответы, файлы, risk cards, accept/reject и редактирование risk card текстов.
+- Pricing: deterministic `calcPrice()` с прозрачными factors.
+- Deterministic Package Recommendation:
+  - `derivePackageRecommendation(...)`;
+  - fallback вместо `null`;
+  - reason codes / confidence / included service items / pricing explanation;
+  - accepted risks могут усиливать recommendation;
+  - rejected risks не усиливают публичное КП.
+- Proposal:
+  - детерминированная сборка секций;
+  - редактируемые секции;
+  - отдельная секция рекомендованного формата работы;
+  - price section объясняет выбранный формат;
+  - accepted `proposal_implication` попадает в КП;
+  - public proposal link `/p/[public_token]`;
+  - printable HTML вместо PDF-библиотеки.
 
-`eval/phase1_results.md` — 9 фикстурных брифов разных профилей (бюджетный конфликт, срочность + индивидуальная мебель, минимализм + высокое хранение, продажа + кастомизация, высокая утренняя нагрузка, полностью бесконфликтный, аренда + дорогая отделка, семья с детьми, премиум-бюджет). Сгенерировано скриптом `eval/run-eval.ts`.
+## Автоматические проверки
 
-> **Важно для оценки руками:** в среде разработки нет реальных YC-ключей, поэтому eval прогнан через **rules-слой** (полный `runRiskPipeline` детерминированно деградирует к нему). Пары «бриф → rule-карточки» показывают детерминированную половину. Чтобы оценить **качество LLM-карточек** (семантические конфликты стиля/функции) на реальном провайдере — задайте `YC_FOLDER_ID`/`YC_API_KEY` и перезапустите `eval/run-eval.ts`, заменив `evaluateRules` на `runRiskPipeline` (пометка в шапке скрипта). Это и есть контрольная точка для «продолжай».
+Прогнано на текущей рабочей копии:
 
-## Как проверить руками за 5 минут
+```bash
+npm run test
+npm run typecheck
+npm run lint
+npm run build
+```
 
-1. `npm run test` — 43 теста зелёные.
-2. `npx tsx eval/run-eval.ts` — перегенерирует `eval/phase1_results.md`; прочитать пары бриф→карточки.
-3. С реальными env: `/dashboard` → создать проект → скопировать intake-ссылку → в приватном окне пройти бриф `/i/[token]` → вернуться на страницу проекта: появятся паспорт и карточки рисков.
+Результат:
 
-## Известные ограничения
+- `npm run test` — зелёный, 16 test files / 85 tests.
+- `npm run typecheck` — зелёный.
+- `npm run lint` — зелёный.
+- `npm run build` — зелёный, production build собран.
 
-- Без реальных YC-ключей LLM-слой не отрабатывает — показываются rule-карточки (это штатная деградация, а не сбой).
-- Бюджетные пороги ₽/м² (20k/50k) — грубый ориентир v0.1, калибруются по рыночным данным позже (BACKLOG: Market Calibration).
-- Загрузка файлов — только хранение, без анализа изображений (guardrail).
+## Ручной QA сценарий M1
 
-## Вопросы
+Так как локального `.env` с Supabase/YandexGPT ключами в репозитории нет, браузерный DB-backed проход `/dashboard -> /i/[token] -> /p/[token]` не выполнялся как полноценная ручная сессия. Вместо этого проведён сценарный QA на тех же доменных функциях, которые использует M1 runtime:
 
-- Пороги бюджетных уровней (эконом/средний/премиум по ₽/м²) — оставить эвристику v0.1 или подстроить под конкретный регион пилота?
+1. Сформирован валидный бриф сложного проекта:
+   - квартира 72 м²;
+   - для себя надолго;
+   - высокий утренний сценарий, один санузел;
+   - heavy cooking;
+   - высокая нагрузка на хранение;
+   - бюджет с мебелью;
+   - urgent timeline;
+   - минимализм, натуральный камень, мебель на заказ;
+   - комплектация/закупки и удалённые согласования;
+   - балкон как технически чувствительное решение.
+2. `buildPassport(answers)` собрал shadow passport.
+3. `evaluateRules(passport, answers)` сгенерировал rule risk cards.
+4. Risk cards вручную разложены на accepted/rejected.
+5. Один accepted risk был отредактирован через `proposal_implication`.
+6. `derivePackageRecommendation(...)` построила пакет и объяснение.
+7. `calcPrice(...)` рассчитал price factors.
+8. `buildProposalSections(...)` собрал КП.
+9. Отдельно проверен fallback для недостаточных данных.
+10. Отдельно проверено, что rejected technical risk не усиливает recommendation.
+
+Фактический результат сценария:
+
+```json
+{
+  "passportPackage": "full_plus_supervision",
+  "ruleCards": {
+    "count": 6,
+    "types": ["budget", "timeline", "function", "function", "budget", "technical"]
+  },
+  "reviewBoardStatuses": {
+    "accepted": 2,
+    "rejected": 4
+  },
+  "recommendation": {
+    "key": "full_plus_supervision",
+    "label": "Полный дизайн-проект + сопровождение",
+    "confidence": "high",
+    "reasonCodes": [
+      "tight_budget",
+      "multiple_zones",
+      "working_docs_needed",
+      "furniture_or_equipment_scope",
+      "urgent_timeline",
+      "custom_or_complex_scope",
+      "implementation_sensitive"
+    ]
+  },
+  "proposal": {
+    "sectionIds": [
+      "task",
+      "package",
+      "works",
+      "stages",
+      "price",
+      "included",
+      "excluded",
+      "revisions",
+      "client_inputs",
+      "stage_completion"
+    ],
+    "packageSectionHasLabel": true,
+    "priceExplainsRecommendation": true,
+    "includedUsesEditedRiskText": true
+  },
+  "fallback": {
+    "package": "concept",
+    "recommendation": "concept",
+    "confidence": "low"
+  },
+  "rejectedRiskIgnored": {
+    "package": "full",
+    "hasTechnicalReason": false
+  }
+}
+```
+
+QA conclusion:
+
+- `scope.package` больше не остаётся `null` в проверенных сценариях.
+- Рекомендация пакета детерминированная.
+- КП использует recommendation.
+- Pricing explanation объясняет выбранный формат.
+- Accepted edited risk попадает в КП.
+- Rejected risk не усиливает публичное КП.
+- Новых LLM calls для package recommendation нет.
+
+## Известные ограничения M1
+
+- Полный browser QA с реальной Supabase-сессией требует заполненный `.env`: `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`, `YC_FOLDER_ID`, `YC_API_KEY`.
+- Без реальных Yandex/GigaChat ключей LLM-risk layer штатно деградирует к rule cards.
+- Proposal versioning всё ещё минимальное: схема поддерживает `version`, но продуктовый workflow version 2 не закрыт.
+- PassportFact / explainability rows не выделены как отдельная структура; паспорт читается как агрегированный объект.
+- Brief сейчас шире исходных “10 вопросов” из MVP-описания; для пилота нужно следить за конверсией quick/deep.
+- Голосовое добавление вопросов использует browser Speech Recognition: если браузер его не поддерживает, дизайнер вводит фразу текстом.
+- Структурирование фразы и AI Brief Pack идут через существующий LLM-provider; при недоступном LLM вопрос или набор вопросов добавляется безопасным fallback.
+- Загруженный дизайнером план в AI Brief Pack сохраняется как файл/метаданные для контекста. Автоматического анализа чертежей, изображений или PDF в M1 нет.
+- Project Room и Concept Pack в текущей рабочей копии относятся к будущим модулям и не должны считаться частью M1 acceptance.
+
+## Что требуется от пользователя для пилота
+
+- Дать реальные Supabase/Yandex env для browser QA и демо-сценария.
+- Принять или отложить незакоммиченные Module 2/3 изменения, чтобы M1 baseline был чистым.
+- Подтвердить 2-3 пилотных дизайнеров для WTP-интервью.
+- Подтвердить SMTP/домен отправки, если КП и ссылки будут отправляться письмом, а не вручную.
+
+## Решение по фазе
+
+M1 можно считать готовым к **пилотной продуктовой проверке**, но не к масштабированию.
+
+Следующий корректный шаг — не расширять код в Module 2/3, а пройти:
+
+- **WTP-интервью**: проверка готовности дизайнеров платить за pre-sale контур.
+- **SMTP/доставка**: проверка, что ссылки на бриф и КП стабильно доходят клиентам.
+- **Ручной browser QA на реальном env**: один проект от создания до отправленного КП.

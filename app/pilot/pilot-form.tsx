@@ -97,7 +97,7 @@ export default function PilotForm() {
   }
 
   return (
-    <form onSubmit={submit} className="glass-strong p-8">
+    <form method="post" onSubmit={submit} className="glass-strong p-8">
       <h3 className="font-display text-[26px] font-semibold text-ivory">{p.formTitle}</h3>
       <p className="mt-2 text-[14px] text-ivory/65">{p.formSub}</p>
 
@@ -115,6 +115,7 @@ export default function PilotForm() {
               {isArea ? (
                 <textarea
                   id={id}
+                  name={k}
                   value={values[k]}
                   onChange={(e) => setValues({ ...values, [k]: e.target.value })}
                   placeholder={k === "tools" ? p.fields.toolsPlaceholder : undefined}
@@ -123,6 +124,7 @@ export default function PilotForm() {
               ) : (
                 <input
                   id={id}
+                  name={k}
                   type={k === "email" ? "email" : "text"}
                   required={required}
                   value={values[k]}
@@ -161,6 +163,10 @@ export default function PilotForm() {
           })}
         </div>
       </fieldset>
+
+      {interests.map((interest) => (
+        <input key={interest} type="hidden" name="interests" value={interest} />
+      ))}
 
       <button type="submit" disabled={state === "sending"} className="btn-bronze mt-7 w-full sm:w-auto">
         {state === "sending" ? p.submitting : p.submit}

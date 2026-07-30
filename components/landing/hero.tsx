@@ -22,7 +22,7 @@ export default function Hero() {
   }, []);
 
   return (
-    <section className="landing relative flex min-h-[100svh] flex-col justify-end overflow-hidden">
+    <section className="landing relative flex min-h-[100svh] flex-col justify-end overflow-hidden lg:justify-center">
       {/* Фон: постер всегда, видео поверх (reduced motion прячет видео CSS-ом). */}
       <div className="absolute inset-0">
         {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -66,42 +66,66 @@ export default function Hero() {
         ))}
       </div>
 
-      <div className="relative mx-auto grid w-full max-w-[1280px] items-end gap-12 px-5 pb-16 pt-36 md:px-8 lg:grid-cols-[1.05fr_0.95fr] lg:pb-20">
+      <div className="relative mx-auto grid w-full max-w-[1280px] items-center gap-12 px-5 pb-16 pt-36 md:px-8 lg:grid-cols-[minmax(0,1fr)_minmax(420px,0.9fr)] lg:pb-12 lg:pt-28">
         {/* Текст */}
-        <div className={ready ? "is-in" : ""}>
-          <p className="cine mb-5 text-[12px] uppercase tracking-[0.24em] text-bronze" style={delay(0)}>
+        <div className={`${ready ? "is-in" : ""} lg:-translate-y-12`}>
+          <p
+            className="cine mb-5 w-fit border-l-2 border-bronze bg-gradient-to-r from-bronze/10 to-transparent py-1.5 pl-4 pr-8 text-[18px] font-medium tracking-[0.04em] text-ivory lg:translate-x-3"
+            style={delay(0)}
+          >
             {h.eyebrow}
           </p>
           <h1
-            className="cine font-display max-w-[17ch] text-[clamp(38px,5.6vw,72px)] font-semibold leading-[1.02] tracking-[-0.01em] text-ivory"
+            className="cine font-display max-w-[17ch] text-[clamp(62px,8.6vw,112px)] font-semibold leading-[0.88] tracking-[-0.035em] text-ivory"
             style={delay(1)}
           >
             {h.h1}
           </h1>
-          <p className="cine mt-6 max-w-[54ch] text-[clamp(15.5px,1.6vw,18px)] leading-relaxed text-ivory/75" style={delay(2)}>
+          <p
+            className="cine mt-4 max-w-[22ch] font-display text-[clamp(26px,2.6vw,36px)] font-semibold leading-[1.1] text-ivory lg:ml-10"
+            style={delay(2)}
+          >
+            {h.positioning}
+          </p>
+          <p className="cine mt-6 max-w-[52ch] text-[18px] leading-relaxed text-ivory/84 lg:ml-5" style={delay(3)}>
             {h.sub}
           </p>
-          <div className="cine mt-9 flex flex-wrap items-center gap-3" style={delay(3)}>
-            <Link href="/demo/brief" className="btn-bronze">
+          <div
+            className="cine mt-6 inline-flex items-center gap-3 rounded-lg border border-bronze/45 bg-coal2/80 px-5 py-3 text-[18px] font-semibold tracking-[0.02em] text-ivory shadow-[0_16px_36px_-22px_rgba(192,139,92,0.9)] backdrop-blur lg:ml-10"
+            style={delay(4)}
+          >
+            <span className="h-2 w-2 rounded-full bg-bronze shadow-[0_0_16px_rgba(192,139,92,0.85)]" aria-hidden />
+            {h.promise}
+          </div>
+          <p className="cine mt-4 max-w-[54ch] border-l border-bronze/45 pl-4 text-[16px] leading-relaxed text-ivory/80 lg:ml-5" style={delay(5)}>
+            {h.boundary}
+          </p>
+          <div className="cine mt-8 flex flex-wrap items-center gap-3 lg:ml-5" style={delay(5)}>
+            <Link href="/demo" className="btn-bronze">
               {h.cta1} <span aria-hidden>→</span>
             </Link>
-            <Link href="/login" className="btn-dark-ghost">
+            <Link href="/designers" className="inline-flex min-h-12 items-center px-3 text-[16px] text-ivorymuted underline-offset-4 transition-colors hover:text-ivory hover:underline">
               {h.cta2}
             </Link>
             <Link
-              href="/demo/proposal"
-              className="inline-flex min-h-12 items-center px-2 text-[15px] text-ivorymuted underline-offset-4 transition-colors hover:text-ivory hover:underline"
+              href="/studios"
+              className="inline-flex min-h-12 items-center px-3 text-[16px] text-ivorymuted underline-offset-4 transition-colors hover:text-ivory hover:underline"
             >
               {h.cta3}
             </Link>
           </div>
-          <p className="cine mt-6 text-[12.5px] tracking-wide text-ivorymuted" style={delay(4)}>
+          <p className="cine mt-6 text-[12.5px] tracking-wide text-ivorymuted lg:ml-5" style={delay(6)}>
             {h.trust}
           </p>
         </div>
 
         {/* Плавающие продуктовые карточки */}
-        <div className={`relative hidden lg:block ${ready ? "is-in" : ""}`} aria-hidden={false}>
+        <div
+          className={`relative hidden origin-center lg:block lg:translate-x-4 lg:translate-y-20 lg:scale-[0.7] xl:translate-x-10 ${
+            ready ? "is-in" : ""
+          }`}
+          aria-hidden={false}
+        >
           <div className="cine cine-scale float-slow glass-strong relative z-10 p-6" style={{ ...delay(5), "--r": "-0.6deg" } as React.CSSProperties}>
             <div className="mb-4 flex items-center justify-between">
               <span className="text-[15px] font-semibold text-ivory">{h.card1.title}</span>

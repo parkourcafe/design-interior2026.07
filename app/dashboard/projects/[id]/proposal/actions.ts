@@ -4,16 +4,16 @@ import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { getStudio } from "@/lib/studio";
 import type {
+  AnswersMap,
   Passport,
   PricingConfig,
   ProposalDefaults,
   ProposalSection,
 } from "@/lib/types";
 import { calcPrice, type PriceResult } from "@/lib/pricing/calc";
-import { deriveComplexity } from "@/lib/pricing/complexity";
 import { buildProposalSections } from "@/lib/proposal/build";
+import { derivePackageRecommendation } from "@/lib/proposal/package";
 import type { RiskCardRow } from "@/lib/review";
-import type { ScopePackage } from "@/lib/types";
 
 export async function saveProposal(
   projectId: string,
@@ -73,12 +73,26 @@ export async function rebuildProposal(
     .eq("status", "accepted");
   const acceptedCards = (cardRows ?? []) as RiskCardRow[];
 
-  const packageChoice = passport.scope.package ?? "full";
+  const { data: answerRows } = await supabase
+    .from("answers")
+    .select("question_id, value")
+    .eq("project_id", projectId);
+  const answers: AnswersMap = {};
+  for (const row of answerRows ?? []) {
+    answers[(row as { question_id: string }).question_id] = (row as { value: unknown }).value as never;
+  }
+
+  const packageRecommendation = derivePackageRecommendation({
+    passport,
+    answers,
+    riskCards: acceptedCards,
+  });
+  const packageChoice = packageRecommendation.package_key;
   let price: PriceResult | null = null;
   if (pricing && passport.object.area_m2) {
     price = calcPrice(pricing, {
       area_m2: passport.object.area_m2,
-      complexity: deriveComplexity(passport),
+      complexity: "mid",
       urgent: passport.timeline.urgency === "urgent",
       package: packageChoice,
     });
@@ -90,6 +104,7 @@ export async function rebuildProposal(
     defaults,
     price,
     packageChoice,
+    packageRecommendation,
   });
 
   const { error } = await supabase
@@ -100,46 +115,6 @@ export async function rebuildProposal(
 
   revalidatePath(`/dashboard/projects/${projectId}/proposal`);
   return { ok: true, sections };
-}
-
-// Дизайнер выбирает пакет услуг → пишем в passport.scope.package и пересобираем
-// КП (цена, состав работ, сроки зависят от пакета). После «Отправить» — нельзя.
-export async function setPackage(
-  projectId: string,
-  pkg: Exclude<ScopePackage, null>,
-): Promise<{ ok: boolean; reason?: string }> {
-  const studio = await getStudio();
-  if (!studio) return { ok: false };
-  const supabase = await createClient();
-
-  const { data: proposal } = await supabase
-    .from("proposals")
-    .select("status")
-    .eq("project_id", projectId)
-    .eq("version", 1)
-    .maybeSingle();
-  if ((proposal as { status?: string } | null)?.status === "sent") {
-    return { ok: false, reason: "sent" };
-  }
-
-  const { data: project } = await supabase
-    .from("projects")
-    .select("passport")
-    .eq("id", projectId)
-    .maybeSingle();
-  const passport = (project as { passport: Passport | null } | null)?.passport;
-  if (!passport) return { ok: false };
-
-  const nextPassport: Passport = { ...passport, scope: { ...passport.scope, package: pkg } };
-  const { error } = await supabase
-    .from("projects")
-    .update({ passport: nextPassport })
-    .eq("id", projectId);
-  if (error) return { ok: false };
-
-  // Пересобираем КП под новый пакет (перезапишет ручные правки — это ожидаемо).
-  const rebuilt = await rebuildProposal(projectId);
-  return { ok: rebuilt.ok, reason: rebuilt.reason };
 }
 
 export async function sendProposal(projectId: string): Promise<{ ok: boolean }> {

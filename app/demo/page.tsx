@@ -26,6 +26,8 @@ const STEP_MEDIA: Record<number, { src: string; alt: string }> = {
   7: { src: MEDIA.review, alt: "Review Board — демонстрационный интерфейс" },
 };
 
+const STEP_IDS = ["request", "brief", "passport", "risks", "agenda", "pricing", "proposal", "review"] as const;
+
 export default function DemoLoopPage() {
   return (
     <div className="landing min-h-screen">
@@ -54,7 +56,7 @@ export default function DemoLoopPage() {
                 const left = i % 2 === 0;
                 return (
                   <Cine key={title}>
-                    <div className={`cine relative grid gap-5 pl-12 md:grid-cols-2 md:gap-12 md:pl-0`}>
+                    <div id={STEP_IDS[i]} className="cine relative grid scroll-mt-28 gap-5 pl-12 md:grid-cols-2 md:gap-12 md:pl-0">
                       <span
                         aria-hidden
                         className="absolute left-[11px] top-1 flex h-[17px] w-[17px] items-center justify-center rounded-full border border-bronze/60 bg-coal md:left-1/2 md:-translate-x-1/2"

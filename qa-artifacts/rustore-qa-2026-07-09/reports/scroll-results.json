@@ -1,0 +1,398 @@
+[
+  {
+    "route": "/",
+    "viewport": "desktop",
+    "position": 0,
+    "status": 200,
+    "max_scroll": 24075,
+    "screenshot": "/Users/msnigmatullaeva/Documents/designinterior2026/repo/qa-artifacts/rustore-qa-2026-07-09/screenshots/scroll/scroll__desktop__root__000.png",
+    "failed_requests_seen": 2
+  },
+  {
+    "route": "/",
+    "viewport": "desktop",
+    "position": 0.16,
+    "status": 200,
+    "max_scroll": 24075,
+    "screenshot": "/Users/msnigmatullaeva/Documents/designinterior2026/repo/qa-artifacts/rustore-qa-2026-07-09/screenshots/scroll/scroll__desktop__root__016.png",
+    "failed_requests_seen": 2
+  },
+  {
+    "route": "/",
+    "viewport": "desktop",
+    "position": 0.32,
+    "status": 200,
+    "max_scroll": 24075,
+    "screenshot": "/Users/msnigmatullaeva/Documents/designinterior2026/repo/qa-artifacts/rustore-qa-2026-07-09/screenshots/scroll/scroll__desktop__root__032.png",
+    "failed_requests_seen": 2
+  },
+  {
+    "route": "/",
+    "viewport": "desktop",
+    "position": 0.48,
+    "status": 200,
+    "max_scroll": 24075,
+    "screenshot": "/Users/msnigmatullaeva/Documents/designinterior2026/repo/qa-artifacts/rustore-qa-2026-07-09/screenshots/scroll/scroll__desktop__root__048.png",
+    "failed_requests_seen": 2
+  },
+  {
+    "route": "/",
+    "viewport": "desktop",
+    "position": 0.64,
+    "status": 200,
+    "max_scroll": 24075,
+    "screenshot": "/Users/msnigmatullaeva/Documents/designinterior2026/repo/qa-artifacts/rustore-qa-2026-07-09/screenshots/scroll/scroll__desktop__root__064.png",
+    "failed_requests_seen": 2
+  },
+  {
+    "route": "/",
+    "viewport": "desktop",
+    "position": 0.8,
+    "status": 200,
+    "max_scroll": 24075,
+    "screenshot": "/Users/msnigmatullaeva/Documents/designinterior2026/repo/qa-artifacts/rustore-qa-2026-07-09/screenshots/scroll/scroll__desktop__root__080.png",
+    "failed_requests_seen": 2
+  },
+  {
+    "route": "/",
+    "viewport": "desktop",
+    "position": 1.0,
+    "status": 200,
+    "max_scroll": 24075,
+    "screenshot": "/Users/msnigmatullaeva/Documents/designinterior2026/repo/qa-artifacts/rustore-qa-2026-07-09/screenshots/scroll/scroll__desktop__root__100.png",
+    "failed_requests_seen": 2
+  },
+  {
+    "route": "/designers",
+    "viewport": "desktop",
+    "position": 0,
+    "status": 200,
+    "max_scroll": 2186,
+    "screenshot": "/Users/msnigmatullaeva/Documents/designinterior2026/repo/qa-artifacts/rustore-qa-2026-07-09/screenshots/scroll/scroll__desktop__designers__000.png",
+    "failed_requests_seen": 0
+  },
+  {
+    "route": "/designers",
+    "viewport": "desktop",
+    "position": 0.5,
+    "status": 200,
+    "max_scroll": 2186,
+    "screenshot": "/Users/msnigmatullaeva/Documents/designinterior2026/repo/qa-artifacts/rustore-qa-2026-07-09/screenshots/scroll/scroll__desktop__designers__050.png",
+    "failed_requests_seen": 0
+  },
+  {
+    "route": "/designers",
+    "viewport": "desktop",
+    "position": 1.0,
+    "status": 200,
+    "max_scroll": 2186,
+    "screenshot": "/Users/msnigmatullaeva/Documents/designinterior2026/repo/qa-artifacts/rustore-qa-2026-07-09/screenshots/scroll/scroll__desktop__designers__100.png",
+    "failed_requests_seen": 0
+  },
+  {
+    "route": "/studios",
+    "viewport": "desktop",
+    "position": 0,
+    "status": 200,
+    "max_scroll": 1275,
+    "screenshot": "/Users/msnigmatullaeva/Documents/designinterior2026/repo/qa-artifacts/rustore-qa-2026-07-09/screenshots/scroll/scroll__desktop__studios__000.png",
+    "failed_requests_seen": 0
+  },
+  {
+    "route": "/studios",
+    "viewport": "desktop",
+    "position": 0.5,
+    "status": 200,
+    "max_scroll": 1275,
+    "screenshot": "/Users/msnigmatullaeva/Documents/designinterior2026/repo/qa-artifacts/rustore-qa-2026-07-09/screenshots/scroll/scroll__desktop__studios__050.png",
+    "failed_requests_seen": 0
+  },
+  {
+    "route": "/studios",
+    "viewport": "desktop",
+    "position": 1.0,
+    "status": 200,
+    "max_scroll": 1275,
+    "screenshot": "/Users/msnigmatullaeva/Documents/designinterior2026/repo/qa-artifacts/rustore-qa-2026-07-09/screenshots/scroll/scroll__desktop__studios__100.png",
+    "failed_requests_seen": 0
+  },
+  {
+    "route": "/security",
+    "viewport": "desktop",
+    "position": 0,
+    "status": 200,
+    "max_scroll": 921,
+    "screenshot": "/Users/msnigmatullaeva/Documents/designinterior2026/repo/qa-artifacts/rustore-qa-2026-07-09/screenshots/scroll/scroll__desktop__security__000.png",
+    "failed_requests_seen": 0
+  },
+  {
+    "route": "/security",
+    "viewport": "desktop",
+    "position": 0.5,
+    "status": 200,
+    "max_scroll": 921,
+    "screenshot": "/Users/msnigmatullaeva/Documents/designinterior2026/repo/qa-artifacts/rustore-qa-2026-07-09/screenshots/scroll/scroll__desktop__security__050.png",
+    "failed_requests_seen": 0
+  },
+  {
+    "route": "/security",
+    "viewport": "desktop",
+    "position": 1.0,
+    "status": 200,
+    "max_scroll": 921,
+    "screenshot": "/Users/msnigmatullaeva/Documents/designinterior2026/repo/qa-artifacts/rustore-qa-2026-07-09/screenshots/scroll/scroll__desktop__security__100.png",
+    "failed_requests_seen": 0
+  },
+  {
+    "route": "/pilot",
+    "viewport": "desktop",
+    "position": 0,
+    "status": 200,
+    "max_scroll": 1409,
+    "screenshot": "/Users/msnigmatullaeva/Documents/designinterior2026/repo/qa-artifacts/rustore-qa-2026-07-09/screenshots/scroll/scroll__desktop__pilot__000.png",
+    "failed_requests_seen": 0
+  },
+  {
+    "route": "/pilot",
+    "viewport": "desktop",
+    "position": 0.5,
+    "status": 200,
+    "max_scroll": 1409,
+    "screenshot": "/Users/msnigmatullaeva/Documents/designinterior2026/repo/qa-artifacts/rustore-qa-2026-07-09/screenshots/scroll/scroll__desktop__pilot__050.png",
+    "failed_requests_seen": 0
+  },
+  {
+    "route": "/pilot",
+    "viewport": "desktop",
+    "position": 1.0,
+    "status": 200,
+    "max_scroll": 1409,
+    "screenshot": "/Users/msnigmatullaeva/Documents/designinterior2026/repo/qa-artifacts/rustore-qa-2026-07-09/screenshots/scroll/scroll__desktop__pilot__100.png",
+    "failed_requests_seen": 0
+  },
+  {
+    "route": "/demo",
+    "viewport": "desktop",
+    "position": 0,
+    "status": 200,
+    "max_scroll": 2008,
+    "screenshot": "/Users/msnigmatullaeva/Documents/designinterior2026/repo/qa-artifacts/rustore-qa-2026-07-09/screenshots/scroll/scroll__desktop__demo__000.png",
+    "failed_requests_seen": 0
+  },
+  {
+    "route": "/demo",
+    "viewport": "desktop",
+    "position": 0.5,
+    "status": 200,
+    "max_scroll": 2008,
+    "screenshot": "/Users/msnigmatullaeva/Documents/designinterior2026/repo/qa-artifacts/rustore-qa-2026-07-09/screenshots/scroll/scroll__desktop__demo__050.png",
+    "failed_requests_seen": 0
+  },
+  {
+    "route": "/demo",
+    "viewport": "desktop",
+    "position": 1.0,
+    "status": 200,
+    "max_scroll": 2008,
+    "screenshot": "/Users/msnigmatullaeva/Documents/designinterior2026/repo/qa-artifacts/rustore-qa-2026-07-09/screenshots/scroll/scroll__desktop__demo__100.png",
+    "failed_requests_seen": 0
+  },
+  {
+    "route": "/",
+    "viewport": "mobile",
+    "position": 0,
+    "status": 200,
+    "max_scroll": 24413,
+    "screenshot": "/Users/msnigmatullaeva/Documents/designinterior2026/repo/qa-artifacts/rustore-qa-2026-07-09/screenshots/scroll/scroll__mobile__root__000.png",
+    "failed_requests_seen": 2
+  },
+  {
+    "route": "/",
+    "viewport": "mobile",
+    "position": 0.16,
+    "status": 200,
+    "max_scroll": 24413,
+    "screenshot": "/Users/msnigmatullaeva/Documents/designinterior2026/repo/qa-artifacts/rustore-qa-2026-07-09/screenshots/scroll/scroll__mobile__root__016.png",
+    "failed_requests_seen": 2
+  },
+  {
+    "route": "/",
+    "viewport": "mobile",
+    "position": 0.32,
+    "status": 200,
+    "max_scroll": 24413,
+    "screenshot": "/Users/msnigmatullaeva/Documents/designinterior2026/repo/qa-artifacts/rustore-qa-2026-07-09/screenshots/scroll/scroll__mobile__root__032.png",
+    "failed_requests_seen": 2
+  },
+  {
+    "route": "/",
+    "viewport": "mobile",
+    "position": 0.48,
+    "status": 200,
+    "max_scroll": 24413,
+    "screenshot": "/Users/msnigmatullaeva/Documents/designinterior2026/repo/qa-artifacts/rustore-qa-2026-07-09/screenshots/scroll/scroll__mobile__root__048.png",
+    "failed_requests_seen": 2
+  },
+  {
+    "route": "/",
+    "viewport": "mobile",
+    "position": 0.64,
+    "status": 200,
+    "max_scroll": 24413,
+    "screenshot": "/Users/msnigmatullaeva/Documents/designinterior2026/repo/qa-artifacts/rustore-qa-2026-07-09/screenshots/scroll/scroll__mobile__root__064.png",
+    "failed_requests_seen": 2
+  },
+  {
+    "route": "/",
+    "viewport": "mobile",
+    "position": 0.8,
+    "status": 200,
+    "max_scroll": 24413,
+    "screenshot": "/Users/msnigmatullaeva/Documents/designinterior2026/repo/qa-artifacts/rustore-qa-2026-07-09/screenshots/scroll/scroll__mobile__root__080.png",
+    "failed_requests_seen": 2
+  },
+  {
+    "route": "/",
+    "viewport": "mobile",
+    "position": 1.0,
+    "status": 200,
+    "max_scroll": 24413,
+    "screenshot": "/Users/msnigmatullaeva/Documents/designinterior2026/repo/qa-artifacts/rustore-qa-2026-07-09/screenshots/scroll/scroll__mobile__root__100.png",
+    "failed_requests_seen": 2
+  },
+  {
+    "route": "/designers",
+    "viewport": "mobile",
+    "position": 0,
+    "status": 200,
+    "max_scroll": 3292,
+    "screenshot": "/Users/msnigmatullaeva/Documents/designinterior2026/repo/qa-artifacts/rustore-qa-2026-07-09/screenshots/scroll/scroll__mobile__designers__000.png",
+    "failed_requests_seen": 0
+  },
+  {
+    "route": "/designers",
+    "viewport": "mobile",
+    "position": 0.5,
+    "status": 200,
+    "max_scroll": 3292,
+    "screenshot": "/Users/msnigmatullaeva/Documents/designinterior2026/repo/qa-artifacts/rustore-qa-2026-07-09/screenshots/scroll/scroll__mobile__designers__050.png",
+    "failed_requests_seen": 0
+  },
+  {
+    "route": "/designers",
+    "viewport": "mobile",
+    "position": 1.0,
+    "status": 200,
+    "max_scroll": 3292,
+    "screenshot": "/Users/msnigmatullaeva/Documents/designinterior2026/repo/qa-artifacts/rustore-qa-2026-07-09/screenshots/scroll/scroll__mobile__designers__100.png",
+    "failed_requests_seen": 0
+  },
+  {
+    "route": "/studios",
+    "viewport": "mobile",
+    "position": 0,
+    "status": 200,
+    "max_scroll": 2283,
+    "screenshot": "/Users/msnigmatullaeva/Documents/designinterior2026/repo/qa-artifacts/rustore-qa-2026-07-09/screenshots/scroll/scroll__mobile__studios__000.png",
+    "failed_requests_seen": 0
+  },
+  {
+    "route": "/studios",
+    "viewport": "mobile",
+    "position": 0.5,
+    "status": 200,
+    "max_scroll": 2283,
+    "screenshot": "/Users/msnigmatullaeva/Documents/designinterior2026/repo/qa-artifacts/rustore-qa-2026-07-09/screenshots/scroll/scroll__mobile__studios__050.png",
+    "failed_requests_seen": 0
+  },
+  {
+    "route": "/studios",
+    "viewport": "mobile",
+    "position": 1.0,
+    "status": 200,
+    "max_scroll": 2283,
+    "screenshot": "/Users/msnigmatullaeva/Documents/designinterior2026/repo/qa-artifacts/rustore-qa-2026-07-09/screenshots/scroll/scroll__mobile__studios__100.png",
+    "failed_requests_seen": 0
+  },
+  {
+    "route": "/security",
+    "viewport": "mobile",
+    "position": 0,
+    "status": 200,
+    "max_scroll": 2029,
+    "screenshot": "/Users/msnigmatullaeva/Documents/designinterior2026/repo/qa-artifacts/rustore-qa-2026-07-09/screenshots/scroll/scroll__mobile__security__000.png",
+    "failed_requests_seen": 0
+  },
+  {
+    "route": "/security",
+    "viewport": "mobile",
+    "position": 0.5,
+    "status": 200,
+    "max_scroll": 2029,
+    "screenshot": "/Users/msnigmatullaeva/Documents/designinterior2026/repo/qa-artifacts/rustore-qa-2026-07-09/screenshots/scroll/scroll__mobile__security__050.png",
+    "failed_requests_seen": 0
+  },
+  {
+    "route": "/security",
+    "viewport": "mobile",
+    "position": 1.0,
+    "status": 200,
+    "max_scroll": 2029,
+    "screenshot": "/Users/msnigmatullaeva/Documents/designinterior2026/repo/qa-artifacts/rustore-qa-2026-07-09/screenshots/scroll/scroll__mobile__security__100.png",
+    "failed_requests_seen": 0
+  },
+  {
+    "route": "/pilot",
+    "viewport": "mobile",
+    "position": 0,
+    "status": 200,
+    "max_scroll": 3092,
+    "screenshot": "/Users/msnigmatullaeva/Documents/designinterior2026/repo/qa-artifacts/rustore-qa-2026-07-09/screenshots/scroll/scroll__mobile__pilot__000.png",
+    "failed_requests_seen": 0
+  },
+  {
+    "route": "/pilot",
+    "viewport": "mobile",
+    "position": 0.5,
+    "status": 200,
+    "max_scroll": 3092,
+    "screenshot": "/Users/msnigmatullaeva/Documents/designinterior2026/repo/qa-artifacts/rustore-qa-2026-07-09/screenshots/scroll/scroll__mobile__pilot__050.png",
+    "failed_requests_seen": 0
+  },
+  {
+    "route": "/pilot",
+    "viewport": "mobile",
+    "position": 1.0,
+    "status": 200,
+    "max_scroll": 3092,
+    "screenshot": "/Users/msnigmatullaeva/Documents/designinterior2026/repo/qa-artifacts/rustore-qa-2026-07-09/screenshots/scroll/scroll__mobile__pilot__100.png",
+    "failed_requests_seen": 0
+  },
+  {
+    "route": "/demo",
+    "viewport": "mobile",
+    "position": 0,
+    "status": 200,
+    "max_scroll": 3586,
+    "screenshot": "/Users/msnigmatullaeva/Documents/designinterior2026/repo/qa-artifacts/rustore-qa-2026-07-09/screenshots/scroll/scroll__mobile__demo__000.png",
+    "failed_requests_seen": 0
+  },
+  {
+    "route": "/demo",
+    "viewport": "mobile",
+    "position": 0.5,
+    "status": 200,
+    "max_scroll": 3586,
+    "screenshot": "/Users/msnigmatullaeva/Documents/designinterior2026/repo/qa-artifacts/rustore-qa-2026-07-09/screenshots/scroll/scroll__mobile__demo__050.png",
+    "failed_requests_seen": 0
+  },
+  {
+    "route": "/demo",
+    "viewport": "mobile",
+    "position": 1.0,
+    "status": 200,
+    "max_scroll": 3586,
+    "screenshot": "/Users/msnigmatullaeva/Documents/designinterior2026/repo/qa-artifacts/rustore-qa-2026-07-09/screenshots/scroll/scroll__mobile__demo__100.png",
+    "failed_requests_seen": 0
+  }
+]

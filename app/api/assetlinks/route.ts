@@ -2,6 +2,8 @@ import { NextResponse } from "next/server";
 
 export const dynamic = "force-dynamic";
 
+const SHA256_FINGERPRINT = /^(?:[0-9a-f]{2}:){31}[0-9a-f]{2}$/i;
+
 // Digital Asset Links для TWA (Google Play + RuStore). Отдаётся по адресу
 // /.well-known/assetlinks.json (rewrite в next.config.mjs).
 //
@@ -19,7 +21,8 @@ export function GET() {
   const fingerprints = (process.env.ANDROID_CERT_SHA256 ?? "")
     .split(",")
     .map((s) => s.trim())
-    .filter(Boolean);
+    .filter((value) => SHA256_FINGERPRINT.test(value))
+    .map((value) => value.toUpperCase());
 
   const statements =
     pkg && fingerprints.length

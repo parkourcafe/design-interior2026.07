@@ -1,0 +1,190 @@
+{
+  "contractVersion": "project-intelligence-vertical-slice/0.1",
+  "projectId": "project-kitchen-001",
+  "version": {
+    "id": "version-kitchen-001-v2",
+    "projectId": "project-kitchen-001",
+    "versionNo": 2,
+    "baseVersionId": "version-kitchen-001-v1",
+    "status": "published",
+    "label": "Kitchen baseline after worktop material change",
+    "createdAt": "2026-07-16T01:00:00.000Z",
+    "publishedAt": "2026-07-16T01:02:00.000Z",
+    "publishedBy": {
+      "actorId": "actor-client-approver",
+      "actorType": "human",
+      "role": "client"
+    },
+    "nodeRevisions": [
+      { "nodeId": "area-kitchen", "revisionId": "revision-area-kitchen-r1" },
+      { "nodeId": "decision-worktop-material", "revisionId": "revision-decision-worktop-material-r2" },
+      { "nodeId": "deliverable-budget", "revisionId": "revision-deliverable-budget-r1" },
+      { "nodeId": "deliverable-finish-schedule", "revisionId": "revision-deliverable-finish-schedule-r1" },
+      { "nodeId": "item-kitchen-worktop", "revisionId": "revision-item-kitchen-worktop-r1" },
+      { "nodeId": "requirement-worktop-durable", "revisionId": "revision-requirement-worktop-durable-r1" },
+      { "nodeId": "risk-natural-stone-lead-time", "revisionId": "revision-risk-natural-stone-lead-time-r1" }
+    ]
+  },
+  "changeSet": {
+    "id": "change-set-kitchen-v1-v2",
+    "projectId": "project-kitchen-001",
+    "fromVersionId": "version-kitchen-001-v1",
+    "toVersionId": "version-kitchen-001-v2",
+    "reasonCode": "schedule_constraint",
+    "reason": "Natural stone lead time exceeds the approved project schedule.",
+    "actor": { "actorId": "actor-client-approver", "actorType": "human", "role": "client" },
+    "occurredAt": "2026-07-16T01:00:00.000Z"
+  },
+  "nodes": [
+    { "id": "area-kitchen", "projectId": "project-kitchen-001", "kind": "area", "stableKey": "kitchen", "currentRevisionId": "revision-area-kitchen-r1" },
+    { "id": "decision-worktop-material", "projectId": "project-kitchen-001", "kind": "decision", "stableKey": "kitchen-worktop-material", "currentRevisionId": "revision-decision-worktop-material-r2" },
+    { "id": "deliverable-budget", "projectId": "project-kitchen-001", "kind": "deliverable", "stableKey": "kitchen-budget", "currentRevisionId": "revision-deliverable-budget-r1" },
+    { "id": "deliverable-finish-schedule", "projectId": "project-kitchen-001", "kind": "deliverable", "stableKey": "kitchen-finish-schedule", "currentRevisionId": "revision-deliverable-finish-schedule-r1" },
+    { "id": "item-kitchen-worktop", "projectId": "project-kitchen-001", "kind": "item", "stableKey": "kitchen-worktop", "currentRevisionId": "revision-item-kitchen-worktop-r1" },
+    { "id": "requirement-worktop-durable", "projectId": "project-kitchen-001", "kind": "requirement", "stableKey": "worktop-durable", "currentRevisionId": "revision-requirement-worktop-durable-r1" },
+    { "id": "risk-natural-stone-lead-time", "projectId": "project-kitchen-001", "kind": "risk", "stableKey": "natural-stone-lead-time", "currentRevisionId": "revision-risk-natural-stone-lead-time-r1" }
+  ],
+  "revisions": [
+    {
+      "id": "revision-area-kitchen-r1",
+      "nodeId": "area-kitchen",
+      "projectId": "project-kitchen-001",
+      "revisionNo": 1,
+      "title": "Kitchen",
+      "payload": { "areaType": "room", "name": "Kitchen", "stableKey": "kitchen" },
+      "contentOrigin": "import",
+      "claimStatus": "interpreted",
+      "createdAt": "2026-07-16T00:01:00.000Z",
+      "replacesRevisionId": null
+    },
+    {
+      "id": "revision-decision-worktop-material-r1",
+      "nodeId": "decision-worktop-material",
+      "projectId": "project-kitchen-001",
+      "revisionNo": 1,
+      "title": "Use natural stone for the kitchen worktop",
+      "payload": { "areaId": "area-kitchen", "material": "natural_stone", "subject": "kitchen_worktop" },
+      "contentOrigin": "ai",
+      "claimStatus": "human_confirmed",
+      "createdAt": "2026-07-16T00:01:00.000Z",
+      "replacesRevisionId": null
+    },
+    {
+      "id": "revision-decision-worktop-material-r2",
+      "nodeId": "decision-worktop-material",
+      "projectId": "project-kitchen-001",
+      "revisionNo": 2,
+      "title": "Use quartz composite for the kitchen worktop",
+      "payload": { "areaId": "area-kitchen", "material": "quartz_composite", "subject": "kitchen_worktop" },
+      "contentOrigin": "human",
+      "claimStatus": "human_confirmed",
+      "createdAt": "2026-07-16T01:00:00.000Z",
+      "replacesRevisionId": "revision-decision-worktop-material-r1"
+    },
+    {
+      "id": "revision-deliverable-budget-r1",
+      "nodeId": "deliverable-budget",
+      "projectId": "project-kitchen-001",
+      "revisionNo": 1,
+      "title": "Kitchen Budget Schedule",
+      "payload": { "areaId": "area-kitchen", "deliverableType": "budget_schedule", "title": "Kitchen Budget Schedule" },
+      "contentOrigin": "system",
+      "claimStatus": "interpreted",
+      "createdAt": "2026-07-16T00:01:00.000Z",
+      "replacesRevisionId": null
+    },
+    {
+      "id": "revision-deliverable-finish-schedule-r1",
+      "nodeId": "deliverable-finish-schedule",
+      "projectId": "project-kitchen-001",
+      "revisionNo": 1,
+      "title": "Kitchen Finish Schedule",
+      "payload": { "areaId": "area-kitchen", "deliverableType": "finish_schedule", "title": "Kitchen Finish Schedule" },
+      "contentOrigin": "system",
+      "claimStatus": "interpreted",
+      "createdAt": "2026-07-16T00:01:00.000Z",
+      "replacesRevisionId": null
+    },
+    {
+      "id": "revision-item-kitchen-worktop-r1",
+      "nodeId": "item-kitchen-worktop",
+      "projectId": "project-kitchen-001",
+      "revisionNo": 1,
+      "title": "Kitchen worktop",
+      "payload": { "areaId": "area-kitchen", "itemType": "worktop", "name": "Kitchen worktop" },
+      "contentOrigin": "import",
+      "claimStatus": "interpreted",
+      "createdAt": "2026-07-16T00:01:00.000Z",
+      "replacesRevisionId": null
+    },
+    {
+      "id": "revision-requirement-worktop-durable-r1",
+      "nodeId": "requirement-worktop-durable",
+      "projectId": "project-kitchen-001",
+      "revisionNo": 1,
+      "title": "Worktop must be durable and easy to maintain",
+      "payload": { "areaId": "area-kitchen", "requirement": "durable_and_easy_to_maintain" },
+      "contentOrigin": "ai",
+      "claimStatus": "human_confirmed",
+      "createdAt": "2026-07-16T00:01:00.000Z",
+      "replacesRevisionId": null
+    },
+    {
+      "id": "revision-risk-natural-stone-lead-time-r1",
+      "nodeId": "risk-natural-stone-lead-time",
+      "projectId": "project-kitchen-001",
+      "revisionNo": 1,
+      "title": "Natural stone lead time may affect the schedule",
+      "payload": { "riskType": "lead_time", "severity": "medium" },
+      "contentOrigin": "ai",
+      "claimStatus": "interpreted",
+      "createdAt": "2026-07-16T00:01:00.000Z",
+      "replacesRevisionId": null
+    }
+  ],
+  "edges": [
+    { "id": "edge-budget-item", "projectId": "project-kitchen-001", "fromNodeId": "deliverable-budget", "toNodeId": "item-kitchen-worktop", "relation": "depends_on", "validFromVersionId": "version-kitchen-001-v1", "validToVersionId": null },
+    { "id": "edge-decision-area", "projectId": "project-kitchen-001", "fromNodeId": "decision-worktop-material", "toNodeId": "area-kitchen", "relation": "applies_to", "validFromVersionId": "version-kitchen-001-v1", "validToVersionId": null },
+    { "id": "edge-finish-item", "projectId": "project-kitchen-001", "fromNodeId": "deliverable-finish-schedule", "toNodeId": "item-kitchen-worktop", "relation": "depends_on", "validFromVersionId": "version-kitchen-001-v1", "validToVersionId": null },
+    { "id": "edge-item-area", "projectId": "project-kitchen-001", "fromNodeId": "item-kitchen-worktop", "toNodeId": "area-kitchen", "relation": "applies_to", "validFromVersionId": "version-kitchen-001-v1", "validToVersionId": null },
+    { "id": "edge-item-decision", "projectId": "project-kitchen-001", "fromNodeId": "item-kitchen-worktop", "toNodeId": "decision-worktop-material", "relation": "specified_by", "validFromVersionId": "version-kitchen-001-v1", "validToVersionId": null },
+    { "id": "edge-requirement-area", "projectId": "project-kitchen-001", "fromNodeId": "requirement-worktop-durable", "toNodeId": "area-kitchen", "relation": "applies_to", "validFromVersionId": "version-kitchen-001-v1", "validToVersionId": null },
+    { "id": "edge-risk-decision", "projectId": "project-kitchen-001", "fromNodeId": "risk-natural-stone-lead-time", "toNodeId": "decision-worktop-material", "relation": "conflicts_with", "validFromVersionId": "version-kitchen-001-v1", "validToVersionId": null }
+  ],
+  "evidenceLinks": [
+    { "id": "evidence-decision-transcript-r1", "projectId": "project-kitchen-001", "nodeRevisionId": "revision-decision-worktop-material-r1", "sourceFragmentId": "fragment-transcript-decision", "evidenceRole": "direct", "confidence": 0.99 },
+    { "id": "evidence-item-plan-r1", "projectId": "project-kitchen-001", "nodeRevisionId": "revision-item-kitchen-worktop-r1", "sourceFragmentId": "fragment-plan-kitchen", "evidenceRole": "direct", "confidence": 0.98 },
+    { "id": "evidence-requirement-questionnaire-r1", "projectId": "project-kitchen-001", "nodeRevisionId": "revision-requirement-worktop-durable-r1", "sourceFragmentId": "fragment-questionnaire-requirement", "evidenceRole": "direct", "confidence": 0.99 },
+    { "id": "evidence-risk-transcript-r1", "projectId": "project-kitchen-001", "nodeRevisionId": "revision-risk-natural-stone-lead-time-r1", "sourceFragmentId": "fragment-transcript-decision", "evidenceRole": "context", "confidence": 0.64 }
+  ],
+  "reviews": [
+    {
+      "id": "review-decision-r1",
+      "projectId": "project-kitchen-001",
+      "action": "confirm",
+      "targetRevisionId": "revision-decision-worktop-material-r1",
+      "resultingRevisionId": "revision-decision-worktop-material-r1",
+      "actor": { "actorId": "actor-designer-reviewer", "actorType": "human", "role": "designer" },
+      "occurredAt": "2026-07-16T00:05:00.000Z"
+    },
+    {
+      "id": "review-decision-r2-edit",
+      "projectId": "project-kitchen-001",
+      "action": "edit",
+      "targetRevisionId": "revision-decision-worktop-material-r1",
+      "resultingRevisionId": "revision-decision-worktop-material-r2",
+      "actor": { "actorId": "actor-client-approver", "actorType": "human", "role": "client" },
+      "occurredAt": "2026-07-16T01:00:00.000Z",
+      "reasonCode": "schedule_constraint"
+    },
+    {
+      "id": "review-requirement-r1",
+      "projectId": "project-kitchen-001",
+      "action": "confirm",
+      "targetRevisionId": "revision-requirement-worktop-durable-r1",
+      "resultingRevisionId": "revision-requirement-worktop-durable-r1",
+      "actor": { "actorId": "actor-designer-reviewer", "actorType": "human", "role": "designer" },
+      "occurredAt": "2026-07-16T00:05:00.000Z"
+    }
+  ]
+}

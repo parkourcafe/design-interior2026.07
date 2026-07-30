@@ -1,0 +1,23 @@
+{
+  "contractVersion": "project-intelligence-vertical-slice/0.1",
+  "caseId": "invalid-unavailable-fragment",
+  "caseType": "unavailable_fragment",
+  "projectId": "project-kitchen-001",
+  "fragment": {
+    "id": "fragment-transcript-decision",
+    "sourceId": "source-transcript-001",
+    "available": false,
+    "locator": { "startMs": 0, "endMs": 9600, "speaker": "client" }
+  },
+  "reviewCommand": {
+    "action": "confirm",
+    "targetRevisionId": "revision-decision-worktop-material-r1",
+    "expectedRevisionId": "revision-decision-worktop-material-r1",
+    "evidenceAcknowledgement": null,
+    "idempotencyKey": "review-unavailable-evidence-001"
+  },
+  "expectedError": {
+    "code": "EVIDENCE_ACK_REQUIRED",
+    "entityId": "fragment-transcript-decision"
+  }
+}

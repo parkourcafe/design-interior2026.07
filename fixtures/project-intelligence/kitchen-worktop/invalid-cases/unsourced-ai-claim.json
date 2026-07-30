@@ -1,0 +1,19 @@
+{
+  "contractVersion": "project-intelligence-vertical-slice/0.1",
+  "caseId": "invalid-unsourced-ai-claim",
+  "caseType": "unsourced_ai_claim",
+  "projectId": "project-kitchen-001",
+  "revision": {
+    "id": "revision-invalid-unsourced-ai-r1",
+    "nodeId": "decision-invalid-unsourced-ai",
+    "projectId": "project-kitchen-001",
+    "contentOrigin": "ai",
+    "claimStatus": "extracted",
+    "unknownReason": null
+  },
+  "evidenceLinks": [],
+  "expectedError": {
+    "code": "AI_CLAIM_MISSING_EVIDENCE",
+    "entityId": "revision-invalid-unsourced-ai-r1"
+  }
+}

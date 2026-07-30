@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { ru } from "@/lib/i18n/ru";
+import { safeProjectCeoLoginNext } from "@/lib/project-intelligence/delivery/projectceo/invitation-login";
 
 // Supabase-клиент (~70 КБ) грузим лениво — только когда пользователь реально
 // отправляет форму. Так стартовый бандл страницы входа остаётся лёгким.
@@ -19,6 +20,7 @@ export default function LoginPage() {
   const [tab, setTab] = useState<Tab>("password");
   const [email, setEmail] = useState("");
   const [callbackError, setCallbackError] = useState<string | null>(null);
+  const [showGoogle, setShowGoogle] = useState(false);
 
   // Показываем реальную причину, если /auth/callback вернул сюда с ?error=...
   useEffect(() => {
@@ -26,8 +28,38 @@ export default function LoginPage() {
     if (err) setCallbackError(err);
   }, []);
 
-  function goToDashboard() {
-    router.push("/dashboard");
+  // Google OAuth нельзя открывать внутри WKWebView: провайдер блокирует такой
+  // сценарий, а App Store ожидает эквивалентный Apple-вход для стороннего
+  // социального логина. В native iOS оставляем собственные способы входа
+  // (пароль и одноразовый код); в браузере и Android Google остаётся доступен.
+  useEffect(() => {
+    let active = true;
+
+    void import("@capacitor/core")
+      .then(({ Capacitor }) => {
+        if (!active) return;
+        const isNativeIos = Capacitor.isNativePlatform() && Capacitor.getPlatform() === "ios";
+        setShowGoogle(!isNativeIos);
+      })
+      .catch(() => {
+        if (active) setShowGoogle(true);
+      });
+
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  function loginNext(): string {
+    return safeProjectCeoLoginNext(window.location.search);
+  }
+
+  function authCallbackUrl(): string {
+    return `${window.location.origin}/auth/callback?next=${encodeURIComponent(loginNext())}`;
+  }
+
+  function goToAuthenticatedDestination() {
+    router.push(loginNext());
     router.refresh();
   }
 
@@ -38,7 +70,7 @@ export default function LoginPage() {
       provider: "google",
       // Возврат на текущий origin (не из env) — иначе Supabase не найдёт адрес
       // в allow-list и увезёт на Site URL (главную).
-      options: { redirectTo: `${window.location.origin}/auth/callback` },
+      options: { redirectTo: authCallbackUrl() },
     });
   }
 
@@ -47,32 +79,35 @@ export default function LoginPage() {
   const [signup, setSignup] = useState(false);
   const [pwBusy, setPwBusy] = useState(false);
   const [pwError, setPwError] = useState<string | null>(null);
+  const [signupConfirmationSent, setSignupConfirmationSent] = useState(false);
 
   async function passwordSubmit(e: React.FormEvent) {
     e.preventDefault();
     setPwBusy(true);
     setPwError(null);
+    setSignupConfirmationSent(false);
     const supabase = await supabaseClient();
 
     if (signup) {
-      // Регистрация через серверный роут: аккаунт создаётся сразу подтверждённым
-      // (без письма). Потом — обычный вход по паролю.
-      const res = await fetch("/api/auth/register", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, password }),
+      const { data, error } = await supabase.auth.signUp({
+        email,
+        password,
+        options: { emailRedirectTo: authCallbackUrl() },
       });
-      const json = (await res.json().catch(() => ({}))) as { error?: string };
-      if (!res.ok) {
-        setPwBusy(false);
-        return setPwError(json.error ?? "Не удалось создать аккаунт.");
+      setPwBusy(false);
+      if (error) return setPwError(error.message);
+      if (!data.session) {
+        setSignupConfirmationSent(true);
+        return;
       }
+      goToAuthenticatedDestination();
+      return;
     }
 
     const { error } = await supabase.auth.signInWithPassword({ email, password });
     setPwBusy(false);
     if (error) return setPwError(error.message);
-    goToDashboard();
+    goToAuthenticatedDestination();
   }
 
   // ── Вход по коду на почту (passwordless OTP) ───────────────
@@ -88,7 +123,7 @@ export default function LoginPage() {
     const supabase = await supabaseClient();
     const { error } = await supabase.auth.signInWithOtp({
       email,
-      options: { emailRedirectTo: `${window.location.origin}/auth/callback` },
+      options: { emailRedirectTo: authCallbackUrl() },
     });
     setOtpDetail(error ? error.message : null);
     setOtp(error ? "error" : "sent");
@@ -102,7 +137,7 @@ export default function LoginPage() {
     const { error } = await supabase.auth.verifyOtp({ email, token: code.trim(), type: "email" });
     setVerifying(false);
     if (error) return setCodeError(error.message);
-    goToDashboard();
+    goToAuthenticatedDestination();
   }
 
   const inCodeEntry = tab === "code" && otp === "sent";
@@ -118,27 +153,31 @@ export default function LoginPage() {
         </p>
       )}
 
-      {/* Google + разделитель — всегда сверху, кроме экрана ввода кода */}
+      {/* Способы входа — всегда сверху, кроме экрана ввода кода. */}
       {!inCodeEntry && (
         <div className="mt-6 space-y-4">
-          <button
-            type="button"
-            onClick={google}
-            className="btn flex w-full items-center justify-center gap-3 border border-line bg-white py-3 text-ink hover:border-ink/40"
-          >
-            <svg width="18" height="18" viewBox="0 0 18 18" aria-hidden="true">
-              <path fill="#4285F4" d="M17.64 9.2c0-.64-.06-1.25-.16-1.84H9v3.48h4.84a4.14 4.14 0 0 1-1.8 2.72v2.26h2.92c1.71-1.57 2.68-3.89 2.68-6.62z" />
-              <path fill="#34A853" d="M9 18c2.43 0 4.47-.8 5.96-2.18l-2.92-2.26c-.8.54-1.84.86-3.04.86-2.34 0-4.32-1.58-5.02-3.7H.96v2.34A9 9 0 0 0 9 18z" />
-              <path fill="#FBBC05" d="M3.98 10.72a5.4 5.4 0 0 1 0-3.44V4.94H.96a9 9 0 0 0 0 8.12l3.02-2.34z" />
-              <path fill="#EA4335" d="M9 3.58c1.32 0 2.5.45 3.44 1.35l2.58-2.58C13.46.89 11.43 0 9 0A9 9 0 0 0 .96 4.94l3.02 2.34C4.68 5.16 6.66 3.58 9 3.58z" />
-            </svg>
-            {ru.auth.google}
-          </button>
-          <div className="flex items-center gap-3 text-xs text-muted">
-            <span className="h-px flex-1 bg-line" />
-            {ru.auth.or}
-            <span className="h-px flex-1 bg-line" />
-          </div>
+          {showGoogle && (
+            <>
+              <button
+                type="button"
+                onClick={google}
+                className="btn flex w-full items-center justify-center gap-3 border border-line bg-white py-3 text-ink hover:border-ink/40"
+              >
+                <svg width="18" height="18" viewBox="0 0 18 18" aria-hidden="true">
+                  <path fill="#4285F4" d="M17.64 9.2c0-.64-.06-1.25-.16-1.84H9v3.48h4.84a4.14 4.14 0 0 1-1.8 2.72v2.26h2.92c1.71-1.57 2.68-3.89 2.68-6.62z" />
+                  <path fill="#34A853" d="M9 18c2.43 0 4.47-.8 5.96-2.18l-2.92-2.26c-.8.54-1.84.86-3.04.86-2.34 0-4.32-1.58-5.02-3.7H.96v2.34A9 9 0 0 0 9 18z" />
+                  <path fill="#FBBC05" d="M3.98 10.72a5.4 5.4 0 0 1 0-3.44V4.94H.96a9 9 0 0 0 0 8.12l3.02-2.34z" />
+                  <path fill="#EA4335" d="M9 3.58c1.32 0 2.5.45 3.44 1.35l2.58-2.58C13.46.89 11.43 0 9 0A9 9 0 0 0 .96 4.94l3.02 2.34C4.68 5.16 6.66 3.58 9 3.58z" />
+                </svg>
+                {ru.auth.google}
+              </button>
+              <div className="flex items-center gap-3 text-xs text-muted">
+                <span className="h-px flex-1 bg-line" />
+                {ru.auth.or}
+                <span className="h-px flex-1 bg-line" />
+              </div>
+            </>
+          )}
 
           {/* Переключатель способа: пароль / код на почту */}
           <div className="flex rounded-lg border border-line p-1 text-sm">
@@ -184,6 +223,11 @@ export default function LoginPage() {
             {pwBusy ? (signup ? ru.auth.signingUp : ru.auth.signingIn) : signup ? ru.auth.signUp : ru.auth.signIn}
           </button>
           {pwError && <p className="text-sm text-red-600">{pwError}</p>}
+          {signupConfirmationSent && (
+            <p className="rounded-md border border-accent/30 bg-accent/5 p-3 text-sm">
+              {ru.auth.confirmSent}
+            </p>
+          )}
           <button
             type="button"
             onClick={() => { setSignup(!signup); setPwError(null); }}

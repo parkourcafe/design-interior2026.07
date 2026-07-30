@@ -8,6 +8,7 @@
 
 # next.js
 /.next/
+/.next.nosync/
 /out/
 
 # production
@@ -33,3 +34,23 @@ next-env.d.ts
 
 # vercel
 .vercel
+.env.local
+.env*.local
+
+# disposable local Supabase runtime state
+/supabase/.branches/
+/supabase/.temp/
+
+# Android TWA local state, artifacts, and signing material
+/android-twa/.gradle/
+/android-twa/.idea/
+/android-twa/local.properties
+/android-twa/**/build/
+/android-twa/*.jks
+/android-twa/*.keystore
+/android-twa/**/*.jks
+/android-twa/**/*.keystore
+/android-twa/keystore.properties
+/android-twa/signing.properties
+/android-twa/**/*.apk
+/android-twa/**/*.aab

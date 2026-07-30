@@ -6,36 +6,48 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint . --ext .ts,.tsx",
+    "lint": "eslint .",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
+    "release:check": "npm run lint && npm run typecheck && npm run test && npm run build",
+    "ios:add": "node node_modules/@capacitor/cli/bin/capacitor add ios",
+    "ios:sync": "node node_modules/@capacitor/cli/bin/capacitor sync ios",
+    "ios:open": "node node_modules/@capacitor/cli/bin/capacitor open ios",
+    "android:debug": "cd android-twa && ./gradlew assembleDebug",
+    "android:release:unsigned": "cd android-twa && ./gradlew assembleRelease bundleRelease",
+    "android:verify": "cd android-twa && ./gradlew lintRelease",
+    "deploy:prod": "vercel --prod",
     "test:watch": "vitest",
     "seed": "tsx scripts/seed.ts",
     "fetch:media": "node scripts/fetch-landing-media.mjs"
   },
   "dependencies": {
-    "@supabase/ssr": "^0.5.2",
-    "@supabase/supabase-js": "^2.45.4",
-    "next": "^16.2.10",
+    "@capacitor/core": "^8.4.2",
+    "@capacitor/ios": "^8.4.2",
+    "@supabase/ssr": "0.12.3",
+    "@supabase/supabase-js": "2.110.7",
+    "next": "^16.2.12",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "zod": "^3.23.8"
   },
   "devDependencies": {
+    "@capacitor/cli": "^8.4.2",
     "@types/node": "^20.16.11",
     "@types/react": "^18.3.11",
     "@types/react-dom": "^18.3.0",
     "autoprefixer": "^10.4.20",
     "dotenv": "^16.4.5",
-    "eslint": "^8.57.1",
-    "eslint-config-next": "14.2.15",
-    "postcss": "8.5.16",
+    "eslint": "^9.39.5",
+    "eslint-config-next": "^16.2.12",
+    "postcss": "8.5.25",
     "tailwindcss": "^3.4.13",
     "tsx": "^4.19.1",
     "typescript": "^5.6.3",
-    "vitest": "^2.1.3"
+    "vitest": "^4.1.10"
   },
   "overrides": {
-    "postcss": "8.5.16"
+    "postcss": "8.5.25",
+    "sharp": "0.35.3"
   }
 }

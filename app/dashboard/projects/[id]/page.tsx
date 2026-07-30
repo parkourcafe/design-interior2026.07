@@ -6,6 +6,11 @@ import { requestBaseUrl } from "@/lib/base-url";
 import { ru } from "@/lib/i18n/ru";
 import type { Passport } from "@/lib/types";
 import { questionById } from "@/lib/brief/questions";
+import {
+  formatCustomAnswer,
+  normalizeCustomQuestions,
+  type CustomBriefQuestion,
+} from "@/lib/brief/custom-questions";
 import { isProfileComplete } from "@/lib/designer";
 import { getStudio } from "@/lib/studio";
 import { missingFields, firstMeetingQuestions, type RiskCardRow } from "@/lib/review";
@@ -14,6 +19,7 @@ import IntakeLink from "@/components/intake-link";
 import CopyTextButton from "@/components/copy-text-button";
 import ReviewCards from "./review";
 import CustomQuestions from "./custom-questions";
+import CreateConceptPackButton from "./concept-pack/create-button";
 
 export const dynamic = "force-dynamic";
 
@@ -23,7 +29,7 @@ interface ProjectRow {
   status: string;
   intake_token: string;
   passport: Passport | null;
-  custom_questions: string[];
+  custom_questions: unknown;
 }
 
 export default async function ProjectPage({ params }: { params: Promise<{ id: string }> }) {
@@ -38,10 +44,11 @@ export default async function ProjectPage({ params }: { params: Promise<{ id: st
 
   if (!project) notFound();
   const p = project as ProjectRow;
+  const customQuestions = normalizeCustomQuestions(p.custom_questions);
 
   const briefDone = Boolean(
     p.passport &&
-      ["brief_completed", "proposal_draft", "proposal_sent"].includes(p.status),
+      ["brief_completed", "proposal_draft", "proposal_sent", "proposal_accepted", "active_project"].includes(p.status),
   );
 
   const intakeUrl = `${await requestBaseUrl()}/i/${p.intake_token}`;
@@ -70,7 +77,7 @@ export default async function ProjectPage({ params }: { params: Promise<{ id: st
           {profileReady ? <IntakeLink url={intakeUrl} /> : <ProfileGate />}
           <CustomQuestions
             projectId={p.id}
-            initial={Array.isArray(p.custom_questions) ? p.custom_questions : []}
+            initial={customQuestions}
           />
           <p className="text-sm text-muted">
             Ждём, пока клиент заполнит бриф. Как только он завершит — здесь появятся паспорт
@@ -78,7 +85,12 @@ export default async function ProjectPage({ params }: { params: Promise<{ id: st
           </p>
         </div>
       ) : (
-        <ReviewBoard project={p} intakeUrl={intakeUrl} profileReady={profileReady} />
+        <ReviewBoard
+          project={p}
+          intakeUrl={intakeUrl}
+          profileReady={profileReady}
+          customQuestions={customQuestions}
+        />
       )}
     </div>
   );
@@ -88,10 +100,12 @@ async function ReviewBoard({
   project,
   intakeUrl,
   profileReady,
+  customQuestions,
 }: {
   project: ProjectRow;
   intakeUrl: string;
   profileReady: boolean;
+  customQuestions: CustomBriefQuestion[];
 }) {
   const supabase = await createClient();
   const { data: cardRows } = await supabase
@@ -101,13 +115,19 @@ async function ReviewBoard({
     .order("source", { ascending: true });
 
   const cards = (cardRows ?? []) as RiskCardRow[];
+  const { data: conceptPackRow } = await supabase
+    .from("concept_packs")
+    .select("project_id")
+    .eq("project_id", project.id)
+    .maybeSingle();
+  const conceptPackExists = Boolean(conceptPackRow);
   const passport = project.passport!;
   const missing = missingFields(passport);
   const questions = firstMeetingQuestions(cards);
   const llmDegraded = cards.length > 0 && cards.every((c) => c.source === "rule");
 
   // Ответы клиента на свои вопросы дизайнера (question_id = custom_0, custom_1…).
-  const customQ = Array.isArray(project.custom_questions) ? project.custom_questions : [];
+  const customQ = customQuestions;
   let customAnswers: { q: string; a: string }[] = [];
   if (customQ.length > 0) {
     const { data: answerRows } = await supabase
@@ -122,8 +142,8 @@ async function ReviewBoard({
       ]),
     );
     customAnswers = customQ.map((q, i) => ({
-      q,
-      a: typeof byId.get(`custom_${i}`) === "string" ? String(byId.get(`custom_${i}`)) : "",
+      q: q.title,
+      a: formatCustomAnswer(q, byId.get(`custom_${i}`)),
     }));
   }
 
@@ -288,10 +308,32 @@ async function ReviewBoard({
         </section>
       </div>
 
+      <section className="card flex flex-col gap-5 sm:flex-row sm:items-center sm:justify-between">
+        <div className="max-w-2xl">
+          <div className="flex flex-wrap items-center gap-2">
+            <h2 className="font-display text-2xl font-semibold">{ru.conceptPack.entryTitle}</h2>
+            <span className="rounded-full bg-line/50 px-3 py-1 text-[11px] text-muted">
+              {ru.conceptPack.studioOnly}
+            </span>
+          </div>
+          <p className="mt-2 text-sm leading-relaxed text-muted">{ru.conceptPack.entryHint}</p>
+        </div>
+        <div className="shrink-0">
+          {conceptPackExists ? (
+            <Link
+              href={`/dashboard/projects/${project.id}/concept-pack`}
+              className="btn-ghost inline-flex"
+            >
+              {ru.conceptPack.open}
+            </Link>
+          ) : (
+            <CreateConceptPackButton projectId={project.id} />
+          )}
+        </div>
+      </section>
+
       <div>
-        <Link href={`/dashboard/projects/${project.id}/proposal`} className="btn-primary">
-          {ru.review.buildProposal}
-        </Link>
+        {project.status === "active_project" ? <Link href={`/dashboard/projects/${project.id}/room`} className="btn-primary">{ru.projectRoom.open}</Link> : <Link href={`/dashboard/projects/${project.id}/proposal`} className="btn-primary">{ru.review.buildProposal}</Link>}
       </div>
     </div>
   );

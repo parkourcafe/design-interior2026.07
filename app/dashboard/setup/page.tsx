@@ -6,6 +6,7 @@ import DesignerCard from "@/components/designer-card";
 import SetupForm from "./form";
 import SetPassword from "./set-password";
 import TeamMembers from "./team";
+import DeleteAccount from "./delete-account";
 
 export const dynamic = "force-dynamic";
 
@@ -45,6 +46,7 @@ export default async function SetupPage() {
       />
       <TeamMembers members={members} role={studio.role} currentEmail={studio.email} />
       <SetPassword email={studio.email} />
+      <DeleteAccount />
     </>
   );
 }

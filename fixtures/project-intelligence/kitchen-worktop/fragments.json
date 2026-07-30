@@ -1,0 +1,46 @@
+{
+  "contractVersion": "project-intelligence-vertical-slice/0.1",
+  "projectId": "project-kitchen-001",
+  "fragments": [
+    {
+      "id": "fragment-plan-kitchen",
+      "projectId": "project-kitchen-001",
+      "sourceId": "source-plan-001",
+      "fragmentKind": "pdf_region",
+      "locator": {
+        "page": 1,
+        "bbox": [0.1, 0.2, 0.8, 0.65]
+      },
+      "extractedText": "Kitchen area K-01; worktop item WT-01.",
+      "available": true,
+      "createdAt": "2026-07-16T00:01:00.000Z"
+    },
+    {
+      "id": "fragment-questionnaire-requirement",
+      "projectId": "project-kitchen-001",
+      "sourceId": "source-questionnaire-001",
+      "fragmentKind": "structured_field",
+      "locator": {
+        "jsonPointer": "/worktop_requirement",
+        "questionKey": "worktop_requirement"
+      },
+      "extractedText": "durable and easy to maintain",
+      "available": true,
+      "createdAt": "2026-07-16T00:01:00.000Z"
+    },
+    {
+      "id": "fragment-transcript-decision",
+      "projectId": "project-kitchen-001",
+      "sourceId": "source-transcript-001",
+      "fragmentKind": "transcript_span",
+      "locator": {
+        "startMs": 0,
+        "endMs": 9600,
+        "speaker": "client"
+      },
+      "extractedText": "Use natural stone for the kitchen worktop.",
+      "available": true,
+      "createdAt": "2026-07-16T00:01:00.000Z"
+    }
+  ]
+}

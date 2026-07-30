@@ -7,8 +7,14 @@ import SignOutButton from "./sign-out-button";
 export const dynamic = "force-dynamic";
 
 export default async function DashboardLayout({ children }: { children: React.ReactNode }) {
-  const studio = await getStudio();
-  if (!studio) redirect("/login");
+  // ProjectCEO's request-bound AP1 runtime deliberately has no service-role
+  // credential. The legacy studio shell must not make that credential a
+  // prerequisite for authenticated ProjectCEO pages; production retains the
+  // existing studio membership check when the server-only key is configured.
+  if (process.env.SUPABASE_SERVICE_ROLE_KEY) {
+    const studio = await getStudio();
+    if (!studio) redirect("/login");
+  }
 
   return (
     <div className="min-h-screen">

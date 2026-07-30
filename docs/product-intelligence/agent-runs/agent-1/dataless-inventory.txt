@@ -1,0 +1,190 @@
+# Dataless inventory — 2026-07-16
+
+Inventory taken after two explicit `brctl download` request cycles. Counts did not change. A `dataless` file is not considered materialized: reads of representative files (`.git/index`, packfile, `CLAUDE.md`) returned zero prefix bytes.
+
+## Counts
+
+- Git metadata files: 62
+- source/config candidates outside generated/dependency/QA roots: 76
+- generated `.next` files: 1235
+- dependency `node_modules` files: 22597
+- QA/media artifacts: 14
+- non-file dataless paths: 1
+- total dataless files: 23984
+
+Tracking status for source/config candidates is unknown because `.git/index` and the required packfile are unreadable. The full mechanically reproducible per-file lists for `.next` and `node_modules` are intentionally not committed; their roots and exact counts are recorded above.
+
+## Git metadata (blocking)
+
+.git/hooks/post-update.sample
+.git/hooks/pre-rebase.sample
+.git/index
+.git/info/exclude
+.git/objects/02/8d11307e719dd13f8d023466bbe180a84481c5
+.git/objects/09/601e2569ab19e1714c7b6c70252592c6fab846
+.git/objects/0f/f2f4e2ca45266e816adbd997a0d62db94a5c7f
+.git/objects/12/a938a957155f01fc2c391ed8c6bec631ec3c9d
+.git/objects/1c/e786d50065a760de607224d28dcf20db848fba
+.git/objects/1f/09bf49bb1de5b7d17da263cbe690ceb7dc9022
+.git/objects/21/fec5020aa15cb3587d342fd3c777fa0ad267df
+.git/objects/22/9dd17fbfd147ef6182ba30b20e4826f45b9ce2
+.git/objects/24/6826c345e17dc4725c11afa0b50d0d8be840f6
+.git/objects/2e/4e013f0a85df31bb977d1f38daa9881112663e
+.git/objects/2f/4c425d406b25c511f4e5a0892ceabea5a49c2a
+.git/objects/2f/635b118cab5f2ba09f47d34291c1c6da9d4811
+.git/objects/35/19d1b04eaf581f3e16ea051a0703128b639a39
+.git/objects/35/68caf9b3cd59bd8feb6c9902e728a3cb775614
+.git/objects/37/8d2695667d03ee7ea5ac963de2a78355a0e7da
+.git/objects/3f/1a764adc1a0f352d90119c9b2126ce35f927c1
+.git/objects/47/e3a234ef4f1558725436d414005790950cc2de
+.git/objects/4d/906c8501c6603febd51c054a6057dbfb988f85
+.git/objects/54/60320cd8e932d2de75ecd1f68e872d4f6d24bd
+.git/objects/54/ed5ed095c817239baa6e051de3d6c1ba9753cf
+.git/objects/62/0fad9c9b38f53980768d87558daec3421feeda
+.git/objects/62/593cbedd6bb6b9edb8fa91baa2a62af8492478
+.git/objects/65/5d8640754587ce91965e0f64b6db1bded39ed0
+.git/objects/66/5d11ff5b9fbf32a73c0936fb051649d5b120c4
+.git/objects/6e/107e2fb7467c398e9ec6c161965f005a5928f3
+.git/objects/71/66347d6adddb65f8aaebc7ec31e53cbfff6a00
+.git/objects/72/a2b67b302923b611b0f5b93302ef8bd056a4a7
+.git/objects/79/04a7ce3cc9d7b7d0e1ce98d75cc44fab37acd3
+.git/objects/7a/88379b7642f538535891cc71d85af37a9c387f
+.git/objects/80/918eefdd127d1e58d561fb17eb862cae23557a
+.git/objects/83/93fcb239343a7c3dc1372487577093f4557b5f
+.git/objects/86/7a7558a86b6d64395937730f0ad338bf0bbc7b
+.git/objects/88/376cff55ccbbf1bd29ecf9c5a6e0c078691c9b
+.git/objects/88/8563be40689edee6a4c9d82419657517efe790
+.git/objects/8b/23ea032ad58514d3f0317e947aa034d002716a
+.git/objects/8e/4d30c77f582446534b1a872f42d472a21a725b
+.git/objects/8f/3be942e9a21c493cb19c8d2ebcfe5d57e857ad
+.git/objects/8f/8cccfdc98449e827f9380ede72f88f04abcc03
+.git/objects/95/696580b676c62344b9a9bd4074022d66eb2b68
+.git/objects/9d/178a522e2710e5f7e76c57aba0cf8f239ce2f2
+.git/objects/a5/d3418931bc66f39cd95f479f878088b0dc4c46
+.git/objects/b2/0db35906d36eded4489efc9c89db458d2a702b
+.git/objects/b2/3af6392064feed3c03d2eb4527896ef5ed5ce4
+.git/objects/bc/700bed8d7f94e490addce5353ae2c63b9002f8
+.git/objects/bf/8c9b8de3bb384c0ec0404c4a48735cda7d6ca1
+.git/objects/c0/d3382ec9b9450f66ac057f2a68ddf27867baa2
+.git/objects/c4/e2b884b6f2141da7dc5dc7edcd3895647f9c52
+.git/objects/d0/ec618a133fb44d9c6d8907e7f308fd235cf4b8
+.git/objects/d3/e435cc382d06f582404af0923adabfa0a60289
+.git/objects/d7/65b278920055777e5107ee9ec0db3ae99e3686
+.git/objects/e0/d09f41f70331f2387fd1b72c00947d7495c8c2
+.git/objects/e1/dcf6e5a119fb76aa0dd2562311fe9542ab9228
+.git/objects/e8/228597b1581204508afa66534e7ba1e086f35f
+.git/objects/ed/184934bb5f90024cc020720cadb491cdf6e07e
+.git/objects/ed/44dcb03e9b3045f08fbcbe1cb5007a23d3b334
+.git/objects/fa/2eea4a16b8e91ff9051656b336cae0756345e1
+.git/objects/fb/d6772da4e787a3a253a44b0755e4993d67107e
+.git/objects/pack/pack-9673c591895840aa656aebe47027281d4622247c.pack
+
+## Source/config candidates (blocking until tracking state is known)
+
+.gitignore
+APP_STORE_RELEASE.md
+ARCHITECTURE.md
+CLAUDE.md
+DEMO.md
+HANDOFF.md
+HANDOFF_CINEMATIC.md
+LANDING_REPORT.md
+LAUNCH_CHECKLIST.md
+MODULE_2_CONCEPT_PACK_REPORT.md
+MODULE_3_REPORT.md
+PHASE_0_REPORT.md
+PHASE_2_REPORT.md
+README.md
+RELEASE_CONTROL.md
+RUSTORE_RELEASE.md
+STORE_SETUP.md
+app/api/auth/register/route.ts
+app/api/auth/set-password/route.ts
+app/api/client/create/route.ts
+app/api/intake/start/route.ts
+app/api/intake/submit/route.ts
+app/api/intake/upload/route.ts
+app/api/pilot/route.ts
+app/api/proposal/respond/route.ts
+app/apple-icon.tsx
+app/b/[token]/page.tsx
+app/dashboard/actions.ts
+app/dashboard/analytics/page.tsx
+app/dashboard/projects/[id]/concept-pack/actions.ts
+app/demo/brief/page.tsx
+app/designers/page.tsx
+app/globals.css
+app/i/[token]/page.tsx
+app/icon.svg
+app/icons/[size]/route.tsx
+app/legal/terms/page.tsx
+app/pilot/page.tsx
+app/pilot/pilot-form.tsx
+components/landing/footer.tsx
+components/landing/hero.tsx
+components/landing/loop-scene.tsx
+components/landing/nav.tsx
+docs/M1_GAP_AUDIT.md
+eval/run-eval.ts
+ios/.gitignore
+ios/App/App/public/cordova.js
+ios/App/App/public/cordova_plugins.js
+ios/App/CapApp-SPM/.gitignore
+ios/App/CapApp-SPM/README.md
+lib/brief/passport.ts
+lib/brief/plan-file-text.test.ts
+lib/brief/plan-file-text.ts
+lib/llm/zai.ts
+lib/project-room/access.test.ts
+lib/project-room/summary.test.ts
+lib/proposal/build.test.ts
+lib/risks/dedupe.test.ts
+lib/risks/rules.ts
+lib/risks/schema.ts
+lib/supabase/server.ts
+lib/tokens.ts
+package.json
+research/brief-questions-bank.md
+scripts/fetch-landing-media.mjs
+scripts/seed.ts
+supabase/email-templates/README.md
+supabase/email-templates/confirm_signup.html
+supabase/migrations/0001_init.sql
+supabase/migrations/0002_client_briefs.sql
+supabase/migrations/0003_custom_questions.sql
+supabase/migrations/0006_team.sql
+supabase/migrations/0008_concept_packs.sql
+tailwind.config.ts
+tsconfig.json
+vitest.config.ts
+
+## QA/media artifacts (non-blocking for source baseline)
+
+qa-artifacts/rustore-qa-2026-07-09/reports/domain-promotion.md
+qa-artifacts/rustore-qa-2026-07-09/reports/human-review.md
+qa-artifacts/rustore-qa-2026-07-09/reports/qa-summary.md
+qa-artifacts/rustore-qa-2026-07-09/screenshots/route__desktop__pilot.png
+qa-artifacts/rustore-qa-2026-07-09/screenshots/route__mobile__i_fake-token.png
+qa-artifacts/rustore-qa-2026-07-09/screenshots/scenario__designer__01-login.png
+qa-artifacts/rustore-qa-2026-07-09/screenshots/scenario__designer__02-dashboard-redirect.png
+qa-artifacts/rustore-qa-2026-07-09/screenshots/scenario__mobile-menu.png
+qa-artifacts/rustore-qa-2026-07-09/screenshots/scroll/scroll__desktop__designers__100.png
+qa-artifacts/rustore-qa-2026-07-09/screenshots/scroll/scroll__mobile__demo__000.png
+qa-artifacts/rustore-qa-2026-07-09/screenshots/scroll/scroll__mobile__designers__050.png
+qa-artifacts/rustore-qa-2026-07-09/screenshots/scroll/scroll__mobile__pilot__050.png
+qa-artifacts/rustore-qa-2026-07-09/screenshots/scroll/scroll__mobile__root__100.png
+qa-artifacts/rustore-qa-2026-07-09/screenshots/scroll/scroll__mobile__security__000.png
+
+## Non-file dataless paths
+
+ios/App/App.xcodeproj
+
+## Reproduction commands
+
+```text
+find .git -flags +dataless -type f -print
+find . -path './.git' -prune -o -path './node_modules' -prune -o -path './.next' -prune -o -path './qa-artifacts' -prune -o -flags +dataless -type f -print
+find .next -flags +dataless -type f -print
+find node_modules -flags +dataless -type f -print
+find qa-artifacts -flags +dataless -type f -print
+```

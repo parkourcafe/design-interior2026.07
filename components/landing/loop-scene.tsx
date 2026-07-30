@@ -10,7 +10,7 @@ import { MEDIA } from "./media";
 import { StickyScene } from "./cinema";
 
 const l = ru.landing.loop;
-const HREFS = ["/demo/brief", "/demo", "/demo", "/demo", "/demo/proposal"];
+const HREFS = ["/demo/brief", "/demo#passport", "/demo#risks", "/demo#pricing", "/demo/proposal"];
 
 export default function LoopScene() {
   const count = l.cases.length;
@@ -23,7 +23,7 @@ export default function LoopScene() {
         <div className="relative mx-auto mb-10 w-[min(78vw,320px)] overflow-hidden rounded-2xl border border-linedark">
           <Image
             src={MEDIA.passport}
-            alt="Паспорт проекта ARHIDOM — стилизованная демонстрация"
+            alt="Паспорт проекта RemHaOS — стилизованная демонстрация"
             width={800}
             height={1000}
             sizes="78vw"
@@ -63,7 +63,7 @@ export default function LoopScene() {
                 >
                   <Image
                     src={MEDIA.passport}
-                    alt="Паспорт проекта ARHIDOM — стилизованная демонстрация"
+                    alt="Паспорт проекта RemHaOS — стилизованная демонстрация"
                     width={800}
                     height={1000}
                     sizes="(max-width: 768px) 72vw, 400px"

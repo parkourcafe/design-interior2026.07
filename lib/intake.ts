@@ -1,11 +1,12 @@
 import { createAdminClient } from "@/lib/supabase/admin";
+import { normalizeCustomQuestions, type CustomBriefQuestion } from "@/lib/brief/custom-questions";
 
 export interface IntakeProject {
   id: string;
   designer_id: string | null; // null → клиентский бриф без дизайнера
   client_name: string;
   status: string;
-  custom_questions: string[]; // свои вопросы дизайнера
+  custom_questions: CustomBriefQuestion[]; // свои вопросы дизайнера
 }
 
 // Сверка intake-токена на сервере (service role). anon-ключ доступа не даёт —
@@ -21,10 +22,6 @@ export async function getProjectByIntakeToken(token: string): Promise<IntakeProj
   if (!data) return null;
   return {
     ...(data as IntakeProject),
-    custom_questions: Array.isArray((data as { custom_questions?: unknown }).custom_questions)
-      ? ((data as { custom_questions: unknown[] }).custom_questions.filter(
-          (q): q is string => typeof q === "string",
-        ) as string[])
-      : [],
+    custom_questions: normalizeCustomQuestions((data as { custom_questions?: unknown }).custom_questions),
   };
 }

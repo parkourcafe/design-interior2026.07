@@ -6,6 +6,7 @@ import type {
   MoneyRange,
 } from "@/lib/types";
 import type { PriceResult } from "@/lib/pricing/calc";
+import type { PackageRecommendation } from "@/lib/proposal/package";
 
 // Proposal — сборка, не генерация. Шаблон + данные брифа + рассчитанная цена.
 // Каждая секция — редактируемый текст, предзаполненный детерминированно.
@@ -77,6 +78,19 @@ function worksText(pkg: keyof typeof PACKAGE_DELIVERABLES): string {
     .join("\n");
 }
 
+function packageText(recommendation: PackageRecommendation): string {
+  return [
+    `Рекомендуемый формат: ${recommendation.package_label}.`,
+    recommendation.client_facing_explanation,
+    "",
+    "Почему подходит:",
+    ...recommendation.pricing_explanation_points.map((p) => `— ${p}`),
+    "",
+    "Состав формата:",
+    ...recommendation.included_service_items.map((item) => `— ${item}`),
+  ].join("\n");
+}
+
 function stagesText(termWeeks: [number, number] | null): string {
   const term = termWeeks ? `Ориентировочный срок: ${termWeeks[0]}–${termWeeks[1]} недель.` : "";
   return [
@@ -119,23 +133,30 @@ export interface BuildProposalArgs {
   defaults: ProposalDefaults;
   price: PriceResult | null; // null → режим «без цены»
   packageChoice: keyof typeof PACKAGE_DELIVERABLES;
+  packageRecommendation?: PackageRecommendation;
 }
 
 export function buildProposalSections(args: BuildProposalArgs): ProposalSection[] {
-  const { passport, acceptedCards, defaults, price, packageChoice } = args;
+  const { passport, acceptedCards, defaults, price, packageChoice, packageRecommendation } = args;
 
   const sections: ProposalSection[] = [
     { id: "task", title: "Задача клиента", body: taskText(passport) },
+    ...(packageRecommendation
+      ? [{ id: "package", title: "Рекомендованный формат работы", body: packageText(packageRecommendation) }]
+      : []),
     { id: "works", title: "Состав работ", body: worksText(packageChoice) },
     { id: "stages", title: "Этапы и сроки", body: stagesText(price?.term_weeks ?? null) },
   ];
 
   if (price) {
     const breakdown = price.factors.map((f) => `— ${f.label}: ${f.value}`).join("\n");
+    const recommendationPoints = packageRecommendation?.pricing_explanation_points.length
+      ? `\n\nПочему выбран этот формат:\n${packageRecommendation.pricing_explanation_points.map((p) => `— ${p}`).join("\n")}`
+      : "";
     sections.push({
       id: "price",
       title: "Стоимость",
-      body: `Диапазон стоимости дизайн-проекта: ${rangeText(price.range)}.\n\nКак считается:\n${breakdown}`,
+      body: `Диапазон стоимости дизайн-проекта: ${rangeText(price.range)}.\n\nКак считается:\n${breakdown}${recommendationPoints}`,
     });
   }
 

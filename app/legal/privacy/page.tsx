@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { ru } from "@/lib/i18n/ru";
+import { legalOperator } from "@/lib/env";
 import LandingNav from "@/components/landing/nav";
 import LandingFooter from "@/components/landing/footer";
 
@@ -10,10 +11,9 @@ export const metadata: Metadata = {
   description: l.pilotBanner,
 };
 
-// Юридические страницы — намеренно спокойные и читабельные, без «кино».
-// Реквизиты оператора НЕ выдумываем: их отсутствие — блокер публичного
-// запуска, о чём страница говорит прямо (баннер ниже).
 export default function PrivacyPage() {
+  const operator = legalOperator();
+
   return (
     <div className="landing min-h-screen">
       <LandingNav />
@@ -22,7 +22,7 @@ export default function PrivacyPage() {
           {l.privacyTitle}
         </h1>
         <p className="mt-2 text-[13px] text-ivorymuted">
-          {l.updated}: 05.07.2026
+          {l.updated}: 18.07.2026
         </p>
         <p className="mt-6 rounded-xl border border-bronze/40 bg-bronze/10 px-5 py-4 text-[13.5px] leading-relaxed text-ivory/85">
           {l.pilotBanner}
@@ -34,6 +34,23 @@ export default function PrivacyPage() {
               <p className="text-[14.5px] leading-[1.75] text-ivory/70">{c}</p>
             </section>
           ))}
+          <section>
+            <h2 className="mb-2 text-[17px] font-semibold text-ivory">Оператор и контакт</h2>
+            <div className="space-y-1 text-[14.5px] leading-[1.75] text-ivory/70">
+              <p>{operator.name}</p>
+              {operator.address ? <p>{operator.address}</p> : null}
+              <p>
+                <a className="underline hover:text-ivory" href={`mailto:${operator.email}`}>
+                  {operator.email}
+                </a>
+              </p>
+              <p>
+                <a className="underline hover:text-ivory" href={`tel:${operator.phone}`}>
+                  {operator.phone}
+                </a>
+              </p>
+            </div>
+          </section>
         </div>
       </main>
       <LandingFooter />

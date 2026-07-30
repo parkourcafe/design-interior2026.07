@@ -1,0 +1,145 @@
+{
+  "contractVersion": "project-intelligence-vertical-slice/0.1",
+  "artifact": {
+    "artifactId": "export-kitchen-v2-render-001",
+    "format": "logical_json",
+    "jobStatus": "ready",
+    "generatedAt": "2026-07-16T01:15:00.000Z",
+    "semanticContentHash": "sha256:9c7d1eddd1278bda3308fc8c41b20908ee3f600e08848b49a910484fb3e8484b"
+  },
+  "hashContract": {
+    "algorithm": "sha256",
+    "encoding": "utf-8",
+    "canonicalization": "recursive_sorted_object_keys_arrays_preserve_contract_order",
+    "hashedField": "logicalContent",
+    "excludedVolatileFields": ["artifactId", "generatedAt", "jobStatus"]
+  },
+  "logicalContent": {
+    "schemaVersion": "project-intelligence-handoff/0.1",
+    "project": {
+      "projectId": "project-kitchen-001",
+      "versionId": "version-kitchen-001-v2",
+      "versionNo": 2,
+      "baseVersionId": "version-kitchen-001-v1",
+      "label": "Kitchen baseline after worktop material change"
+    },
+    "canonicalMetadata": {
+      "currency": "USD",
+      "lengthUnit": "m",
+      "areaUnit": "m2"
+    },
+    "displayMetadata": {
+      "locale": "en-US",
+      "unitSystem": "us_customary",
+      "currencyDisplay": "symbol"
+    },
+    "areas": [
+      {
+        "nodeId": "area-kitchen",
+        "revisionId": "revision-area-kitchen-r1",
+        "stableKey": "kitchen",
+        "name": "Kitchen"
+      }
+    ],
+    "requirements": [
+      {
+        "nodeId": "requirement-worktop-durable",
+        "revisionId": "revision-requirement-worktop-durable-r1",
+        "claimStatus": "human_confirmed",
+        "contentOrigin": "ai",
+        "summary": "Worktop must be durable and easy to maintain",
+        "sourceReferenceIds": ["source-reference-questionnaire-requirement"]
+      }
+    ],
+    "decisions": [
+      {
+        "nodeId": "decision-worktop-material",
+        "revisionId": "revision-decision-worktop-material-r2",
+        "claimStatus": "human_confirmed",
+        "contentOrigin": "human",
+        "material": "quartz_composite",
+        "summary": "Use quartz composite for the kitchen worktop",
+        "provenance": {
+          "changeSetId": "change-set-kitchen-v1-v2",
+          "previousRevisionId": "revision-decision-worktop-material-r1",
+          "previousSourceReferenceIds": ["source-reference-transcript-decision"],
+          "reasonCode": "schedule_constraint"
+        }
+      }
+    ],
+    "items": [
+      {
+        "nodeId": "item-kitchen-worktop",
+        "revisionId": "revision-item-kitchen-worktop-r1",
+        "areaNodeId": "area-kitchen",
+        "name": "Kitchen worktop",
+        "sourceReferenceIds": ["source-reference-plan-kitchen"]
+      }
+    ],
+    "deliverables": [
+      {
+        "nodeId": "deliverable-budget",
+        "revisionId": "revision-deliverable-budget-r1",
+        "title": "Kitchen Budget Schedule"
+      },
+      {
+        "nodeId": "deliverable-finish-schedule",
+        "revisionId": "revision-deliverable-finish-schedule-r1",
+        "title": "Kitchen Finish Schedule"
+      }
+    ],
+    "sourceReferences": [
+      {
+        "id": "source-reference-plan-kitchen",
+        "sourceId": "source-plan-001",
+        "fragmentId": "fragment-plan-kitchen",
+        "locator": { "page": 1, "bbox": [0.1, 0.2, 0.8, 0.65] },
+        "evidenceRole": "direct"
+      },
+      {
+        "id": "source-reference-questionnaire-requirement",
+        "sourceId": "source-questionnaire-001",
+        "fragmentId": "fragment-questionnaire-requirement",
+        "locator": { "jsonPointer": "/worktop_requirement", "questionKey": "worktop_requirement" },
+        "evidenceRole": "direct"
+      },
+      {
+        "id": "source-reference-transcript-decision",
+        "sourceId": "source-transcript-001",
+        "fragmentId": "fragment-transcript-decision",
+        "locator": { "startMs": 0, "endMs": 9600, "speaker": "client" },
+        "evidenceRole": "superseded_input"
+      }
+    ],
+    "impacts": {
+      "unresolved": [
+        {
+          "impactId": "impact-item-kitchen-worktop",
+          "status": "accepted",
+          "changedNodeId": "decision-worktop-material",
+          "impactedNodeId": "item-kitchen-worktop",
+          "nodePath": ["decision-worktop-material", "item-kitchen-worktop"],
+          "edgeIds": ["edge-item-decision"]
+        },
+        {
+          "impactId": "impact-deliverable-budget",
+          "status": "accepted",
+          "changedNodeId": "decision-worktop-material",
+          "impactedNodeId": "deliverable-budget",
+          "nodePath": ["decision-worktop-material", "item-kitchen-worktop", "deliverable-budget"],
+          "edgeIds": ["edge-item-decision", "edge-budget-item"]
+        }
+      ],
+      "resolved": [
+        {
+          "impactId": "impact-deliverable-finish-schedule",
+          "status": "resolved",
+          "changedNodeId": "decision-worktop-material",
+          "impactedNodeId": "deliverable-finish-schedule",
+          "nodePath": ["decision-worktop-material", "item-kitchen-worktop", "deliverable-finish-schedule"],
+          "edgeIds": ["edge-item-decision", "edge-finish-item"]
+        }
+      ]
+    }
+  }
+}

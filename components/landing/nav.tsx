@@ -14,12 +14,8 @@ const n = ru.landing.nav;
 const LINKS: Array<[string, string]> = [
   [n.designers, "/designers"],
   [n.studios, "/studios"],
-  [n.how, "/#how"],
   [n.demoBrief, "/demo/brief"],
   [n.demoProposal, "/demo/proposal"],
-  [n.pilot, "/pilot"],
-  [n.security, "/security"],
-  [n.contacts, "/pilot#request"],
 ];
 
 export default function LandingNav() {
@@ -75,7 +71,7 @@ export default function LandingNav() {
             <Link href="/login" className="hidden text-[13.5px] text-ivorymuted hover:text-ivory sm:inline">
               {n.login}
             </Link>
-            <Link href="/login" className="btn-bronze !min-h-10 !px-4 !py-2 !text-[13.5px]">
+            <Link href="/login" className="btn-bronze !min-h-10 whitespace-nowrap !px-3 !py-2 !text-[14px] sm:!px-5 sm:!text-[15px]">
               {n.createProject}
             </Link>
             <button

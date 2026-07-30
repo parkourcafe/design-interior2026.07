@@ -52,7 +52,7 @@ function Content({ p }: { p: number }) {
                   return (
                     <span
                       key={c}
-                      className="rounded-lg border border-linedark bg-coal2/80 px-3.5 py-2 text-[13px] text-ivory/70"
+                      className="rounded-lg border border-linedark bg-coal2/80 px-3.5 py-2 text-[18px] leading-relaxed text-ivory/80"
                       style={{
                         opacity: 1 - t * 0.82,
                         filter: `blur(${(t * 3).toFixed(1)}px)`,
@@ -71,7 +71,7 @@ function Content({ p }: { p: number }) {
                   return (
                     <p
                       key={s}
-                      className="font-display py-1 text-[17px] italic leading-snug text-bronze/80"
+                      className="font-display py-1.5 text-[clamp(20px,1.8vw,24px)] italic leading-snug text-bronze"
                       style={{ opacity: t, transform: `translateY(${((1 - t) * 10).toFixed(0)}px)` }}
                     >
                       {s}
@@ -93,8 +93,8 @@ function Content({ p }: { p: number }) {
                       className="flex items-baseline justify-between gap-4 py-3"
                       style={{ opacity: t, transform: `translateX(${((1 - t) * 22).toFixed(0)}px)` }}
                     >
-                      <span className="text-[14px] font-medium text-ivory">{k}</span>
-                      <span className="text-right text-[12.5px] text-ivorymuted">{v}</span>
+                      <span className="text-[18px] font-medium text-ivory">{k}</span>
+                      <span className="text-right text-[18px] leading-relaxed text-ivorymuted">{v}</span>
                     </div>
                   );
                 })}

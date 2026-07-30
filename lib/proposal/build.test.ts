@@ -3,6 +3,7 @@ import { buildProposalSections } from "./build";
 import { buildPassport } from "@/lib/brief/passport";
 import type { RiskCard, ProposalDefaults } from "@/lib/types";
 import type { PriceResult } from "@/lib/pricing/calc";
+import { derivePackageRecommendation } from "./package";
 
 const passport = buildPassport({
   object: { type: "flat", area_m2: 60, city: "Москва" },
@@ -25,6 +26,8 @@ const price: PriceResult = {
   factors: [{ label: "Базовая ставка", value: "3500 ₽/м²" }],
 };
 
+const packageRecommendation = derivePackageRecommendation({ passport });
+
 const acceptedCard: RiskCard = {
   risk_type: "function",
   evidence: ["высокая нагрузка на хранение", "минимализм"],
@@ -43,6 +46,7 @@ describe("buildProposalSections", () => {
       defaults,
       price,
       packageChoice: "full",
+      packageRecommendation,
     });
     const priceSection = sections.find((s) => s.id === "price");
     expect(priceSection).toBeDefined();
@@ -56,6 +60,7 @@ describe("buildProposalSections", () => {
       defaults,
       price: null,
       packageChoice: "full",
+      packageRecommendation,
     });
     expect(sections.find((s) => s.id === "price")).toBeUndefined();
   });
@@ -67,6 +72,7 @@ describe("buildProposalSections", () => {
       defaults,
       price,
       packageChoice: "full",
+      packageRecommendation,
     });
     const included = sections.find((s) => s.id === "included");
     expect(included?.body).toContain("включить проект систем хранения");
@@ -79,6 +85,7 @@ describe("buildProposalSections", () => {
       defaults,
       price,
       packageChoice: "full",
+      packageRecommendation,
     });
     const task = sections.find((s) => s.id === "task");
     expect(task?.body).toContain("квартира");
@@ -93,10 +100,25 @@ describe("buildProposalSections", () => {
       defaults,
       price,
       packageChoice: "full",
+      packageRecommendation,
     });
     const ids = sections.map((s) => s.id);
-    for (const id of ["task", "works", "stages", "included", "excluded", "revisions", "client_inputs", "stage_completion"]) {
+    for (const id of ["task", "package", "works", "stages", "included", "excluded", "revisions", "client_inputs", "stage_completion"]) {
       expect(ids).toContain(id);
     }
+  });
+
+  it("explains the recommended package in proposal sections and price text", () => {
+    const sections = buildProposalSections({
+      passport,
+      acceptedCards: [],
+      defaults,
+      price,
+      packageChoice: packageRecommendation.package_key,
+      packageRecommendation,
+    });
+
+    expect(sections.find((s) => s.id === "package")?.body).toContain(packageRecommendation.package_label);
+    expect(sections.find((s) => s.id === "price")?.body).toContain("Почему выбран этот формат");
   });
 });

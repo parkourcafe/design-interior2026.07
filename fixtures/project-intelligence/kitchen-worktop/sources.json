@@ -1,0 +1,53 @@
+{
+  "contractVersion": "project-intelligence-vertical-slice/0.1",
+  "projectId": "project-kitchen-001",
+  "checksumAlgorithm": "sha256",
+  "dedupeScope": "project",
+  "sources": [
+    {
+      "id": "source-plan-001",
+      "projectId": "project-kitchen-001",
+      "sourceKind": "pdf",
+      "mediaType": "application/pdf",
+      "originalName": "synthetic-kitchen-plan.pdf",
+      "contentEncoding": "utf-8-fixture-representation",
+      "fixtureContent": "Synthetic PDF plan: Kitchen area K-01; worktop item WT-01; scale 1:50.",
+      "byteLength": 70,
+      "checksum": "sha256:e21b786d7978a614aed2c184579695ec271d3e19579989194932dbf67056fe72",
+      "ingestionStatus": "ready",
+      "idempotencyKey": "ingest-plan-kitchen-001",
+      "createdAt": "2026-07-16T00:00:00.000Z",
+      "processedAt": "2026-07-16T00:01:00.000Z"
+    },
+    {
+      "id": "source-questionnaire-001",
+      "projectId": "project-kitchen-001",
+      "sourceKind": "questionnaire",
+      "mediaType": "application/json",
+      "originalName": "synthetic-questionnaire.json",
+      "contentEncoding": "utf-8",
+      "fixtureContent": "{\"project_type\":\"residential_kitchen\",\"worktop_requirement\":\"durable and easy to maintain\",\"preferred_material\":\"natural stone\"}",
+      "byteLength": 128,
+      "checksum": "sha256:8a653cd8996b60ceac888b2ad7cf623e98c0d6e160de759b09388ace3c506c11",
+      "ingestionStatus": "ready",
+      "idempotencyKey": "ingest-questionnaire-kitchen-001",
+      "createdAt": "2026-07-16T00:00:00.000Z",
+      "processedAt": "2026-07-16T00:01:00.000Z"
+    },
+    {
+      "id": "source-transcript-001",
+      "projectId": "project-kitchen-001",
+      "sourceKind": "transcript",
+      "mediaType": "text/plain",
+      "originalName": "synthetic-client-call.txt",
+      "contentEncoding": "utf-8",
+      "fixtureContent": "Client: Use natural stone for the kitchen worktop. Keep the finish durable and easy to maintain.",
+      "byteLength": 96,
+      "checksum": "sha256:b3c4f51b01822e93dc871ebe337ae9c885952fd18367460085c5b0b4b0c2dda1",
+      "ingestionStatus": "ready",
+      "idempotencyKey": "ingest-transcript-kitchen-001",
+      "createdAt": "2026-07-16T00:00:00.000Z",
+      "processedAt": "2026-07-16T00:01:00.000Z"
+    }
+  ]
+}

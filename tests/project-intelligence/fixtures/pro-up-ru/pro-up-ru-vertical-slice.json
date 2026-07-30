@@ -1,0 +1,21 @@
+{
+  "schemaVersion": "pro-up-renovation/ru-vertical-slice/0.1",
+  "region": "RU",
+  "locale": "ru-RU",
+  "currency": "RUB",
+  "organizationId": "org-ru-pilot-001",
+  "projectId": "project-ru-kitchen-001",
+  "source": { "kind": "design_package", "fileName": "approved-kitchen-v1.pdf", "sha256": "sha256:fixture-source" },
+  "baseline": {
+    "version": "v1",
+    "rooms": [{ "id": "kitchen", "name": "Кухня", "areaM2": 14.2 }],
+    "budgetRub": 1850000,
+    "durationDays": 75
+  },
+  "wbs": [{ "id": "wbs-kitchen-demo", "roomId": "kitchen", "trade": "electrical", "sequence": 1, "dependsOn": [] }],
+  "estimate": [{ "id": "estimate-electrical-001", "wbsId": "wbs-kitchen-demo", "kind": "work", "amountRub": 120000 }],
+  "procurement": [{ "id": "procurement-sockets-001", "roomId": "kitchen", "status": "accepted", "amountRub": 48000 }],
+  "changeOrders": [{ "id": "change-order-001", "baselineVersion": "v1", "reason": "client_decision", "deltaRub": 18000, "deltaDays": 2, "status": "approved" }],
+  "photoReports": [{ "id": "photo-report-001", "roomId": "kitchen", "milestone": "rough_in", "photoObjectKeys": ["projects/project-ru-kitchen-001/photo-001.jpg"], "accepted": true }],
+  "handoff": { "version": "v1", "locale": "ru-RU", "unresolvedCount": 0, "sourceRefs": ["approved-kitchen-v1.pdf"], "contentHash": "" }
+}

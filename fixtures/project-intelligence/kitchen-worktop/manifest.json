@@ -1,0 +1,142 @@
+{
+  "contractVersion": "project-intelligence-vertical-slice/0.1",
+  "fixtureId": "kitchen-worktop",
+  "synthetic": true,
+  "scope": "shared_project_intelligence_core",
+  "projectId": "project-kitchen-001",
+  "organizationId": "organization-synthetic-001",
+  "locale": "en-US",
+  "timezone": "UTC",
+  "fixtureFiles": [
+    "expected-diff.json",
+    "expected-handoff.json",
+    "expected-impacts.json",
+    "fragments.json",
+    "graph-v1.json",
+    "graph-v2.json",
+    "invalid-cases/ai-human-confirmation.json",
+    "invalid-cases/cross-project-edge.json",
+    "invalid-cases/cycle.json",
+    "invalid-cases/idempotency-conflict.json",
+    "invalid-cases/missing-change-reason.json",
+    "invalid-cases/stale-review.json",
+    "invalid-cases/unavailable-fragment.json",
+    "invalid-cases/unknown-without-reason.json",
+    "invalid-cases/unsourced-ai-claim.json",
+    "manifest.json",
+    "sources.json"
+  ],
+  "validator": "validate.mjs",
+  "fixedIds": {
+    "actorIds": [
+      "actor-client-approver",
+      "actor-designer-reviewer"
+    ],
+    "areaId": "area-kitchen",
+    "changeSetId": "change-set-kitchen-v1-v2",
+    "decisionNodeId": "decision-worktop-material",
+    "edgeIds": [
+      "edge-budget-item",
+      "edge-decision-area",
+      "edge-finish-item",
+      "edge-item-area",
+      "edge-item-decision",
+      "edge-requirement-area",
+      "edge-risk-decision"
+    ],
+    "evidenceLinkIds": [
+      "evidence-decision-transcript-r1",
+      "evidence-item-plan-r1",
+      "evidence-requirement-questionnaire-r1",
+      "evidence-risk-transcript-r1"
+    ],
+    "exportId": "export-kitchen-v2-render-001",
+    "fragmentIds": [
+      "fragment-plan-kitchen",
+      "fragment-questionnaire-requirement",
+      "fragment-transcript-decision"
+    ],
+    "impactIds": [
+      "impact-item-kitchen-worktop",
+      "impact-deliverable-budget",
+      "impact-deliverable-finish-schedule"
+    ],
+    "idempotencyKeys": [
+      "ingest-plan-kitchen-001",
+      "ingest-questionnaire-kitchen-001",
+      "ingest-transcript-kitchen-001"
+    ],
+    "invalidCaseIds": [
+      "edge-case-cycle-safe",
+      "invalid-ai-human-confirmation",
+      "invalid-cross-project-edge",
+      "invalid-idempotency-conflict",
+      "invalid-missing-change-reason",
+      "invalid-stale-review",
+      "invalid-unavailable-fragment",
+      "invalid-unknown-without-reason",
+      "invalid-unsourced-ai-claim"
+    ],
+    "nodeIds": [
+      "area-kitchen",
+      "decision-worktop-material",
+      "deliverable-budget",
+      "deliverable-finish-schedule",
+      "item-kitchen-worktop",
+      "requirement-worktop-durable",
+      "risk-natural-stone-lead-time"
+    ],
+    "organizationId": "organization-synthetic-001",
+    "projectId": "project-kitchen-001",
+    "reviewIds": [
+      "review-decision-r1",
+      "review-decision-r2-edit",
+      "review-requirement-r1"
+    ],
+    "revisionIds": [
+      "revision-area-kitchen-r1",
+      "revision-decision-worktop-material-r1",
+      "revision-decision-worktop-material-r2",
+      "revision-deliverable-budget-r1",
+      "revision-deliverable-finish-schedule-r1",
+      "revision-item-kitchen-worktop-r1",
+      "revision-requirement-worktop-durable-r1",
+      "revision-risk-natural-stone-lead-time-r1"
+    ],
+    "sourceIds": [
+      "source-plan-001",
+      "source-questionnaire-001",
+      "source-transcript-001"
+    ],
+    "versionIds": [
+      "version-kitchen-001-v1",
+      "version-kitchen-001-v2"
+    ]
+  },
+  "fixedTimestamps": {
+    "sourcesCreatedAt": "2026-07-16T00:00:00.000Z",
+    "sourcesProcessedAt": "2026-07-16T00:01:00.000Z",
+    "extractionCompletedAt": "2026-07-16T00:01:00.000Z",
+    "initialReviewAt": "2026-07-16T00:05:00.000Z",
+    "v1PublishedAt": "2026-07-16T00:06:00.000Z",
+    "decisionChangedAt": "2026-07-16T01:00:00.000Z",
+    "v2PublishedAt": "2026-07-16T01:02:00.000Z",
+    "impactCalculatedAt": "2026-07-16T01:03:00.000Z",
+    "itemImpactReviewedAt": "2026-07-16T01:06:00.000Z",
+    "budgetImpactReviewedAt": "2026-07-16T01:07:00.000Z",
+    "finishImpactReviewedAt": "2026-07-16T01:08:00.000Z",
+    "handoffGeneratedAt": "2026-07-16T01:15:00.000Z"
+  },
+  "sourceChecksums": {
+    "source-plan-001": "sha256:e21b786d7978a614aed2c184579695ec271d3e19579989194932dbf67056fe72",
+    "source-questionnaire-001": "sha256:8a653cd8996b60ceac888b2ad7cf623e98c0d6e160de759b09388ace3c506c11",
+    "source-transcript-001": "sha256:b3c4f51b01822e93dc871ebe337ae9c885952fd18367460085c5b0b4b0c2dda1"
+  },
+  "orderingRules": {
+    "defaultArrays": "lexicographic_by_stable_id",
+    "diffChanges": "node_id_then_change_type",
+    "impacts": "changed_node_then_distance_then_impacted_node",
+    "objectKeysForHash": "recursive_lexicographic",
+    "sourceReferenceArrays": "reference_id"
+  }
+}

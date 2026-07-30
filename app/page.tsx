@@ -70,6 +70,7 @@ export default function Home() {
       <LandingNav />
       <main>
         <Hero />
+        <ProductStatus />
         <FogScene />
         <LoopScene />
         <HowItWorks />
@@ -218,6 +219,23 @@ function BriefEngine() {
   );
 }
 
+function ProductStatus() {
+  const s = L.status;
+  return (
+    <Section className="border-y border-linedark bg-coal2/70 !py-[clamp(48px,6vw,72px)]">
+      <Head eyebrow={s.eyebrow} title={s.title} copy={s.copy} />
+      <Cine className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+        {s.groups.map(([title, copy], i) => (
+          <article key={title} className="cine rounded-xl border border-linedark bg-coal/70 p-5" style={delay(i)}>
+            <h3 className="text-[18px] font-semibold text-ivory">{title}</h3>
+            <p className="mt-3 text-[16px] leading-relaxed text-ivory/75">{copy}</p>
+          </article>
+        ))}
+      </Cine>
+    </Section>
+  );
+}
+
 // 8. Риск-карточки / доверие к AI
 function RiskCards() {
   const s = L.risks;
@@ -231,7 +249,7 @@ function RiskCards() {
             <p className="cine mt-5 max-w-[52ch] rounded-xl border border-linedark bg-coal2/70 p-4 text-[13px] leading-relaxed text-ivory/60" style={delay(1)}>
               {s.fallback}
             </p>
-            <Link href="/demo" className="cine mt-6 inline-flex items-center gap-2 text-[14.5px] text-bronze underline-offset-4 hover:underline" style={delay(2)}>
+            <Link href="/demo#risks" className="cine mt-6 inline-flex items-center gap-2 text-[14.5px] text-bronze underline-offset-4 hover:underline" style={delay(2)}>
               {s.cta} <span aria-hidden>→</span>
             </Link>
           </Cine>
@@ -469,7 +487,7 @@ function DataSafety() {
   );
 }
 
-// 14. Что создаёт ARHIDOM
+// 14. Что создаёт RemHaOS
 function WhatItCreates() {
   const s = L.creates;
   return (
@@ -515,7 +533,7 @@ function MeetingAgenda() {
             ))}
           </Cine>
           <Cine className="mt-7">
-            <Link href="/demo" className="cine inline-flex items-center gap-2 text-[14.5px] text-bronze underline-offset-4 hover:underline">
+            <Link href="/demo#agenda" className="cine inline-flex items-center gap-2 text-[14.5px] text-bronze underline-offset-4 hover:underline">
               {s.cta} <span aria-hidden>→</span>
             </Link>
           </Cine>

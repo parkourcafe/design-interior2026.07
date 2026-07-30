@@ -1,12 +1,10 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
-import { createAdminClient } from "@/lib/supabase/admin";
 
 export const dynamic = "force-dynamic";
 
-// Установка пароля залогиненному дизайнеру через service-role
-// (`updateUserById`) — в обход клиентской проверки «слабый/утёкший пароль».
-// Пользователь может задать любой пароль от 6 символов.
+// Установка пароля выполняется от имени текущей подтверждённой сессии, поэтому
+// политики паролей Supabase Auth применяются без привилегированного обхода.
 export async function POST(request: Request) {
   const supabase = await createClient();
   const {
@@ -20,8 +18,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Пароль — минимум 6 символов." }, { status: 400 });
   }
 
-  const admin = createAdminClient();
-  const { error } = await admin.auth.admin.updateUserById(user.id, { password });
+  const { error } = await supabase.auth.updateUser({ password });
   if (error) {
     return NextResponse.json({ error: error.message || "Не удалось сохранить пароль." }, { status: 400 });
   }

@@ -1,0 +1,17 @@
+# Gradle and Android Studio local state
+.gradle/
+.idea/
+local.properties
+**/build/
+captures/
+*.iml
+
+# Build outputs
+*.apk
+*.aab
+
+# Signing material must never be committed
+*.jks
+*.keystore
+keystore.properties
+signing.properties

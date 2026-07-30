@@ -1,0 +1,213 @@
+{
+  "schemaVersion": "project-intelligence-frozen-input-manifest/1.0",
+  "hashAlgorithm": "sha256",
+  "canonicalEntryFormat": "<sha256>  <relative-path>\\n",
+  "fileCount": 51,
+  "aggregateSha256": "c09a4d58120865927dc03b981e0de24345bd43306ff6d5e6858658e57ee87350",
+  "files": [
+    {
+      "path": "docs/product-intelligence/architecture-v1.md",
+      "sha256": "aac7a5f284480bba515030fff4aed90057def604803ffe7daac9da94661a8482"
+    },
+    {
+      "path": "docs/product-intelligence/domain/contract-v0.1.json",
+      "sha256": "2dd418eecca571e343fe0c922ab1d7de082bd5bd0223bcde490c4e61d38281ca"
+    },
+    {
+      "path": "docs/product-intelligence/domain/contract-v0.1.md",
+      "sha256": "84bdb284994aee72d930f312f712b23fdc52c5a14c0f3a02b6b61b5e00203435"
+    },
+    {
+      "path": "docs/product-intelligence/multi-agent/wave-2/README.md",
+      "sha256": "948ae5a34bb2f907128b691babc64c5b44116204edf0cc203565a25f8e193fed"
+    },
+    {
+      "path": "docs/product-intelligence/multi-agent/wave-2/agent-1-architecture-guardian.md",
+      "sha256": "d68496f6e395fc9d79961fee744921ba2097c43501358f12767a40d02c06838f"
+    },
+    {
+      "path": "docs/product-intelligence/multi-agent/wave-2/agent-2-workflow-application.md",
+      "sha256": "3e55d4dae4e43a05c2499a1c956f29991d7618e327f7fa320ab82e1aad6ca637"
+    },
+    {
+      "path": "docs/product-intelligence/multi-agent/wave-2/agent-3-change-handoff.md",
+      "sha256": "5775ff6aa0eebea0326d4f32a426af5d8d24a86e940675e7d1c36c93fe05238b"
+    },
+    {
+      "path": "docs/product-intelligence/multi-agent/wave-2/integration-and-acceptance.md",
+      "sha256": "9f84210d0fcda7037421929e622bfaa4e773619e7443d112c6d709cfda166658"
+    },
+    {
+      "path": "docs/product-intelligence/multi-agent/wave-2/launch-prompts.md",
+      "sha256": "df53e96e701a49dcdc1f89bfd9bbfa2a8a8400cc9c25c15ebfd5f05d68609e73"
+    },
+    {
+      "path": "docs/product-intelligence/vertical-slice-l1-spec.md",
+      "sha256": "98221cf7d009e6cbd2493487be1594b780611ec14e93c0258c4cb7509b876308"
+    },
+    {
+      "path": "docs/product-intelligence/vertical-slice/README.md",
+      "sha256": "c60150549785b9b62a685d49e3bdf79b7eac035f4a21888846e8342f4dc59622"
+    },
+    {
+      "path": "docs/product-intelligence/vertical-slice/api-contract.md",
+      "sha256": "b1b160bef7dd3040e235a3d2ac79d37940c71f1f89fe6e34f681c6b0f9a52785"
+    },
+    {
+      "path": "docs/product-intelligence/vertical-slice/contract-gaps.md",
+      "sha256": "ac83763dd4e11b3c365dcd3a604ffb24094dbcab18e008337d5b6b75008bd891"
+    },
+    {
+      "path": "docs/product-intelligence/vertical-slice/events.md",
+      "sha256": "d20b2ec4f912b4293e778e051700a321ae4263f597972db17871c20499f084a3"
+    },
+    {
+      "path": "docs/product-intelligence/vertical-slice/traceability.md",
+      "sha256": "8fbc1f4137f66ae831c12f4d093b8e111c10a0cabe4fa58455235194f9629ce5"
+    },
+    {
+      "path": "docs/product-intelligence/vertical-slice/ui-state-machine.md",
+      "sha256": "0954160de63f326d827edecf3eebf19825c46d0429faf0651c8cc9cd174ee18f"
+    },
+    {
+      "path": "docs/product-intelligence/vertical-slice/use-case.md",
+      "sha256": "bdb5440fa6ccb9fef4f9c1e9d5f54da39217c9b7745ff5d9690869fcf17cf621"
+    },
+    {
+      "path": "fixtures/project-intelligence/kitchen-worktop/expected-diff.json",
+      "sha256": "9ff993758d202315f1b56268cd43a68b727d494041ffb1b58c3accb52e67ae26"
+    },
+    {
+      "path": "fixtures/project-intelligence/kitchen-worktop/expected-handoff.json",
+      "sha256": "65f19e450edf1e3bb53f868b88be0aa34575f46ec10d33edd6a41aa0b2bfcfd8"
+    },
+    {
+      "path": "fixtures/project-intelligence/kitchen-worktop/expected-impacts.json",
+      "sha256": "1deb1f3461e7c937171c6294a16f07fd35f6175790dedc77874a43acfd4ca141"
+    },
+    {
+      "path": "fixtures/project-intelligence/kitchen-worktop/fragments.json",
+      "sha256": "19a3643dff30502d40bd5b4b7bc02f1a45cc600e8c0f57abdd82e87fb6b7cf7d"
+    },
+    {
+      "path": "fixtures/project-intelligence/kitchen-worktop/graph-v1.json",
+      "sha256": "b5192ff24943aa445eab5b04101cec67e646492928db334bf5b41f2c9203d0fd"
+    },
+    {
+      "path": "fixtures/project-intelligence/kitchen-worktop/graph-v2.json",
+      "sha256": "dfef358087d3c10a6f04b6184ea86e423c43929bf62fa322557ec28829aa444b"
+    },
+    {
+      "path": "fixtures/project-intelligence/kitchen-worktop/invalid-cases/ai-human-confirmation.json",
+      "sha256": "6ef190acb2f09fb554d7f1bb409f13f3a4af577c8723c90991372f66dc2787a8"
+    },
+    {
+      "path": "fixtures/project-intelligence/kitchen-worktop/invalid-cases/cross-project-edge.json",
+      "sha256": "ef277a40960f32b4dbb4e8650124db49979b5ee7c587e7b414f0f537c34ac9e9"
+    },
+    {
+      "path": "fixtures/project-intelligence/kitchen-worktop/invalid-cases/cycle.json",
+      "sha256": "2876e20f4a701b600866afeb31bdaeb309955b9c1714ceb373eaf3a2b3a3067d"
+    },
+    {
+      "path": "fixtures/project-intelligence/kitchen-worktop/invalid-cases/idempotency-conflict.json",
+      "sha256": "5389b590c0ff946c231b14c0f5330bbf7b0947146721126c5a038637d86970ee"
+    },
+    {
+      "path": "fixtures/project-intelligence/kitchen-worktop/invalid-cases/missing-change-reason.json",
+      "sha256": "15ed6e569cf3751ea76c05cf0e451c9fd355e75fe51ba22511cae725d9efda6c"
+    },
+    {
+      "path": "fixtures/project-intelligence/kitchen-worktop/invalid-cases/stale-review.json",
+      "sha256": "13fa53b55e5dc7d962960aed6ac066230133aaa592cc42369aa1d7c139563e7e"
+    },
+    {
+      "path": "fixtures/project-intelligence/kitchen-worktop/invalid-cases/unavailable-fragment.json",
+      "sha256": "5a4ff7d97f3178c3f3ad88d8407be5e344076d180994bf71b99400eba8412ca8"
+    },
+    {
+      "path": "fixtures/project-intelligence/kitchen-worktop/invalid-cases/unknown-without-reason.json",
+      "sha256": "64f8d35e790cc5a36a8a8d27fd13357a961e778e259aa4426e2c0ace1597d32e"
+    },
+    {
+      "path": "fixtures/project-intelligence/kitchen-worktop/invalid-cases/unsourced-ai-claim.json",
+      "sha256": "3e3bef5d338259d6332d8bb0dee29359e5e6fd50e6402efc5ffb752502b45a2d"
+    },
+    {
+      "path": "fixtures/project-intelligence/kitchen-worktop/manifest.json",
+      "sha256": "42510007531046125a39aab85c61decca915fe8ffa12ea4ae385cd6551231e2e"
+    },
+    {
+      "path": "fixtures/project-intelligence/kitchen-worktop/sources.json",
+      "sha256": "94098fa844e39bb82cd317483dba679d588441105b4ff81c7758a8806813384d"
+    },
+    {
+      "path": "fixtures/project-intelligence/kitchen-worktop/validate.mjs",
+      "sha256": "2b7022502d1444e79350c354ad4bd9082703607d21633caf10fca91d53109db4"
+    },
+    {
+      "path": "lib/project-intelligence/contract-manifest.test.ts",
+      "sha256": "51a4ddb58d9f92defac3f78d373349b70c8dee7fe6d6e9b736fb8f0686d1d3c8"
+    },
+    {
+      "path": "lib/project-intelligence/errors.ts",
+      "sha256": "a39c6733d16616fe55b063f6ba7978abcfe6c051ab51700326873b7b24ae9383"
+    },
+    {
+      "path": "lib/project-intelligence/impact.test.ts",
+      "sha256": "f63ab73b06f9497cbef6f603a9a8362e1e4e1aa41f07a1331f731a66f4842572"
+    },
+    {
+      "path": "lib/project-intelligence/impact.ts",
+      "sha256": "d45e9bf12a49d5f31429e02bbf92e7dec73fe6ac92a4cf32f9ab2442407cca85"
+    },
+    {
+      "path": "lib/project-intelligence/index.ts",
+      "sha256": "a9eb4dcb03d7fc5178df412b9ada2cac6781f8ad9e653e130579d474118724e7"
+    },
+    {
+      "path": "lib/project-intelligence/invariants.test.ts",
+      "sha256": "909d17c0ff538628f971d2038133e7a664f8c61bbabe1837eb0329d6e46a3491"
+    },
+    {
+      "path": "lib/project-intelligence/invariants.ts",
+      "sha256": "9d0c2c7f73e2575e9a12cddac29ea73b5c4248d4a3706270df6d52c6d20802eb"
+    },
+    {
+      "path": "lib/project-intelligence/locator.test.ts",
+      "sha256": "63ef7dd20c7eb012bce0212408045fef6021e6bfc81cfcfabc5a1631ce6b0a1d"
+    },
+    {
+      "path": "lib/project-intelligence/locator.ts",
+      "sha256": "a9ddf13c2b8b89215bd2e9987c8992dbac7d003155b68fbe4227e4a96fa7022b"
+    },
+    {
+      "path": "lib/project-intelligence/ordering.ts",
+      "sha256": "ebd062184e979f2f0f16e15a8c3cd26fe9346aff16dac7c572c9b8638cb15628"
+    },
+    {
+      "path": "lib/project-intelligence/review.test.ts",
+      "sha256": "4a20177e10cb09958b239ef9d49322c19160796dbcb9032e08c054382818ddb7"
+    },
+    {
+      "path": "lib/project-intelligence/review.ts",
+      "sha256": "74d177f1123513d892d019c56a4241af56d1645ea45848bcca39444576fa33be"
+    },
+    {
+      "path": "lib/project-intelligence/types.ts",
+      "sha256": "444fbed9428eb0c732b8d05f9a9498a6af1805aa74690b8e3bd90907390e498d"
+    },
+    {
+      "path": "lib/project-intelligence/version-diff.test.ts",
+      "sha256": "71cca85fe1d4d9080b2a9d0583b7330b4fc4d1f33463614b014c49baa05ffd73"
+    },
+    {
+      "path": "lib/project-intelligence/version-diff.ts",
+      "sha256": "a70ace398c81cb53200ac9876e252efd2649d5e07e130c022059ce694eeb4a9e"
+    },
+    {
+      "path": "tests/project-intelligence/vertical-slice-contract.integration.test.ts",
+      "sha256": "5a2891c13365d6829dc61f35d9cc6c4c3385c1ffaab95ddefeb8f35822bf6c03"
+    }
+  ]
+}

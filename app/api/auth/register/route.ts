@@ -1,13 +1,11 @@
 import { NextResponse } from "next/server";
-import { createAdminClient } from "@/lib/supabase/admin";
+import { createClient } from "@/lib/supabase/server";
 import { checkRateLimit, clientIp } from "@/lib/rate-limit";
 
 export const dynamic = "force-dynamic";
 
-// Регистрация по email+паролю БЕЗ письма-подтверждения и без зависимости от
-// доставки почты: создаём пользователя service-role'ом сразу подтверждённым
-// (`email_confirm: true`). Клиент затем входит по паролю. Так регистрация не
-// упирается ни в SMTP, ни в настройку «Confirm email».
+// Регистрация выполняется request-bound Auth-клиентом. Service role не участвует
+// в человеческих операциях и настройки подтверждения email остаются в силе.
 export async function POST(request: Request) {
   // Не более 10 регистраций с одного IP в час.
   if (!(await checkRateLimit("register", clientIp(request), 10, 60 * 60 * 1000))) {
@@ -31,11 +29,13 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Пароль — минимум 6 символов." }, { status: 400 });
   }
 
-  const admin = createAdminClient();
-  const { error } = await admin.auth.admin.createUser({
+  const supabase = await createClient();
+  const { data, error } = await supabase.auth.signUp({
     email,
     password,
-    email_confirm: true,
+    options: {
+      emailRedirectTo: new URL("/auth/callback", request.url).toString(),
+    },
   });
 
   if (error) {
@@ -49,5 +49,5 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: msg || "Не удалось создать аккаунт." }, { status: 400 });
   }
 
-  return NextResponse.json({ ok: true });
+  return NextResponse.json({ ok: true, requiresConfirmation: !data.session });
 }

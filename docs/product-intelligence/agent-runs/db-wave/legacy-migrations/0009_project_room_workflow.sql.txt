@@ -1,0 +1,350 @@
+-- Module 3 hardening: transactional Project Room creation, versions,
+-- idempotency and explicit workflow state.
+
+alter table public.project_rooms
+  add column if not exists version int not null default 1,
+  add column if not exists workflow_state text not null default 'active_project',
+  add column if not exists source_proposal_version int,
+  add column if not exists idempotency_key text,
+  add column if not exists updated_at timestamptz not null default now();
+
+alter table public.project_rooms drop constraint if exists project_rooms_workflow_state_check;
+alter table public.project_rooms add constraint project_rooms_workflow_state_check
+  check (workflow_state in ('proposal_accepted','active_project','archived'));
+
+create unique index if not exists project_rooms_idempotency_key_idx
+  on public.project_rooms (idempotency_key)
+  where idempotency_key is not null;
+
+alter table public.project_tasks
+  add column if not exists version int not null default 1,
+  add column if not exists workflow_state text not null default 'open';
+
+alter table public.project_tasks drop constraint if exists project_tasks_workflow_state_check;
+alter table public.project_tasks add constraint project_tasks_workflow_state_check
+  check (workflow_state in ('open','blocked','waiting','done','archived'));
+
+alter table public.project_task_events
+  add column if not exists event_version int not null default 1,
+  add column if not exists idempotency_key text;
+
+create unique index if not exists project_task_events_idempotency_key_idx
+  on public.project_task_events (idempotency_key)
+  where idempotency_key is not null;
+
+with duplicate_room_events as (
+  select id, row_number() over (partition by project_id, type order by created_at, id) as rn
+  from public.events
+  where type = 'project_room_created'
+)
+delete from public.events e
+using duplicate_room_events d
+where e.id = d.id and d.rn > 1;
+
+create unique index if not exists events_project_room_created_once_idx
+  on public.events (project_id, type)
+  where type = 'project_room_created';
+
+create or replace function public.create_project_room_from_accepted_proposal(
+  p_project_id uuid,
+  p_idempotency_key text default null
+)
+returns table(ok boolean, room_id uuid, reason text)
+language plpgsql
+as $$
+declare
+  v_project public.projects%rowtype;
+  v_proposal public.proposals%rowtype;
+  v_room_id uuid;
+  v_designer_participant_id uuid;
+  v_client_participant_id uuid;
+  v_executor_participant_id uuid;
+  v_package text;
+  v_task_id uuid;
+  v_now timestamptz := now();
+  v_key text := coalesce(nullif(p_idempotency_key, ''), 'project-room:' || p_project_id::text);
+begin
+  perform pg_advisory_xact_lock(hashtext(p_project_id::text));
+
+  select id
+    into v_room_id
+    from public.project_rooms
+    where project_id = p_project_id
+    limit 1;
+
+  if v_room_id is not null then
+    return query select true, v_room_id, 'already_exists';
+    return;
+  end if;
+
+  select *
+    into v_project
+    from public.projects
+    where id = p_project_id
+    for update;
+
+  if not found then
+    return query select false, null::uuid, 'not_found';
+    return;
+  end if;
+
+  if public.is_studio_member(v_project.designer_id, auth.uid()) is not true then
+    return query select false, null::uuid, 'unauthorized';
+    return;
+  end if;
+
+  select *
+    into v_proposal
+    from public.proposals
+    where project_id = p_project_id
+      and status = 'accepted'
+    order by version desc
+    limit 1
+    for update;
+
+  if not found or v_project.status <> 'proposal_accepted' then
+    return query select false, null::uuid, 'proposal_not_accepted';
+    return;
+  end if;
+
+  v_package := coalesce(v_project.passport #>> '{scope,package}', 'concept');
+  if v_package not in ('concept','full','full_plus_supervision') then
+    v_package := 'concept';
+  end if;
+
+  insert into public.project_rooms (
+    project_id,
+    proposal_id,
+    scope_package,
+    pricing_snapshot,
+    source_proposal_version,
+    idempotency_key,
+    workflow_state,
+    created_at,
+    updated_at
+  )
+  select
+    p_project_id,
+    v_proposal.id,
+    v_package,
+    d.pricing,
+    v_proposal.version,
+    v_key,
+    'active_project',
+    v_now,
+    v_now
+  from public.designers d
+  where d.id = v_project.designer_id
+  returning id into v_room_id;
+
+  insert into public.project_participants (room_id, role, display_name, auth_user_id)
+  values (
+    v_room_id,
+    'designer',
+    coalesce(nullif((select name from public.designers where id = v_project.designer_id), ''), (select studio_name from public.designers where id = v_project.designer_id), ''),
+    auth.uid()
+  )
+  returning id into v_designer_participant_id;
+
+  insert into public.project_participants (room_id, role, display_name, access_token)
+  values (v_room_id, 'client', coalesce(v_project.client_name, 'Клиент'), translate(rtrim(encode(gen_random_bytes(18), 'base64'), '='), '+/', '-_'))
+  returning id into v_client_participant_id;
+
+  insert into public.project_participants (room_id, role, display_name, access_token)
+  values (v_room_id, 'executor', 'Исполнитель', translate(rtrim(encode(gen_random_bytes(18), 'base64'), '='), '+/', '-_'))
+  returning id into v_executor_participant_id;
+
+  insert into public.project_task_events (
+    room_id,
+    actor_role,
+    event_type,
+    details,
+    idempotency_key
+  )
+  values (
+    v_room_id,
+    'system',
+    'room_created',
+    jsonb_build_object('proposal_id', v_proposal.id, 'proposal_version', v_proposal.version),
+    v_key || ':room_created'
+  );
+
+  insert into public.project_tasks (
+    room_id, title, description, owner_role, assignee_participant_id, due_date,
+    status, workflow_state, client_facing, related_scope_item, proposal_section, created_from, sort_order
+  )
+  values
+    (v_room_id, 'Подтвердить старт проекта', 'Согласовать дату старта и основные контакты.', 'client', v_client_participant_id, (v_now + interval '3 days')::date, 'todo', 'open', true, 'kickoff', 'stages', 'proposal', 10),
+    (v_room_id, 'Провести установочную встречу', 'Зафиксировать договорённости по составу работ и этапам.', 'designer', v_designer_participant_id, (v_now + interval '7 days')::date, 'todo', 'open', true, 'kickoff', 'package', 'proposal', 20),
+    (v_room_id, 'Подготовить материалы этапа', 'Выполнить ближайший этап принятого состава работ.', 'designer', v_designer_participant_id, (v_now + case when v_package = 'concept' then interval '21 days' when v_package = 'full' then interval '45 days' else interval '60 days' end)::date, 'todo', 'open', true, v_package, 'stages', 'proposal', 30),
+    (v_room_id, 'Передать задание исполнителю', 'Передать исполнителю только утверждённые материалы и сроки.', 'executor', v_executor_participant_id, (v_now + case when v_package = 'concept' then interval '28 days' when v_package = 'full' then interval '52 days' else interval '67 days' end)::date, 'todo', 'open', false, 'executor_handoff', 'stages', 'system', 40);
+
+  insert into public.project_tasks (
+    room_id, title, description, owner_role, assignee_participant_id, due_date,
+    status, workflow_state, client_facing, related_scope_item, proposal_section, created_from, sort_order
+  )
+  select
+    v_room_id,
+    'Согласовать принятый риск ' || ranked.rn,
+    coalesce(nullif(ranked.proposal_implication, ''), ranked.impact, ''),
+    'designer',
+    v_designer_participant_id,
+    (v_now + ((9 + ranked.rn)::text || ' days')::interval)::date,
+    'todo',
+    'open',
+    true,
+    ranked.id::text,
+    null,
+    'accepted_risk',
+    (50 + ranked.rn)::int
+  from (
+    select rc.*, row_number() over (order by rc.created_at, rc.id)::int as rn
+    from public.risk_cards rc
+    where rc.project_id = p_project_id
+      and rc.status = 'accepted'
+    order by rc.created_at, rc.id
+    limit 3
+  ) ranked;
+
+  for v_task_id in
+    select id from public.project_tasks where room_id = v_room_id order by sort_order
+  loop
+    insert into public.project_task_events (room_id, task_id, actor_role, event_type, details)
+    values (
+      v_room_id,
+      v_task_id,
+      'system',
+      'task_created',
+      jsonb_build_object('source', 'create_project_room_from_accepted_proposal')
+    );
+  end loop;
+
+  update public.projects
+    set status = 'active_project'
+    where id = p_project_id;
+
+  insert into public.events (designer_id, project_id, type)
+  values (v_project.designer_id, p_project_id, 'project_room_created')
+  on conflict do nothing;
+
+  return query select true, v_room_id, 'created';
+end;
+$$;
+
+revoke all on function public.create_project_room_from_accepted_proposal(uuid, text) from public;
+grant execute on function public.create_project_room_from_accepted_proposal(uuid, text) to authenticated;
+
+create or replace function public.update_project_task_status(
+  p_task_id uuid,
+  p_status text,
+  p_actor_role text,
+  p_actor_participant_id uuid default null
+)
+returns table(ok boolean, task_version int, reason text)
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_task public.project_tasks%rowtype;
+  v_designer_id uuid;
+  v_next_version int;
+  v_workflow_state text;
+begin
+  if p_status not in ('todo','in_progress','blocked','waiting_client','waiting_executor','done') then
+    return query select false, null::int, 'invalid_status';
+    return;
+  end if;
+
+  if p_actor_role not in ('designer','client','executor') then
+    return query select false, null::int, 'invalid_actor';
+    return;
+  end if;
+
+  select t.*
+    into v_task
+    from public.project_tasks t
+    where t.id = p_task_id
+    for update;
+
+  if not found then
+    return query select false, null::int, 'not_found';
+    return;
+  end if;
+
+  select p.designer_id
+    into v_designer_id
+    from public.project_rooms r
+    join public.projects p on p.id = r.project_id
+    where r.id = v_task.room_id;
+
+  if p_actor_role = 'designer' then
+    if public.is_studio_member(v_designer_id, auth.uid()) is not true
+      and not exists (
+        select 1
+        from public.project_participants pp
+        where pp.id = p_actor_participant_id
+          and pp.room_id = v_task.room_id
+          and pp.role = 'designer'
+      )
+    then
+      return query select false, null::int, 'forbidden';
+      return;
+    end if;
+  else
+    if not exists (
+      select 1
+      from public.project_participants pp
+      where pp.id = p_actor_participant_id
+        and pp.room_id = v_task.room_id
+        and pp.role = p_actor_role
+    )
+      or v_task.owner_role <> p_actor_role
+      or v_task.assignee_participant_id is distinct from p_actor_participant_id
+    then
+      return query select false, null::int, 'forbidden';
+      return;
+    end if;
+  end if;
+
+  v_next_version := coalesce(v_task.version, 1) + 1;
+  v_workflow_state := case
+    when p_status = 'blocked' then 'blocked'
+    when p_status in ('waiting_client','waiting_executor') then 'waiting'
+    when p_status = 'done' then 'done'
+    else 'open'
+  end;
+
+  update public.project_tasks
+    set status = p_status,
+        workflow_state = v_workflow_state,
+        version = v_next_version,
+        updated_at = now()
+    where id = p_task_id;
+
+  insert into public.project_task_events (
+    room_id,
+    task_id,
+    actor_role,
+    event_type,
+    from_status,
+    to_status,
+    event_version
+  )
+  values (
+    v_task.room_id,
+    p_task_id,
+    p_actor_role,
+    'task_status_changed',
+    v_task.status,
+    p_status,
+    v_next_version
+  );
+
+  return query select true, v_next_version, 'updated';
+end;
+$$;
+
+revoke all on function public.update_project_task_status(uuid, text, text, uuid) from public;
+grant execute on function public.update_project_task_status(uuid, text, text, uuid) to authenticated;
+grant execute on function public.update_project_task_status(uuid, text, text, uuid) to service_role;

@@ -1,0 +1,16 @@
+[
+  {
+    "scenario": "pilot_form",
+    "ok": true,
+    "screenshot": "/Users/msnigmatullaeva/Documents/designinterior2026/repo/qa-artifacts/rustore-qa-2026-07-09/screenshots/scenario__pilot-form__done.png",
+    "failed_requests": [
+      {
+        "url": "http://127.0.0.1:3000/api/pilot",
+        "failure": "net::ERR_ABORTED"
+      }
+    ],
+    "console_errors": [
+      "Failed to load resource: the server responded with a status of 500 (Internal Server Error)"
+    ]
+  }
+]

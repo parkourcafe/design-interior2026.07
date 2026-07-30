@@ -7,14 +7,16 @@ export type ProjectStatus =
   | "brief_in_progress"
   | "brief_completed"
   | "proposal_draft"
-  | "proposal_sent";
+  | "proposal_sent"
+  | "proposal_accepted"
+  | "active_project";
 
 export type RiskType = "budget" | "timeline" | "function" | "style" | "technical";
 export type Confidence = "low" | "medium" | "high";
 export type RiskStatus = "proposed" | "accepted" | "rejected";
 export type RiskSource = "rule" | "llm";
 
-export type ProposalStatus = "draft" | "sent";
+export type ProposalStatus = "draft" | "sent" | "accepted";
 
 export type EventType =
   | "intake_link_created"
@@ -22,10 +24,9 @@ export type EventType =
   | "brief_completed"
   | "proposal_created"
   | "proposal_sent"
-  | "proposal_viewed"
   | "proposal_accepted"
-  | "proposal_discussion_requested"
-  | "proposal_changes_requested";
+  | "project_room_created"
+  | "concept_pack_created";
 
 // ── Money ────────────────────────────────────────────────
 // Деньги — integer в рублях. Диапазоны как [min, max].

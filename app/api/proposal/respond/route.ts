@@ -23,12 +23,12 @@ export async function POST(request: Request) {
   const admin = createAdminClient();
   const { data: proposal } = await admin
     .from("proposals")
-    .select("project_id, status")
+    .select("id, project_id, status")
     .eq("public_token", body.token)
     .maybeSingle();
 
   // Отвечать можно только на отправленное КП; черновики не раскрываем.
-  if (!proposal || (proposal as { status?: string }).status !== "sent") {
+  if (!proposal || !["sent", "accepted"].includes((proposal as { status?: string }).status ?? "")) {
     return NextResponse.json({ error: "not_found" }, { status: 404 });
   }
   const projectId = (proposal as { project_id: string }).project_id;
@@ -57,6 +57,11 @@ export async function POST(request: Request) {
     project_id: projectId,
     type: eventType,
   });
+
+  if (eventType === "proposal_accepted") {
+    await admin.from("proposals").update({ status: "accepted" }).eq("id", (proposal as { id: string }).id);
+    await admin.from("projects").update({ status: "proposal_accepted" }).eq("id", projectId);
+  }
 
   return NextResponse.json({ ok: true, response: eventType });
 }

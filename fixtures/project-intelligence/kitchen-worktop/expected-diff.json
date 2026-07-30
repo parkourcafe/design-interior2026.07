@@ -1,0 +1,49 @@
+{
+  "contractVersion": "project-intelligence-vertical-slice/0.1",
+  "projectId": "project-kitchen-001",
+  "changeSet": {
+    "id": "change-set-kitchen-v1-v2",
+    "fromVersionId": "version-kitchen-001-v1",
+    "toVersionId": "version-kitchen-001-v2",
+    "reasonCode": "schedule_constraint",
+    "reason": "Natural stone lead time exceeds the approved project schedule.",
+    "actorRole": "client",
+    "actorType": "human",
+    "occurredAt": "2026-07-16T01:00:00.000Z"
+  },
+  "changes": [
+    {
+      "nodeId": "decision-worktop-material",
+      "changeType": "changed",
+      "fromRevisionId": "revision-decision-worktop-material-r1",
+      "toRevisionId": "revision-decision-worktop-material-r2",
+      "changedPaths": ["/material"]
+    }
+  ],
+  "unchangedNodeIds": [
+    "area-kitchen",
+    "deliverable-budget",
+    "deliverable-finish-schedule",
+    "item-kitchen-worktop",
+    "requirement-worktop-durable",
+    "risk-natural-stone-lead-time"
+  ],
+  "adapterMapping": {
+    "pureDiffFields": [
+      "nodeId",
+      "changeType",
+      "fromRevisionId",
+      "toRevisionId",
+      "changedPaths"
+    ],
+    "changeSetEnrichmentFields": [
+      "actorRole",
+      "actorType",
+      "fromVersionId",
+      "occurredAt",
+      "reason",
+      "reasonCode",
+      "toVersionId"
+    ]
+  }
+}

@@ -1,0 +1,18 @@
+{
+  "contractVersion": "project-intelligence-vertical-slice/0.1",
+  "caseId": "invalid-stale-review",
+  "caseType": "stale_review",
+  "projectId": "project-kitchen-001",
+  "currentRevisionId": "revision-decision-worktop-material-r2",
+  "reviewCommand": {
+    "action": "confirm",
+    "targetRevisionId": "revision-decision-worktop-material-r1",
+    "expectedRevisionId": "revision-decision-worktop-material-r1",
+    "idempotencyKey": "review-stale-decision-001"
+  },
+  "expectedError": {
+    "code": "REVISION_STALE",
+    "entityId": "revision-decision-worktop-material-r1",
+    "currentRevisionId": "revision-decision-worktop-material-r2"
+  }
+}

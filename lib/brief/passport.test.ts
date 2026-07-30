@@ -30,7 +30,7 @@ describe("buildPassport", () => {
     expect(p.timeline.urgency).toBe("urgent");
     expect(p.style.anti).toContain("глянец");
     expect(p.pain_points).toBe("мало света");
-    expect(p.scope.package).toBeNull();
+    expect(p.scope.package).toBe("full_plus_supervision");
   });
 
   it("treats undisclosed budget as 'undisclosed' with mid tier", () => {
@@ -165,5 +165,9 @@ describe("buildPassport", () => {
     expect(p.object.replanning).toBeUndefined();
     expect(p.lifestyle.requirements).toBeUndefined();
     expect(p.timeline.hard_deadline).toBeUndefined();
+  });
+
+  it("derives a fallback scope package instead of leaving it null", () => {
+    expect(buildPassport({}).scope.package).toBe("concept");
   });
 });
