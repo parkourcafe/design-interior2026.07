@@ -31,6 +31,30 @@ Production was not modified during this pass. It remains in `MIGRATIONS_FAILED` 
   project `ztnycrchwxqczqbyegnp`; therefore it cannot be used as an authority
   for a production migration-history snapshot.
 
+## 2026-07-30 Production Dashboard Baseline Snapshot
+
+Read-only SQL executed in the production Supabase Dashboard established:
+
+- `supabase_migrations.schema_migrations` contains only `20260719020040`.
+- `project_sources`, `project_facts`, `workflow_runs` and `ai_calls` do not
+  exist in `public`.
+- `reserve_initial_brief_ai_call(uuid,text,text)` does not exist.
+
+The post-baseline package cannot truthfully be treated as a single blind
+additive command: it includes controlled replacement of constraints, triggers
+and policies, plus governed procedures containing risk-card deletion logic.
+Do not execute it against production without a project-data snapshot,
+transactional per-migration runbook and rollback point. This is a data-safety
+constraint, not a dependency on Supabase Branching.
+
+## 2026-07-30 Pre-migration Recovery and Data Fingerprint
+
+- Supabase Dashboard confirms daily physical backups. The latest available
+  restore point is `2026-07-29 15:56:12 UTC`.
+- Read-only production data fingerprint: `designers=7`, `projects=19`,
+  `answers=54`, `risk_cards=1`, `proposals=1`, `events=37`.
+- No production write was made while collecting this evidence.
+
 ## Rollback Notes
 
 - This package is additive at the migration level.

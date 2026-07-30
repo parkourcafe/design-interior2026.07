@@ -106,6 +106,10 @@ export async function completeJSON<T>(prompt: string, schema: ZodSchema<T>): Pro
     outputs.push(raw);
   } catch (e) {
     const message = (e as Error).message;
+    // Provider responses are intentionally kept out of client-visible UX, but
+    // the server log needs a bounded diagnostic to distinguish credentials,
+    // permissions and transport failures during governed workflow recovery.
+    console.error("[llm] completion request failed", { provider: name, message });
     return { ok: false, error: `llm_request_failed: ${message}`, usage: buildUsage(name, prompt, outputs, startedAt, /timeout/i.test(message) ? "timeout" : "provider_error") };
   }
 
@@ -123,6 +127,7 @@ export async function completeJSON<T>(prompt: string, schema: ZodSchema<T>): Pro
     outputs.push(repairedRaw);
   } catch (e) {
     const message = (e as Error).message;
+    console.error("[llm] completion repair request failed", { provider: name, message });
     return { ok: false, error: `llm_repair_failed: ${message}`, usage: buildUsage(name, prompt, outputs, startedAt, /timeout/i.test(message) ? "timeout" : "provider_error") };
   }
 
