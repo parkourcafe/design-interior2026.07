@@ -46,11 +46,11 @@ export default function LandingNav() {
         }`}
       >
         <div className="mx-auto flex h-16 max-w-[1280px] items-center justify-between gap-6 px-5 md:px-8">
-          <Link href="/" className="flex items-baseline gap-3" onClick={() => setOpen(false)}>
+          <Link href="/" className="flex items-center gap-3" onClick={() => setOpen(false)}>
             <span className="font-display text-[22px] font-semibold tracking-[0.02em] text-ivory">
               {ru.app.name}
             </span>
-            <span className="hidden text-[10px] uppercase tracking-[0.22em] text-ivorymuted lg:inline">
+            <span className="hidden rounded-full border border-bronze/35 bg-bronze/10 px-3 py-1.5 text-[12px] font-medium tracking-[0.08em] text-bronze lg:inline">
               {ru.app.tagline}
             </span>
           </Link>

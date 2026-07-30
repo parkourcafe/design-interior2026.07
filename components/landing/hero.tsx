@@ -82,7 +82,7 @@ export default function Hero() {
             {h.h1}
           </h1>
           <p
-            className="cine mt-4 max-w-[22ch] font-display text-[clamp(26px,2.6vw,36px)] font-semibold leading-[1.1] text-ivory lg:ml-10"
+            className="cine mt-5 w-fit max-w-[26ch] border-b border-bronze/55 pb-2 font-display text-[clamp(28px,2.8vw,40px)] font-semibold leading-[1.08] text-bronze lg:ml-10"
             style={delay(2)}
           >
             {h.positioning}
