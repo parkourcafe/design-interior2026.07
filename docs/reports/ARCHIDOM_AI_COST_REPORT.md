@@ -79,3 +79,15 @@ and create a replacement API key with the `yc.ai.languageModels.execute`
 scope. Replace the Vercel `YC_API_KEY` value with that one-line key, redeploy,
 and revoke the old key because it was entered in malformed form. Do not paste
 the key into repository files or application logs.
+
+## 2026-07-30 remediation verification
+
+- Created a dedicated `remhaos-yandexgpt-runtime` service account in the
+  `remhaos` folder with only `ai.languageModels.user` and an API key scoped to
+  `yc.ai.languageModels.execute`.
+- Replaced encrypted `YC_FOLDER_ID` and `YC_API_KEY` in Vercel Preview and
+  Production. A new Preview build reports `llm_configured=true`.
+- Direct YandexGPT verification returned HTTP 200.
+- A new governed M1 brief reached `waiting_for_human / human_review` with a
+  successful `yandexgpt-lite` ledger entry: 506 input tokens, 354 output
+  tokens, `outcome=success`, `cost_class=metered_ai`.
