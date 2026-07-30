@@ -98,3 +98,12 @@ Live provider-output QA remains not proven because preview health reports
 ## Verdict
 
 `M1_VERTICAL_WORKFLOW: PARTIAL`
+
+## 2026-07-30 live YandexGPT regression
+
+- Preview build `design-interior2026-07-266lraztk-yulaboober.vercel.app` is Ready.
+- A new public QA brief completed with `llmOk=true`.
+- Browser regression opened the completed public brief and displayed the final
+  acknowledgement screen without a visible application error.
+- The persisted workflow is `waiting_for_human / human_review`; its metered
+  YandexGPT call succeeded and is recorded in `ai_calls`.
