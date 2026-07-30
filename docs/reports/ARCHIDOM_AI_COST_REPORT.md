@@ -54,6 +54,18 @@ Required production/pilot report fields after approved run:
 - average workflow cost;
 - cost per approved proposal.
 
+### 2026-07-30 production ledger evidence
+
+- `total AI calls = 3`; all are `yandex` / `yandexgpt-lite` and
+  `metered_ai`.
+- `tokens_in = 537` per observed initial-brief attempt; `tokens_out = 0`.
+- Estimated provider cost is zero for the failed attempts, as recorded by the
+  static estimate table.
+- All three calls terminalized as `provider_error`; the live provider returned
+  HTTP 403 (permission denied). The ledger and workflow fallback are working,
+  but cost per approved proposal cannot yet be calculated from a successful
+  Yandex output.
+
 ## Verdict
 
-`AI_COST_MEASUREMENT: IMPLEMENTED`
+`AI_COST_MEASUREMENT: IMPLEMENTED; LIVE_PROVIDER_QA: BLOCKED`

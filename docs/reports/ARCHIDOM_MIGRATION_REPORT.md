@@ -61,6 +61,21 @@ constraint, not a dependency on Supabase Branching.
 - Do not apply to production until baseline reconciliation proves compatibility.
 - If a disposable verification branch is used, delete it after evidence capture to stop hourly cost.
 
+## 2026-07-30 Controlled Production Reconciliation — Completed
+
+- A recovery point and the pre-change data fingerprint above were captured first.
+- The compatibility bridge and the governed Platform Foundation migrations were
+  then applied in version order through the production SQL Editor, each in its
+  own transaction. No destructive baseline reset was used.
+- Production migration history now contains 13 entries. The eight required
+  Platform Foundation tables are present and have RLS enabled.
+- Production verification found `workflow_runs`, `project_facts`, `ai_calls`
+  and the initial-brief reservation RPC present. A replay on the isolated
+  local PostgreSQL environment had already completed successfully.
+- The production data fingerprint was not overwritten. Rollback remains a
+  restore-to-backup operation followed by replay of pre-change evidence; no
+  reverse/destructive migration was introduced.
+
 ## Verdict
 
 `MIGRATIONS: PARTIAL`
