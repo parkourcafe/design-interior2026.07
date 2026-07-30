@@ -5,20 +5,20 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { ru } from "@/lib/i18n/ru";
 import { ReadingProgress } from "./cinema";
 import CursorGlow from "./cursor-glow";
-
-const n = ru.landing.nav;
-
-const LINKS: Array<[string, string]> = [
-  [n.designers, "/designers"],
-  [n.studios, "/studios"],
-  [n.demoBrief, "/demo/brief"],
-  [n.demoProposal, "/demo/proposal"],
-];
+import LanguageSwitcher from "./language-switcher";
+import { usePublicLocale } from "@/lib/i18n/public";
 
 export default function LandingNav() {
+  const { dictionary } = usePublicLocale();
+  const n = dictionary.nav;
+  const links: Array<[string, string]> = [
+    [n.designers, "/designers"],
+    [n.studios, "/studios"],
+    [n.demoBrief, "/demo/brief"],
+    [n.demoProposal, "/demo/proposal"],
+  ];
   const [open, setOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
 
@@ -48,15 +48,15 @@ export default function LandingNav() {
         <div className="mx-auto flex h-16 max-w-[1280px] items-center justify-between gap-6 px-5 md:px-8">
           <Link href="/" className="flex items-baseline gap-3" onClick={() => setOpen(false)}>
             <span className="font-display text-[22px] font-semibold tracking-[0.02em] text-ivory">
-              {ru.app.name}
+              {dictionary.app.name}
             </span>
             <span className="hidden text-[10px] uppercase tracking-[0.22em] text-ivorymuted lg:inline">
-              {ru.app.tagline}
+              {dictionary.app.tagline}
             </span>
           </Link>
 
           <nav className="hidden items-center gap-6 xl:flex" aria-label="Основная навигация">
-            {LINKS.map(([label, href]) => (
+            {links.map(([label, href]) => (
               <Link
                 key={href}
                 href={href}
@@ -68,6 +68,9 @@ export default function LandingNav() {
           </nav>
 
           <div className="flex items-center gap-3">
+            <div className="hidden sm:block">
+              <LanguageSwitcher />
+            </div>
             <Link href="/login" className="hidden text-[13.5px] text-ivorymuted hover:text-ivory sm:inline">
               {n.login}
             </Link>
@@ -97,7 +100,7 @@ export default function LandingNav() {
       {open && (
         <div className="fixed inset-0 z-40 flex flex-col bg-coal/97 px-6 pb-10 pt-24 backdrop-blur-xl xl:hidden">
           <nav className="flex flex-col gap-1" aria-label="Мобильная навигация">
-            {LINKS.map(([label, href], i) => (
+            {links.map(([label, href], i) => (
               <Link
                 key={href}
                 href={href}
@@ -110,6 +113,9 @@ export default function LandingNav() {
             ))}
           </nav>
           <div className="mt-auto flex flex-col gap-3 pt-8">
+            <div className="mb-2">
+              <LanguageSwitcher />
+            </div>
             <Link href="/login" onClick={() => setOpen(false)} className="btn-bronze w-full">
               {n.createProject}
             </Link>

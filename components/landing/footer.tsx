@@ -1,19 +1,21 @@
-import Link from "next/link";
-import { ru } from "@/lib/i18n/ru";
-import { supportEmail } from "@/lib/env";
+"use client";
 
-const f = ru.landing.footer;
-const n = ru.landing.nav;
+import Link from "next/link";
+import { supportEmail } from "@/lib/env";
+import { usePublicLocale } from "@/lib/i18n/public";
 
 const SUPPORT_EMAIL = supportEmail();
 
 export default function LandingFooter() {
+  const { dictionary } = usePublicLocale();
+  const f = dictionary.footer;
+  const n = dictionary.nav;
   return (
     <footer className="landing border-t border-linedark">
       <div className="mx-auto max-w-[1280px] px-5 py-14 md:px-8">
         <div className="grid gap-10 md:grid-cols-[1.4fr_1fr_1fr]">
           <div>
-            <div className="font-display text-[26px] font-semibold text-ivory">{ru.app.name}</div>
+            <div className="font-display text-[26px] font-semibold text-ivory">{dictionary.app.name}</div>
             <p className="mt-2 max-w-[40ch] text-sm leading-relaxed text-ivorymuted">{f.tagline}</p>
             <p className="mt-5 max-w-[46ch] text-[13px] leading-relaxed text-ivorymuted/80">{f.pilotNote}</p>
           </div>
@@ -37,7 +39,7 @@ export default function LandingFooter() {
         </div>
         <div className="mt-12 flex flex-wrap items-center justify-between gap-3 border-t border-linedark pt-6 text-[12.5px] text-ivorymuted/70">
           <span>{f.rights}</span>
-          <span className="font-display text-[15px] text-ivorymuted">{ru.app.tagline}</span>
+          <span className="font-display text-[15px] text-ivorymuted">{dictionary.app.tagline}</span>
         </div>
       </div>
     </footer>
