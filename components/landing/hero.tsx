@@ -90,29 +90,30 @@ export default function Hero() {
           <p className="cine mt-6 max-w-[52ch] text-[18px] leading-relaxed text-ivory/84 lg:ml-5" style={delay(3)}>
             {h.sub}
           </p>
-          <div
-            className="cine mt-6 inline-flex items-center gap-3 rounded-lg border border-bronze/45 bg-coal2/80 px-5 py-3 text-[18px] font-semibold tracking-[0.02em] text-ivory shadow-[0_16px_36px_-22px_rgba(192,139,92,0.9)] backdrop-blur lg:ml-10"
-            style={delay(4)}
-          >
-            <span className="h-2 w-2 rounded-full bg-bronze shadow-[0_0_16px_rgba(192,139,92,0.85)]" aria-hidden />
-            {h.promise}
-          </div>
-          <p className="cine mt-4 max-w-[54ch] border-l border-bronze/45 pl-4 text-[16px] leading-relaxed text-ivory/80 lg:ml-5" style={delay(5)}>
+          <p className="cine mt-6 max-w-[54ch] border-l border-bronze/45 pl-4 text-[16px] leading-relaxed text-ivory/80 lg:ml-5" style={delay(4)}>
             {h.boundary}
           </p>
-          <div className="cine mt-8 flex flex-wrap items-center gap-3 lg:ml-5" style={delay(5)}>
+          <div className="cine mt-8 lg:ml-5" style={delay(5)}>
             <Link href="/demo" className="btn-bronze">
               {h.cta1} <span aria-hidden>→</span>
             </Link>
-            <Link href="/designers" className="inline-flex min-h-12 items-center px-3 text-[16px] text-ivorymuted underline-offset-4 transition-colors hover:text-ivory hover:underline">
-              {h.cta2}
-            </Link>
-            <Link
-              href="/studios"
-              className="inline-flex min-h-12 items-center px-3 text-[16px] text-ivorymuted underline-offset-4 transition-colors hover:text-ivory hover:underline"
-            >
-              {h.cta3}
-            </Link>
+            <p className="mt-6 text-[13px] uppercase tracking-[0.16em] text-ivorymuted">{h.roleLabel}</p>
+            <div className="mt-3 grid max-w-[560px] grid-cols-2 gap-2.5">
+              <Link
+                href="/designers"
+                className="group flex min-h-14 items-center justify-between gap-2 rounded-xl border border-linedark bg-coal2/75 px-4 py-3 text-[15px] font-medium text-ivory transition-colors hover:border-bronze/55 hover:bg-bronze/10"
+              >
+                <span>{h.cta2}</span>
+                <span className="text-bronze transition-transform group-hover:translate-x-1" aria-hidden>→</span>
+              </Link>
+              <Link
+                href="/studios"
+                className="group flex min-h-14 items-center justify-between gap-2 rounded-xl border border-linedark bg-coal2/75 px-4 py-3 text-[15px] font-medium text-ivory transition-colors hover:border-bronze/55 hover:bg-bronze/10"
+              >
+                <span>{h.cta3}</span>
+                <span className="text-bronze transition-transform group-hover:translate-x-1" aria-hidden>→</span>
+              </Link>
+            </div>
           </div>
           <p className="cine mt-6 text-[12.5px] tracking-wide text-ivorymuted lg:ml-5" style={delay(6)}>
             {h.trust}
