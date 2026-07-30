@@ -80,6 +80,7 @@ export default async function ProposalPage({ params }: { params: Promise<{ id: s
         "pending_cost_confirmation",
         "retrying",
         "failed",
+        "completed",
       ])
       .limit(2);
 
@@ -120,6 +121,10 @@ export default async function ProposalPage({ params }: { params: Promise<{ id: s
       )
       || (
         proposalWorkflow.status === "running"
+        && proposalWorkflow.current_step === "issue_proposal"
+      )
+      || (
+        proposalWorkflow.status === "completed"
         && proposalWorkflow.current_step === "issue_proposal"
       );
     if (!proposalWorkflowReady) {
