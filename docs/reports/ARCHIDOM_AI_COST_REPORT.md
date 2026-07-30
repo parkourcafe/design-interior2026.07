@@ -69,3 +69,13 @@ Required production/pilot report fields after approved run:
 ## Verdict
 
 `AI_COST_MEASUREMENT: IMPLEMENTED; LIVE_PROVIDER_QA: BLOCKED`
+
+## Required Yandex Cloud remediation
+
+The observed `403 Permission denied` is an IAM authorization failure, not an
+application or Supabase failure. In the Yandex Cloud folder identified by
+`YC_FOLDER_ID`, assign the service account the `ai.languageModels.user` role
+and create a replacement API key with the `yc.ai.languageModels.execute`
+scope. Replace the Vercel `YC_API_KEY` value with that one-line key, redeploy,
+and revoke the old key because it was entered in malformed form. Do not paste
+the key into repository files or application logs.
