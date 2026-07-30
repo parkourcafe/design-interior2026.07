@@ -8,7 +8,7 @@ const SHA256_FINGERPRINT = /^(?:[0-9a-f]{2}:){31}[0-9a-f]{2}$/i;
 // /.well-known/assetlinks.json (rewrite в next.config.mjs).
 //
 // Значения берём из env, чтобы заполнить без правки кода после сборки AAB:
-//   ANDROID_PACKAGE_NAME   — напр. space.arhidom.twa
+//   ANDROID_PACKAGE_NAME   — com.remhaos.app
 //   ANDROID_CERT_SHA256    — отпечаток(и) SHA-256, через запятую.
 //                            ВАЖНО: нужны ОБА сертификата —
 //                            Google Play App Signing И подписи RuStore,
