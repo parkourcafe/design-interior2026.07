@@ -6,14 +6,14 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import { ru } from "@/lib/i18n/ru";
 import { MEDIA } from "./media";
 import { useReducedMotion } from "./cinema";
 import { delay } from "./delay";
-
-const h = ru.landing.hero;
+import { usePublicLocale } from "@/lib/i18n/public";
 
 export default function Hero() {
+  const { dictionary } = usePublicLocale();
+  const h = dictionary.hero;
   const reduced = useReducedMotion();
   const [ready, setReady] = useState(false);
   useEffect(() => {
