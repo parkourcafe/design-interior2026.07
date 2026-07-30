@@ -19,11 +19,22 @@ interface YandexResponse {
 
 export async function completeYandex(prompt: string): Promise<string> {
   const folderId = process.env.YC_FOLDER_ID;
-  const apiKey = process.env.YC_API_KEY;
+  const rawApiKey = process.env.YC_API_KEY;
   const model = process.env.LLM_MODEL ?? "yandexgpt-lite";
+  // Environment dashboards can preserve pasted line breaks. A bearer header
+  // cannot contain them, so use the final Yandex-key token without logging its
+  // value. Deployment configuration must still be normalized and rotated.
+  const apiKeyCandidates = rawApiKey?.trim().split(/\s+/).filter(Boolean) ?? [];
+  const apiKey =
+    [...apiKeyCandidates].reverse().find((candidate) => candidate.startsWith("AQVN")) ??
+    apiKeyCandidates.at(-1);
 
   if (!folderId || !apiKey) {
     throw new Error("YC_FOLDER_ID / YC_API_KEY are not set");
+  }
+
+  if (apiKeyCandidates.length > 1) {
+    console.warn("[llm] normalized multi-line YC_API_KEY value");
   }
 
   // Позволяем указать в LLM_MODEL как короткое имя (yandexgpt-lite), так и
