@@ -36,6 +36,14 @@ Billing is not implemented in Sprint 1. Measurement is implemented.
 
 No production AI-cost totals are reported from this local verification pass because production was not touched and final browser QA on a fresh local reset remains pending.
 
+### 2026-07-30 production-connected preview attempt
+
+The initial-brief command was deliberately exercised after Auth and the
+profile gate passed. It terminated at workflow reservation because the live
+database lacks `reserve_initial_brief_ai_call`. No provider request was sent;
+therefore the truthful totals for this attempt are zero metered AI calls and
+zero provider cost.
+
 Required production/pilot report fields after approved run:
 
 - total AI calls;

@@ -3,6 +3,21 @@
 Date: 2026-07-28
 Status: `PARTIAL`
 
+## 2026-07-30 Production-connected Preview Check
+
+- A fresh Vercel Preview deployment was rebuilt after correcting its public
+  Supabase URL to the live `ztnycrchwxqczqbyegnp` project.
+- Password authentication succeeded and opened the authenticated dashboard.
+- Authenticated project creation, the designer-profile gate, profile save and
+  public brief-link generation succeeded.
+- The first public brief submission reached the governed workflow command but
+  returned `workflow_reservation_failed` before calling YandexGPT.
+- The Vercel log identifies the direct cause: missing
+  `reserve_initial_brief_ai_call` RPC in the production schema cache.
+- Therefore no production-connected `WorkflowRun` or metered `ai_calls` row
+  can be claimed from this run. This is a migration-baseline blocker, not an
+  Auth, Vercel or Yandex configuration failure.
+
 ## Verified Locally
 
 - Full unit/contract suite passed: 62 files, 253 tests.
