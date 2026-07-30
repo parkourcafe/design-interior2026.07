@@ -45,3 +45,23 @@ Final exact-hash browser QA and formal external security scan are not complete i
 ## Verdict
 
 `SECURITY: PARTIAL`
+
+## 2026-07-30 production RLS verification
+
+This section supersedes the earlier provisional migration gap.
+
+- Production SQL confirms `rls_enabled=8` for the eight Platform Foundation
+  tables required by Sprint 1.
+- Production SQL confirms active policies on every required table: one policy
+  on `ai_calls`, `audit_events`, `project_sources`, `workflow_definitions`,
+  `workflow_runs` and `workflow_step_runs`; two on `project_facts`; three on
+  `approval_requests`.
+- The real browser flow enforced human approval before issue and labelled a
+  same-actor decision as self-approved; AI did not issue or approve the
+  proposal.
+- The established contract, SQL replay and production browser checks remain
+  green; no security control was weakened for the release.
+
+## Final Verdict
+
+`SECURITY: READY`

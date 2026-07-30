@@ -79,3 +79,19 @@ constraint, not a dependency on Supabase Branching.
 ## Verdict
 
 `MIGRATIONS: PARTIAL`
+
+## 2026-07-30 final migration verification
+
+This section supersedes the pre-reconciliation warning above.
+
+- Production remains on the reconciled additive baseline: 13 applied migration
+  entries, with no destructive reset or data overwrite.
+- The required reservation RPC and all eight Platform Foundation tables are
+  present in production.
+- A local clean replay previously completed; current CI at `7a1fda4` also
+  passed the repository build and migration contract tests.
+- No production migration was re-applied during the application deployment.
+
+## Final Verdict
+
+`MIGRATIONS: READY`

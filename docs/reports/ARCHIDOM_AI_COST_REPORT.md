@@ -91,3 +91,23 @@ the key into repository files or application logs.
 - A new governed M1 brief reached `waiting_for_human / human_review` with a
   successful `yandexgpt-lite` ledger entry: 506 input tokens, 354 output
   tokens, `outcome=success`, `cost_class=metered_ai`.
+
+## 2026-07-30 final live cost evidence
+
+This section supersedes the earlier 403-only provider finding.
+
+For the successful issued production QA proposal:
+
+- total AI calls: `1`;
+- provider/model: `yandex` / `yandexgpt-lite`;
+- tokens: `506` input, `354` output;
+- estimated provider cost: `0.000000` as currently recorded by the configured
+  estimate source;
+- average workflow cost: `0.000000`;
+- cost per approved/issued proposal: `0.000000`.
+
+Measurement is operational. Billing remains out of Sprint 1 scope.
+
+## Final Verdict
+
+`AI_COST_MEASUREMENT: IMPLEMENTED; LIVE_PROVIDER_QA: VERIFIED`

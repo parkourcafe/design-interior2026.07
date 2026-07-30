@@ -107,3 +107,27 @@ Live provider-output QA remains not proven because preview health reports
   acknowledgement screen without a visible application error.
 - The persisted workflow is `waiting_for_human / human_review`; its metered
   YandexGPT call succeeded and is recorded in `ai_calls`.
+
+## 2026-07-30 final governed M1 execution and production smoke
+
+This section supersedes the earlier provisional fallback/provider gap.
+
+- A real YandexGPT brief succeeded (`506` input and `354` output tokens) and
+  persisted one successful metered `ai_calls` row.
+- All eight extracted facts were human-confirmed, producing immutable v2 fact
+  versions; all three AI risk cards were accepted.
+- The passport, meeting questions and proposal draft rendered in the browser.
+- The issue action was blocked until human approval. Self-approval was stored
+  and rendered explicitly as `Подтверждено автором действия`.
+- The proposal was issued: production evidence is
+  `workflow_status=completed`, `proposal_status=sent`,
+  `successful_ai_calls=1`, and `self_approvals=2`.
+- Desktop and 375x812 mobile browser QA passed for the authenticated proposal
+  page and the public proposal page. Application console warning/error logs
+  were empty.
+- Post-deploy production smoke opened the issued public proposal successfully
+  and reported no application console warning/error.
+
+## Final Verdict
+
+`M1_VERTICAL_WORKFLOW: READY`

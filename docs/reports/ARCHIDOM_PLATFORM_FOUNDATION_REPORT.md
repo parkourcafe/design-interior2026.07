@@ -31,3 +31,19 @@ Status: `PARTIAL`
 ## Verdict
 
 `PLATFORM_FOUNDATION: PARTIAL`
+
+## 2026-07-30 final production verification
+
+This section supersedes the earlier provisional verdict above.
+
+- The controlled additive reconciliation is applied on production without a destructive reset.
+- All eight governed platform tables exist, have RLS enabled, and have active policies.
+- The live governed M1 execution persisted `workflow_runs`, versioned project
+  facts, approval requests, audit events, workflow-step state and an `ai_calls`
+  ledger row through to an issued proposal.
+- CI at commit `7a1fda4` passed `npm ci`, lint, typecheck, 253 tests and build.
+- Production deployment `dpl_EWwphU5GgZXN2GzwfsVhaAHNPdsq` is Ready.
+
+## Final Verdict
+
+`PLATFORM_FOUNDATION: READY`
