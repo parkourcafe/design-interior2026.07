@@ -28,12 +28,6 @@ const nextConfig = {
         destination: "https://remhaos.com/:path*",
         permanent: true,
       },
-      {
-        source: "/:path*",
-        has: [{ type: "host", value: "www.remhaos.com" }],
-        destination: "https://remhaos.com/:path*",
-        permanent: true,
-      },
     ];
   },
   async rewrites() {
