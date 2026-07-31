@@ -29,6 +29,20 @@ const claimStatus = z.enum(["extracted", "interpreted", "unknown", "human_origin
 // (миграция 20260717101000_projectceo_product_brain_operations.sql).
 const nodeId = z.string().trim().min(1).max(160);
 const claimRevisionId = z.string().trim().min(1).max(160);
+const revisionIdList = z.array(claimRevisionId).max(500);
+const baselineDescriptor = z.object({
+  id: claimRevisionId,
+  graphVersionId: claimRevisionId,
+  previousBaselineId: claimRevisionId.nullable(),
+  packageIds: z.array(uuid).max(500),
+  sourceRevisionIds: revisionIdList,
+  requirementRevisionIds: revisionIdList,
+  assumptionRevisionIds: revisionIdList,
+  decisionRevisionIds: revisionIdList,
+  selectionRevisionIds: revisionIdList,
+  approvalPackageIds: revisionIdList,
+  semanticHash: z.string().regex(/^sha256:[0-9a-f]{64}$/i),
+}).strict();
 
 export const projectCeoCommandSchema = z.discriminatedUnion("kind", [
   projectSelector.extend({
@@ -195,10 +209,14 @@ export const projectCeoCommandSchema = z.discriminatedUnion("kind", [
   }).strict(),
   projectSelector.extend({
     contractVersion: z.literal(PROJECTCEO_COMMAND_CONTRACT_VERSION),
+    kind: z.literal("publish_baseline"),
+    payload: z.object({ descriptor: baselineDescriptor }).strict(),
+  }).strict(),
+  projectSelector.extend({
+    contractVersion: z.literal(PROJECTCEO_COMMAND_CONTRACT_VERSION),
     kind: z.enum([
       "register_source",
       "review_source",
-      "publish_baseline",
       "publish_release",
       "build_handover",
     ]),

@@ -175,6 +175,13 @@ function fakeClient(calls: Call[], readOverrides: Readonly<Record<string, unknow
       projectId,
       status: "approved",
     },
+    "projectceo_product_api.publish_project_baseline": {
+      id: "baseline-v3",
+      projectId,
+      versionNo: 3,
+      status: "published",
+      semanticHash,
+    },
   };
   const replayTargetByName: Readonly<Record<string, string>> = {
     "projectceo_m4_api.replay_submit_change_request": "projectceo_m4_api.submit_change_request",
@@ -596,10 +603,34 @@ describe("AP1 supported human commands", () => {
     expect(retryReviewed).toMatchObject({ status: "completed", replay: true });
   });
 
+  it("publishes a validated baseline descriptor through the existing product RPC", async () => {
+    const calls: Call[] = [];
+    const descriptor = {
+      id: "baseline-v3",
+      graphVersionId: "graph-v3",
+      previousBaselineId: "baseline-v2",
+      packageIds: [packageId],
+      sourceRevisionIds: ["source-r1"],
+      requirementRevisionIds: [],
+      assumptionRevisionIds: [],
+      decisionRevisionIds: ["decision-r1"],
+      selectionRevisionIds: ["selection-r1"],
+      approvalPackageIds: ["approval-1"],
+      semanticHash,
+    };
+    const result = await service(calls).execute(command("publish_baseline", { descriptor }), "baseline-publish");
+    expect(result).toMatchObject({ status: "completed", replay: false });
+    expect(calls.find((call) => call.name === "projectceo_product_api.publish_project_baseline")?.args)
+      .toMatchObject({
+        project_id: projectId,
+        descriptor,
+        expected_state_revision: 9,
+      });
+  });
+
   it.each([
     "register_source",
     "review_source",
-    "publish_baseline",
     "publish_release",
     "build_handover",
   ] as const)("keeps unsupported %s fail-closed without reads or writes", async (kind) => {
