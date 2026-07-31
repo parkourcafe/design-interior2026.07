@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { getProjectByIntakeToken } from "@/lib/intake";
 import { getDesignerPublic, type DesignerPublic } from "@/lib/designer";
@@ -7,6 +8,9 @@ import ShareBrief from "@/components/share-brief";
 import IntakeWizard from "./wizard";
 
 export const dynamic = "force-dynamic";
+
+// Клиентский бриф по ссылке — ПДн, вне индекса (сверх X-Robots-Tag/robots.txt).
+export const metadata: Metadata = { robots: { index: false, follow: false } };
 
 export default async function IntakePage({ params }: { params: Promise<{ token: string }> }) {
   const { token } = await params;

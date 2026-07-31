@@ -25,6 +25,36 @@ const nextConfig = {
       { source: "/.well-known/apple-app-site-association", destination: "/api/apple-app-site-association" },
     ];
   },
+  async headers() {
+    // X-Robots-Tag на приватное сверх robots.txt и noindex в metadata —
+    // защита от индексации по внешним ссылкам (robots.txt её не даёт).
+    // /projectceo/guest и /projectceo/invitations уже ставят этот заголовок
+    // сами (route.ts/metadata); повтор здесь — вторая линия защиты, безвреден.
+    const noindex = { key: "X-Robots-Tag", value: "noindex, nofollow" };
+    return [
+      { source: "/dashboard", headers: [noindex] },
+      { source: "/dashboard/:path*", headers: [noindex] },
+      { source: "/i/:path*", headers: [noindex] },
+      { source: "/p/:path*", headers: [noindex] },
+      { source: "/b/:path*", headers: [noindex] },
+      { source: "/join/:path*", headers: [noindex] },
+      { source: "/room/:path*", headers: [noindex] },
+      { source: "/app", headers: [noindex] },
+      { source: "/projectceo/:path*", headers: [noindex] },
+      { source: "/projectceo-qa/:path*", headers: [noindex] },
+      { source: "/api/:path*", headers: [noindex] },
+      { source: "/login", headers: [noindex] },
+      { source: "/auth/:path*", headers: [noindex] },
+      {
+        source: "/:path*",
+        headers: [
+          { key: "X-Content-Type-Options", value: "nosniff" },
+          { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
+          { key: "X-Frame-Options", value: "SAMEORIGIN" },
+        ],
+      },
+    ];
+  },
 };
 
 export default nextConfig;

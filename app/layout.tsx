@@ -1,13 +1,18 @@
 import type { Metadata, Viewport } from "next";
 import "./globals.css";
 import { ru } from "@/lib/i18n/ru";
+import { appUrl } from "@/lib/env";
 import Pwa from "@/components/pwa";
 
 export const metadata: Metadata = {
+  // Нужен для корректного резолва canonical/OG (относительные пути) — без
+  // него Next предупреждает при сборке и абсолютные URL строит неверно.
+  metadataBase: new URL(appUrl()),
   title: `${ru.app.name} — ${ru.app.tagline}`,
   description: ru.app.heroSub,
   manifest: "/manifest.webmanifest",
   appleWebApp: { capable: true, title: ru.app.name, statusBarStyle: "default" },
+  robots: { index: true, follow: true }, // дефолт для публичного; приватное переопределяет
 };
 
 export const viewport: Viewport = {

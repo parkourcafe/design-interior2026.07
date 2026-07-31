@@ -1,8 +1,13 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { ru } from "@/lib/i18n/ru";
+import { isInviteExpired } from "@/lib/studio-invite";
 import JoinButton from "./join-button";
+
+// Приглашение в студию по токену — вне индекса (сверх X-Robots-Tag/robots.txt).
+export const metadata: Metadata = { robots: { index: false, follow: false } };
 
 export const dynamic = "force-dynamic";
 
@@ -29,9 +34,7 @@ export default async function JoinPage({ params }: { params: Promise<{ token: st
   const inv = invite as
     | { owner_id: string; status: string; token_expires_at: string | null }
     | null;
-  const expired = Boolean(
-    inv?.token_expires_at && new Date(inv.token_expires_at).getTime() < Date.now(),
-  );
+  const expired = isInviteExpired(inv?.token_expires_at ?? null);
   const valid = Boolean(inv && inv.status === "invited" && !expired);
 
   let studioName = "";

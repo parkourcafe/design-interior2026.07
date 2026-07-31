@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { ru } from "@/lib/i18n/ru";
@@ -6,6 +7,9 @@ import PassportView from "@/components/passport-view";
 import PrintButton from "@/components/print-button";
 
 export const dynamic = "force-dynamic";
+
+// Read-only ссылка-бриф — ПДн, вне индекса (сверх X-Robots-Tag/robots.txt).
+export const metadata: Metadata = { robots: { index: false, follow: false } };
 
 // Публичная read-only ссылка-бриф. Клиент рассылает её выбранным дизайнерам.
 // Доступ по intake-токену через service role. Показываем только паспорт
