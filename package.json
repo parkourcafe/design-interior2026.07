@@ -19,7 +19,8 @@
     "deploy:prod": "vercel --prod",
     "test:watch": "vitest",
     "seed": "tsx scripts/seed.ts",
-    "fetch:media": "node scripts/fetch-landing-media.mjs"
+    "fetch:media": "node scripts/fetch-landing-media.mjs",
+    "provision:ap1": "tsx scripts/provision-ap1-users.ts"
   },
   "dependencies": {
     "@capacitor/core": "^8.4.2",
