@@ -235,6 +235,45 @@ describe("ProjectCEO request-bound security", () => {
     }).success).toBe(false);
   });
 
+  it("accepts only a bounded publish_baseline descriptor", () => {
+    const valid = {
+      contractVersion: "projectceo-command/0.1",
+      commandId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+      kind: "publish_baseline",
+      projectId: userId,
+      payload: {
+        descriptor: {
+          id: "baseline-v1",
+          graphVersionId: "graph-v1",
+          previousBaselineId: null,
+          packageIds: ["bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb"],
+          sourceRevisionIds: ["source-r1"],
+          requirementRevisionIds: [],
+          assumptionRevisionIds: [],
+          decisionRevisionIds: ["decision-r1"],
+          selectionRevisionIds: ["selection-r1"],
+          approvalPackageIds: ["approval-1"],
+          semanticHash: `sha256:${"a".repeat(64)}`,
+        },
+      },
+    };
+    expect(projectCeoCommandSchema.safeParse(valid).success).toBe(true);
+    expect(projectCeoCommandSchema.safeParse({
+      ...valid,
+      payload: {
+        ...valid.payload,
+        descriptor: { ...valid.payload.descriptor, packageIds: ["not-a-uuid"] },
+      },
+    }).success).toBe(false);
+    expect(projectCeoCommandSchema.safeParse({
+      ...valid,
+      payload: {
+        ...valid.payload,
+        descriptor: { ...valid.payload.descriptor, semanticHash: "sha256:not-a-hash" },
+      },
+    }).success).toBe(false);
+  });
+
   it("requires at least one item for create_approval_package and rejects unknown targetKind", () => {
     const valid = {
       contractVersion: "projectceo-command/0.1",

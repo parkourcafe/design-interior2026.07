@@ -35,7 +35,6 @@ type CommandErrorCode =
 const UNAVAILABLE = new Set<ProjectCeoCommand["kind"]>([
   "register_source",
   "review_source",
-  "publish_baseline",
   "publish_release",
   "build_handover",
 ]);
@@ -340,6 +339,14 @@ export class ProjectCeoCommandService {
           expectedStatus: command.payload.expectedStatus,
           decision: command.payload.decision,
           reason: command.payload.reason,
+          expectedStateRevision: scope.stateRevision,
+          idempotencyKey,
+        }));
+      }
+      if (command.kind === "publish_baseline") {
+        return completed(requestId, await this.product.publishProjectBaseline({
+          projectId: command.projectId,
+          descriptor: command.payload.descriptor,
           expectedStateRevision: scope.stateRevision,
           idempotencyKey,
         }));
