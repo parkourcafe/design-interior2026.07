@@ -272,6 +272,47 @@ export class ProjectCeoCommandService {
           idempotencyKey,
         }));
       }
+      if (command.kind === "create_decision") {
+        // packageId/nodeId/areaNodeId membership не пере-проверяются здесь:
+        // RPC append_decision_revision авторизует через
+        // _authorize_package_human(project_id, package_id, 'revise_decision')
+        // и само отвергает невалидный areaNodeId/decisionRevisionId — тот же
+        // паттерн defense-in-depth, что у revoke_guest_grant выше.
+        return completed(requestId, await this.product.appendDecisionRevision({
+          projectId: command.projectId,
+          packageId: command.payload.packageId,
+          nodeId: command.payload.nodeId,
+          revisionId: command.payload.revisionId,
+          expectedRevisionId: command.payload.expectedRevisionId,
+          claimStatus: command.payload.claimStatus,
+          title: command.payload.title,
+          resolution: command.payload.resolution,
+          areaNodeId: command.payload.areaNodeId,
+          decisionStatus: command.payload.decisionStatus,
+          evidence: command.payload.evidence,
+          reason: command.payload.reason,
+          expectedStateRevision: scope.stateRevision,
+          idempotencyKey,
+        }));
+      }
+      if (command.kind === "create_selection") {
+        return completed(requestId, await this.product.appendSelectionRevision({
+          projectId: command.projectId,
+          packageId: command.payload.packageId,
+          nodeId: command.payload.nodeId,
+          revisionId: command.payload.revisionId,
+          expectedRevisionId: command.payload.expectedRevisionId,
+          claimStatus: command.payload.claimStatus,
+          title: command.payload.title,
+          areaNodeId: command.payload.areaNodeId,
+          decisionRevisionId: command.payload.decisionRevisionId,
+          specification: command.payload.specification,
+          evidence: command.payload.evidence,
+          reason: command.payload.reason,
+          expectedStateRevision: scope.stateRevision,
+          idempotencyKey,
+        }));
+      }
       if (command.kind === "create_change") {
         const baselineId = typeof record(delivery.latestBaseline).id === "string"
           ? record(delivery.latestBaseline).id as string

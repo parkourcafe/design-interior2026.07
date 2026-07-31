@@ -140,6 +140,24 @@ function fakeClient(calls: Call[], readOverrides: Readonly<Record<string, unknow
     "projectceo_m4_api.register_photo_evidence": { id: "photo-1" },
     "projectceo_m4_api.review_photo_evidence": { id: "photo-review-1" },
     "projectceo_m4_api.accept_milestone": { id: "acceptance-1" },
+    "projectceo_product_api.append_decision_revision": {
+      projectId,
+      packageId,
+      kind: "decision",
+      nodeId: "decision-node-1",
+      revisionId: "decision-r1",
+      revisionNo: 1,
+      replacesRevisionId: null,
+    },
+    "projectceo_product_api.append_selection_revision": {
+      projectId,
+      packageId,
+      kind: "selection",
+      nodeId: "selection-node-1",
+      revisionId: "selection-r1",
+      revisionNo: 1,
+      replacesRevisionId: null,
+    },
   };
   const replayTargetByName: Readonly<Record<string, string>> = {
     "projectceo_m4_api.replay_submit_change_request": "projectceo_m4_api.submit_change_request",
@@ -421,6 +439,84 @@ describe("AP1 supported human commands", () => {
       expect(calls.filter((call) => call.name === m4Mutation)).toHaveLength(1);
       expect(calls.filter((call) => call.name.includes("projectceo_m4_api.replay_"))).toHaveLength(2);
     }
+  });
+
+  it("appends a human-origin decision revision without requiring pre-registered evidence", async () => {
+    const calls: Call[] = [];
+    const decisionRevisionId = "cccccccc-1111-4ccc-8ccc-cccccccccccc";
+    const input = command("create_decision", {
+      packageId,
+      nodeId: "decision-node-1",
+      revisionId: decisionRevisionId,
+      expectedRevisionId: null,
+      claimStatus: "human_origin",
+      title: "Kitchen island placement",
+      resolution: "Island stays; move sink to the window wall.",
+      areaNodeId: null,
+      decisionStatus: "confirmed",
+      evidence: [],
+      reason: "Client decided on the walkthrough.",
+    });
+    const subject = service(calls);
+    const first = await subject.execute(input, "decision-1");
+    const retry = await subject.execute(input, "decision-2");
+    expect(first).toMatchObject({ status: "completed", replay: false });
+    expect(retry).toMatchObject({ status: "completed", replay: true });
+    const writes = calls.filter((call) => call.name === "projectceo_product_api.append_decision_revision");
+    expect(writes).toHaveLength(2);
+    expect(writes[0]?.args).toMatchObject({
+      project_id: projectId,
+      package_id: packageId,
+      node_id: "decision-node-1",
+      revision_id: decisionRevisionId,
+      expected_revision_id: null,
+      claim_status: "human_origin",
+      title: "Kitchen island placement",
+      resolution: "Island stays; move sink to the window wall.",
+      area_node_id: null,
+      decision_status: "confirmed",
+      evidence: [],
+      reason: "Client decided on the walkthrough.",
+    });
+    expect(writes[0]?.args.idempotency_key).toBe(writes[1]?.args.idempotency_key);
+  });
+
+  it("appends a selection revision tied to a decision, carrying version-scoped evidence through untouched", async () => {
+    const calls: Call[] = [];
+    const evidence = [{
+      evidenceVersionId: "version-1",
+      evidenceLinkId: "link-1",
+      sourceId: "source-1",
+      sourceNodeId: "source-node-1",
+      sourceRevisionId: "source-r1",
+      fragmentId: "fragment-1",
+    }];
+    const input = command("create_selection", {
+      packageId,
+      nodeId: "selection-node-1",
+      revisionId: "dddddddd-1111-4ddd-8ddd-dddddddddddd",
+      expectedRevisionId: null,
+      claimStatus: "extracted",
+      title: "Countertop material",
+      areaNodeId: "area-kitchen",
+      decisionRevisionId: "decision-r1",
+      specification: { material: "porcelain", finish: "matte" },
+      evidence,
+      reason: "From the supplier quote PDF.",
+    });
+    const result = await service(calls).execute(input, "selection-1");
+    expect(result).toMatchObject({ status: "completed", replay: false });
+    expect(calls.find((call) => call.name === "projectceo_product_api.append_selection_revision")?.args)
+      .toMatchObject({
+        project_id: projectId,
+        package_id: packageId,
+        node_id: "selection-node-1",
+        claim_status: "extracted",
+        area_node_id: "area-kitchen",
+        decision_revision_id: "decision-r1",
+        specification: { material: "porcelain", finish: "matte" },
+        evidence,
+      });
   });
 
   it.each([
