@@ -147,10 +147,57 @@ export const projectCeoCommandSchema = z.discriminatedUnion("kind", [
   }).strict(),
   projectSelector.extend({
     contractVersion: z.literal(PROJECTCEO_COMMAND_CONTRACT_VERSION),
+    kind: z.literal("create_approval_package"),
+    payload: z.object({
+      packageId: uuid,
+      // Клиент выбирает id пакета (как nodeId/revisionId выше) — RPC
+      // create_approval_package сам проверяет уникальность через idempotency.
+      approvalPackageId: z.string().trim().min(1).max(160),
+      items: z.array(z.object({
+        targetKind: z.enum([
+          "requirement_revision",
+          "assumption_revision",
+          "decision_revision",
+          "selection_revision",
+        ]),
+        entityId: nodeId,
+        revisionId: claimRevisionId,
+      }).strict()).min(1).max(500),
+    }).strict(),
+  }).strict(),
+  projectSelector.extend({
+    contractVersion: z.literal(PROJECTCEO_COMMAND_CONTRACT_VERSION),
+    kind: z.literal("submit_approval_package"),
+    payload: z.object({
+      approvalPackageId: z.string().trim().min(1).max(160),
+      expectedStatus: z.literal("draft"),
+    }).strict(),
+  }).strict(),
+  // review_selection = capability name that projectceo_product_api.
+  // review_approval_package itself checks via
+  // _authorize_project_human(project_id, 'review_selection') — confirmed by
+  // reading the RPC body, not inferred from the TS side. Despite the name,
+  // it reviews an ApprovalPackage as a whole (which may bundle decision_
+  // revision/selection_revision/requirement_revision/assumption_revision
+  // items together) — there is no separate mechanism to review a single
+  // Decision or Selection revision outside this package flow; searched every
+  // function in projectceo_product_api and review_approval_package is the
+  // only one that touches claim-revision review state.
+  projectSelector.extend({
+    contractVersion: z.literal(PROJECTCEO_COMMAND_CONTRACT_VERSION),
+    kind: z.literal("review_selection"),
+    payload: z.object({
+      approvalPackageId: z.string().trim().min(1).max(160),
+      expectedStatus: z.literal("submitted"),
+      decision: z.enum(["approved", "rejected", "change_requested"]),
+      reason: z.string().trim().min(3).max(4000),
+    }).strict(),
+  }).strict(),
+  projectSelector.extend({
+    contractVersion: z.literal(PROJECTCEO_COMMAND_CONTRACT_VERSION),
     kind: z.enum([
       "register_source",
       "review_source",
-      "review_selection",
       "publish_baseline",
       "publish_release",
       "build_handover",

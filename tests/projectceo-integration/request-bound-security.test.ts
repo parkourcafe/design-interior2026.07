@@ -209,6 +209,58 @@ describe("ProjectCEO request-bound security", () => {
     }).success).toBe(false);
   });
 
+  it("accepts a well-formed review_selection command and rejects a status other than 'submitted'", () => {
+    const valid = {
+      contractVersion: "projectceo-command/0.1",
+      commandId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+      kind: "review_selection",
+      projectId: userId,
+      payload: {
+        approvalPackageId: "approval-1",
+        expectedStatus: "submitted",
+        decision: "approved",
+        reason: "Matches the client's confirmed spec.",
+      },
+    };
+    expect(projectCeoCommandSchema.safeParse(valid).success).toBe(true);
+    // review_approval_package's own state machine only accepts the
+    // submitted -> {approved,rejected,change_requested} transition.
+    expect(projectCeoCommandSchema.safeParse({
+      ...valid,
+      payload: { ...valid.payload, expectedStatus: "draft" },
+    }).success).toBe(false);
+    expect(projectCeoCommandSchema.safeParse({
+      ...valid,
+      payload: { ...valid.payload, decision: "withdrawn" },
+    }).success).toBe(false);
+  });
+
+  it("requires at least one item for create_approval_package and rejects unknown targetKind", () => {
+    const valid = {
+      contractVersion: "projectceo-command/0.1",
+      commandId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+      kind: "create_approval_package",
+      projectId: userId,
+      payload: {
+        packageId: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+        approvalPackageId: "approval-1",
+        items: [{ targetKind: "decision_revision", entityId: "decision-node-1", revisionId: "decision-r1" }],
+      },
+    };
+    expect(projectCeoCommandSchema.safeParse(valid).success).toBe(true);
+    expect(projectCeoCommandSchema.safeParse({
+      ...valid,
+      payload: { ...valid.payload, items: [] },
+    }).success).toBe(false);
+    expect(projectCeoCommandSchema.safeParse({
+      ...valid,
+      payload: {
+        ...valid.payload,
+        items: [{ targetKind: "material_revision", entityId: "x", revisionId: "y" }],
+      },
+    }).success).toBe(false);
+  });
+
   it("has no create_guest_grant command kind (guest grants are read-only issued elsewhere, only revocable here)", () => {
     // Locks in the current, deliberate gap: only revoke_guest_grant exists.
     // If this ever needs to change, it must be a reviewed schema addition
