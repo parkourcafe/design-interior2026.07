@@ -158,6 +158,23 @@ function fakeClient(calls: Call[], readOverrides: Readonly<Record<string, unknow
       revisionNo: 1,
       replacesRevisionId: null,
     },
+    "projectceo_product_api.create_approval_package": {
+      id: "approval-1",
+      projectId,
+      packageId,
+      itemCount: 1,
+      status: "draft",
+    },
+    "projectceo_product_api.submit_approval_package": {
+      approvalPackageId: "approval-1",
+      projectId,
+      status: "submitted",
+    },
+    "projectceo_product_api.review_approval_package": {
+      approvalPackageId: "approval-1",
+      projectId,
+      status: "approved",
+    },
   };
   const replayTargetByName: Readonly<Record<string, string>> = {
     "projectceo_m4_api.replay_submit_change_request": "projectceo_m4_api.submit_change_request",
@@ -519,10 +536,69 @@ describe("AP1 supported human commands", () => {
       });
   });
 
+  it("creates an approval package bundling a decision and a selection revision, then submits and reviews it", async () => {
+    const calls: Call[] = [];
+    const subject = service(calls);
+
+    const created = await subject.execute(command("create_approval_package", {
+      packageId,
+      approvalPackageId: "approval-1",
+      items: [
+        { targetKind: "decision_revision", entityId: "decision-node-1", revisionId: "decision-r1" },
+        { targetKind: "selection_revision", entityId: "selection-node-1", revisionId: "selection-r1" },
+      ],
+    }), "approval-create");
+    expect(created).toMatchObject({ status: "completed", replay: false });
+    expect(calls.find((call) => call.name === "projectceo_product_api.create_approval_package")?.args)
+      .toMatchObject({
+        project_id: projectId,
+        package_id: packageId,
+        approval_package_id: "approval-1",
+        items: [
+          { targetKind: "decision_revision", entityId: "decision-node-1", revisionId: "decision-r1" },
+          { targetKind: "selection_revision", entityId: "selection-node-1", revisionId: "selection-r1" },
+        ],
+      });
+
+    const submitted = await subject.execute(command("submit_approval_package", {
+      approvalPackageId: "approval-1",
+      expectedStatus: "draft",
+    }), "approval-submit");
+    expect(submitted).toMatchObject({ status: "completed", replay: false });
+    expect(calls.find((call) => call.name === "projectceo_product_api.submit_approval_package")?.args)
+      .toMatchObject({ approval_package_id: "approval-1", expected_status: "draft" });
+
+    // review_selection: the capability name baked into
+    // projectceo_product_api.review_approval_package's own authorization
+    // check — it reviews the whole package, not a single selection revision.
+    const reviewed = await subject.execute(command("review_selection", {
+      approvalPackageId: "approval-1",
+      expectedStatus: "submitted",
+      decision: "approved",
+      reason: "Matches the client's confirmed spec.",
+    }), "approval-review");
+    expect(reviewed).toMatchObject({ status: "completed", replay: false });
+    expect(calls.find((call) => call.name === "projectceo_product_api.review_approval_package")?.args)
+      .toMatchObject({
+        approval_package_id: "approval-1",
+        expected_status: "submitted",
+        decision: "approved",
+        reason: "Matches the client's confirmed spec.",
+      });
+
+    // Idempotent replay on the review step specifically.
+    const retryReviewed = await subject.execute(command("review_selection", {
+      approvalPackageId: "approval-1",
+      expectedStatus: "submitted",
+      decision: "approved",
+      reason: "Matches the client's confirmed spec.",
+    }), "approval-review-retry");
+    expect(retryReviewed).toMatchObject({ status: "completed", replay: true });
+  });
+
   it.each([
     "register_source",
     "review_source",
-    "review_selection",
     "publish_baseline",
     "publish_release",
     "build_handover",

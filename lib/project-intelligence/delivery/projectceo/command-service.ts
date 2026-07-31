@@ -35,7 +35,6 @@ type CommandErrorCode =
 const UNAVAILABLE = new Set<ProjectCeoCommand["kind"]>([
   "register_source",
   "review_source",
-  "review_selection",
   "publish_baseline",
   "publish_release",
   "build_handover",
@@ -308,6 +307,38 @@ export class ProjectCeoCommandService {
           decisionRevisionId: command.payload.decisionRevisionId,
           specification: command.payload.specification,
           evidence: command.payload.evidence,
+          reason: command.payload.reason,
+          expectedStateRevision: scope.stateRevision,
+          idempotencyKey,
+        }));
+      }
+      if (command.kind === "create_approval_package") {
+        return completed(requestId, await this.product.createApprovalPackage({
+          projectId: command.projectId,
+          approvalPackage: {
+            id: command.payload.approvalPackageId,
+            packageId: command.payload.packageId,
+            items: command.payload.items,
+          },
+          expectedStateRevision: scope.stateRevision,
+          idempotencyKey,
+        }));
+      }
+      if (command.kind === "submit_approval_package") {
+        return completed(requestId, await this.product.submitApprovalPackage({
+          projectId: command.projectId,
+          approvalPackageId: command.payload.approvalPackageId,
+          expectedStatus: command.payload.expectedStatus,
+          expectedStateRevision: scope.stateRevision,
+          idempotencyKey,
+        }));
+      }
+      if (command.kind === "review_selection") {
+        return completed(requestId, await this.product.reviewApprovalPackage({
+          projectId: command.projectId,
+          approvalPackageId: command.payload.approvalPackageId,
+          expectedStatus: command.payload.expectedStatus,
+          decision: command.payload.decision,
           reason: command.payload.reason,
           expectedStateRevision: scope.stateRevision,
           idempotencyKey,
