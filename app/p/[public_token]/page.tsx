@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { ru } from "@/lib/i18n/ru";
@@ -7,6 +8,9 @@ import PrintButton from "./print-button";
 import ProposalRespond from "./respond";
 
 export const dynamic = "force-dynamic";
+
+// Публичное КП клиента — суммы/ПДн, вне индекса (сверх X-Robots-Tag/robots.txt).
+export const metadata: Metadata = { robots: { index: false, follow: false } };
 
 // Публичная страница КП. Доступ авторизуется public_token (service role сверяет
 // на сервере). Версия для печати — через @media print, это и есть «PDF» v0.1.

@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import {
@@ -12,6 +13,10 @@ import { ProjectCeoWorkspace } from "@/components/projectceo/project-workspace";
 import { ru } from "@/lib/i18n/ru";
 
 export const dynamic = "force-dynamic";
+
+// Локальный QA-харнесс — уже недоступен в проде (notFound() ниже), noindex —
+// вторая линия защиты (сверх X-Robots-Tag/robots.txt).
+export const metadata: Metadata = { robots: { index: false, follow: false } };
 
 export default async function ProjectCeoLocalQaPage({
   params,

@@ -125,6 +125,104 @@ describe("ProjectCEO request-bound security", () => {
     }).success).toBe(false);
   });
 
+  it("rejects malformed create_decision payloads and requires non-empty specification for create_selection", () => {
+    const validDecision = {
+      contractVersion: "projectceo-command/0.1",
+      commandId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+      kind: "create_decision",
+      projectId: userId,
+      payload: {
+        packageId: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+        nodeId: "decision-node-1",
+        revisionId: "cccccccc-cccc-4ccc-8ccc-cccccccccccc",
+        expectedRevisionId: null,
+        claimStatus: "human_origin",
+        title: "Kitchen island placement",
+        resolution: "Island stays.",
+        areaNodeId: null,
+        decisionStatus: "confirmed",
+        evidence: [],
+        reason: "Client decided on the walkthrough.",
+      },
+    };
+    expect(projectCeoCommandSchema.safeParse(validDecision).success).toBe(true);
+    // Empty title — the RPC's _assert_text requires length >= 1.
+    expect(projectCeoCommandSchema.safeParse({
+      ...validDecision,
+      payload: { ...validDecision.payload, title: "" },
+    }).success).toBe(false);
+    // claimStatus outside the four RPC-accepted values.
+    expect(projectCeoCommandSchema.safeParse({
+      ...validDecision,
+      payload: { ...validDecision.payload, claimStatus: "guessed" },
+    }).success).toBe(false);
+    // Unknown payload field — schema is .strict().
+    expect(projectCeoCommandSchema.safeParse({
+      ...validDecision,
+      payload: { ...validDecision.payload, unexpected: true },
+    }).success).toBe(false);
+    // Evidence entry missing a required provenance field.
+    expect(projectCeoCommandSchema.safeParse({
+      ...validDecision,
+      payload: {
+        ...validDecision.payload,
+        evidence: [{
+          evidenceVersionId: "v1",
+          evidenceLinkId: "l1",
+          sourceId: "s1",
+          sourceNodeId: "n1",
+          sourceRevisionId: "r1",
+          // fragmentId missing
+        }],
+      },
+    }).success).toBe(false);
+
+    const validSelection = {
+      contractVersion: "projectceo-command/0.1",
+      commandId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+      kind: "create_selection",
+      projectId: userId,
+      payload: {
+        packageId: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+        nodeId: "selection-node-1",
+        revisionId: "dddddddd-dddd-4ddd-8ddd-dddddddddddd",
+        expectedRevisionId: null,
+        claimStatus: "human_origin",
+        title: "Countertop material",
+        areaNodeId: "area-kitchen",
+        decisionRevisionId: "decision-r1",
+        specification: { material: "porcelain" },
+        evidence: [],
+        reason: "Client decided on the walkthrough.",
+      },
+    };
+    expect(projectCeoCommandSchema.safeParse(validSelection).success).toBe(true);
+    // RPC's SELECTION_CONTRACT_INVALID rejects an empty specification object.
+    expect(projectCeoCommandSchema.safeParse({
+      ...validSelection,
+      payload: { ...validSelection.payload, specification: {} },
+    }).success).toBe(false);
+    // areaNodeId is required (non-nullable) for selections, unlike decisions.
+    expect(projectCeoCommandSchema.safeParse({
+      ...validSelection,
+      payload: { ...validSelection.payload, areaNodeId: null },
+    }).success).toBe(false);
+  });
+
+  it("has no create_guest_grant command kind (guest grants are read-only issued elsewhere, only revocable here)", () => {
+    // Locks in the current, deliberate gap: only revoke_guest_grant exists.
+    // If this ever needs to change, it must be a reviewed schema addition
+    // with the same ownership/"belongs" rigor as revoke_guest_grant — not a
+    // silent side effect of some other refactor.
+    expect(projectCeoCommandSchema.safeParse({
+      contractVersion: "projectceo-command/0.1",
+      commandId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+      kind: "create_guest_grant",
+      projectId: userId,
+      payload: {},
+    }).success).toBe(false);
+  });
+
   it("accepts deterministic text impact ids from M4", () => {
     expect(projectCeoCommandSchema.safeParse({
       contractVersion: "projectceo-command/0.1",

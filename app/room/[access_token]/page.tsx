@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { ru } from "@/lib/i18n/ru";
@@ -6,6 +7,10 @@ import type { ParticipantRole, ProjectTask } from "@/lib/project-room/types";
 import PublicTaskControls from "./task-controls";
 
 export const dynamic = "force-dynamic";
+
+// Участник Project Room по токену — задачи проекта, вне индекса
+// (сверх X-Robots-Tag/robots.txt).
+export const metadata: Metadata = { robots: { index: false, follow: false } };
 
 export default async function ParticipantRoomPage({ params }: { params: Promise<{ access_token: string }> }) {
   const { access_token } = await params;

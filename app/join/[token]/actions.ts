@@ -2,6 +2,7 @@
 
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { isInviteExpired } from "@/lib/studio-invite";
 
 // Активация приглашения по ссылке-токену. Доступ к студии даётся ТОЛЬКО здесь —
 // залогиненный человек, владеющий ссылкой, становится участником. Токен
@@ -27,7 +28,7 @@ export async function acceptInvite(
     | null;
 
   if (!inv || inv.status !== "invited") return { ok: false, error: "invalid" };
-  if (inv.token_expires_at && new Date(inv.token_expires_at).getTime() < Date.now()) {
+  if (isInviteExpired(inv.token_expires_at)) {
     return { ok: false, error: "invalid" };
   }
 

@@ -8,6 +8,28 @@ const projectSelector = z.object({
   commandId: uuid,
 }).strict();
 
+// Зеркалит VersionScopedEvidenceInput (project-brain.ts) и то, что реально
+// проверяет RPC projectceo_product._validate_evidence_array: все шесть полей
+// обязательны, до 100 элементов. Обязательно (кроме claimStatus="human_origin",
+// см. RPC projectceo_product._append_claim_revision) — без предварительной
+// регистрации источника (register_source/review_source — пока UNAVAILABLE)
+// валидных ссылок на evidence не получить, поэтому на практике сегодня
+// проходит только human_origin с evidence: [].
+const versionScopedEvidence = z.object({
+  evidenceVersionId: z.string().min(1).max(160),
+  evidenceLinkId: z.string().min(1).max(160),
+  sourceId: z.string().min(1).max(160),
+  sourceNodeId: z.string().min(1).max(160),
+  sourceRevisionId: z.string().min(1).max(160),
+  fragmentId: z.string().min(1).max(160),
+}).strict();
+
+const claimStatus = z.enum(["extracted", "interpreted", "unknown", "human_origin"]);
+// nodeId/revisionId границы длины — из projectceo_product._assert_text
+// (миграция 20260717101000_projectceo_product_brain_operations.sql).
+const nodeId = z.string().trim().min(1).max(160);
+const claimRevisionId = z.string().trim().min(1).max(160);
+
 export const projectCeoCommandSchema = z.discriminatedUnion("kind", [
   projectSelector.extend({
     contractVersion: z.literal(PROJECTCEO_COMMAND_CONTRACT_VERSION),
@@ -85,6 +107,42 @@ export const projectCeoCommandSchema = z.discriminatedUnion("kind", [
     payload: z.object({
       productionPackageVersionId: z.string().min(1).max(160),
       recipientUserId: uuid,
+    }).strict(),
+  }).strict(),
+  projectSelector.extend({
+    contractVersion: z.literal(PROJECTCEO_COMMAND_CONTRACT_VERSION),
+    kind: z.literal("create_decision"),
+    payload: z.object({
+      packageId: uuid,
+      nodeId,
+      // Клиент генерирует UUID для новой ревизии — тот же паттерн, что commandId.
+      revisionId: uuid,
+      expectedRevisionId: claimRevisionId.nullable(),
+      claimStatus,
+      title: z.string().trim().min(1).max(1000),
+      resolution: z.string().trim().min(1).max(8000),
+      areaNodeId: nodeId.nullable(),
+      decisionStatus: z.enum(["proposed", "confirmed", "superseded"]),
+      evidence: z.array(versionScopedEvidence).max(100),
+      reason: z.string().trim().min(3).max(4000),
+    }).strict(),
+  }).strict(),
+  projectSelector.extend({
+    contractVersion: z.literal(PROJECTCEO_COMMAND_CONTRACT_VERSION),
+    kind: z.literal("create_selection"),
+    payload: z.object({
+      packageId: uuid,
+      nodeId,
+      revisionId: uuid,
+      expectedRevisionId: claimRevisionId.nullable(),
+      claimStatus,
+      title: z.string().trim().min(1).max(1000),
+      areaNodeId: nodeId,
+      decisionRevisionId: claimRevisionId,
+      specification: z.record(z.string().min(1).max(200), z.string().max(4000))
+        .refine((spec) => Object.keys(spec).length > 0, "specification_required"),
+      evidence: z.array(versionScopedEvidence).max(100),
+      reason: z.string().trim().min(3).max(4000),
     }).strict(),
   }).strict(),
   projectSelector.extend({

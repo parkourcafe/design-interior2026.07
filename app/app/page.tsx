@@ -1,7 +1,11 @@
+import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 
 export const dynamic = "force-dynamic";
+
+// Всегда редирект — индексировать нечего.
+export const metadata: Metadata = { robots: { index: false, follow: false } };
 
 /**
  * Стабильная точка входа мобильных оболочек. Она не показывает маркетинговый
