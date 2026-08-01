@@ -1,6 +1,6 @@
 # AP1 Migration Replay Report — 2026-08-01
 
-Status: disposable replay PASS; production unchanged
+Status: disposable replay PASS; production unchanged; hosted Auth Hook activation pending separate gate
 
 ## What changed
 
