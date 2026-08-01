@@ -43,9 +43,15 @@ history-repair approval and the full production-clone rehearsal.
 
 The standard Supabase/GoTrue access token used by the real browser session has
 `amr=[{"method":"otp"}]` and `user_metadata.email_verified=true`, but no
-top-level `email_verified` claim. The current invitation acceptance contract
-therefore returns `identity_unverified` even after a confirmed magic-link login.
+top-level `email_verified` claim. The current request-claims rewrite therefore
+adds a duplicate top-level-claim gate after the existing
+`_has_email_ownership_amr()` contract and returns `identity_unverified` even
+after a confirmed magic-link login.
+
 No trust-model relaxation or managed-auth lookup was applied as a workaround.
-The next change must be an explicitly reviewed additive authorization decision
-that preserves recipient-email matching and verified Auth semantics before the
-authenticated pilot can be marked ready.
+The next change must be an explicitly reviewed additive authorization decision:
+either a hosted Auth Hook emits a confirmed `email_verified` claim, or the
+existing signed allowlisted ownership AMR is approved as the documented
+equivalent. Exact recipient-email matching and rejection of generic
+email/password AMR must remain mandatory before the authenticated pilot can be
+marked ready.
