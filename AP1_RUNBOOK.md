@@ -37,7 +37,55 @@
 
 ## 2. Применение миграций
 
-Строго по порядку — миграции зависят друг от друга. 21 файл, ~24 700 строк.
+> ### ⚠️ Папка миграций не bootstrap-ится подряд — `supabase db push` на чистой базе упадёт
+>
+> Проверено на практике 01.08.2026. `20260716071024_legacy_production_baseline.sql`
+> — это **замена** миграциям `0001`–`0007`, а не их продолжение. В нём стоит
+> guard, который падает с `legacy production baseline is clean-bootstrap only;
+> application relations already exist`, если таблицы уже созданы.
+>
+> Из шапки самого файла: baseline воспроизводит проверенную продовую схему на
+> момент 2026-07-16 и включает эффекты `0001_init`, `0002_client_briefs`,
+> `0003_custom_questions`, `0004_designer_profile`, `0006_team` и точного блоба
+> `0007_project_rooms`. Исключены `0005_rate_limits` и `0008_concept_packs`
+> (в проде отсутствовали), `0009_project_room_workflow` отвергнут как небезопасный.
+>
+> **Практические следствия:**
+> - на чистом окружении применять **baseline, а не 0001–0007**;
+> - `0001`–`0007` в папке — исторические, для окружений, где они уже применены
+>   до появления журнала;
+> - в репозитории под номером `0007` лежит `invite_tokens`, а baseline включает
+>   другой исторический `0007_project_rooms` — то есть 0001–0007 **не создают**
+>   таблицы Module 3 (`project_rooms`, `project_participants`, `project_tasks`,
+>   `project_task_events`), которые есть в проде и в baseline;
+> - после baseline **нет** `rate_limits` — если он понадобится, применять
+>   `0005_rate_limits.sql` отдельно поверх.
+>
+> Это прямо конфликтует с требованием AP1 «exact additive migration ledger»
+> (MASTER_EXECUTION_PLAN §4) и требует отдельного решения владельца: либо
+> пометить `0001`–`0007` как superseded, либо снабдить папку явной инструкцией
+> о двух путях bootstrap.
+
+Порядок для **чистого** окружения (baseline + слой ProjectCEO):
+
+```
+ 1  20260716071024_legacy_production_baseline.sql
+ 2  20260716072000_project_intelligence_core.sql
+ 3  20260716073000_project_intelligence_operations.sql
+ 4  20260717090000_projectceo_foundation_access.sql
+ 5  20260717091000_projectceo_foundation_ingestion_read.sql
+ 6  20260717092000_projectceo_foundation_integration_hardening.sql
+ 7  20260717100000_projectceo_product_brain_persistence.sql
+ 8  20260717101000_projectceo_product_brain_operations.sql
+ 9  20260717101500_projectceo_product_brain_relational_hardening.sql
+10  20260717102000_projectceo_m4_execution_persistence.sql
+11  20260717103000_projectceo_m4_execution_operations.sql
+12  20260718124958_projectceo_ap1_authenticated_reads.sql
+13  20260718223000_projectceo_ap1_inventory_duplicate_groups.sql
+14  20260718225000_projectceo_ap1_legacy_metadata_bridge.sql
+```
+
+Историческая последовательность (только для окружений, где она уже применена):
 
 ```
  1  0001_init.sql
