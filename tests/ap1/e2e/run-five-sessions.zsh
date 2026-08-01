@@ -32,6 +32,10 @@ mkdir -p "${evidence_dir}"
 chmod 700 "${evidence_dir}"
 
 cleanup() {
+  if [[ "${AP1_KEEP_EVIDENCE:-0}" == "1" ]]; then
+    print -r -- "AP1_KEEP_EVIDENCE_ACTIVE evidence=${evidence_dir} runtime=${runtime_root:-unset} next_pid=${next_pid:-unset}"
+    return
+  fi
   if [[ -n ${next_pid:-} ]]; then
     kill "${next_pid}" >/dev/null 2>&1 || true
     wait "${next_pid}" >/dev/null 2>&1 || true

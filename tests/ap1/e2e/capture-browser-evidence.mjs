@@ -133,7 +133,12 @@ async function capture(role, viewport, suffix) {
     cdp.close();
   } finally {
     processHandle.kill("SIGTERM");
-    await new Promise((resolve) => processHandle.once("exit", resolve));
+    if (processHandle.exitCode === null && processHandle.signalCode === null) {
+      await new Promise((resolve) => {
+        processHandle.once("exit", resolve);
+        processHandle.once("error", resolve);
+      });
+    }
     await rm(profile, { recursive: true, force: true });
   }
 }
