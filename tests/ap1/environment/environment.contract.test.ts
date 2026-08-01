@@ -42,7 +42,11 @@ describe("AP1 disposable Supabase environment contract", () => {
     for (const port of [59620, 59621, 59622, 59623, 59624, 59625, 59626, 59627, 59628, 59629]) {
       expect(config).toContain(String(port));
     }
-    expect(config).not.toMatch(/project_ref|access_token|service_role|supabase\.co/i);
+    // `custom_access_token` is the approved local Auth Hook name, not a
+    // credential. Reject only secret-bearing settings and hosted references.
+    expect(config).not.toMatch(/project_ref|service_role|supabase\.co/i);
+    expect(config).not.toMatch(/^\s*(?:anon|service|access)_key\s*=/im);
+    expect(config).toContain("[auth.hook.custom_access_token]");
   });
 
   it("exposes only the approved public and request-bound API schemas", () => {

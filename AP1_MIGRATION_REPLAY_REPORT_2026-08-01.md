@@ -16,6 +16,12 @@ Status: disposable replay PASS; production unchanged
   migration. It resolves the authenticated actor from `request.jwt.claims` when
   hosted PostgREST does not populate the legacy `request.jwt.claim.sub` GUC;
   it does not grant any access to the managed `auth` schema.
+- Added the explicitly approved additive
+  `20260801150000_projectceo_custom_access_token_hook.sql` migration and local
+  `[auth.hook.custom_access_token]` configuration. The hook emits
+  `email_verified=true` only for `otp`, `magiclink`, `invite`, and
+  `email/signup`, preserves it on token refresh, and strips it from generic
+  email/password sessions.
 
 ## Evidence
 
@@ -28,10 +34,11 @@ Status: disposable replay PASS; production unchanged
 | Canonical JSON assertions | `DB2_CANONICAL_JSON_ASSERTIONS_OK` |
 | Security/rollback assertions | `DB2_SECURITY_ROLLBACK_AND_ISOLATION_OK` |
 | P1 security region | `DB2_P1_SECURITY_REGION_GOLDEN_OK` |
+| Auth Hook claim assertions | `DB2_AUTH_HOOK_ASSERTIONS_OK` on PostgreSQL 16 and 17 |
 | Concurrency/restart | `DB2_CONCURRENCY_AND_RESTART_OK` |
 | AP1 environment contract | 8 tests passed |
 | Request-bound `list_projects` against local PostgREST | Passed with signed authenticated JWT |
-| Authenticated browser E2E | Blocked at invitation acceptance: standard GoTrue exposes verified mailbox ownership in the session `amr`/user metadata, not the top-level `email_verified` claim required by the current SQL contract |
+| Authenticated browser E2E | `AP1_SUPPORTED_SLICE_E2E_OK`; five real GoTrue magic-link sessions completed invitation, distribution/ack, change-impact, photo review, milestone acceptance, replay, CSRF and isolation checks |
 | Production writes | none |
 
 The replay proves the clean-bootstrap chain is internally coherent. It does not
@@ -43,15 +50,8 @@ history-repair approval and the full production-clone rehearsal.
 
 The standard Supabase/GoTrue access token used by the real browser session has
 `amr=[{"method":"otp"}]` and `user_metadata.email_verified=true`, but no
-top-level `email_verified` claim. The current request-claims rewrite therefore
-adds a duplicate top-level-claim gate after the existing
-`_has_email_ownership_amr()` contract and returns `identity_unverified` even
-after a confirmed magic-link login.
-
-No trust-model relaxation or managed-auth lookup was applied as a workaround.
-The next change must be an explicitly reviewed additive authorization decision:
-either a hosted Auth Hook emits a confirmed `email_verified` claim, or the
-existing signed allowlisted ownership AMR is approved as the documented
-equivalent. Exact recipient-email matching and rejection of generic
-email/password AMR must remain mandatory before the authenticated pilot can be
-marked ready.
+top-level `email_verified` claim. The explicitly approved additive Auth Hook
+now supplies that claim from the signed authentication method while preserving
+the existing recipient-email equality and allowlisted AMR checks. Local browser
+E2E confirms the complete authenticated slice. Hosted production still needs a
+separate Auth Hook activation gate and must not be changed by this PR.

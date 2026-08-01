@@ -112,6 +112,10 @@ enable_manual_linking = false
 minimum_password_length = 10
 password_requirements = "letters_digits"
 
+[auth.hook.custom_access_token]
+enabled = true
+uri = "pg-functions://postgres/public/projectceo_custom_access_token_hook"
+
 [auth.rate_limit]
 email_sent = 100
 sms_sent = 2
