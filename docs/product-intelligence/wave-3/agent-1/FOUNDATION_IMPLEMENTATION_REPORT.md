@@ -33,6 +33,10 @@ PRODUCTION_CHANGED=false
 - раздельные human/worker adapter surfaces;
 - server-only token, Storage и ingestion orchestration;
 - DB3 harness с PG16/PG17, RLS, concurrency, rollback и restart replay.
+- Additive hosted-claims compatibility: request `sub` fallback and a versioned
+  Supabase Custom Access Token Hook which emits `email_verified` only for the
+  allowlisted ownership methods (`otp`, `magiclink`, `invite`, `email/signup`)
+  and preserves the claim on token refresh.
 
 Существующие timestamped migrations не изменялись. Production Supabase не
 изменялся.
@@ -211,6 +215,13 @@ Additive hardening migration закрывает результаты интег�
 
 Harness prelude моделирует `auth.jwt()` через `request.jwt.claims`; это только
 локальная disposable test surface и не production auth implementation.
+
+The local AP1 stack additionally enables the versioned custom access-token hook
+through `supabase/config.toml`. A real five-session GoTrue browser run now
+passes invitation acceptance, distribution/ack, change-impact, photo review,
+milestone acceptance, replay, CSRF and isolation checks. Hosted activation of
+the same hook remains a separate production gate; no production migration or
+Auth setting was changed by this branch.
 
 ## 7. DB2 compatibility fix
 
