@@ -128,6 +128,19 @@ describe("baseline semantic content", () => {
     expect(computeBaselineSemanticHash(input())).toBe(expected);
   });
 
+  it("matches the digest PostgreSQL actually produced for this exact input", () => {
+    // Not a self-consistency check: this literal was produced by running
+    //   project_intelligence._sha256_jsonb(<the same object>)
+    // on a real PostgreSQL 17.6 instance with the migrations applied
+    // (AP1 disposable project, 01.08.2026). The canonical string returned by
+    // _canonical_jsonb was byte-identical to canonicalJson's output too.
+    // This is the one assertion that would catch canonicalJson drifting away
+    // from the Postgres side — every other test here only proves TS agrees
+    // with itself, which is exactly the trap that hid this risk for so long.
+    expect(computeBaselineSemanticHash(input()))
+      .toBe("sha256:b9548edd5ff1b2141c224e5e039e239141e61735cdcf6c6d3d88c5118df49799");
+  });
+
   it("rejects duplicates rather than deduping them, mirroring the RPC", () => {
     // _sorted_unique_text_array raises on duplicates; silently deduping here
     // would yield a hash the RPC refuses to produce.
