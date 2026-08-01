@@ -266,6 +266,29 @@ grant authenticated to pi_table_owner with inherit true;
 нужны clean replay, реальный request-bound RPC как authenticated session,
 negative tenant/package checks и restart replay на disposable Supabase.
 
+### 2d. Live Preview подтвердил отдельный migration-order blocker
+
+01.08.2026 Supabase Preview для PR #60 остановился **до** новой auth-миграции:
+
+```text
+ERROR: legacy production baseline is clean-bootstrap only;
+application relations already exist (SQLSTATE P0001)
+```
+
+Причина подтверждена живым replay: CLI применяет `0001`–`0007`, затем запускает
+`20260716071024_legacy_production_baseline.sql`, который намеренно отказывается
+работать поверх уже созданных legacy relations.
+
+Это нельзя исправлять снятием guard или переписыванием timestamped migration.
+Перед следующим AP1 replay нужен отдельный migration-path decision:
+
+- clean-bootstrap ledger: baseline + Project Intelligence/ProjectCEO;
+- historical incremental ledger: `0001`–`0007` + только additive migrations;
+- явный disposable runner/manifest, который выбирает ровно один путь.
+
+Пока этот decision не materialized, Preview failure считается ожидаемым
+`MIGRATION_ORDER_BLOCKED`, а не дефектом новой auth-миграции.
+
 ## 3. Пять ролевых пользователей
 
 ```bash
