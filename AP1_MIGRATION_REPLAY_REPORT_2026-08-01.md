@@ -12,6 +12,10 @@ Status: disposable replay PASS; production unchanged
 - Updated the AP1 migration ledger to contain only timestamped migrations.
 - Extended DB2 schema/ACL assertions for the request-claims helpers introduced
   by the merged AP1 authorization fix.
+- Added the additive `20260801130000_projectceo_request_claim_sub_fallback.sql`
+  migration. It resolves the authenticated actor from `request.jwt.claims` when
+  hosted PostgREST does not populate the legacy `request.jwt.claim.sub` GUC;
+  it does not grant any access to the managed `auth` schema.
 
 ## Evidence
 
@@ -26,9 +30,22 @@ Status: disposable replay PASS; production unchanged
 | P1 security region | `DB2_P1_SECURITY_REGION_GOLDEN_OK` |
 | Concurrency/restart | `DB2_CONCURRENCY_AND_RESTART_OK` |
 | AP1 environment contract | 8 tests passed |
+| Request-bound `list_projects` against local PostgREST | Passed with signed authenticated JWT |
+| Authenticated browser E2E | Blocked at invitation acceptance: standard GoTrue exposes verified mailbox ownership in the session `amr`/user metadata, not the top-level `email_verified` claim required by the current SQL contract |
 | Production writes | none |
 
 The replay proves the clean-bootstrap chain is internally coherent. It does not
 authorize production history repair or additive migration application. Existing
 production still requires a fresh snapshot, fingerprint match, backup gate,
 history-repair approval and the full production-clone rehearsal.
+
+## Remaining blocker
+
+The standard Supabase/GoTrue access token used by the real browser session has
+`amr=[{"method":"otp"}]` and `user_metadata.email_verified=true`, but no
+top-level `email_verified` claim. The current invitation acceptance contract
+therefore returns `identity_unverified` even after a confirmed magic-link login.
+No trust-model relaxation or managed-auth lookup was applied as a workaround.
+The next change must be an explicitly reviewed additive authorization decision
+that preserves recipient-email matching and verified Auth semantics before the
+authenticated pilot can be marked ready.

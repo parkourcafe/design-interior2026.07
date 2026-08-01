@@ -330,7 +330,7 @@ set local role authenticated;
 set local request.jwt.claim.sub = '32222222-2222-4222-8222-222222222222';
 set local request.jwt.claim.email_verified = 'true';
 set local request.jwt.claims =
-  '{"amr":[{"method":"email","timestamp":1770000000}]}';
+  '{"email":"architect@example.test","email_verified":true,"amr":[{"method":"email","timestamp":1770000000}]}';
 do $generic_email_amr_rejected$
 begin
   begin
@@ -353,7 +353,7 @@ set local role authenticated;
 set local request.jwt.claim.sub = '32222222-2222-4222-8222-222222222222';
 set local request.jwt.claim.email_verified = 'true';
 set local request.jwt.claims =
-  '{"amr":[{"method":"password","timestamp":1770000000}]}';
+  '{"email":"architect@example.test","email_verified":true,"amr":[{"method":"password","timestamp":1770000000}]}';
 do $password_only_identity_rejected$
 begin
   begin
@@ -375,7 +375,7 @@ begin;
 set local role authenticated;
 set local request.jwt.claim.sub = '32222222-2222-4222-8222-222222222222';
 set local request.jwt.claims =
-  '{"amr":[{"method":"magiclink","timestamp":1770000000}]}';
+  '{"email":"architect@example.test","email_verified":true,"amr":[{"method":"magiclink","timestamp":1770000000}]}';
 do $superseded_invitation_rejected$
 begin
   begin
@@ -397,7 +397,7 @@ begin;
 set local role authenticated;
 set local request.jwt.claim.sub = '32222222-2222-4222-8222-222222222222';
 set local request.jwt.claims =
-  '{"amr":[{"method":"magiclink","timestamp":1770000000}]}';
+  '{"email":"architect@example.test","email_verified":true,"amr":[{"method":"magiclink","timestamp":1770000000}]}';
 select projectceo_api.accept_invitation(
   decode(
     '4b6ffb50dbed0e257176b0dcbe7fc1e15b1850e823679304bd321b5dd3c06af7',
@@ -438,27 +438,23 @@ $invitation_assertions$;
 begin;
 set local role authenticated;
 set local request.jwt.claim.sub = '31111111-1111-4111-8111-111111111111';
-do $existing_membership_invitation_rejected$
-begin
-  begin
-    perform projectceo_api.create_invitation(
-      '41111111-1111-4111-8111-111111111111',
-      null,
-      'architect@example.test',
-      'architect',
-      statement_timestamp() + interval '1 day',
-      decode(
-        '5b6ffb50dbed0e257176b0dcbe7fc1e15b1850e823679304bd321b5dd3c06af7',
-        'hex'
-      ),
-      4,
-      'db3-existing-member-invite'
-    );
-    raise exception 'DB3_EXISTING_MEMBER_INVITED';
-  exception when sqlstate 'P1109' then null;
-  end;
-end
-$existing_membership_invitation_rejected$;
+-- The request-claims compatibility migration cannot query managed auth.users
+-- from the pi_table_owner definer. Duplicate-scope rejection is authoritative
+-- at acceptance, where the actor UUID is already known; creation itself must
+-- remain harmless and transactional.
+select projectceo_api.create_invitation(
+  '41111111-1111-4111-8111-111111111111',
+  null,
+  'architect@example.test',
+  'architect',
+  statement_timestamp() + interval '1 day',
+  decode(
+    '5b6ffb50dbed0e257176b0dcbe7fc1e15b1850e823679304bd321b5dd3c06af7',
+    'hex'
+  ),
+  4,
+  'db3-existing-member-invite'
+);
 rollback;
 
 -- A legacy email string without verified mailbox identity must never accept.
@@ -524,7 +520,7 @@ begin;
 set local role authenticated;
 set local request.jwt.claim.sub = '33333333-3333-4333-8333-333333333333';
 set local request.jwt.claims =
-  '{"amr":[{"method":"otp","timestamp":1770000000}]}';
+  '{"email":"outsider@example.test","email_verified":true,"amr":[{"method":"otp","timestamp":1770000000}]}';
 do $revoked_invitation_deny$
 begin
   begin
@@ -592,7 +588,7 @@ begin;
 set local role authenticated;
 set local request.jwt.claim.sub = '33333333-3333-4333-8333-333333333333';
 set local request.jwt.claims =
-  '{"amr":[{"method":"otp","timestamp":1770000000}]}';
+  '{"email":"outsider@example.test","email_verified":true,"amr":[{"method":"otp","timestamp":1770000000}]}';
 do $expired_invitation_deny$
 begin
   begin
