@@ -176,6 +176,77 @@ select rolname,
 from pg_roles where rolname like 'pi_%' order by rolname;
 ```
 
+## 2b. 🔴 БЛОКЕР: авторизация ProjectCEO не работает на Supabase — и падает молча
+
+Найдено 01.08.2026 при первом реальном вызове RPC. Это самая серьёзная находка
+пилота: **вся аутентифицированная поверхность ProjectCEO нерабочая на стандартном
+Supabase**, при этом миграции отчитываются об успехе.
+
+### Симптом
+
+```
+ERROR: 42501: permission denied for schema auth
+QUERY:  auth.uid()
+CONTEXT: PL/pgSQL function projectceo_foundation._authorize_project_human(uuid,text)
+         line 3 during statement block local variable initialization
+```
+
+### Причина
+
+1. `_authorize_project_human` — `SECURITY DEFINER`, владелец `pi_table_owner`.
+   Значит внутри она выполняется от имени `pi_table_owner`, а не вызывающего.
+2. Она зовёт `auth.uid()`, но у `pi_table_owner` **нет `USAGE` на схему `auth`**.
+3. Миграции этот грант выдают — трижды:
+   - `20260716072000_project_intelligence_core.sql:2622` (для `pi_human_executor`)
+   - `20260717090000_projectceo_foundation_access.sql:2426`
+   - `20260717092000_projectceo_foundation_integration_hardening.sql:11`
+4. **Но грант молча не срабатывает.** Схема `auth` принадлежит `supabase_admin`;
+   у `postgres` на неё только `U` без права передачи, и в `supabase_admin` он не
+   входит (проверено: `pg_has_role('postgres','supabase_admin','USAGE') = false`).
+   PostgreSQL в таком случае выдаёт `WARNING: no privileges were granted`, а не
+   ошибку — миграция проходит «успешно», грант не применяется. ACL схемы `auth`
+   после применения всех миграций `pi_table_owner` не содержит.
+
+Именно поэтому дефект не ловится ничем, кроме реального вызова: ни билд, ни
+тесты, ни успешное применение миграций его не показывают.
+
+### Радиус поражения
+
+6 функций `SECURITY DEFINER`, владелец `pi_table_owner`, зовущих `auth.uid()`.
+Среди них точки входа `projectceo_api.accept_invitation`,
+`projectceo_api.enroll_organization_project`, `projectceo_api.list_projects`
+плюс общий `_authorize_project_human`, который вызывают все остальные RPC.
+То есть заблокированы AP1, AP2 и AP3 целиком.
+
+### Обходной путь для тестового окружения (проверен)
+
+```sql
+grant authenticated to pi_table_owner with inherit true;
+```
+
+`pi_table_owner` наследует `USAGE` на `auth` от роли `authenticated` — у которой
+из привилегий на `auth` ровно это и есть, так что расширение минимальное.
+Проверено: после гранта `has_schema_privilege('pi_table_owner','auth','USAGE')`
+возвращает `true`.
+
+> ⚠️ Это обход для disposable-окружения, **не исправление продукта**.
+
+### Что нужно исправить в продукте (решение владельца)
+
+Варианты, по возрастанию инвазивности:
+
+1. **Не звать `auth.uid()` внутри definer-функции, принадлежащей `pi_table_owner`.**
+   Резолвить актора на точке входа (её владелец имеет доступ к `auth`) и
+   передавать `user_id` параметром внутрь. Самый чистый путь, меняет только
+   сигнатуры внутренних функций.
+2. **Добавить грант в миграцию явным членством**, как в обходе выше — но тогда
+   это надо осознанно зафиксировать как часть модели доступа, а не как заплатку.
+3. **Запросить у Supabase выдачу `usage on schema auth` для `pi_table_owner`**
+   от имени `supabase_admin`. Внешняя зависимость, воспроизводимость страдает.
+
+В любом случае из миграций стоит убрать три гранта, которые молча ничего не
+делают, — они создают ложное впечатление, что доступ выдан.
+
 ## 3. Пять ролевых пользователей
 
 ```bash
