@@ -89,10 +89,10 @@ begin
     raise exception 'AP1_EXECUTOR_ROLE_GUARD_FAILED bad=%', v_bad_executor_roles;
   end if;
 
-  if not has_schema_privilege('pi_table_owner', 'auth', 'USAGE')
-     or not has_schema_privilege('pi_human_executor', 'auth', 'USAGE')
+  if has_schema_privilege('pi_table_owner', 'auth', 'USAGE')
+     or has_schema_privilege('pi_human_executor', 'auth', 'USAGE')
      or has_schema_privilege('pi_worker_executor', 'auth', 'USAGE') then
-    raise exception 'AP1_AUTH_SCHEMA_OWNER_LOOKUP_GUARD_FAILED';
+    raise exception 'AP1_AUTH_SCHEMA_OWNER_LOOKUP_MUST_NOT_BE_REQUIRED';
   end if;
   select count(*)
   into v_auth_owner_table_grants

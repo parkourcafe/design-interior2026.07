@@ -247,6 +247,25 @@ grant authenticated to pi_table_owner with inherit true;
 В любом случае из миграций стоит убрать три гранта, которые молча ничего не
 делают, — они создают ложное впечатление, что доступ выдан.
 
+### 2c. Подготовленный additive fix (не считать проверенным до живого RPC)
+
+В ветке подготовлена миграция
+`20260801120000_projectceo_request_claim_authorization.sql`. Она:
+
+- добавляет закрытые helpers для `request.jwt.claim.sub` и
+  `request.jwt.claims`;
+- переписывает сохранённые Project Intelligence/ProjectCEO function bodies,
+  которые ссылались на managed `auth.uid()`/`auth.jwt()`, не меняя публичные
+  сигнатуры и владельцев;
+- переводит затронутые RLS policies на тот же role-neutral actor source;
+- добавляет fail-fast guard, если хотя бы одна auth-ссылка осталась;
+- не выдаёт `authenticated` членство `pi_table_owner` и не пытается отзывать
+  ACL, владельцем которых является `supabase_admin`.
+
+Статические contract tests проходят. Это ещё **не** доказательство фикса:
+нужны clean replay, реальный request-bound RPC как authenticated session,
+negative tenant/package checks и restart replay на disposable Supabase.
+
 ## 3. Пять ролевых пользователей
 
 ```bash

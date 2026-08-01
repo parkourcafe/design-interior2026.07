@@ -1,13 +1,10 @@
 \set ON_ERROR_STOP on
 
--- Supabase's managed auth schema grants USAGE only to runtime roles and
--- postgres. Project Intelligence SECURITY DEFINER functions are owned by the
--- guarded NOLOGIN table owner and call auth.uid(), so that owner needs schema
--- lookup. The ledger already grants the NOLOGIN owner SELECT on auth.users for
--- exact invitation/email validation; no other auth-table privilege is allowed.
--- This local-only compatibility
--- bootstrap runs as Supabase's schema owner after every disposable reset.
-grant usage on schema auth to pi_table_owner, pi_human_executor;
+-- ProjectCEO SECURITY DEFINER functions resolve the actor from signed request
+-- claims, not auth.uid()/auth.jwt(), so the disposable environment must not
+-- mask missing managed-auth privileges with a role workaround. The ledger still
+-- grants the table owner narrowly scoped SELECT on auth.users for exact
+-- invitation/email validation; no schema or function grant is needed here.
 
 drop policy if exists projectceo_pi_table_owner_select on auth.users;
 create policy projectceo_pi_table_owner_select
@@ -18,10 +15,10 @@ create policy projectceo_pi_table_owner_select
 
 do $guard$
 begin
-  if not has_schema_privilege('pi_table_owner', 'auth', 'USAGE')
-     or not has_schema_privilege('pi_human_executor', 'auth', 'USAGE')
+  if has_schema_privilege('pi_table_owner', 'auth', 'USAGE')
+     or has_schema_privilege('pi_human_executor', 'auth', 'USAGE')
      or has_schema_privilege('pi_worker_executor', 'auth', 'USAGE') then
-    raise exception 'AP1_AUTH_SCHEMA_COMPAT_GRANT_FAILED';
+    raise exception 'AP1_AUTH_SCHEMA_COMPAT_GRANT_MUST_NOT_EXIST';
   end if;
   if (
     select count(*)
