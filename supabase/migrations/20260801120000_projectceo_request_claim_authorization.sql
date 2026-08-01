@@ -69,6 +69,7 @@ begin
       'projectceo_m4',
       'projectceo_m4_api'
     )
+      and p.prokind = 'f'
       and (
         pg_get_functiondef(p.oid) like '%auth.uid()%' or
         pg_get_functiondef(p.oid) like '%auth.jwt()%'
@@ -140,6 +141,7 @@ begin
       'projectceo_m4',
       'projectceo_m4_api'
     )
+      and p.prokind = 'f'
       and (
         pg_get_functiondef(p.oid) like '%auth.uid()%' or
         pg_get_functiondef(p.oid) like '%auth.jwt()%'
