@@ -8,7 +8,9 @@
    - Supabase: `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`.
    - Yandex Cloud: `YC_FOLDER_ID`, `YC_API_KEY` (`LLM_PROVIDER=yandex`, `LLM_MODEL=yandexgpt-lite`).
    - `NEXT_PUBLIC_APP_URL` (для локали — `http://localhost:3000`).
-2. Применить миграцию `supabase/migrations/0001_init.sql` к проекту Supabase.
+2. Для локальной disposable-базы прогнать `tests/db2/run.zsh` (PG16) или
+   `PI_DB_IMAGE=postgres:17-alpine tests/db2/run.zsh`. Production adoption
+   выполняется только по отдельному checklist и migration-path решению.
 3. `npm run seed` — демо-дизайнер `demo@studio.ru` с готовыми `pricing` и `proposal_defaults`.
 4. `npm run dev`.
 

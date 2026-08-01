@@ -16,6 +16,19 @@
     "production_adoption_contract": "history_repair_only_after_authorized_schema_fingerprint"
   },
   "legacy_chain_aggregate_sha256": "8595447832d2fde459032de02f86e277b79c93a3154215bc6bee0d71acc13ddb",
+  "unadopted_candidates": [
+    {
+      "version": "0007",
+      "name": "invite_tokens",
+      "source": "canonical_tracked_worktree",
+      "production_status": "not_part_of_audited_baseline",
+      "evidence_path": "0007_invite_tokens.sql.txt",
+      "bytes": 2189,
+      "sha256": "167c1b2a1aba1aad6cde811cf5cb8b0904fda80a88a184484f3722f4d81583f0",
+      "included_in_active_baseline": false,
+      "note": "Preserved exactly before removal from executable migration input; do not replay against production."
+    }
+  ],
   "entries": [
     {
       "version": "0001",

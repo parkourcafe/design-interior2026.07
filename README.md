@@ -16,7 +16,8 @@ Pre-sale контур **Бриф → Цена → КП**: дизайнер от�
 ```bash
 npm install
 cp .env.example .env.local   # заполнить реальными ключами
-# применить supabase/migrations/0001_init.sql к своему проекту Supabase
+# для disposable-проверки использовать tests/db2/run.zsh;
+# production migration не выполняется по README — см. production adoption plan
 npm run seed                 # демо-дизайнер demo@studio.ru
 npm run dev
 ```

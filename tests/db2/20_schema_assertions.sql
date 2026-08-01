@@ -378,7 +378,9 @@ begin
       ('validate_revision_evidence', ''),
       ('validate_version_closure', ''),
       ('validate_change_publication', ''),
-      ('validate_impact_path', '')
+      ('validate_impact_path', ''),
+      ('_request_user_id', ''),
+      ('_request_jwt', '')
     )
   limit 1;
 
@@ -439,6 +441,8 @@ begin
       ('pi_human_executor', 'validate_version_closure', ''),
       ('pi_human_executor', 'validate_change_publication', ''),
       ('pi_human_executor', 'validate_impact_path', ''),
+      ('pi_human_executor', '_request_user_id', ''),
+      ('pi_human_executor', '_request_jwt', ''),
       ('pi_human_executor', 'current_user_is_active_member', 'p_organization_id uuid'),
       ('pi_human_executor', 'current_user_has_capability', 'p_organization_id uuid, p_capability text'),
       ('pi_human_executor', '_raise_contract_error', 'p_sqlstate text, p_message text, p_detail jsonb'),
@@ -457,6 +461,8 @@ begin
       ('pi_worker_executor', 'validate_version_closure', ''),
       ('pi_worker_executor', 'validate_change_publication', ''),
       ('pi_worker_executor', 'validate_impact_path', ''),
+      ('pi_worker_executor', '_request_user_id', ''),
+      ('pi_worker_executor', '_request_jwt', ''),
       ('pi_worker_executor', '_raise_contract_error', 'p_sqlstate text, p_message text, p_detail jsonb'),
       ('pi_worker_executor', '_sha256_text', 'p_value text'),
       ('pi_worker_executor', '_canonical_jsonb', 'p_value jsonb'),

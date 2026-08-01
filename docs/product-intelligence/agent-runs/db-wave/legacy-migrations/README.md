@@ -16,4 +16,6 @@ Rules:
 - do not execute them against production;
 - do not mark their old numeric names as applied in the migration ledger;
 - preserve `0009` only as rejected evidence;
+- preserve the superseded local `0007_invite_tokens` candidate as evidence; it
+  is not part of the audited production baseline;
 - use `manifest.json` for source, production status and SHA-256 verification.
