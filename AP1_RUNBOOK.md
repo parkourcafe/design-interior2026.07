@@ -126,6 +126,56 @@ select nspname from pg_namespace where nspname like 'projectceo%' or nspname = '
 
 ---
 
+## 2a. Предусловие по ролям — обязательно на стандартном Supabase
+
+Проверено 01.08.2026. Миграции слоя Project Intelligence **не применяются** на
+обычном проекте Supabase без ручной подготовки ролей.
+
+Причина: `postgres` в Supabase — не superuser. В PostgreSQL 16+ роль с
+`CREATEROLE`, создавая новую роль, получает `admin_option`, но **не**
+`set_option` и не `inherit_option`. Замерено на живой базе: `admin_option: true`,
+`set_option: false`. При этом `create schema … authorization pi_table_owner`
+требует `SET ROLE`, а `alter default privileges for role …` — членства с
+наследованием.
+
+Симптомы без предусловия (оба воспроизведены):
+```
+ERROR: 42501: must be able to SET ROLE "pi_table_owner"
+ERROR: 42501: permission denied to change default privileges
+```
+
+**Выполнить ОДИН раз до первой миграции слоя:**
+
+```sql
+do $$
+begin
+  if not exists (select 1 from pg_roles where rolname='pi_table_owner') then
+    create role pi_table_owner nologin noinherit nobypassrls;
+  end if;
+  if not exists (select 1 from pg_roles where rolname='pi_human_executor') then
+    create role pi_human_executor nologin noinherit nobypassrls;
+  end if;
+  if not exists (select 1 from pg_roles where rolname='pi_worker_executor') then
+    create role pi_worker_executor nologin noinherit nobypassrls;
+  end if;
+end $$;
+
+grant pi_table_owner     to postgres with inherit true, set true;
+grant pi_human_executor  to postgres with inherit true, set true;
+grant pi_worker_executor to postgres with inherit true, set true;
+```
+
+Роли остаются `NOLOGIN NOINHERIT NOBYPASSRLS` — guard внутри миграции это
+проверяет и пропускает их создание. Членство `postgres` атрибуты ролей не меняет.
+
+Проверка (все три должны быть `true`):
+```sql
+select rolname,
+       pg_has_role('postgres', oid, 'SET')   as can_set,
+       pg_has_role('postgres', oid, 'USAGE') as can_use
+from pg_roles where rolname like 'pi_%' order by rolname;
+```
+
 ## 3. Пять ролевых пользователей
 
 ```bash
@@ -160,6 +210,42 @@ AP1_CONFIRM_DISPOSABLE=yes npm run provision:ap1
 3. Вызвать `publish_baseline` с этим хэшем.
 
 **Ожидаемо:** команда проходит. **Если `BASELINE_SEMANTIC_HASH_MISMATCH`** — сравнить `actualSemanticHash` из ответа RPC с локально посчитанным и найти расхождение в канонизации. Две известные ловушки уже учтены в хелпере: read-RPC отдаёт packages в порядке `stable_key`, а хэш считается в порядке `id`; `_sorted_unique_text_array` дубли не схлопывает, а отвергает.
+
+> **✅ Канонизация проверена на живом PostgreSQL 17.6 (01.08.2026).**
+> Прогнаны `project_intelligence._canonical_jsonb` и `_sha256_jsonb` на тестовом
+> объекте, результат сверен с TS-хелпером: канонический текст **побайтово
+> идентичен**, хэш идентичен —
+> `sha256:b9548edd5ff1b2141c224e5e039e239141e61735cdcf6c6d3d88c5118df49799`.
+> Значение закреплено литералом в `baseline-semantic-hash.test.ts` как
+> регрессия против расхождения TS и Postgres.
+>
+> Это снимает главный риск, но **не** заменяет сквозной прогон: остаётся
+> проверить, что `publish_baseline` проходит целиком при живых
+> org/project/package и одобренном `ApprovalPackage`.
+
+### 4.1a Сквозной прогон — что потребуется
+
+API-функций для создания Organization/Project/Package **нет** — они заполняются
+прямыми вставками (операторский путь). Порядок:
+
+1. `project_intelligence.organizations` → `organization_members`
+2. `project_intelligence.project_workflows` (несёт `state_revision`)
+3. `projectceo_foundation.project_packages` → `project_memberships` (роль `owner_lead`)
+4. `project_intelligence.project_versions` + `version_nodes`
+5. далее уже через RPC: `append_decision_revision`, `append_selection_revision`,
+   `create_approval_package`, `submit_approval_package`, `review_approval_package`
+6. и наконец `publish_project_baseline`
+
+Все `user_id` ссылаются на `project_intelligence.organization_members`, а не
+напрямую на `auth.users` — то есть пользователя надо сперва завести в организацию.
+
+RPC выводят актора из `auth.uid()`, поэтому вызывать их из SQL-редактора нужно
+с подменой контекста:
+```sql
+select set_config('request.jwt.claims',
+  '{"sub":"<user-uuid>","role":"authenticated"}', true);
+set role authenticated;
+```
 
 ### 4.2 Остальные ворота
 
