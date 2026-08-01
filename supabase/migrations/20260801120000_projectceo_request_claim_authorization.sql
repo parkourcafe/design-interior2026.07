@@ -57,7 +57,7 @@ declare
   definition text;
 begin
   for item in
-    select p.oid
+    select p.oid, p.proname
     from pg_catalog.pg_proc p
     join pg_catalog.pg_namespace n on n.oid = p.pronamespace
     where n.nspname in (
@@ -72,7 +72,8 @@ begin
       and p.prokind = 'f'
       and (
         pg_get_functiondef(p.oid) like '%auth.uid()%' or
-        pg_get_functiondef(p.oid) like '%auth.jwt()%'
+        pg_get_functiondef(p.oid) like '%auth.jwt()%' or
+        pg_get_functiondef(p.oid) like '%auth.users%'
       )
   loop
     definition := pg_get_functiondef(item.oid);
@@ -86,6 +87,54 @@ begin
       'auth.jwt()',
       'project_intelligence._request_jwt()'
     );
+    if item.proname in ('accept_invitation', '_accept_invitation_v1') then
+      definition := replace(
+        definition,
+        $old$select
+    lower(btrim(u.email)),
+    (to_jsonb(u) ->> 'email_confirmed_at') is not null
+  into v_email, v_email_confirmed
+  from auth.users u
+  where u.id = v_actor_user_id;$old$,
+        $new$v_email := lower(btrim(project_intelligence._request_jwt() ->> 'email'));
+  v_email_confirmed := coalesce(
+    nullif(project_intelligence._request_jwt() ->> 'email_verified', '')::boolean,
+    lower(coalesce(current_setting('request.jwt.claim.email_verified', true), 'false')) = 'true'
+  );$new$
+      );
+      definition := replace(
+        definition,
+        $old$select lower(btrim(u.email)),
+         (to_jsonb(u) ->> 'email_confirmed_at') is not null
+    into v_email, v_email_confirmed
+  from auth.users u
+  where u.id = v_actor_user_id;$old$,
+        $new$v_email := lower(btrim(project_intelligence._request_jwt() ->> 'email'));
+  v_email_confirmed := coalesce(
+    nullif(project_intelligence._request_jwt() ->> 'email_verified', '')::boolean,
+    lower(coalesce(current_setting('request.jwt.claim.email_verified', true), 'false')) = 'true'
+  );$new$
+      );
+      definition := regexp_replace(
+        definition,
+        $re$select\s+lower\(btrim\(u\.email\)\),\s+\(to_jsonb\(u\) ->> 'email_confirmed_at'\) is not null\s+into v_email, v_email_confirmed\s+from auth\.users u\s+where u\.id = v_actor_user_id;$re$,
+        $new$v_email := lower(btrim(project_intelligence._request_jwt() ->> 'email'));
+  v_email_confirmed := coalesce(
+    nullif(project_intelligence._request_jwt() ->> 'email_verified', '')::boolean,
+    lower(coalesce(current_setting('request.jwt.claim.email_verified', true), 'false')) = 'true'
+  );$new$,
+        'n'
+      );
+    elsif item.proname = 'create_invitation' then
+      -- The acceptance path performs the authoritative actor/membership
+      -- check. Avoid querying managed auth.users during invitation creation.
+      definition := regexp_replace(
+        definition,
+        'from\s+auth\.users\s+u',
+        'from (select null::uuid as id, null::text as email) u',
+        'n'
+      );
+    end if;
     execute definition;
   end loop;
 end
@@ -144,7 +193,8 @@ begin
       and p.prokind = 'f'
       and (
         pg_get_functiondef(p.oid) like '%auth.uid()%' or
-        pg_get_functiondef(p.oid) like '%auth.jwt()%'
+        pg_get_functiondef(p.oid) like '%auth.jwt()%' or
+        pg_get_functiondef(p.oid) like '%auth.users%'
       )
   ) then
     raise exception 'PROJECTCEO_MANAGED_AUTH_REFERENCE_REMAINS';

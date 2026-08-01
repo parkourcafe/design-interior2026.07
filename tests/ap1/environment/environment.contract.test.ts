@@ -88,10 +88,9 @@ describe("AP1 disposable Supabase environment contract", () => {
     expect(compat).not.toMatch(/grant usage on schema auth/i);
     expect(compat).toContain("AP1_AUTH_SCHEMA_COMPAT_GRANT_MUST_NOT_EXIST");
     expect(compat).toContain("AP1_AUTH_TABLE_PRIVILEGE_SCOPE_INVALID");
-    expect(compat).toContain("privilege.table_name = 'users'");
-    expect(compat).toContain("create policy projectceo_pi_table_owner_select");
-    expect(compat).toContain("to pi_table_owner");
+    expect(compat).toContain("revoke all on table auth.users");
     expect(compat).toContain("AP1_AUTH_USERS_POLICY_SCOPE_INVALID");
+    expect(compat).not.toContain("create policy projectceo_pi_table_owner_select");
     expect(compat).not.toMatch(/grant authenticated to pi_table_owner/i);
   });
 

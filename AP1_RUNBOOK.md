@@ -218,34 +218,25 @@ CONTEXT: PL/pgSQL function projectceo_foundation._authorize_project_human(uuid,t
 плюс общий `_authorize_project_human`, который вызывают все остальные RPC.
 То есть заблокированы AP1, AP2 и AP3 целиком.
 
-### Обходной путь для тестового окружения (проверен)
+### Исторический обходной путь (не применять)
 
 ```sql
 grant authenticated to pi_table_owner with inherit true;
 ```
 
-`pi_table_owner` наследует `USAGE` на `auth` от роли `authenticated` — у которой
-из привилегий на `auth` ровно это и есть, так что расширение минимальное.
-Проверено: после гранта `has_schema_privilege('pi_table_owner','auth','USAGE')`
-возвращает `true`.
+Ранее этот грант использовался только для доказательства причины сбоя. Он
+искусственно маскирует несовместимость managed Supabase и не входит в текущий
+фикс. Disposable verifier теперь, наоборот, отзывает `USAGE` на `auth`, ACL на
+`auth.users` и любую policy для `pi_*`, чтобы тестировать hosted-поведение.
 
 > ⚠️ Это обход для disposable-окружения, **не исправление продукта**.
 
 ### Что нужно исправить в продукте (решение владельца)
 
-Варианты, по возрастанию инвазивности:
-
-1. **Не звать `auth.uid()` внутри definer-функции, принадлежащей `pi_table_owner`.**
-   Резолвить актора на точке входа (её владелец имеет доступ к `auth`) и
-   передавать `user_id` параметром внутрь. Самый чистый путь, меняет только
-   сигнатуры внутренних функций.
-2. **Добавить грант в миграцию явным членством**, как в обходе выше — но тогда
-   это надо осознанно зафиксировать как часть модели доступа, а не как заплатку.
-3. **Запросить у Supabase выдачу `usage on schema auth` для `pi_table_owner`**
-   от имени `supabase_admin`. Внешняя зависимость, воспроизводимость страдает.
-
-В любом случае из миграций стоит убрать три гранта, которые молча ничего не
-делают, — они создают ложное впечатление, что доступ выдан.
+Решение в additive-миграции — request-bound claims helpers. Грант членства
+`authenticated → pi_table_owner` и доступ к managed `auth` не нужны и не должны
+возвращаться. Три исторические попытки выдать такие права остаются неизменной
+историей миграций, но не используются runtime.
 
 ### 2c. Подготовленный additive fix (не считать проверенным до живого RPC)
 
@@ -265,6 +256,21 @@ grant authenticated to pi_table_owner with inherit true;
 Статические contract tests проходят. Это ещё **не** доказательство фикса:
 нужны clean replay, реальный request-bound RPC как authenticated session,
 negative tenant/package checks и restart replay на disposable Supabase.
+
+### 2c.1. Локальная проверка после фикса (01.08.2026)
+
+На уже развернутом disposable PostgreSQL после отзыва всех `auth` ACL:
+
+- `list_projects` от authenticated owner отработал успешно;
+- `get_project_workspace_read` от своего проекта отработал успешно;
+- запрос к чужому проекту отклонён `P1103 PROJECT_CAPABILITY_REQUIRED`;
+- `accept_invitation` с несуществующим токеном вернул штатный `P1104 not_found`,
+  без `permission denied for schema auth`;
+- verifier подтвердил `AP1_DB_OK`, private runtime grants = 0 и закрытое Storage.
+
+Это подтверждает устранение authorization blocker в runtime-коде, но не заменяет
+чистый replay: он по-прежнему останавливается на migration-order guard (раздел
+2d).
 
 ### 2d. Live Preview подтвердил отдельный migration-order blocker
 
@@ -352,8 +358,8 @@ API-функций для создания Organization/Project/Package **нет
 Все `user_id` ссылаются на `project_intelligence.organization_members`, а не
 напрямую на `auth.users` — то есть пользователя надо сперва завести в организацию.
 
-RPC выводят актора из `auth.uid()`, поэтому вызывать их из SQL-редактора нужно
-с подменой контекста:
+RPC выводят актора из request-bound claims helper, поэтому вызывать их из
+SQL-редактора нужно с подменой контекста:
 ```sql
 select set_config('request.jwt.claims',
   '{"sub":"<user-uuid>","role":"authenticated"}', true);

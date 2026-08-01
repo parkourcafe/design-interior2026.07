@@ -99,22 +99,18 @@ begin
   from information_schema.table_privileges p
   where p.grantee = 'pi_table_owner'
     and p.table_schema = 'auth';
-  if v_auth_owner_table_grants <> 1 or not has_table_privilege(
+  if v_auth_owner_table_grants <> 0 or has_table_privilege(
     'pi_table_owner', 'auth.users', 'SELECT'
   ) then
-    raise exception 'AP1_AUTH_TABLE_OWNER_GRANT_SCOPE count=%', v_auth_owner_table_grants;
+    raise exception 'AP1_AUTH_TABLE_OWNER_GRANT_MUST_NOT_EXIST count=%', v_auth_owner_table_grants;
   end if;
-  if not exists (
+  if exists (
     select 1
     from pg_catalog.pg_policies policy
     where policy.schemaname = 'auth'
       and policy.tablename = 'users'
-      and policy.policyname = 'projectceo_pi_table_owner_select'
-      and policy.cmd = 'SELECT'
-      and policy.roles = array['pi_table_owner']::name[]
-      and policy.qual = 'true'
   ) then
-    raise exception 'AP1_AUTH_USERS_POLICY_SCOPE_INVALID';
+    raise exception 'AP1_AUTH_USERS_POLICY_MUST_NOT_EXIST';
   end if;
 
   select b.public
