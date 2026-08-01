@@ -11,6 +11,10 @@ const authCompatPath = resolve(
   repoRoot,
   "tests/ap1/environment/apply-local-auth-compat.sql",
 );
+const authAuthorizationMigrationPath = resolve(
+  repoRoot,
+  "supabase/migrations/20260801120000_projectceo_request_claim_authorization.sql",
+);
 const runnerPath = resolve(repoRoot, "tests/ap1/environment/run-local.zsh");
 const ledgerPath = resolve(
   repoRoot,
@@ -79,17 +83,24 @@ describe("AP1 disposable Supabase environment contract", () => {
     expect(roles).not.toMatch(/\b(?:login|superuser|createdb|createrole|replication)\b/i);
   });
 
-  it("adds only auth schema lookup to the guarded table owner", () => {
+  it("resolves actors from request claims without auth-schema inheritance", () => {
     const compat = readFileSync(authCompatPath, "utf8");
-    expect(compat).toContain(
-      "grant usage on schema auth to pi_table_owner, pi_human_executor",
-    );
+    expect(compat).not.toMatch(/grant usage on schema auth/i);
+    expect(compat).toContain("AP1_AUTH_SCHEMA_COMPAT_GRANT_MUST_NOT_EXIST");
     expect(compat).toContain("AP1_AUTH_TABLE_PRIVILEGE_SCOPE_INVALID");
-    expect(compat).toContain("privilege.table_name = 'users'");
-    expect(compat).toContain("create policy projectceo_pi_table_owner_select");
-    expect(compat).toContain("to pi_table_owner");
+    expect(compat).toContain("revoke all on table auth.users");
     expect(compat).toContain("AP1_AUTH_USERS_POLICY_SCOPE_INVALID");
-    expect(compat).not.toMatch(/grant usage on schema auth to pi_worker_executor/);
+    expect(compat).not.toContain("create policy projectceo_pi_table_owner_select");
+    expect(compat).not.toMatch(/grant authenticated to pi_table_owner/i);
+  });
+
+  it("rewrites every ProjectCEO auth callsite and fails closed if one remains", () => {
+    const migration = readFileSync(authAuthorizationMigrationPath, "utf8");
+    expect(migration).toContain("current_setting('request.jwt.claim.sub', true)");
+    expect(migration).toContain("current_setting('request.jwt.claims', true)");
+    expect(migration).toContain("pg_get_functiondef");
+    expect(migration).toContain("PROJECTCEO_MANAGED_AUTH_REFERENCE_REMAINS");
+    expect(migration).not.toMatch(/grant\s+authenticated\s+to\s+pi_table_owner/i);
   });
 
   it("keeps the exact immutable migration ledger", () => {
