@@ -85,6 +85,15 @@ export interface ProductRevisionMutation {
   readonly replacesRevisionId: string | null;
 }
 
+export interface M2WorkspaceRevisionMutation {
+  readonly entityKind: "room" | "variant" | "material" | "budget" | "client_handoff";
+  readonly entityId: string;
+  readonly revisionId: string;
+  readonly revisionNo: number;
+  readonly packageId: string;
+  readonly status: "draft" | "submitted";
+}
+
 export interface ReleaseDistributionMutation {
   readonly artifactId: string;
   readonly distributionId: string;
@@ -184,6 +193,36 @@ export class ProjectBrainHumanPostgresAdapter {
         amount_rub: input.observation.amountRub,
         evidence: input.evidence,
         supplier_ref: input.observation.supplierRef,
+        expected_state_revision: input.expectedStateRevision,
+        idempotency_key: input.idempotencyKey,
+      }),
+    );
+  }
+
+  async appendM2WorkspaceRevision(input: {
+    readonly projectId: string;
+    readonly packageId: string;
+    readonly entityKind: M2WorkspaceRevisionMutation["entityKind"];
+    readonly entityId: string;
+    readonly revisionId: string;
+    readonly expectedRevisionId: string | null;
+    readonly status: M2WorkspaceRevisionMutation["status"];
+    readonly payload: Readonly<Record<string, unknown>>;
+    readonly reason: string;
+    readonly expectedStateRevision: number;
+    readonly idempotencyKey: string;
+  }): Promise<CommandMutation<M2WorkspaceRevisionMutation>> {
+    return parseCommandMutation<M2WorkspaceRevisionMutation>(
+      await callProductRpc(this.client, "append_m2_workspace_revision", {
+        project_id: input.projectId,
+        package_id: input.packageId,
+        entity_kind: input.entityKind,
+        entity_id: input.entityId,
+        revision_id: input.revisionId,
+        expected_revision_id: input.expectedRevisionId,
+        status: input.status,
+        payload: input.payload,
+        reason: input.reason,
         expected_state_revision: input.expectedStateRevision,
         idempotency_key: input.idempotencyKey,
       }),

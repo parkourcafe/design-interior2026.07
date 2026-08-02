@@ -26,6 +26,11 @@ import {
   type PhotoMilestoneView,
   type PortfolioView,
   type ProjectCeoActor,
+  type M2BudgetFrameView,
+  type M2ClientHandoffView,
+  type M2MaterialView,
+  type M2RoomView,
+  type M2VariantView,
   type ProjectCeoOperationState,
   type ProjectCeoOperationStates,
   type ProjectCeoRole,
@@ -454,6 +459,101 @@ function approvalPackageViews(value: unknown): readonly ApprovalPackageView[] {
   });
 }
 
+type M2RevisionStatus = M2RoomView["status"];
+
+function m2Status(value: unknown): M2RevisionStatus {
+  return value === "submitted" || value === "approved" || value === "ready"
+    ? value
+    : "draft";
+}
+
+function m2RevisionBase(item: UnknownRecord): {
+  readonly id: string;
+  readonly packageId: string;
+  readonly revisionId: string;
+  readonly revisionNo: number;
+  readonly payload: UnknownRecord;
+  readonly status: M2RevisionStatus;
+  readonly createdAt: string;
+} | null {
+  const id = nullableText(item.id);
+  const packageId = nullableText(item.packageId);
+  const revisionId = nullableText(item.revisionId);
+  if (!id || !packageId || !revisionId) return null;
+  return {
+    id,
+    packageId,
+    revisionId,
+    revisionNo: integer(item.revisionNo, 1),
+    payload: record(item.payload),
+    status: m2Status(item.status),
+    createdAt: timestamp(item.createdAt),
+  };
+}
+
+function m2WorkspaceViews(value: unknown): {
+  readonly rooms: readonly M2RoomView[];
+  readonly variants: readonly M2VariantView[];
+  readonly materials: readonly M2MaterialView[];
+  readonly budgets: readonly M2BudgetFrameView[];
+  readonly handoffs: readonly M2ClientHandoffView[];
+} {
+  const parse = (key: string) => rows(record(value)[key]);
+  const rooms = parse("m2Rooms").flatMap((item) => {
+    const base = m2RevisionBase(item);
+    const name = text(base?.payload.name);
+    const areaM2 = integer(base?.payload.areaM2);
+    return base && name ? [{ ...base, name, areaM2 }] : [];
+  });
+  const variants = parse("m2Variants").flatMap((item) => {
+    const base = m2RevisionBase(item);
+    const roomId = nullableText(base?.payload.roomId);
+    const title = text(base?.payload.title);
+    return base && roomId && title
+      ? [{ ...base, roomId, title, description: text(base.payload.description) }]
+      : [];
+  });
+  const materials = parse("m2Materials").flatMap((item) => {
+    const base = m2RevisionBase(item);
+    const variantId = nullableText(base?.payload.variantId);
+    const name = text(base?.payload.name);
+    return base && variantId && name
+      ? [{
+          ...base,
+          variantId,
+          name,
+          supplierRef: text(base.payload.supplierRef),
+          unit: text(base.payload.unit, "шт"),
+          unitCostRub: integer(base.payload.unitCostRub),
+          quantity: integer(base.payload.quantity, 1),
+        }]
+      : [];
+  });
+  const budgets = parse("m2BudgetFrames").flatMap((item) => {
+    const base = m2RevisionBase(item);
+    const minRub = integer(base?.payload.minRub);
+    const maxRub = integer(base?.payload.maxRub);
+    return base && minRub >= 0 && maxRub >= minRub
+      ? [{
+          ...base,
+          currency: "RUB" as const,
+          minRub,
+          maxRub,
+          contingencyPct: integer(base.payload.contingencyPct),
+        }]
+      : [];
+  });
+  const handoffs = parse("m2ClientHandoffs").flatMap((item) => {
+    const base = m2RevisionBase(item);
+    const approvalPackageId = nullableText(base?.payload.approvalPackageId);
+    const title = text(base?.payload.title);
+    return base && approvalPackageId && title
+      ? [{ ...base, approvalPackageId, title, note: text(base.payload.note) }]
+      : [];
+  });
+  return { rooms, variants, materials, budgets, handoffs };
+}
+
 function releaseRecipientViews(
   recipients: readonly AuthenticatedReadReleaseRecipient[],
 ): readonly ParticipantView[] {
@@ -724,6 +824,21 @@ function operationStates(input: {
     create_selection: can(input.role, "create_selection")
       ? { status: "available" }
       : unavailable("capability_missing"),
+    create_m2_room: can(input.role, "revise_decision")
+      ? { status: "available" }
+      : unavailable("capability_missing"),
+    create_m2_variant: can(input.role, "revise_decision")
+      ? { status: "available" }
+      : unavailable("capability_missing"),
+    create_m2_material: can(input.role, "create_selection")
+      ? { status: "available" }
+      : unavailable("capability_missing"),
+    set_m2_budget: can(input.role, "manage_budget")
+      ? { status: "available" }
+      : unavailable("capability_missing"),
+    create_m2_client_handoff: can(input.role, "prepare_client_handoff")
+      ? { status: "available" }
+      : unavailable("capability_missing"),
     create_approval_package: can(input.role, "review_claim")
       ? { status: "available" }
       : unavailable("capability_missing"),
@@ -927,6 +1042,7 @@ export class ProjectCeoLiveReadPort implements ProjectCeoUiReadPort {
       const releases = releaseViews(delivery, packages);
       const m4Envelopes = delivery.executionPackages;
       const execution = m4Views(m4Envelopes);
+      const m2 = m2WorkspaceViews(delivery);
       let access = { invitations: [] as readonly InvitationView[], participants: [] as readonly ParticipantView[], grants: [] as readonly AccessGrantView[] };
       if (can(actor.role, "manage_access")) {
         const envelope = await this.foundation.listProjectAccess(input.projectId);
@@ -981,6 +1097,11 @@ export class ProjectCeoLiveReadPort implements ProjectCeoUiReadPort {
         decisions: decisionViews(delivery.decisions),
         selections: selectionViews(delivery.selections),
         approvalPackages: approvalPackageViews(delivery.approvalPackages),
+        m2Rooms: m2.rooms,
+        m2Variants: m2.variants,
+        m2Materials: m2.materials,
+        m2BudgetFrames: m2.budgets,
+        m2ClientHandoffs: m2.handoffs,
         baseline,
         releases,
         changes: execution.changes,

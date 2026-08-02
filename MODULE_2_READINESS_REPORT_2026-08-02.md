@@ -4,8 +4,8 @@ Status: **PARTIAL / not ready for public users**
 
 ## Progress scale (engineering estimate, not a READY verdict)
 
-Using the narrow M2 Decision/Selection/Approval foundation as the 100-point
-scope, the current evidence supports **90/100**. This is an engineering gate,
+Using the bounded M2 foundation plus additive workspace contracts as the 100-point
+scope, the current evidence supports **92/100**. This is an engineering gate,
 not a claim that the full public M2 workspace is complete:
 
 | Area | Weight | Proven now |
@@ -13,11 +13,11 @@ not a claim that the full public M2 workspace is complete:
 | Immutable contracts and PostgreSQL persistence | 25 | 25 |
 | Request-bound workflow/API sequence | 20 | 20 |
 | Auth, RLS and security controls | 15 | 15 |
-| Designer write workspace and controls | 20 | 17 |
+| Designer write workspace and controls | 20 | 19 |
 | Authenticated browser QA | 10 | 8 |
 | Explicit `self_approved` approval semantics | 5 | 5 |
 | Production-shaped compatibility/adoption gate | 5 | 0 |
-| **Total** | **100** | **90** |
+| **Total** | **100** | **92** |
 
 This is not a product-completion percentage for the full public M2 Design
 Workspace. The broader workspace (rooms, variants, real materials/items, budget
@@ -36,13 +36,22 @@ those surfaces would make the public M2 percentage lower, not higher.
 - Authenticated read projection for decisions, selections, evidence, revision
   history and the additive `selfApproved` marker.
 - Deterministic text Concept Pack slice from the legacy M1 passport.
+- Additive immutable `m2_workspace_revisions` persistence for rooms, variants,
+  materials, budget frames and client handoff records. Commands are server-bound:
+  room/variant/material/budget records are always `draft`; a handoff is always
+  `submitted` and requires an already approved package.
+- Role-gated `get_project_workspace_read_v3` projection. Financial fields
+  (`m2BudgetFrames`, supplier references and unit costs) are restricted to
+  owner/architect roles; all reads retain organization/project/package filters.
+- Designer UI forms for the five expansion commands, with no client-provided
+  approval status and with handoff disabled until human approval is visible.
 
 ## Evidence
 
 The full repository test suite passes:
 
 ```text
-72 files, 426 tests passed
+73 files, 428 tests passed
 ```
 
 `npm run typecheck`, `npm run build` and `npm run lint` pass. Lint reports nine
@@ -78,7 +87,7 @@ chain. The first `verify-db.sql` run correctly stopped on the historical local
 local clone (no migration or production change), after which the verifier passed:
 
 ```text
-AP1_DB_OK postgres=17.6 migrations=20 private_persistence_runtime_grants=0
+AP1_DB_OK postgres=17.6 migrations=22 private_persistence_runtime_grants=0
 executor_roles_guarded=true storage_bucket_private=true managed_auth_references=0
 request_claim_readers=ok
 ```
@@ -115,6 +124,25 @@ execute privilege; `authenticated` does), and an outsider request was rejected
 by the request-bound project capability check before any workspace data was
 returned.
 
+The expansion RPC was exercised on the clean clone as the owner: an immutable
+room revision was appended and appeared in `m2Rooms`. An outsider actor was
+rejected with `PACKAGE_CAPABILITY_REQUIRED`; `anon` has no execute privilege on
+the v3 read function. DB3/DB4 replay remained green after the capability preset
+grew from 18/16 to 20/18.
+
+The reproducible `tests/db4/30_m2_expansion_operations.sql` rehearsal then
+completed the five-command sequence on the same clean clone:
+
+```text
+room → variant → material → budget → approved client handoff
+state_revision: 29 → 34
+DB4_M2_EXPANSION_OK
+```
+
+The role-gated projection returned all five owner records, while a temporary
+client-approver session returned an empty budget array and no supplier/cost
+material fields. The temporary membership was rolled back.
+
 The production-shaped SQL snapshot separately proves that production has a
 different public governed-M1 runtime: zero `projectceo_*` schemas and no
 `project_intelligence` schema. Therefore local M2 persistence is not production
@@ -122,12 +150,11 @@ adoption evidence.
 
 ## What is not complete
 
-- The complete designer workspace for room → variants → real materials/items →
-  selection → approval is not implemented; the current write slice is limited to
-  decision/selection/approval commands.
-- The full M2 workspace (rooms, variants, real materials/items, budget frame and
-  client approval handoff) is not implemented; browser evidence covers only the
-  bounded Decision/Selection/Approval slice.
+- Browser QA for the five new expansion forms has not yet been completed; the
+  prior desktop/mobile evidence covers the bounded Decision/Selection/Approval
+  flow only.
+- A richer selection catalog, multi-revision editing UX and client-facing
+  handoff page are still outside this additive slice.
 - Production `project_facts` lacks the canonical `provenance` field and does not
   contain the repository's Project Brain schemas/RPCs.
 - Broad M2 AI/credits, image generation, CAD/render integrations and marketplace
@@ -135,8 +162,9 @@ adoption evidence.
 
 ## Remaining gate
 
-1. Decide whether to expand M2 beyond this bounded foundation into rooms,
-   variants, real item catalogs, budget framing and client handoff.
+1. Complete authenticated desktop/mobile browser QA for the five expansion
+   forms, including financial masking for non-financial roles and the approved
+   handoff precondition.
 2. Keep production adoption as a separate controlled gate: production has zero
    Project Brain schemas and must not receive these migrations implicitly.
 

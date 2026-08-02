@@ -91,7 +91,7 @@ begin
     where organization_id = v_org
       and project_id = '41111111-1111-4111-8111-111111111111'
       and user_id = '31111111-1111-4111-8111-111111111111'
-  ) <> 18 then
+  ) <> 20 then
     raise exception 'DB3_OWNER_CAPABILITY_PRESET';
   end if;
 end
@@ -429,7 +429,7 @@ begin
     where organization_id = v_org
       and project_id = '41111111-1111-4111-8111-111111111111'
       and user_id = '32222222-2222-4222-8222-222222222222'
-  ) <> 16 then
+  ) <> 18 then
     raise exception 'DB3_ARCHITECT_CAPABILITY_PRESET';
   end if;
 end

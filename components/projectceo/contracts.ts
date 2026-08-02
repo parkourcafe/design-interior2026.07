@@ -29,6 +29,8 @@ export const PROJECTCEO_CAPABILITIES = [
   "upload_photo_evidence",
   "review_milestone",
   "view_audit",
+  "manage_budget",
+  "prepare_client_handoff",
 ] as const;
 
 export type ProjectCeoCapability = (typeof PROJECTCEO_CAPABILITIES)[number];
@@ -246,6 +248,69 @@ export interface ApprovalPackageView {
   readonly createdAt: string;
 }
 
+export interface M2RoomView {
+  readonly id: string;
+  readonly packageId: string;
+  readonly revisionId: string;
+  readonly revisionNo: number;
+  readonly name: string;
+  readonly areaM2: number;
+  readonly status: "draft" | "submitted" | "approved" | "ready";
+  readonly createdAt: string;
+}
+
+export interface M2VariantView {
+  readonly id: string;
+  readonly roomId: string;
+  readonly packageId: string;
+  readonly revisionId: string;
+  readonly revisionNo: number;
+  readonly title: string;
+  readonly description: string;
+  readonly status: "draft" | "submitted" | "approved" | "ready";
+  readonly createdAt: string;
+}
+
+export interface M2MaterialView {
+  readonly id: string;
+  readonly variantId: string;
+  readonly packageId: string;
+  readonly revisionId: string;
+  readonly revisionNo: number;
+  readonly name: string;
+  readonly supplierRef: string;
+  readonly unit: string;
+  readonly unitCostRub: number;
+  readonly quantity: number;
+  readonly status: "draft" | "submitted" | "approved" | "ready";
+  readonly createdAt: string;
+}
+
+export interface M2BudgetFrameView {
+  readonly id: string;
+  readonly packageId: string;
+  readonly revisionId: string;
+  readonly revisionNo: number;
+  readonly currency: "RUB";
+  readonly minRub: number;
+  readonly maxRub: number;
+  readonly contingencyPct: number;
+  readonly status: "draft" | "submitted" | "approved" | "ready";
+  readonly createdAt: string;
+}
+
+export interface M2ClientHandoffView {
+  readonly id: string;
+  readonly packageId: string;
+  readonly revisionId: string;
+  readonly revisionNo: number;
+  readonly approvalPackageId: string;
+  readonly title: string;
+  readonly note: string;
+  readonly status: "draft" | "submitted" | "approved" | "ready";
+  readonly createdAt: string;
+}
+
 export interface InvitationView {
   readonly id: string;
   readonly recipientLabel: string;
@@ -337,6 +402,11 @@ export interface ProjectWorkspaceView {
   readonly decisions: readonly DecisionView[];
   readonly selections: readonly SelectionView[];
   readonly approvalPackages: readonly ApprovalPackageView[];
+  readonly m2Rooms: readonly M2RoomView[];
+  readonly m2Variants: readonly M2VariantView[];
+  readonly m2Materials: readonly M2MaterialView[];
+  readonly m2BudgetFrames: readonly M2BudgetFrameView[];
+  readonly m2ClientHandoffs: readonly M2ClientHandoffView[];
   readonly baseline: BaselineSummary;
   readonly releases: readonly ReleaseSummary[];
   readonly changes: readonly ChangeRequestView[];
@@ -361,6 +431,11 @@ export const PROJECTCEO_OPERATION_NAMES = [
   "create_selection",
   "create_approval_package",
   "submit_approval_package",
+  "create_m2_room",
+  "create_m2_variant",
+  "create_m2_material",
+  "set_m2_budget",
+  "create_m2_client_handoff",
   "publish_baseline",
   "publish_release",
   "distribute_release",

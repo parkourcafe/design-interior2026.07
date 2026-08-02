@@ -6,6 +6,11 @@ import {
   type AuditEventView,
   type BaselineSummary,
   type ChangeRequestView,
+  type M2BudgetFrameView,
+  type M2ClientHandoffView,
+  type M2MaterialView,
+  type M2RoomView,
+  type M2VariantView,
   type DecisionView,
   type InvitationView,
   type OnboardingState,
@@ -47,6 +52,11 @@ const fixtureOperations: ProjectCeoOperationStates = {
   create_selection: { status: "unavailable", reason: "fixture_read_only" },
   create_approval_package: { status: "unavailable", reason: "fixture_read_only" },
   submit_approval_package: { status: "unavailable", reason: "fixture_read_only" },
+  create_m2_room: { status: "unavailable", reason: "fixture_read_only" },
+  create_m2_variant: { status: "unavailable", reason: "fixture_read_only" },
+  create_m2_material: { status: "unavailable", reason: "fixture_read_only" },
+  set_m2_budget: { status: "unavailable", reason: "fixture_read_only" },
+  create_m2_client_handoff: { status: "unavailable", reason: "fixture_read_only" },
   publish_baseline: { status: "unavailable", reason: "fixture_read_only" },
   publish_release: { status: "unavailable", reason: "fixture_read_only" },
   distribute_release: { status: "unavailable", reason: "fixture_read_only" },
@@ -387,6 +397,11 @@ const selections: readonly SelectionView[] = [
 ];
 
 const approvalPackages: readonly ApprovalPackageView[] = [];
+const m2Rooms: readonly M2RoomView[] = [];
+const m2Variants: readonly M2VariantView[] = [];
+const m2Materials: readonly M2MaterialView[] = [];
+const m2BudgetFrames: readonly M2BudgetFrameView[] = [];
+const m2ClientHandoffs: readonly M2ClientHandoffView[] = [];
 
 const releases: readonly ReleaseSummary[] = [
   koraCurrentRelease,
@@ -613,6 +628,11 @@ function roleScopedWorkspace(role: ProjectCeoRole): ProjectWorkspaceView {
     decisions: isGuest ? [] : decisions,
     selections: isGuest ? [] : selections,
     approvalPackages: isGuest ? [] : approvalPackages,
+    m2Rooms: isGuest ? [] : m2Rooms,
+    m2Variants: isGuest ? [] : m2Variants,
+    m2Materials: isGuest ? [] : m2Materials,
+    m2BudgetFrames: isGuest ? [] : m2BudgetFrames,
+    m2ClientHandoffs: isGuest ? [] : m2ClientHandoffs,
     baseline: koraBaseline,
     releases: isGuest
       ? releases.filter((release) => release.packageId === actor.packageId && release.status === "current")

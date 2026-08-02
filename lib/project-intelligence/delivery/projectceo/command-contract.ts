@@ -161,6 +161,78 @@ export const projectCeoCommandSchema = z.discriminatedUnion("kind", [
   }).strict(),
   projectSelector.extend({
     contractVersion: z.literal(PROJECTCEO_COMMAND_CONTRACT_VERSION),
+    kind: z.literal("create_m2_room"),
+    payload: z.object({
+      packageId: uuid,
+      roomId: z.string().trim().min(1).max(160),
+      revisionId: z.string().uuid(),
+      expectedRevisionId: claimRevisionId.nullable(),
+      name: z.string().trim().min(1).max(1000),
+      areaM2: z.number().int().safe().positive().max(1_000_000),
+      reason: z.string().trim().min(3).max(4000),
+    }).strict(),
+  }).strict(),
+  projectSelector.extend({
+    contractVersion: z.literal(PROJECTCEO_COMMAND_CONTRACT_VERSION),
+    kind: z.literal("create_m2_variant"),
+    payload: z.object({
+      packageId: uuid,
+      variantId: z.string().trim().min(1).max(160),
+      revisionId: z.string().uuid(),
+      expectedRevisionId: claimRevisionId.nullable(),
+      roomId: z.string().trim().min(1).max(160),
+      title: z.string().trim().min(1).max(1000),
+      description: z.string().max(4000),
+      reason: z.string().trim().min(3).max(4000),
+    }).strict(),
+  }).strict(),
+  projectSelector.extend({
+    contractVersion: z.literal(PROJECTCEO_COMMAND_CONTRACT_VERSION),
+    kind: z.literal("create_m2_material"),
+    payload: z.object({
+      packageId: uuid,
+      materialId: z.string().trim().min(1).max(160),
+      revisionId: z.string().uuid(),
+      expectedRevisionId: claimRevisionId.nullable(),
+      variantId: z.string().trim().min(1).max(160),
+      name: z.string().trim().min(1).max(1000),
+      supplierRef: z.string().max(320),
+      unit: z.string().trim().min(1).max(40),
+      unitCostRub: z.number().int().safe().nonnegative().max(1_000_000_000),
+      quantity: z.number().int().safe().positive().max(1_000_000),
+      reason: z.string().trim().min(3).max(4000),
+    }).strict(),
+  }).strict(),
+  projectSelector.extend({
+    contractVersion: z.literal(PROJECTCEO_COMMAND_CONTRACT_VERSION),
+    kind: z.literal("set_m2_budget"),
+    payload: z.object({
+      packageId: uuid,
+      budgetId: z.string().trim().min(1).max(160),
+      revisionId: z.string().uuid(),
+      expectedRevisionId: claimRevisionId.nullable(),
+      minRub: z.number().int().safe().nonnegative().max(1_000_000_000_000),
+      maxRub: z.number().int().safe().nonnegative().max(1_000_000_000_000),
+      contingencyPct: z.number().int().safe().min(0).max(100),
+      reason: z.string().trim().min(3).max(4000),
+    }).strict(),
+  }).strict(),
+  projectSelector.extend({
+    contractVersion: z.literal(PROJECTCEO_COMMAND_CONTRACT_VERSION),
+    kind: z.literal("create_m2_client_handoff"),
+    payload: z.object({
+      packageId: uuid,
+      handoffId: z.string().trim().min(1).max(160),
+      revisionId: z.string().uuid(),
+      expectedRevisionId: claimRevisionId.nullable(),
+      approvalPackageId: z.string().trim().min(1).max(160),
+      title: z.string().trim().min(1).max(1000),
+      note: z.string().max(8000),
+      reason: z.string().trim().min(3).max(4000),
+    }).strict(),
+  }).strict(),
+  projectSelector.extend({
+    contractVersion: z.literal(PROJECTCEO_COMMAND_CONTRACT_VERSION),
     kind: z.literal("create_approval_package"),
     payload: z.object({
       packageId: uuid,
@@ -222,7 +294,15 @@ export const projectCeoCommandSchema = z.discriminatedUnion("kind", [
     ]),
     payload: z.object({}).strict(),
   }).strict(),
-]);
+]).superRefine((command, ctx) => {
+  if (command.kind === "set_m2_budget" && command.payload.maxRub < command.payload.minRub) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ["payload", "maxRub"],
+      message: "budget_range_invalid",
+    });
+  }
+});
 
 export const PROJECTCEO_INVITATION_ACCEPT_CONTRACT_VERSION =
   "projectceo-invitation-accept/0.1" as const;
