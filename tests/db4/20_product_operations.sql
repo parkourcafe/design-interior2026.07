@@ -538,6 +538,23 @@ select projectceo_product_api.review_approval_package(
 );
 commit;
 
+do $self_approval_marker$
+declare
+  v_self_approved boolean;
+  v_actor_user_id uuid;
+begin
+  select event.self_approved, event.actor_user_id
+  into v_self_approved, v_actor_user_id
+  from projectceo_product.approval_package_events event
+  where event.approval_package_id = 'approval-db4-root'
+    and event.to_status = 'approved';
+  if not coalesce(v_self_approved, false)
+     or v_actor_user_id <> '31111111-1111-4111-8111-111111111111'::uuid then
+    raise exception 'DB4_SELF_APPROVED_MARKER_INVALID';
+  end if;
+end
+$self_approval_marker$;
+
 select state_revision as state_revision
 from project_intelligence.project_workflows
 where project_id = '41111111-1111-4111-8111-111111111111'

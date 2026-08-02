@@ -5,7 +5,7 @@ Status: **PARTIAL / not ready for public users**
 ## Progress scale (engineering estimate, not a READY verdict)
 
 Using the narrow M2 Decision/Selection/Approval foundation as the 100-point
-scope, the current evidence supports **60/100**:
+scope, the current evidence supports **65/100**:
 
 | Area | Weight | Proven now |
 | --- | ---: | ---: |
@@ -14,9 +14,9 @@ scope, the current evidence supports **60/100**:
 | Auth, RLS and security controls | 15 | 10 |
 | Designer write workspace and controls | 20 | 5 |
 | Authenticated browser QA | 10 | 0 |
-| Explicit `self_approved` approval semantics | 5 | 0 |
+| Explicit `self_approved` approval semantics | 5 | 5 |
 | Production-shaped compatibility/adoption gate | 5 | 0 |
-| **Total** | **100** | **60** |
+| **Total** | **100** | **65** |
 
 This is not a product-completion percentage for the full public M2 Design
 Workspace. The broader workspace (rooms, variants, real materials/items, budget
@@ -93,9 +93,10 @@ state_revision: 29 → 34
 ```
 
 The approval event is human-authored and records the same actor as the package
-creator. However, the current approval schema has no explicit `self_approved`
-column or equivalent persisted marker; that acceptance requirement is therefore
-not yet proven and must not be presented as complete.
+creator. Additive migration `20260802010000_projectceo_approval_self_approval.sql`
+now stores `self_approved` on the terminal append-only event. The authenticated
+clone rehearsal returned `selfApproved: true`, and SQL verification confirmed
+the marker on sequence 3 while sequences 1 and 2 remain false.
 
 The production-shaped SQL snapshot separately proves that production has a
 different public governed-M1 runtime: zero `projectceo_*` schemas and no
