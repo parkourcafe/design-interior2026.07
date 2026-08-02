@@ -58,6 +58,24 @@ executor_roles_guarded=true storage_bucket_private=true managed_auth_references=
 request_claim_readers=ok
 ```
 
+An authenticated HTTP rehearsal now also passes against the local Supabase
+Auth/PostgREST stack (no construction photo fixture involved). A signed
+request-bound human JWT successfully executed `list_projects`, then:
+
+```text
+append_decision_revision
+append_selection_revision
+create_approval_package
+submit_approval_package
+review_approval_package (approved)
+state_revision: 29 → 34
+```
+
+The approval event is human-authored and records the same actor as the package
+creator. However, the current approval schema has no explicit `self_approved`
+column or equivalent persisted marker; that acceptance requirement is therefore
+not yet proven and must not be presented as complete.
+
 The production-shaped SQL snapshot separately proves that production has a
 different public governed-M1 runtime: zero `projectceo_*` schemas and no
 `project_intelligence` schema. Therefore local M2 persistence is not production
