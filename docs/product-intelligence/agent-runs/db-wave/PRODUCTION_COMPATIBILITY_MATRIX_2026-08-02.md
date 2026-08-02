@@ -7,7 +7,7 @@ classification, not permission to alter production.
 | Canonical contract | Production observation | Classification | Safe next action |
 |---|---|---|---|
 | Project Sources | `public.project_sources` is exposed with source metadata and project scope | Data shape present; API/RLS contract not proven equivalent | Verify authenticated read/command semantics on a clone; add only a server-side adapter if needed |
-| Project Facts | `public.project_facts` is exposed with provenance, confidence, status, version and supersession fields | Data shape present; actor/provenance enforcement still requires live contract tests | Test immutable-version and human-confirmation rules; do not copy rows into a second table |
+| Project Facts | `public.project_facts` is exposed with confidence, status, version, `source_id` and `evidence_locator`; the canonical `provenance` column is absent from the observed shape | **Not shape-compatible**; provenance must be resolved before claiming canonical facts | Define an additive provenance bridge or a server-side projection on a clone; preserve existing rows and do not copy them automatically |
 | Workflow Definitions | `public.workflow_definitions` is exposed | Data shape present; canonical API/RPC absent from the observed production surface | Map the existing runtime contract before any bridge |
 | Workflow Runs / Step Runs | Both tables are exposed with retry/status fields | Data shape present; resume/idempotency semantics unproven against canonical functions | Run clone-only workflow/resume/retry tests |
 | Approval Requests | Table is exposed with `self_approved`, reviewer and issuance fields | Data shape present; approval authorization must be proven server-side | Test approve/issue separation and self-approval labeling |
