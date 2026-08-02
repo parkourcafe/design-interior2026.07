@@ -45,7 +45,7 @@ Status: disposable replay PASS; production Auth Hook active; historical migratio
 | Authenticated browser E2E | `AP1_SUPPORTED_SLICE_E2E_OK`; five real GoTrue magic-link sessions completed invitation, distribution/ack, change-impact, photo review, milestone acceptance, replay, CSRF and isolation checks |
 | In-app browser UI | Owner magic-link opened `/dashboard/projectceo/projects/41111111-1111-4111-8111-111111111111`; `Kora Food Hall`, `1 800 м²`, and owner scope rendered; console errors/warnings: 0 |
 | Mobile browser capture | Not claimed: the in-app browser exposes no viewport control, and the host Chrome headless launcher exits before DevTools in this macOS sandbox; the deterministic HTTP/E2E and desktop UI evidence remain green |
-| Production writes | none |
+| Production writes | Auth Hook function and Auth Hook setting only; no data or migration-ledger writes |
 
 ## Production gate — 2026-08-02
 
