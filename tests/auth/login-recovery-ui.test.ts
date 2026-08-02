@@ -11,6 +11,7 @@ describe("authentication recovery UI", () => {
     expect(login).toContain('authCallbackUrl("/auth/reset-password")');
     expect(login).toContain("forgotPassword");
     expect(login).toContain("invalidCredentials");
+    expect(login).toContain("noAuthParams");
   });
 
   it("updates the password after the recovery callback", () => {

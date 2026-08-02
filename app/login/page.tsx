@@ -41,7 +41,9 @@ export default function LoginPage() {
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const err = params.get("error_description") || params.get("error");
-    if (err) setCallbackError(err.replaceAll("+", " "));
+    if (err) {
+      setCallbackError(err === "no_auth_params" ? ru.auth.noAuthParams : err.replaceAll("+", " "));
+    }
   }, []);
 
   // Google OAuth нельзя открывать внутри WKWebView: провайдер блокирует такой
