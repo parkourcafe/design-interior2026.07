@@ -397,6 +397,29 @@ set role authenticated;
 
 Команды, всё ещё недоступные и потому вне сценария: `register_source`, `review_source` (RPC не существуют — нужна новая миграция), `publish_release`, `build_handover` (последняя ведёт в схему `projectceo_m4_api`, куда command-service не маршрутизируется).
 
+### 4.3 Постусловия против молчаливого возврата auth-дефекта (02.08.2026)
+
+Дефект §2b был невидим потому, что `grant usage on schema auth` отвечает
+`WARNING`, а не `ERROR`: миграция «успешна», функция падает только у живого
+аутентифицированного клиента. Три уровня защиты, чтобы это не повторилось:
+
+1. **Момент применения** — `do $guard$` в самой миграции
+   `20260801120000` (`PROJECTCEO_MANAGED_AUTH_REFERENCE_REMAINS`). Покрывает
+   семь схем и срабатывает один раз.
+2. **Состояние базы** — `verify-db.sql`:
+   `AP1_MANAGED_AUTH_REFERENCE_REMAINS` (девять схем, включая
+   `project_intelligence_api` и `projectceo_read_api`, которых в guard'е
+   миграции нет) и `AP1_REQUEST_CLAIM_READERS_INVALID` (обе функции
+   `_request_*` существуют, `security definer`, владелец `pi_table_owner`,
+   `search_path` пришпилен). Срабатывает после **любой** последующей миграции.
+3. **Исходники** — `auth-regression.contract.test.ts`: ни одна миграция после
+   `20260801120000` не вводит `auth.uid/jwt/users` в PI-схему, и набор
+   инертных `grant usage on schema auth` не растёт.
+
+Обе SQL-проверки прогнаны на живом Postgres 17: негативный случай —
+`_request_*:MISSING` на базе без слоя ProjectCEO; позитивный — регулярка
+находит 19 из 28 функций там, где обращения к `auth` действительно есть.
+
 ---
 
 ## 5. Definition of Done

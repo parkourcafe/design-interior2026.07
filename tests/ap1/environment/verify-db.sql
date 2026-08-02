@@ -9,6 +9,8 @@ declare
   v_auth_owner_table_grants bigint;
   v_missing_api_schemas text[];
   v_bucket_public boolean;
+  v_managed_auth_functions text[];
+  v_claim_reader_defects text[];
 begin
   if current_setting('server_version_num')::integer < 170000
      or current_setting('server_version_num')::integer >= 180000 then
@@ -113,6 +115,67 @@ begin
     raise exception 'AP1_AUTH_USERS_POLICY_MUST_NOT_EXIST';
   end if;
 
+  -- Постусловие к 20260801120000: ни одна развёрнутая функция ProjectCEO не
+  -- обращается к управляемой схеме auth. Миграция проверяет это в момент
+  -- применения, но только для семи схем и только один раз. Здесь проверка
+  -- стоит на фактическом состоянии базы, покрывает все девять схем (включая
+  -- project_intelligence_api и projectceo_read_api, которых в guard'е миграции
+  -- нет) и срабатывает после любой последующей миграции.
+  --
+  -- Дефект, ради которого это написано: grant usage on schema auth молча не
+  -- применяется (WARNING, не ERROR), функция с auth.uid() применяется успешно
+  -- и падает только у аутентифицированного клиента в рантайме.
+  select array_agg(n.nspname || '.' || p.proname order by n.nspname, p.proname)
+  into v_managed_auth_functions
+  from pg_catalog.pg_proc p
+  join pg_catalog.pg_namespace n on n.oid = p.pronamespace
+  where n.nspname in (
+      'project_intelligence',
+      'project_intelligence_api',
+      'projectceo_foundation',
+      'projectceo_api',
+      'projectceo_product',
+      'projectceo_product_api',
+      'projectceo_read_api',
+      'projectceo_m4',
+      'projectceo_m4_api'
+    )
+    and p.prokind = 'f'
+    -- Совпадает по смыслу с регуляркой в auth-regression.contract.test.ts.
+    -- Ловит и упоминание в комментарии внутри тела — это осознанно: тело
+    -- функции не место для строки auth.uid().
+    and pg_get_functiondef(p.oid) ~ 'auth\.(uid\s*\(|jwt\s*\(|users)';
+  if v_managed_auth_functions is not null then
+    raise exception 'AP1_MANAGED_AUTH_REFERENCE_REMAINS %', v_managed_auth_functions;
+  end if;
+
+  -- Замена auth.uid()/auth.jwt() существует и пригодна к использованию:
+  -- SECURITY DEFINER (иначе читает GUC от имени вызывающего без гарантий),
+  -- владелец pi_table_owner (иначе цепочка владения расходится с таблицами),
+  -- пришпиленный search_path (иначе definer уязвим к подмене схемы).
+  select array_agg(t.defect order by t.defect)
+  into v_claim_reader_defects
+  from (
+    select case
+      when p.oid is null then expected.name || ':MISSING'
+      when not p.prosecdef then expected.name || ':NOT_SECURITY_DEFINER'
+      when pg_get_userbyid(p.proowner) <> 'pi_table_owner'
+        then expected.name || ':OWNER=' || pg_get_userbyid(p.proowner)
+      when coalesce(array_to_string(p.proconfig, ','), '') not like '%search_path=%'
+        then expected.name || ':SEARCH_PATH_NOT_PINNED'
+    end as defect
+    from unnest(array['_request_user_id', '_request_jwt']) expected(name)
+    left join pg_catalog.pg_namespace n on n.nspname = 'project_intelligence'
+    left join pg_catalog.pg_proc p
+      on p.pronamespace = n.oid
+     and p.proname = expected.name
+     and p.pronargs = 0
+  ) t
+  where t.defect is not null;
+  if v_claim_reader_defects is not null then
+    raise exception 'AP1_REQUEST_CLAIM_READERS_INVALID %', v_claim_reader_defects;
+  end if;
+
   select b.public
   into strict v_bucket_public
   from storage.buckets b
@@ -124,7 +187,7 @@ end
 $verify$;
 
 select format(
-  'AP1_DB_OK postgres=%s migrations=%s private_persistence_runtime_grants=0 executor_roles_guarded=true storage_bucket_private=true',
+  'AP1_DB_OK postgres=%s migrations=%s private_persistence_runtime_grants=0 executor_roles_guarded=true storage_bucket_private=true managed_auth_references=0 request_claim_readers=ok',
   current_setting('server_version'),
   (select count(*) from supabase_migrations.schema_migrations)
 );
