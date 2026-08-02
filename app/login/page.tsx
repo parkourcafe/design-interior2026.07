@@ -14,6 +14,21 @@ async function supabaseClient() {
 
 type Tab = "password" | "code";
 
+function authErrorMessage(error: unknown, fallback: string): string {
+  if (error && typeof error === "object" && "message" in error) {
+    const message = (error as { message?: unknown }).message;
+    if (typeof message === "string" && message.trim() && message.trim() !== "{}") {
+      return message.trim();
+    }
+  }
+  return fallback;
+}
+
+function passwordErrorMessage(error: unknown): string {
+  const message = authErrorMessage(error, ru.auth.genericError);
+  return /invalid login credentials/i.test(message) ? ru.auth.invalidCredentials : message;
+}
+
 export default function LoginPage() {
   const router = useRouter();
 
@@ -24,8 +39,9 @@ export default function LoginPage() {
 
   // Показываем реальную причину, если /auth/callback вернул сюда с ?error=...
   useEffect(() => {
-    const err = new URLSearchParams(window.location.search).get("error");
-    if (err) setCallbackError(err);
+    const params = new URLSearchParams(window.location.search);
+    const err = params.get("error_description") || params.get("error");
+    if (err) setCallbackError(err.replaceAll("+", " "));
   }, []);
 
   // Google OAuth нельзя открывать внутри WKWebView: провайдер блокирует такой
@@ -54,8 +70,8 @@ export default function LoginPage() {
     return safeProjectCeoLoginNext(window.location.search);
   }
 
-  function authCallbackUrl(): string {
-    return `${window.location.origin}/auth/callback?next=${encodeURIComponent(loginNext())}`;
+  function authCallbackUrl(next = loginNext()): string {
+    return `${window.location.origin}/auth/callback?next=${encodeURIComponent(next)}`;
   }
 
   function goToAuthenticatedDestination() {
@@ -65,13 +81,19 @@ export default function LoginPage() {
 
   // ── Вход через Google (OAuth) ──────────────────────────────
   async function google() {
-    const supabase = await supabaseClient();
-    await supabase.auth.signInWithOAuth({
-      provider: "google",
-      // Возврат на текущий origin (не из env) — иначе Supabase не найдёт адрес
-      // в allow-list и увезёт на Site URL (главную).
-      options: { redirectTo: authCallbackUrl() },
-    });
+    setCallbackError(null);
+    try {
+      const supabase = await supabaseClient();
+      const { error } = await supabase.auth.signInWithOAuth({
+        provider: "google",
+        // Возврат на текущий origin (не из env) — иначе Supabase не найдёт адрес
+        // в allow-list и увезёт на Site URL (главную).
+        options: { redirectTo: authCallbackUrl() },
+      });
+      if (error) setCallbackError(authErrorMessage(error, ru.auth.googleError));
+    } catch (error) {
+      setCallbackError(authErrorMessage(error, ru.auth.googleError));
+    }
   }
 
   // ── Вход/регистрация по паролю ─────────────────────────────
@@ -86,28 +108,57 @@ export default function LoginPage() {
     setPwBusy(true);
     setPwError(null);
     setSignupConfirmationSent(false);
-    const supabase = await supabaseClient();
+    try {
+      const supabase = await supabaseClient();
 
-    if (signup) {
-      const { data, error } = await supabase.auth.signUp({
-        email,
-        password,
-        options: { emailRedirectTo: authCallbackUrl() },
-      });
-      setPwBusy(false);
-      if (error) return setPwError(error.message);
-      if (!data.session) {
-        setSignupConfirmationSent(true);
+      if (signup) {
+        const { data, error } = await supabase.auth.signUp({
+          email,
+          password,
+          options: { emailRedirectTo: authCallbackUrl() },
+        });
+        setPwBusy(false);
+        if (error) return setPwError(passwordErrorMessage(error));
+        if (!data.session) {
+          setSignupConfirmationSent(true);
+          return;
+        }
+        goToAuthenticatedDestination();
         return;
       }
+
+      const { error } = await supabase.auth.signInWithPassword({ email, password });
+      setPwBusy(false);
+      if (error) return setPwError(passwordErrorMessage(error));
       goToAuthenticatedDestination();
+    } catch (error) {
+      setPwBusy(false);
+      setPwError(passwordErrorMessage(error));
+    }
+  }
+
+  async function resetPassword() {
+    setPwError(null);
+    if (!email.trim()) {
+      setPwError(ru.auth.emailRequiredForReset);
       return;
     }
-
-    const { error } = await supabase.auth.signInWithPassword({ email, password });
-    setPwBusy(false);
-    if (error) return setPwError(error.message);
-    goToAuthenticatedDestination();
+    setPwBusy(true);
+    try {
+      const supabase = await supabaseClient();
+      const { error } = await supabase.auth.resetPasswordForEmail(email.trim(), {
+        redirectTo: authCallbackUrl("/auth/reset-password"),
+      });
+      if (error) {
+        setPwError(authErrorMessage(error, ru.auth.resetError));
+      } else {
+        setSignupConfirmationSent(true);
+      }
+    } catch (error) {
+      setPwError(authErrorMessage(error, ru.auth.resetError));
+    } finally {
+      setPwBusy(false);
+    }
   }
 
   // ── Вход по коду на почту (passwordless OTP) ───────────────
@@ -120,24 +171,34 @@ export default function LoginPage() {
   async function sendCode(e: React.FormEvent) {
     e.preventDefault();
     setOtp("sending");
-    const supabase = await supabaseClient();
-    const { error } = await supabase.auth.signInWithOtp({
-      email,
-      options: { emailRedirectTo: authCallbackUrl() },
-    });
-    setOtpDetail(error ? error.message : null);
-    setOtp(error ? "error" : "sent");
+    try {
+      const supabase = await supabaseClient();
+      const { error } = await supabase.auth.signInWithOtp({
+        email,
+        options: { emailRedirectTo: authCallbackUrl() },
+      });
+      setOtpDetail(error ? authErrorMessage(error, ru.auth.otpError) : null);
+      setOtp(error ? "error" : "sent");
+    } catch (error) {
+      setOtpDetail(authErrorMessage(error, ru.auth.otpError));
+      setOtp("error");
+    }
   }
 
   async function verifyCode(e: React.FormEvent) {
     e.preventDefault();
     setVerifying(true);
     setCodeError(null);
-    const supabase = await supabaseClient();
-    const { error } = await supabase.auth.verifyOtp({ email, token: code.trim(), type: "email" });
-    setVerifying(false);
-    if (error) return setCodeError(error.message);
-    goToAuthenticatedDestination();
+    try {
+      const supabase = await supabaseClient();
+      const { error } = await supabase.auth.verifyOtp({ email, token: code.trim(), type: "email" });
+      setVerifying(false);
+      if (error) return setCodeError(error.message);
+      goToAuthenticatedDestination();
+    } catch {
+      setVerifying(false);
+      setCodeError(ru.auth.codeInvalid);
+    }
   }
 
   const inCodeEntry = tab === "code" && otp === "sent";
@@ -219,6 +280,16 @@ export default function LoginPage() {
               placeholder={ru.auth.passwordPlaceholder} className="input"
             />
           </div>
+          {!signup && (
+            <button
+              type="button"
+              onClick={resetPassword}
+              disabled={pwBusy}
+              className="text-sm text-muted underline-offset-4 hover:text-ink hover:underline"
+            >
+              {ru.auth.forgotPassword}
+            </button>
+          )}
           <button type="submit" disabled={pwBusy} className="btn-primary w-full">
             {pwBusy ? (signup ? ru.auth.signingUp : ru.auth.signingIn) : signup ? ru.auth.signUp : ru.auth.signIn}
           </button>
