@@ -1361,6 +1361,8 @@ export const ru = {
         createApprovalSubmit: "Создать approval package",
         submitApprovalSubmit: "Отправить на approval",
         humanReviewSubmit: "Подтвердить human review",
+        humanReviewReject: "Отклонить",
+        humanReviewChangeRequest: "Запросить изменения",
         approvalPackage: "Approval package",
         selfApproved: "Approved by author",
         workflowUnavailable: "Операция пока недоступна для текущего scope.",

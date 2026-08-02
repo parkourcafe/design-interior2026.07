@@ -305,23 +305,59 @@ export function M2WorkflowPanel({ view }: { readonly view: ProjectWorkspaceView 
             </ProjectCeoCommandButton>
           )}
           {approval.status === "submitted" && (
-            <ProjectCeoCommandButton
-              command={{
-                contractVersion: PROJECTCEO_COMMAND_CONTRACT_VERSION,
-                kind: "review_selection",
-                projectId: view.project.id,
-                payload: {
-                  approvalPackageId: approval.id,
-                  expectedStatus: "submitted",
-                  decision: "approved",
-                  reason: "Human review completed in M2 workspace",
-                },
-              }}
-              disabled={view.operations.review_selection.status !== "available"}
-              className="btn-primary mt-3 w-full"
-            >
-              {copy.workspace.decisions.humanReviewSubmit}
-            </ProjectCeoCommandButton>
+            <div className="mt-3 grid gap-2 sm:grid-cols-3">
+              <ProjectCeoCommandButton
+                command={{
+                  contractVersion: PROJECTCEO_COMMAND_CONTRACT_VERSION,
+                  kind: "review_selection",
+                  projectId: view.project.id,
+                  payload: {
+                    approvalPackageId: approval.id,
+                    expectedStatus: "submitted",
+                    decision: "approved",
+                    reason: "Human review approved in M2 workspace",
+                  },
+                }}
+                disabled={view.operations.review_selection.status !== "available"}
+                className="btn-primary w-full"
+              >
+                {copy.workspace.decisions.humanReviewSubmit}
+              </ProjectCeoCommandButton>
+              <ProjectCeoCommandButton
+                command={{
+                  contractVersion: PROJECTCEO_COMMAND_CONTRACT_VERSION,
+                  kind: "review_selection",
+                  projectId: view.project.id,
+                  payload: {
+                    approvalPackageId: approval.id,
+                    expectedStatus: "submitted",
+                    decision: "rejected",
+                    reason: "Human review rejected in M2 workspace",
+                  },
+                }}
+                disabled={view.operations.review_selection.status !== "available"}
+                className="btn-ghost w-full"
+              >
+                {copy.workspace.decisions.humanReviewReject}
+              </ProjectCeoCommandButton>
+              <ProjectCeoCommandButton
+                command={{
+                  contractVersion: PROJECTCEO_COMMAND_CONTRACT_VERSION,
+                  kind: "review_selection",
+                  projectId: view.project.id,
+                  payload: {
+                    approvalPackageId: approval.id,
+                    expectedStatus: "submitted",
+                    decision: "change_requested",
+                    reason: "Human review requested changes in M2 workspace",
+                  },
+                }}
+                disabled={view.operations.review_selection.status !== "available"}
+                className="btn-ghost w-full"
+              >
+                {copy.workspace.decisions.humanReviewChangeRequest}
+              </ProjectCeoCommandButton>
+            </div>
           )}
           {approval.selfApproved && <p className="mt-3 text-xs text-muted">{copy.workspace.decisions.selfApproved}</p>}
         </div>
