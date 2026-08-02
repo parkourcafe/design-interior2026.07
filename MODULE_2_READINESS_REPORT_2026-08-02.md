@@ -36,6 +36,17 @@ The harness also covers forced RLS/ACL, idempotency, concurrency, rollback and
 restart replay. Its RPC-count assertion was updated to include the two
 request-bound release functions introduced by the AP1 read migration.
 
+The deployed-state hardening checks from `4970db4` are also present: the
+verification contract scans all nine managed schemas for forbidden
+`auth.uid()`/`auth.jwt()`/`auth.users` references and validates the request-claim
+reader functions by owner, `SECURITY DEFINER` status and pinned `search_path`.
+The focused contract suite passes with 48 tests after this hardening change.
+
+Migration-path reconciliation is documented separately in
+`docs/product-intelligence/agent-runs/db-wave/MIGRATION_PATH_DECISION_2026-08-02.md`:
+old timestamped migrations remain immutable; clean-bootstrap is the proven path
+for new/disposable clones; production remains grandfathered and is not replayed.
+
 The production-shaped SQL snapshot separately proves that production has a
 different public governed-M1 runtime: zero `projectceo_*` schemas and no
 `project_intelligence` schema. Therefore local M2 persistence is not production
