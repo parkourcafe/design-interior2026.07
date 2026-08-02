@@ -47,6 +47,17 @@ Migration-path reconciliation is documented separately in
 old timestamped migrations remain immutable; clean-bootstrap is the proven path
 for new/disposable clones; production remains grandfathered and is not replayed.
 
+The full local Supabase Auth/PostgREST stack was also started with the canonical
+chain. The first `verify-db.sql` run correctly stopped on the historical local
+`pi_table_owner → auth.users` grant. That grant was revoked only inside the
+local clone (no migration or production change), after which the verifier passed:
+
+```text
+AP1_DB_OK postgres=17.6 migrations=18 private_persistence_runtime_grants=0
+executor_roles_guarded=true storage_bucket_private=true managed_auth_references=0
+request_claim_readers=ok
+```
+
 The production-shaped SQL snapshot separately proves that production has a
 different public governed-M1 runtime: zero `projectceo_*` schemas and no
 `project_intelligence` schema. Therefore local M2 persistence is not production
