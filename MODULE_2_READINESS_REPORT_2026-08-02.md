@@ -2,6 +2,27 @@
 
 Status: **PARTIAL / not ready for public users**
 
+## Progress scale (engineering estimate, not a READY verdict)
+
+Using the narrow M2 Decision/Selection/Approval foundation as the 100-point
+scope, the current evidence supports **60/100**:
+
+| Area | Weight | Proven now |
+| --- | ---: | ---: |
+| Immutable contracts and PostgreSQL persistence | 25 | 25 |
+| Request-bound workflow/API sequence | 20 | 20 |
+| Auth, RLS and security controls | 15 | 10 |
+| Designer write workspace and controls | 20 | 5 |
+| Authenticated browser QA | 10 | 0 |
+| Explicit `self_approved` approval semantics | 5 | 0 |
+| Production-shaped compatibility/adoption gate | 5 | 0 |
+| **Total** | **100** | **60** |
+
+This is not a product-completion percentage for the full public M2 Design
+Workspace. The broader workspace (rooms, variants, real materials/items, budget
+frame and client approval handoff) is explicitly not implemented yet; including
+those surfaces would make the public M2 percentage lower, not higher.
+
 ## What is implemented locally
 
 - Immutable `DecisionRevision` and `SelectionRevision` contracts with
