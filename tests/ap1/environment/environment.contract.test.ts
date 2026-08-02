@@ -16,6 +16,7 @@ const authAuthorizationMigrationPath = resolve(
   "supabase/migrations/20260801120000_projectceo_request_claim_authorization.sql",
 );
 const runnerPath = resolve(repoRoot, "tests/ap1/environment/run-local.zsh");
+const verifyDbPath = resolve(repoRoot, "tests/ap1/environment/verify-db.sql");
 const ledgerPath = resolve(
   repoRoot,
   "tests/ap1/environment/migration-ledger.sha256",
@@ -92,6 +93,16 @@ describe("AP1 disposable Supabase environment contract", () => {
     expect(compat).toContain("AP1_AUTH_USERS_POLICY_SCOPE_INVALID");
     expect(compat).not.toContain("create policy projectceo_pi_table_owner_select");
     expect(compat).not.toMatch(/grant authenticated to pi_table_owner/i);
+  });
+
+  it("re-checks the deployed database for managed-auth references and claim readers", () => {
+    const verify = readFileSync(verifyDbPath, "utf8");
+    expect(verify).toContain("AP1_MANAGED_AUTH_REFERENCE_REMAINS");
+    expect(verify).toContain("AP1_REQUEST_CLAIM_READERS_INVALID");
+    // Guard'а миграции 20260801120000 нет для этих двух схем — постоянная
+    // проверка обязана покрывать их, иначе дыра остаётся открытой.
+    expect(verify).toContain("'project_intelligence_api'");
+    expect(verify).toContain("'projectceo_read_api'");
   });
 
   it("rewrites every ProjectCEO auth callsite and fails closed if one remains", () => {
