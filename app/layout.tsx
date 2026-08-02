@@ -10,6 +10,23 @@ export const metadata: Metadata = {
   metadataBase: new URL(appUrl()),
   title: `${ru.app.name} — ${ru.app.tagline}`,
   description: ru.app.heroSub,
+  // Canonical обязателен: старый домен arhidom.space сейчас отдаёт тот же
+  // контент с кодом 200 (редирект на remhaos.com пока не настроен), поэтому
+  // без canonical у поисковых систем нет сигнала, какая версия страницы
+  // основная. metadataBase выше разворачивает "/" в абсолютный URL.
+  alternates: { canonical: "/" },
+  openGraph: {
+    type: "website",
+    url: "/",
+    siteName: ru.app.name,
+    title: `${ru.app.name} — ${ru.app.tagline}`,
+    description: ru.app.heroSub,
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: `${ru.app.name} — ${ru.app.tagline}`,
+    description: ru.app.heroSub,
+  },
   manifest: "/manifest.webmanifest",
   appleWebApp: { capable: true, title: ru.app.name, statusBarStyle: "default" },
   robots: { index: true, follow: true }, // дефолт для публичного; приватное переопределяет
