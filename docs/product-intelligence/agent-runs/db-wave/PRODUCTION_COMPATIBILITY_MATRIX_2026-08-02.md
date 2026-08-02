@@ -5,6 +5,13 @@ Source: read-only production REST/OpenAPI snapshot for
 the checked-in migration files. This is a contract classification, not
 permission to alter production.
 
+Focused SQL verification on 2026-08-02 returned PostgreSQL 17.6, migration
+ledger count `13`, zero `projectceo_*` schemas, no `project_intelligence` schema,
+and `public.project_facts` with RLS enabled but not forced. Its columns are
+`id`, `project_id`, `fact_type`, `value`, `source_id`, `evidence_locator`,
+`status`, `confidence`, `created_by_type`, `created_by_id`, `version`,
+`supersedes_id`, and `created_at` — notably no `provenance` column.
+
 | Expected contract | Production observation | Repository/production classification | Safe next action |
 |---|---|---|---|
 | Project Sources | `public.project_sources` is exposed with source metadata and project scope | **Production-only runtime relation; no matching repository migration definition** | Verify authenticated read/command semantics on a clone; add only a server-side adapter if needed |
