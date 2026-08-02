@@ -207,6 +207,8 @@ begin
     ('projectceo_product_api.build_release_artifact(uuid,jsonb,bigint,text)'),
     ('projectceo_product_api.distribute_release(uuid,text,uuid,bigint,text)'),
     ('projectceo_product_api.acknowledge_release(uuid,uuid,text,bigint,text)'),
+    ('projectceo_product_api.distribute_release_request_bound(uuid,text,uuid,bigint,text)'),
+    ('projectceo_product_api.acknowledge_release_request_bound(uuid,uuid,text,bigint,text)'),
     ('projectceo_product_api.approve_no_change(uuid,text,text,text,bigint,text)')
   ) expected(signature)
   where to_regprocedure(expected.signature) is null
@@ -220,7 +222,7 @@ begin
   join pg_namespace n on n.oid = p.pronamespace
   where n.nspname = 'projectceo_product_api'
     and p.prokind = 'f';
-  if v_count <> 14 then
+  if v_count <> 16 then
     raise exception 'DB4_UNEXPECTED_RPC_COUNT:%', v_count;
   end if;
 
