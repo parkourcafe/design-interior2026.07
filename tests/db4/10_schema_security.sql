@@ -209,7 +209,8 @@ begin
     ('projectceo_product_api.acknowledge_release(uuid,uuid,text,bigint,text)'),
     ('projectceo_product_api.distribute_release_request_bound(uuid,text,uuid,bigint,text)'),
     ('projectceo_product_api.acknowledge_release_request_bound(uuid,uuid,text,bigint,text)'),
-    ('projectceo_product_api.approve_no_change(uuid,text,text,text,bigint,text)')
+    ('projectceo_product_api.approve_no_change(uuid,text,text,text,bigint,text)'),
+    ('projectceo_product_api.append_m2_workspace_revision(uuid,uuid,text,text,text,text,text,jsonb,text,bigint,text)')
   ) expected(signature)
   where to_regprocedure(expected.signature) is null
   limit 1;
@@ -222,7 +223,7 @@ begin
   join pg_namespace n on n.oid = p.pronamespace
   where n.nspname = 'projectceo_product_api'
     and p.prokind = 'f';
-  if v_count <> 16 then
+  if v_count <> 17 then
     raise exception 'DB4_UNEXPECTED_RPC_COUNT:%', v_count;
   end if;
 

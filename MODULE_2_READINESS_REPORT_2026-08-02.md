@@ -5,7 +5,7 @@ Status: **PARTIAL / not ready for public users**
 ## Progress scale (engineering estimate, not a READY verdict)
 
 Using the bounded M2 foundation plus additive workspace contracts as the 100-point
-scope, the current evidence supports **92/100**. This is an engineering gate,
+scope, the current evidence supports **94/100**. This is an engineering gate,
 not a claim that the full public M2 workspace is complete:
 
 | Area | Weight | Proven now |
@@ -13,16 +13,16 @@ not a claim that the full public M2 workspace is complete:
 | Immutable contracts and PostgreSQL persistence | 25 | 25 |
 | Request-bound workflow/API sequence | 20 | 20 |
 | Auth, RLS and security controls | 15 | 15 |
-| Designer write workspace and controls | 20 | 19 |
-| Authenticated browser QA | 10 | 8 |
+| Designer write workspace and controls | 20 | 20 |
+| Authenticated browser QA | 10 | 9 |
 | Explicit `self_approved` approval semantics | 5 | 5 |
 | Production-shaped compatibility/adoption gate | 5 | 0 |
-| **Total** | **100** | **92** |
+| **Total** | **100** | **94** |
 
 This is not a product-completion percentage for the full public M2 Design
-Workspace. The broader workspace (rooms, variants, real materials/items, budget
-frame and client approval handoff) is explicitly not implemented yet; including
-those surfaces would make the public M2 percentage lower, not higher.
+Workspace. The broader public M2 still needs a client-facing handoff surface,
+multi-revision editing UX and the authenticated pilot/adoption gate; this score
+must not be read as a public-launch percentage.
 
 ## What is implemented locally
 
@@ -87,10 +87,19 @@ chain. The first `verify-db.sql` run correctly stopped on the historical local
 local clone (no migration or production change), after which the verifier passed:
 
 ```text
-AP1_DB_OK postgres=17.6 migrations=22 private_persistence_runtime_grants=0
+AP1_DB_OK postgres=17.6 migrations=24 private_persistence_runtime_grants=0
 executor_roles_guarded=true storage_bucket_private=true managed_auth_references=0
 request_claim_readers=ok
 ```
+
+Additive migration `20260802050000_projectceo_m2_constraint_compatibility.sql`
+preserves the complete M1/M3/M4 command and audit unions and adds the M2 foreign
+key indexes. Additive migration
+`20260802060000_projectceo_m2_read_package_scope_fix.sql` qualifies package
+columns in the project-wide read projection; before this fix, project-wide
+reads returned null package IDs and the TypeScript safety parser correctly
+filtered the M2 rows out of the UI. Both fixes replay cleanly on PostgreSQL 16
+and 17.
 
 An authenticated HTTP rehearsal now also passes against the local Supabase
 Auth/PostgREST stack (no construction photo fixture involved). A signed
@@ -143,6 +152,13 @@ The role-gated projection returned all five owner records, while a temporary
 client-approver session returned an empty budget array and no supplier/cost
 material fields. The temporary membership was rolled back.
 
+Authenticated desktop browser QA was extended to all five expansion forms on
+the disposable owner session: room, variant, material, budget and client
+handoff each completed and refreshed their immutable counters (2/2/2/2/2).
+The browser console log remained empty. The earlier 390×844 rehearsal covers
+the bounded Decision/Selection/Approval flow; a separate mobile expansion run
+remains a gate item.
+
 The production-shaped SQL snapshot separately proves that production has a
 different public governed-M1 runtime: zero `projectceo_*` schemas and no
 `project_intelligence` schema. Therefore local M2 persistence is not production
@@ -150,9 +166,9 @@ adoption evidence.
 
 ## What is not complete
 
-- Browser QA for the five new expansion forms has not yet been completed; the
-  prior desktop/mobile evidence covers the bounded Decision/Selection/Approval
-  flow only.
+- Mobile browser QA for the five new expansion forms has not yet been captured;
+  the prior 390×844 evidence covers the bounded Decision/Selection/Approval
+  flow, while desktop coverage now includes all five expansion forms.
 - A richer selection catalog, multi-revision editing UX and client-facing
   handoff page are still outside this additive slice.
 - Production `project_facts` lacks the canonical `provenance` field and does not
@@ -162,9 +178,9 @@ adoption evidence.
 
 ## Remaining gate
 
-1. Complete authenticated desktop/mobile browser QA for the five expansion
-   forms, including financial masking for non-financial roles and the approved
-   handoff precondition.
+1. Complete a 390×844 authenticated browser run for the five expansion forms,
+   including financial masking for non-financial roles and the approved handoff
+   precondition.
 2. Keep production adoption as a separate controlled gate: production has zero
    Project Brain schemas and must not receive these migrations implicitly.
 

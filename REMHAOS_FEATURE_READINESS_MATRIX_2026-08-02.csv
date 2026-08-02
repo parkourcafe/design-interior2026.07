@@ -1,0 +1,10 @@
+area,status,evidence,limitation
+Repository reality,RECONCILED,"branch/HEAD/PR/default-branch/preview and production read-only evidence captured","production deployed commit is UNKNOWN from GitHub deployment API"
+Migration chain,IMPLEMENTED,"24-file clean replay; DB4/DB5 PG16 and PG17 green; ledger hash verified","production ledger is a separate grandfathered path"
+Platform foundation,PARTIAL,"local schemas/RLS/ACL and authenticated read/command harnesses pass","production adoption and full provider-cost proof are not complete"
+M1 legacy compatibility,PARTIAL,"legacy routes/tests and production compatibility matrix preserved","production contract bridge and full live provider/browser gate remain"
+M2 designer workflow,PARTIAL,"immutable room/variant/material/budget/handoff commands, role-gated read projection, desktop browser flow","mobile expansion QA, client handoff surface and pilot gate remain"
+M3 architect package,PARTIAL,"thin package/release persistence and DB5 harness coverage","full architect UI and external package pilot are not implemented"
+M4 execution/handover,PARTIAL,"change/photo/acceptance/handover persistence and DB5 replay","expanded operational UI and paid pilot are not implemented"
+Production readiness,BLOCKED,"production schema differs and no production migration was authorized","requires separate production adoption gate"
+Ready for next module,NO,"Canonical charter requires authenticated pilot and external package before broad expansion","do not start broad M3/M4 product work yet"
