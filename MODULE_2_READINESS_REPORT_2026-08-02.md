@@ -5,18 +5,19 @@ Status: **PARTIAL / not ready for public users**
 ## Progress scale (engineering estimate, not a READY verdict)
 
 Using the narrow M2 Decision/Selection/Approval foundation as the 100-point
-scope, the current evidence supports **75/100**:
+scope, the current evidence supports **90/100**. This is an engineering gate,
+not a claim that the full public M2 workspace is complete:
 
 | Area | Weight | Proven now |
 | --- | ---: | ---: |
 | Immutable contracts and PostgreSQL persistence | 25 | 25 |
 | Request-bound workflow/API sequence | 20 | 20 |
-| Auth, RLS and security controls | 15 | 10 |
-| Designer write workspace and controls | 20 | 15 |
-| Authenticated browser QA | 10 | 0 |
+| Auth, RLS and security controls | 15 | 15 |
+| Designer write workspace and controls | 20 | 17 |
+| Authenticated browser QA | 10 | 8 |
 | Explicit `self_approved` approval semantics | 5 | 5 |
 | Production-shaped compatibility/adoption gate | 5 | 0 |
-| **Total** | **100** | **75** |
+| **Total** | **100** | **90** |
 
 This is not a product-completion percentage for the full public M2 Design
 Workspace. The broader workspace (rooms, variants, real materials/items, budget
@@ -32,17 +33,20 @@ those surfaces would make the public M2 percentage lower, not higher.
   change_requested. AI/system actors cannot approve.
 - Server-side command schemas and request-bound RPC adapter for decision,
   selection, price and approval operations.
-- Authenticated read projection for decisions, selections, evidence and revision
-  history.
+- Authenticated read projection for decisions, selections, evidence, revision
+  history and the additive `selfApproved` marker.
 - Deterministic text Concept Pack slice from the legacy M1 passport.
 
 ## Evidence
 
-The M2-specific contract/security/UI tests pass:
+The full repository test suite passes:
 
 ```text
-4 files, 44 tests passed
+72 files, 426 tests passed
 ```
+
+`npm run typecheck`, `npm run build` and `npm run lint` pass. Lint reports nine
+pre-existing warnings and zero errors.
 
 The disposable DB4 Product Brain harness now passes on both PostgreSQL 17 and
 16, including the requested persistence sequence:
@@ -74,7 +78,7 @@ chain. The first `verify-db.sql` run correctly stopped on the historical local
 local clone (no migration or production change), after which the verifier passed:
 
 ```text
-AP1_DB_OK postgres=17.6 migrations=18 private_persistence_runtime_grants=0
+AP1_DB_OK postgres=17.6 migrations=20 private_persistence_runtime_grants=0
 executor_roles_guarded=true storage_bucket_private=true managed_auth_references=0
 request_claim_readers=ok
 ```
@@ -94,13 +98,22 @@ state_revision: 29 → 34
 
 The approval event is human-authored and records the same actor as the package
 creator. Additive migration `20260802010000_projectceo_approval_self_approval.sql`
-now stores `self_approved` on the terminal append-only event. The authenticated
-clone rehearsal returned `selfApproved: true`, and SQL verification confirmed
-the marker on sequence 3 while sequences 1 and 2 remain false.
+stores `self_approved` on the terminal append-only event. Additive migration
+`20260802020000_projectceo_approval_read_self_approval.sql` exposes that marker
+through the already-authorized read envelope. The authenticated clone rehearsal
+returned `selfApproved: true`, and SQL verification confirmed the marker on
+sequence 3 while sequences 1 and 2 remain false.
 
 The authenticated live surface now includes a bounded Designer write slice:
 create decision, create selection, create approval package, submit it and run
-human review. The existing fixture route remains read-only by design.
+human review. The existing fixture route remains read-only by design. Desktop
+and 390×844 mobile browser rehearsals both completed this sequence; the UI
+displayed “Approved by author” and recorded no console errors.
+
+The final clean replay also verified the new read wrapper's ACL (`anon` has no
+execute privilege; `authenticated` does), and an outsider request was rejected
+by the request-bound project capability check before any workspace data was
+returned.
 
 The production-shaped SQL snapshot separately proves that production has a
 different public governed-M1 runtime: zero `projectceo_*` schemas and no
@@ -109,29 +122,23 @@ adoption evidence.
 
 ## What is not complete
 
-- The decisions UI currently renders create/approve/change/reject controls as
-  disabled in `components/projectceo/project-workspace.tsx`.
 - The complete designer workspace for room → variants → real materials/items →
   selection → approval is not implemented; the current write slice is limited to
   decision/selection/approval commands.
 - The full M2 workspace (rooms, variants, real materials/items, budget frame and
-  client approval handoff) has not passed an authenticated browser rehearsal.
+  client approval handoff) is not implemented; browser evidence covers only the
+  bounded Decision/Selection/Approval slice.
 - Production `project_facts` lacks the canonical `provenance` field and does not
   contain the repository's Project Brain schemas/RPCs.
 - Broad M2 AI/credits, image generation, CAD/render integrations and marketplace
   behavior remain outside the current gate and are not implemented.
 
-## Next bounded gate
+## Remaining gate
 
-1. Move the proven DB4 flow behind an authenticated request-bound/browser
-   rehearsal (the local DB4 SQL proof is complete).
-2. Build a disposable production-shaped clone from the schema/ACL/RLS snapshot
-   and add only the smallest additive provenance projection/bridge on that
-   clone; do not copy production rows into a second model.
-3. Enable one authenticated designer slice: create decision → create selection
-   → submit approval package → human review, with immutable revision evidence.
-4. Run authenticated browser QA and negative RLS tests on the clone.
-5. Reclassify Module 2 only after those proofs; production adoption remains a
-   separate controlled gate.
+1. Decide whether to expand M2 beyond this bounded foundation into rooms,
+   variants, real item catalogs, budget framing and client handoff.
+2. Keep production adoption as a separate controlled gate: production has zero
+   Project Brain schemas and must not receive these migrations implicitly.
 
-Until these proofs exist, Module 2 must remain `PARTIAL`, not `READY`.
+Until the broader workspace and production adoption gate are separately proven,
+Module 2 must remain `PARTIAL`, not `READY`.

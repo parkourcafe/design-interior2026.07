@@ -181,7 +181,7 @@ export function M2WorkflowPanel({ view }: { readonly view: ProjectWorkspaceView 
       <p className="mt-2 text-sm leading-6 text-muted">{copy.workspace.decisions.writeSliceBody}</p>
       <DecisionComposer view={view} />
       <SelectionComposer view={view} />
-      {canCreateApproval && !approval && (
+      {canCreateApproval && (!approval || approval.status === "approved" || approval.status === "rejected" || approval.status === "change_requested") && (
         <ProjectCeoCommandButton
           command={{
             contractVersion: PROJECTCEO_COMMAND_CONTRACT_VERSION,
