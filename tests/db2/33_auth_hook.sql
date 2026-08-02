@@ -22,6 +22,13 @@ begin
   end if;
 
   select public.projectceo_custom_access_token_hook(
+    '{"claims":{"email":"architect@example.test","email_verified":true},"authentication_method":"password"}'::jsonb
+  ) -> 'claims' into password_claims;
+  if password_claims ? 'email_verified' then
+    raise exception 'DB2_AUTH_HOOK_PASSWORD_EXISTING_CLAIM_PRESENT';
+  end if;
+
+  select public.projectceo_custom_access_token_hook(
     '{"claims":{"email":"architect@example.test"},"authentication_method":"email"}'::jsonb
   ) -> 'claims' into generic_email_claims;
   if generic_email_claims ? 'email_verified' then

@@ -1,6 +1,6 @@
 # AP1 Migration Replay Report — 2026-08-01
 
-Status: disposable replay PASS; production unchanged; hosted Auth Hook activation pending separate gate
+Status: disposable replay PASS; production Auth Hook active; historical migration reconciliation remains a separate blocked gate
 
 ## What changed
 
@@ -22,6 +22,10 @@ Status: disposable replay PASS; production unchanged; hosted Auth Hook activatio
   `email_verified=true` only for `otp`, `magiclink`, `invite`, and
   `email/signup`, preserves it on token refresh, and strips it from generic
   email/password sessions.
+- Added the additive strict-method correction
+  `20260802001000_projectceo_custom_access_token_hook_strict_method.sql`. It
+  prevents a pre-existing `email_verified=true` claim from leaking into a new
+  password or generic-email authentication event.
 
 ## Evidence
 
@@ -43,6 +47,28 @@ Status: disposable replay PASS; production unchanged; hosted Auth Hook activatio
 | Mobile browser capture | Not claimed: the in-app browser exposes no viewport control, and the host Chrome headless launcher exits before DevTools in this macOS sandbox; the deterministic HTTP/E2E and desktop UI evidence remain green |
 | Production writes | none |
 
+## Production gate — 2026-08-02
+
+The production read-only snapshot was taken in the Supabase SQL Editor before
+the change. It reported PostgreSQL 17.6, 13 applied migration records
+(`0007`, `0008`, `0009`, and the 10 listed timestamped records), eight public
+Platform Foundation relations, and no Auth Hook function. This ledger is not
+the branch's canonical timestamped ledger; therefore no historical replay,
+baseline repair, or migration-history mutation was attempted.
+
+Only the approved additive Auth Hook function was applied and enabled through
+Supabase Auth Hooks. Post-checks passed:
+
+- function exists; `supabase_auth_admin` can execute; `anon` cannot execute;
+- `otp` adds the claim, password removes an existing claim, and token refresh
+  preserves it;
+- a real production magic-link JWT returned `email_verified=true` with
+  `amr=otp`;
+- authenticated read-only RLS probes returned HTTP 200 with project scope and
+  no unauthorized foundation rows.
+
+Production data and the historical migration ledger were not rewritten.
+
 The replay proves the clean-bootstrap chain is internally coherent. It does not
 authorize production history repair or additive migration application. Existing
 production still requires a fresh snapshot, fingerprint match, backup gate,
@@ -52,8 +78,8 @@ history-repair approval and the full production-clone rehearsal.
 
 The standard Supabase/GoTrue access token used by the real browser session has
 `amr=[{"method":"otp"}]` and `user_metadata.email_verified=true`, but no
-top-level `email_verified` claim. The explicitly approved additive Auth Hook
-now supplies that claim from the signed authentication method while preserving
-the existing recipient-email equality and allowlisted AMR checks. Local browser
-E2E confirms the complete authenticated slice. Hosted production still needs a
-separate Auth Hook activation gate and must not be changed by this PR.
+top-level `email_verified` claim. The additive Auth Hook now supplies that
+claim from the signed authentication method while preserving the existing
+recipient-email equality and allowlisted AMR checks. Local browser E2E and the
+production magic-link probe confirm the behavior. Historical production
+baseline reconciliation remains a separate migration-path gate.
