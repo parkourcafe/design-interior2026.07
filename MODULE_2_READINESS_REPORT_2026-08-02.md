@@ -5,18 +5,18 @@ Status: **PARTIAL / not ready for public users**
 ## Progress scale (engineering estimate, not a READY verdict)
 
 Using the narrow M2 Decision/Selection/Approval foundation as the 100-point
-scope, the current evidence supports **65/100**:
+scope, the current evidence supports **75/100**:
 
 | Area | Weight | Proven now |
 | --- | ---: | ---: |
 | Immutable contracts and PostgreSQL persistence | 25 | 25 |
 | Request-bound workflow/API sequence | 20 | 20 |
 | Auth, RLS and security controls | 15 | 10 |
-| Designer write workspace and controls | 20 | 5 |
+| Designer write workspace and controls | 20 | 15 |
 | Authenticated browser QA | 10 | 0 |
 | Explicit `self_approved` approval semantics | 5 | 5 |
 | Production-shaped compatibility/adoption gate | 5 | 0 |
-| **Total** | **100** | **65** |
+| **Total** | **100** | **75** |
 
 This is not a product-completion percentage for the full public M2 Design
 Workspace. The broader workspace (rooms, variants, real materials/items, budget
@@ -98,6 +98,10 @@ now stores `self_approved` on the terminal append-only event. The authenticated
 clone rehearsal returned `selfApproved: true`, and SQL verification confirmed
 the marker on sequence 3 while sequences 1 and 2 remain false.
 
+The authenticated live surface now includes a bounded Designer write slice:
+create decision, create selection, create approval package, submit it and run
+human review. The existing fixture route remains read-only by design.
+
 The production-shaped SQL snapshot separately proves that production has a
 different public governed-M1 runtime: zero `projectceo_*` schemas and no
 `project_intelligence` schema. Therefore local M2 persistence is not production
@@ -107,8 +111,9 @@ adoption evidence.
 
 - The decisions UI currently renders create/approve/change/reject controls as
   disabled in `components/projectceo/project-workspace.tsx`.
-- There is no complete designer write UX for room → variants → selection →
-  approval; current UI is primarily an authenticated read surface.
+- The complete designer workspace for room → variants → real materials/items →
+  selection → approval is not implemented; the current write slice is limited to
+  decision/selection/approval commands.
 - The full M2 workspace (rooms, variants, real materials/items, budget frame and
   client approval handoff) has not passed an authenticated browser rehearsal.
 - Production `project_facts` lacks the canonical `provenance` field and does not
