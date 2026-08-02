@@ -200,6 +200,7 @@ export interface SelectionView {
   readonly title: string;
   readonly area: string;
   readonly packageId: string;
+  readonly areaNodeId: string | null;
   readonly revisionNo: number;
   readonly revisionId: string;
   readonly decisionRevisionId: string;
@@ -221,6 +222,8 @@ export interface SelectionView {
 
 export interface DecisionView {
   readonly id: string;
+  readonly packageId: string;
+  readonly areaNodeId: string | null;
   readonly title: string;
   readonly resolution: string;
   readonly revisionId: string;
@@ -228,6 +231,19 @@ export interface DecisionView {
   readonly claimStatus: "extracted" | "interpreted" | "unknown" | "human_origin";
   readonly reviewStatus: "submitted" | "approved" | "change_requested";
   readonly evidence: readonly EvidenceView[];
+}
+
+export interface ApprovalPackageView {
+  readonly id: string;
+  readonly packageId: string;
+  readonly status: "draft" | "submitted" | "approved" | "rejected" | "change_requested";
+  readonly selfApproved: boolean;
+  readonly items: readonly {
+    readonly targetKind: "requirement_revision" | "assumption_revision" | "decision_revision" | "selection_revision";
+    readonly entityId: string;
+    readonly revisionId: string;
+  }[];
+  readonly createdAt: string;
 }
 
 export interface InvitationView {
@@ -320,6 +336,7 @@ export interface ProjectWorkspaceView {
   readonly sources: readonly SourceRegistryItem[];
   readonly decisions: readonly DecisionView[];
   readonly selections: readonly SelectionView[];
+  readonly approvalPackages: readonly ApprovalPackageView[];
   readonly baseline: BaselineSummary;
   readonly releases: readonly ReleaseSummary[];
   readonly changes: readonly ChangeRequestView[];
@@ -340,6 +357,10 @@ export const PROJECTCEO_OPERATION_NAMES = [
   "register_source",
   "review_source",
   "review_selection",
+  "create_decision",
+  "create_selection",
+  "create_approval_package",
+  "submit_approval_package",
   "publish_baseline",
   "publish_release",
   "distribute_release",

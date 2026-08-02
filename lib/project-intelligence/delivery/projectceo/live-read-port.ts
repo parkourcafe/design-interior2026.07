@@ -14,6 +14,7 @@ import {
 import {
   PROJECTCEO_UI_CONTRACT_VERSION,
   type AccessGrantView,
+  type ApprovalPackageView,
   type AuditEventView,
   type BaselineSummary,
   type ChangeRequestView,
@@ -350,6 +351,8 @@ function decisionViews(value: unknown): readonly DecisionView[] {
       : "submitted";
     return [{
       id,
+      packageId: text(item.packageId),
+      areaNodeId: nullableText(item.areaNodeId),
       title: text(item.title, copy.common.dash),
       resolution: text(item.resolution, copy.common.dash),
       revisionId,
@@ -387,6 +390,7 @@ function selectionViews(value: unknown): readonly SelectionView[] {
       title: text(item.title, copy.common.dash),
       area: text(item.area, copy.common.liveArea),
       packageId,
+      areaNodeId: nullableText(item.areaNodeId),
       revisionNo: integer(item.revisionNo),
       revisionId,
       decisionRevisionId,
@@ -408,6 +412,44 @@ function selectionViews(value: unknown): readonly SelectionView[] {
           status: history.status === "current" ? "current" as const : "superseded" as const,
         }];
       }),
+    }];
+  });
+}
+
+function approvalPackageViews(value: unknown): readonly ApprovalPackageView[] {
+  return rows(value).flatMap((item) => {
+    const id = nullableText(item.id);
+    const packageId = nullableText(item.packageId);
+    if (!id || !packageId) return [];
+    const rawStatus = item.status;
+    const status: ApprovalPackageView["status"] = rawStatus === "submitted"
+      || rawStatus === "approved"
+      || rawStatus === "rejected"
+      || rawStatus === "change_requested"
+      ? rawStatus
+      : "draft";
+    const items = rows(item.items).flatMap((entry) => {
+      const targetKind = entry.targetKind;
+      if (targetKind !== "requirement_revision"
+        && targetKind !== "assumption_revision"
+        && targetKind !== "decision_revision"
+        && targetKind !== "selection_revision") return [];
+      const entityId = nullableText(entry.entityId);
+      const revisionId = nullableText(entry.revisionId);
+      if (!entityId || !revisionId) return [];
+      return [{
+        targetKind: targetKind as ApprovalPackageView["items"][number]["targetKind"],
+        entityId,
+        revisionId,
+      }];
+    });
+    return [{
+      id,
+      packageId,
+      status,
+      selfApproved: item.selfApproved === true,
+      items,
+      createdAt: timestamp(item.createdAt),
     }];
   });
 }
@@ -616,6 +658,9 @@ function operationStates(input: {
   const pendingDistribution = input.delivery.recipientDistributions.find(
     (distribution) => !distribution.acknowledged,
   );
+  const approvalPackages = rows(input.delivery.approvalPackages);
+  const hasDraftApproval = approvalPackages.some((approval) => approval.status === "draft");
+  const hasSubmittedApproval = approvalPackages.some((approval) => approval.status === "submitted");
   const distributableVersionId = nullableText(
     releaseArtifacts.find((artifact) => (
       nullableText(artifact.artifactId) !== null
@@ -673,7 +718,21 @@ function operationStates(input: {
     revoke_guest_grant: supports("manage_access"),
     register_source: unavailable("read_contract_pending"),
     review_source: unavailable("read_contract_pending"),
-    review_selection: unavailable("read_contract_pending"),
+    create_decision: can(input.role, "revise_decision")
+      ? { status: "available" }
+      : unavailable("capability_missing"),
+    create_selection: can(input.role, "create_selection")
+      ? { status: "available" }
+      : unavailable("capability_missing"),
+    create_approval_package: can(input.role, "review_claim")
+      ? { status: "available" }
+      : unavailable("capability_missing"),
+    submit_approval_package: can(input.role, "review_claim")
+      ? hasDraftApproval ? { status: "available" } : unavailable("prerequisite_missing")
+      : unavailable("capability_missing"),
+    review_selection: can(input.role, "review_selection")
+      ? hasSubmittedApproval ? { status: "available" } : unavailable("prerequisite_missing")
+      : unavailable("capability_missing"),
     publish_baseline: unavailable("read_contract_pending"),
     publish_release: unavailable("read_contract_pending"),
     distribute_release: can(input.role, "distribute_release")
@@ -921,6 +980,7 @@ export class ProjectCeoLiveReadPort implements ProjectCeoUiReadPort {
         sources,
         decisions: decisionViews(delivery.decisions),
         selections: selectionViews(delivery.selections),
+        approvalPackages: approvalPackageViews(delivery.approvalPackages),
         baseline,
         releases,
         changes: execution.changes,

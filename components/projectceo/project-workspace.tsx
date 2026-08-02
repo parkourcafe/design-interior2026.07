@@ -20,6 +20,7 @@ import { can, visibleTabsForRole } from "./role-policy";
 import { ScenarioPanel, ScenarioSwitcher } from "./state-panel";
 import { ProjectCeoCommandButton, sendProjectCeoCommand } from "./command-client";
 import { PROJECTCEO_COMMAND_CONTRACT_VERSION } from "@/lib/project-intelligence/delivery/projectceo/command-contract";
+import { M2WorkflowPanel } from "./m2-workflow-panel";
 
 const projectCeoRu = ru.projectCeo;
 
@@ -605,7 +606,9 @@ function DecisionsView({
   const mayCreate = can(role, "create_selection");
 
   return (
-    <div className="grid gap-4 lg:grid-cols-2">
+    <>
+    <M2WorkflowPanel view={view} />
+    <div className="mt-4 grid gap-4 lg:grid-cols-2">
       <section className="rounded-2xl border border-line bg-white p-5 shadow-sm">
         <div className="flex items-center justify-between gap-3">
           <div>
@@ -725,6 +728,7 @@ function DecisionsView({
         {view.selections.length === 0 && <p className="mt-4 text-sm text-muted">{projectCeoRu.workspace.decisions.noGuestSelections}</p>}
       </section>
     </div>
+    </>
   );
 }
 

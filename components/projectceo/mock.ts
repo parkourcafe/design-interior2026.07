@@ -2,6 +2,7 @@ import {
   PROJECTCEO_UI_CONTRACT_VERSION,
   type AccessGrantView,
   type AnalyticsEvent,
+  type ApprovalPackageView,
   type AuditEventView,
   type BaselineSummary,
   type ChangeRequestView,
@@ -42,6 +43,10 @@ const fixtureOperations: ProjectCeoOperationStates = {
   register_source: { status: "unavailable", reason: "fixture_read_only" },
   review_source: { status: "unavailable", reason: "fixture_read_only" },
   review_selection: { status: "unavailable", reason: "fixture_read_only" },
+  create_decision: { status: "unavailable", reason: "fixture_read_only" },
+  create_selection: { status: "unavailable", reason: "fixture_read_only" },
+  create_approval_package: { status: "unavailable", reason: "fixture_read_only" },
+  submit_approval_package: { status: "unavailable", reason: "fixture_read_only" },
   publish_baseline: { status: "unavailable", reason: "fixture_read_only" },
   publish_release: { status: "unavailable", reason: "fixture_read_only" },
   distribute_release: { status: "unavailable", reason: "fixture_read_only" },
@@ -314,6 +319,8 @@ const evidence = [
 const decisions: readonly DecisionView[] = [
   {
     id: "decision-floor-finish",
+    packageId: KORA_ARCHITECTURE_PACKAGE_ID,
+    areaNodeId: "area-kitchen",
     title: fixtureRu.decisions.floorTitle,
     resolution: fixtureRu.decisions.floorResolution,
     revisionId: "decision-floor-finish-r2",
@@ -324,6 +331,8 @@ const decisions: readonly DecisionView[] = [
   },
   {
     id: "decision-egress",
+    packageId: KORA_ARCHITECTURE_PACKAGE_ID,
+    areaNodeId: "area-kitchen",
     title: fixtureRu.decisions.egressTitle,
     resolution: fixtureRu.decisions.egressResolution,
     revisionId: "decision-egress-r1",
@@ -345,6 +354,7 @@ const selections: readonly SelectionView[] = [
     title: fixtureRu.selection.title,
     area: fixtureRu.selection.area,
     packageId: KORA_ARCHITECTURE_PACKAGE_ID,
+    areaNodeId: "area-kitchen",
     revisionNo: 2,
     revisionId: "selection-floor-finish-r2",
     decisionRevisionId: "decision-floor-finish-r2",
@@ -375,6 +385,8 @@ const selections: readonly SelectionView[] = [
     ],
   },
 ];
+
+const approvalPackages: readonly ApprovalPackageView[] = [];
 
 const releases: readonly ReleaseSummary[] = [
   koraCurrentRelease,
@@ -600,6 +612,7 @@ function roleScopedWorkspace(role: ProjectCeoRole): ProjectWorkspaceView {
     sources: isCore ? sources : [],
     decisions: isGuest ? [] : decisions,
     selections: isGuest ? [] : selections,
+    approvalPackages: isGuest ? [] : approvalPackages,
     baseline: koraBaseline,
     releases: isGuest
       ? releases.filter((release) => release.packageId === actor.packageId && release.status === "current")
