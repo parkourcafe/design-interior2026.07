@@ -99,6 +99,8 @@ export function deriveLayout(document: LayoutDocument): DerivedLayout {
     roomAreaMm2: polygonArea(orderedContour(document, nodes)),
     bounds,
     sceneProjection: {
+      floor: structuredClone(document.floor),
+      nodes: structuredClone(document.nodes),
       walls: structuredClone(document.walls),
       openings: structuredClone(document.openings),
       columns: structuredClone(document.columns),

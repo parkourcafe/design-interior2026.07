@@ -69,7 +69,19 @@ export class BrowserLayoutRepository {
   }
 
   async saveDraft(document: LayoutDocument, expectedRevision: number | null): Promise<void> {
-    this.write(this.key("draft", document.documentId), clone({ document, expectedRevision }));
+    const key = this.key("draft", document.documentId);
+    const current = this.read<BrowserDraftRecord>(key);
+    if (
+      expectedRevision !== null &&
+      (current === null || current.document.stateRevision !== expectedRevision)
+    ) {
+      throw new BrowserLayoutRepositoryError(
+        "STATE_STALE",
+        "Черновик основан на устаревшей ревизии документа",
+        true,
+      );
+    }
+    this.write(key, clone({ document, expectedRevision }));
   }
 
   async loadDraft(documentId: string): Promise<LayoutDocument | null> {
@@ -98,6 +110,30 @@ export class BrowserLayoutRepository {
   async loadCheckpoint(checkpointId: string): Promise<LayoutCheckpoint | null> {
     const checkpoint = this.read<LayoutCheckpoint>(this.key("checkpoint", checkpointId));
     return checkpoint ? clone(checkpoint) : null;
+  }
+
+  async restoreCheckpoint(
+    checkpointId: string,
+    expectedRevision: number,
+  ): Promise<LayoutDocument> {
+    const checkpoint = await this.loadCheckpoint(checkpointId);
+    if (!checkpoint) {
+      throw new LayoutRepositoryError("CHECKPOINT_NOT_FOUND", "Checkpoint не найден");
+    }
+
+    const current = await this.loadDraft(checkpoint.documentId);
+    if (!current || current.stateRevision !== expectedRevision) {
+      throw new BrowserLayoutRepositoryError(
+        "STATE_STALE",
+        "Восстановление основано на устаревшей ревизии документа",
+        true,
+      );
+    }
+
+    const restored = clone(checkpoint.document);
+    restored.stateRevision = current.stateRevision + 1;
+    await this.saveDraft(restored, expectedRevision);
+    return clone(restored);
   }
 
   async publishVersion(

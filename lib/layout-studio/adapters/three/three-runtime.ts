@@ -46,7 +46,7 @@ function positionObject(object: THREE.Object3D, descriptor: SceneObjectDescripto
 
 function buildSceneObject(
   descriptor: SceneObjectDescriptor,
-  materialForKind: (kind: string) => THREE.MeshStandardMaterial,
+  materialForObject: (descriptor: SceneObjectDescriptor) => THREE.MeshStandardMaterial,
 ): THREE.Object3D {
   if (descriptor.geometry.type === "point") {
     const point = new THREE.Object3D();
@@ -60,7 +60,7 @@ function buildSceneObject(
     descriptor.geometry.heightM,
     descriptor.geometry.depthM,
   );
-  const mesh = new THREE.Mesh(geometry, materialForKind(descriptor.kind));
+  const mesh = new THREE.Mesh(geometry, materialForObject(descriptor));
   identify(mesh, descriptor.sourceId, descriptor.kind);
   positionObject(mesh, descriptor);
   return mesh;
@@ -124,17 +124,18 @@ export function buildThreeScene(
 ): THREE.Scene {
   const scene = new THREE.Scene();
   const materials = new Map<string, THREE.MeshStandardMaterial>();
-  const materialForKind = (kind: string): THREE.MeshStandardMaterial => {
-    const existing = materials.get(kind);
+  const materialForObject = (descriptor: SceneObjectDescriptor): THREE.MeshStandardMaterial => {
+    const materialKey = options.materials?.[descriptor.sourceId] ? descriptor.sourceId : descriptor.kind;
+    const existing = materials.get(materialKey);
     if (existing) return existing;
 
-    const material = new THREE.MeshStandardMaterial(options.materials?.[kind]);
-    materials.set(kind, material);
+    const material = new THREE.MeshStandardMaterial(options.materials?.[materialKey]);
+    materials.set(materialKey, material);
     return material;
   };
 
   for (const object of descriptor.objects) {
-    scene.add(buildSceneObject(object, materialForKind));
+    scene.add(buildSceneObject(object, materialForObject));
   }
   for (const light of options.lights ?? []) {
     scene.add(buildLight(light));

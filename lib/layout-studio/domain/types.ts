@@ -76,6 +76,38 @@ export interface LayoutEntity {
   [key: string]: unknown;
 }
 
+export interface LayoutMaterial extends LayoutEntity {
+  labelRu: string;
+  baseColor: string;
+  roughness: number;
+  metalness: number;
+  emissive: string;
+  emissiveIntensity: number;
+  provenance: string;
+}
+
+export interface LayoutMaterialAssignment extends LayoutEntity {
+  targetId: string;
+  surfaceRole: string;
+  materialId: string;
+}
+
+export type LayoutLightKind = "ambient" | "directional" | "point" | "hemisphere";
+
+export interface LayoutLight extends LayoutEntity {
+  kind: LayoutLightKind;
+  xMm: number;
+  yMm: number;
+  zMm: number;
+  color: string;
+  intensity: number;
+  label: string;
+  targetId?: string;
+  groundColor?: string;
+  distanceMm?: number;
+  decay?: number;
+}
+
 export interface LayoutDocument {
   contractVersion: "archidom.layout-document/0.1" | string;
   documentId: string;
@@ -102,9 +134,9 @@ export interface LayoutDocument {
   columns: LayoutColumn[];
   objects: LayoutObject[];
   clearanceZones: LayoutEntity[];
-  materials: LayoutEntity[];
-  materialAssignments: LayoutEntity[];
-  lights: LayoutEntity[];
+  materials: LayoutMaterial[];
+  materialAssignments: LayoutMaterialAssignment[];
+  lights: LayoutLight[];
   metadata: {
     sourceRefs: string[];
     warnings: string[];
@@ -144,6 +176,37 @@ export type LayoutCommand = LayoutCommandBase &
           baseZMm?: number;
           heightMm?: number;
           rotationDeg?: number;
+        };
+      }
+    | {
+        type: "UPDATE_OBJECT";
+        payload: {
+          objectId: string;
+          xMm?: number;
+          yMm?: number;
+          zMm?: number;
+          widthMm?: number;
+          depthMm?: number;
+          heightMm?: number;
+          rotationDeg?: number;
+        };
+      }
+    | {
+        type: "UPDATE_OPENING";
+        payload: {
+          openingId: string;
+          offsetMm?: number;
+          widthMm?: number;
+          heightMm?: number;
+          sillMm?: number;
+          handing?: string;
+        };
+      }
+    | {
+        type: "ASSIGN_MATERIAL";
+        payload: {
+          assignmentId: string;
+          materialId: string;
         };
       }
   );
@@ -201,10 +264,12 @@ export interface DerivedLayout {
     maxYMm: number;
   } | null;
   sceneProjection: {
+    floor: LayoutDocument["floor"];
+    nodes: LayoutNode[];
     walls: LayoutWall[];
     openings: LayoutOpening[];
     columns: LayoutColumn[];
     objects: LayoutObject[];
-    lights: LayoutEntity[];
+    lights: LayoutLight[];
   };
 }

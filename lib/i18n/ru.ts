@@ -1473,6 +1473,11 @@ export const ru = {
       fit: "Вписать",
       zoom: "Масштаб",
       viewMode: "Режим просмотра",
+      panLeft: "Сдвинуть план влево",
+      panRight: "Сдвинуть план вправо",
+      panUp: "Сдвинуть план вверх",
+      panDown: "Сдвинуть план вниз",
+      clearance: "Зоны доступа",
     },
     layers: {
       title: "Слои",
@@ -1481,6 +1486,7 @@ export const ru = {
       columns: "Колонны",
       objects: "Объекты",
       lights: "Свет",
+      clearance: "Зоны доступа",
     },
     canvas: {
       title2d: "План 2D",
@@ -1527,6 +1533,8 @@ export const ru = {
       checkpoint: "Создать checkpoint",
       publish: "Опубликовать версию",
       checkpointCreated: "Локальный checkpoint создан",
+      checkpointRestored: "Checkpoint восстановлен как новая ревизия черновика",
+      restore: "Восстановить",
       versionCreated: "Неизменяемая версия создана",
       draftLoaded: "Локальный черновик восстановлен",
       draftSaved: "Черновик сохранён локально",
@@ -1580,6 +1588,12 @@ export const ru = {
       close: "Закрыть",
       notAvailable: "Недоступно",
       scale: "Масштаб плана",
+    },
+    states: {
+      loading: "Загрузка локального черновика…",
+      ready: "Редактор готов",
+      error: "Ошибка загрузки локального черновика. Открыта исходная версия.",
+      empty: "Нет данных для отображения: документ пуст.",
     },
   },
   deleteAccount: {

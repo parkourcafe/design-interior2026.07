@@ -14,7 +14,12 @@ import {
   serializeSvgProjection,
   type SvgProjection,
 } from "@/lib/layout-studio/adapters/svg/svg-projection";
-import { compileSceneDescriptor } from "@/lib/layout-studio/adapters/three/scene-compiler";
+import { compileLightDescriptors } from "@/lib/layout-studio/adapters/three/light-compiler";
+import { compileMaterialDescriptors } from "@/lib/layout-studio/adapters/three/material-compiler";
+import {
+  compileSceneDescriptor,
+  type SceneDescriptor,
+} from "@/lib/layout-studio/adapters/three/scene-compiler";
 import { EditorSession, type EditorSessionState } from "@/lib/layout-studio/application/editor-session";
 import { LayoutExportService } from "@/lib/layout-studio/application/export-service";
 import {
@@ -22,6 +27,7 @@ import {
   diffLayoutDocuments,
   validateLayoutDocument,
   type LayoutDocument,
+  type LayoutDocumentDiff,
   type LayoutEntity,
   type LayoutIssue,
 } from "@/lib/layout-studio/domain";
@@ -49,6 +55,11 @@ interface InspectorDraft {
   depthMm: string;
   heightMm: string;
   rotationDeg: string;
+}
+
+interface PanState {
+  xMm: number;
+  yMm: number;
 }
 
 const EMPTY_DRAFT: InspectorDraft = {
@@ -137,6 +148,37 @@ function entityKind(document: LayoutDocument, id: string): string {
   return copy.entities.light;
 }
 
+function compileThreeMaterialOptions(
+  document: LayoutDocument,
+  descriptor: SceneDescriptor,
+): Record<string, {
+  color: string;
+  roughness: number;
+  metalness: number;
+  emissive: string;
+  emissiveIntensity: number;
+}> {
+  const sceneObjects = new Map(descriptor.objects.map((item) => [item.sourceId, item]));
+  return Object.fromEntries(
+    compileMaterialDescriptors(document).flatMap((material) => {
+      const sceneObject = sceneObjects.get(material.targetId);
+      if (!sceneObject) return [];
+      return [[sceneObject.sourceId, {
+        color: material.color,
+        roughness: material.roughness,
+        metalness: material.metalness,
+        emissive: material.emissive,
+        emissiveIntensity: material.emissiveIntensity,
+      }]];
+    }),
+  );
+}
+
+function finiteEntityNumber(entity: LayoutEntity, key: string): number | null {
+  const value = entity[key];
+  return typeof value === "number" && Number.isFinite(value) ? value : null;
+}
+
 function OpeningMark({
   document,
   openingId,
@@ -179,23 +221,44 @@ function PlanCanvas({
   document,
   layers,
   zoom,
+  panState,
+  showClearance,
   selection,
   onSelect,
+  onPan,
 }: {
   readonly projection: SvgProjection;
   readonly document: LayoutDocument;
   readonly layers: Record<LayerKey, boolean>;
   readonly zoom: number;
+  readonly panState: PanState;
+  readonly showClearance: boolean;
   readonly selection: string | null;
   readonly onSelect: (id: string | null) => void;
+  readonly onPan: (pan: PanState) => void;
 }) {
   const base = projection.viewBox;
   const padding = Math.max(base.width, base.height) * 0.07;
   const width = (base.width + padding * 2) / zoom;
   const height = (base.height + padding * 2) / zoom;
-  const centerX = base.x + base.width / 2;
-  const centerY = base.y + base.height / 2;
+  const centerX = base.x + base.width / 2 + panState.xMm;
+  const centerY = base.y + base.height / 2 + panState.yMm;
   const columnIds = new Set(document.columns.map((item) => item.id));
+  const nodeById = new Map(document.nodes.map((node) => [node.id, node]));
+
+  const panByKeyboard = (event: React.KeyboardEvent<SVGSVGElement>) => {
+    const step = Math.max(width, height) * 0.08;
+    const offsets: Partial<Record<string, PanState>> = {
+      ArrowLeft: { xMm: -step, yMm: 0 },
+      ArrowRight: { xMm: step, yMm: 0 },
+      ArrowUp: { xMm: 0, yMm: -step },
+      ArrowDown: { xMm: 0, yMm: step },
+    };
+    const offset = offsets[event.key];
+    if (!offset) return;
+    event.preventDefault();
+    onPan({ xMm: panState.xMm + offset.xMm, yMm: panState.yMm + offset.yMm });
+  };
 
   return (
     <svg
@@ -203,6 +266,9 @@ function PlanCanvas({
       viewBox={`${centerX - width / 2} ${centerY - height / 2} ${width} ${height}`}
       role="img"
       aria-label={copy.canvas.title2d}
+      aria-keyshortcuts="ArrowLeft ArrowRight ArrowUp ArrowDown"
+      tabIndex={0}
+      onKeyDown={panByKeyboard}
       onClick={() => onSelect(null)}
     >
       <defs>
@@ -221,6 +287,26 @@ function PlanCanvas({
         height={height}
         fill="url(#layout-grid)"
       />
+      {showClearance && document.clearanceZones.map((zone) => {
+        const xMm = finiteEntityNumber(zone, "xMm");
+        const yMm = finiteEntityNumber(zone, "yMm");
+        const widthMm = finiteEntityNumber(zone, "widthMm");
+        const depthMm = finiteEntityNumber(zone, "depthMm");
+        if (xMm === null || yMm === null || widthMm === null || depthMm === null) return null;
+        const rotationDeg = finiteEntityNumber(zone, "rotationDeg") ?? 0;
+        return (
+          <rect
+            key={zone.id}
+            x={xMm - widthMm / 2}
+            y={yMm - depthMm / 2}
+            width={widthMm}
+            height={depthMm}
+            transform={`rotate(${rotationDeg} ${xMm} ${yMm})`}
+            className={styles.clearanceZone}
+            aria-label={typeof zone.label === "string" ? zone.label : copy.layers.clearance}
+          />
+        );
+      })}
       {layers.walls && projection.walls.map((wall) => (
         <polygon
           key={wall.sourceId}
@@ -263,6 +349,32 @@ function PlanCanvas({
           />
         );
       })}
+      {layers.objects && document.objects.map((object) => (
+        <text
+          key={`${object.id}.label`}
+          x={object.xMm}
+          y={object.yMm}
+          className={styles.objectLabel}
+          textAnchor="middle"
+          aria-hidden="true"
+        >
+          {object.label ?? object.id}
+        </text>
+      ))}
+      {layers.walls && document.walls.map((wall) => {
+        const start = nodeById.get(wall.startNodeId);
+        const end = nodeById.get(wall.endNodeId);
+        if (!start || !end) return null;
+        const dimensionMm = Math.round(Math.hypot(end.xMm - start.xMm, end.yMm - start.yMm));
+        return (
+          <g key={`${wall.id}.dimension`} className={styles.dimension} aria-hidden="true">
+            <line x1={start.xMm} y1={start.yMm} x2={end.xMm} y2={end.yMm} />
+            <text x={(start.xMm + end.xMm) / 2} y={(start.yMm + end.yMm) / 2 - 70} textAnchor="middle">
+              {dimensionMm} мм
+            </text>
+          </g>
+        );
+      })}
       {layers.lights && document.lights.map((light) => (
         <circle
           key={light.id}
@@ -297,9 +409,19 @@ function SceneCanvas({
   const [ceilingVisible, setCeilingVisible] = useState(true);
   const [resetCameraToken, setResetCameraToken] = useState(0);
   const descriptor = useMemo(
-    () => compileSceneDescriptor(deriveLayout(document).sceneProjection),
+    () => compileSceneDescriptor(document, deriveLayout(document).sceneProjection),
     [document],
   );
+  const materialOptions = useMemo(
+    () => compileThreeMaterialOptions(document, descriptor),
+    [descriptor, document],
+  );
+  const lightOptions = useMemo(() => {
+    const compiled = compileLightDescriptors(document);
+    return compiled.length > 0
+      ? compiled
+      : [{ sourceId: "preview.ambient-fallback", kind: "ambient" as const, color: "#FFFFFF", intensity: 1 }];
+  }, [document]);
   const visible = useMemo(() => descriptor.objects.filter((item) => {
     if (document.walls.some((entity) => entity.id === item.sourceId)) return layers.walls;
     if (document.openings.some((entity) => entity.id === item.sourceId)) return layers.openings;
@@ -352,21 +474,8 @@ function SceneCanvas({
         }
 
         scene = runtime.buildThreeScene(visibleDescriptor, {
-          materials: {
-            wall: { color: 0x59675f, roughness: 0.9 },
-            equipment: { color: 0xa86f49, roughness: 0.62, metalness: 0.12 },
-            column: { color: 0x344139, roughness: 0.95 },
-            door: { color: 0xd0a171, roughness: 0.8 },
-          },
-          lights: [
-            { sourceId: "preview.ambient", kind: "ambient", intensity: 1.5 },
-            {
-              sourceId: "preview.key",
-              kind: "directional",
-              intensity: 2.2,
-              positionM: { x: 5, y: 8, z: 6 },
-            },
-          ],
+          materials: materialOptions,
+          lights: lightOptions,
           ceiling: {
             sourceId: "preview.ceiling",
             widthM: Math.max(0.1, (maxX - minX) || 7.2),
@@ -454,7 +563,7 @@ function SceneCanvas({
         renderer.domElement.remove();
       }
     };
-  }, [ceilingVisible, document.floor.clearHeightMm, maxX, maxZ, minX, minZ, resetCameraToken, visibleDescriptor]);
+  }, [ceilingVisible, document.floor.clearHeightMm, lightOptions, materialOptions, maxX, maxZ, minX, minZ, resetCameraToken, visibleDescriptor]);
 
   return (
     <div className={styles.scene} role="img" aria-label={copy.canvas.title3d}>
@@ -577,17 +686,17 @@ function Inspector({
   readonly onApply: () => void;
   readonly onReset: () => void;
 }) {
-  const isObject = entity ? "zMm" in entity && !String(entity.id).startsWith("column.") : false;
-  const isColumn = entity ? String(entity.id).startsWith("column.") : false;
+  const isColumn = entity ? "baseZMm" in entity : false;
+  const isObject = entity ? "zMm" in entity && !isColumn : false;
   const editable = Boolean(entity && (isObject || isColumn) && entity.locked !== true);
   const fields: Array<{ key: keyof InspectorDraft; label: string; enabled: boolean }> = [
     { key: "xMm", label: copy.inspector.x, enabled: editable },
     { key: "yMm", label: copy.inspector.y, enabled: editable },
     { key: "zMm", label: copy.inspector.z, enabled: editable && isObject },
-    { key: "widthMm", label: copy.inspector.width, enabled: editable && isColumn },
-    { key: "depthMm", label: copy.inspector.depth, enabled: editable && isColumn },
-    { key: "heightMm", label: copy.inspector.height, enabled: editable && isColumn },
-    { key: "rotationDeg", label: copy.inspector.rotation, enabled: editable && isColumn },
+    { key: "widthMm", label: copy.inspector.width, enabled: editable && (isColumn || isObject) },
+    { key: "depthMm", label: copy.inspector.depth, enabled: editable && (isColumn || isObject) },
+    { key: "heightMm", label: copy.inspector.height, enabled: editable && (isColumn || isObject) },
+    { key: "rotationDeg", label: copy.inspector.rotation, enabled: editable && (isColumn || isObject) },
   ];
 
   return (
@@ -663,14 +772,16 @@ function HistoryPanel({
   onCheckpoint,
   onPublish,
   onCompare,
+  onRestore,
 }: {
   readonly checkpoints: LocalSnapshot[];
   readonly versions: LocalSnapshot[];
-  readonly diffSummary: string | null;
+  readonly diffSummary: LayoutDocumentDiff | null;
   readonly status: string | null;
   readonly onCheckpoint: () => void;
   readonly onPublish: () => void;
   readonly onCompare: () => void;
+  readonly onRestore: (checkpointId: string) => void;
 }) {
   return (
     <section className={styles.sideSection}>
@@ -685,7 +796,10 @@ function HistoryPanel({
         <div>
           <b>{copy.history.checkpointsLabel}</b>
           {checkpoints.length === 0 ? <p>{copy.history.noCheckpoints}</p> : checkpoints.map((item) => (
-            <span key={item.id}>{item.id}</span>
+            <span key={item.id}>
+              {item.id}
+              <button type="button" onClick={() => onRestore(item.id)}>{copy.history.restore}</button>
+            </span>
           ))}
         </div>
         <div>
@@ -695,7 +809,29 @@ function HistoryPanel({
           ))}
         </div>
       </div>
-      {diffSummary && <p className={styles.diff}>{diffSummary}</p>}
+      {diffSummary && (
+        <div className={styles.diff}>
+          <p>
+            {copy.history.diffSummary(
+              diffSummary.addedEntityIds.length,
+              diffSummary.removedEntityIds.length,
+              diffSummary.changed.length,
+            )}
+          </p>
+          {diffSummary.changed.length === 0 ? (
+            <p>{copy.history.diffEmpty}</p>
+          ) : (
+            <ul className={styles.diffFields}>
+              {diffSummary.changed.map((change) => change.fields.map((field) => (
+                <li key={`${change.entityType}.${change.entityId}.${field.path}`}>
+                  <b>{change.entityType} · {change.entityId} · {field.path}</b>
+                  <span>{String(field.before)} → {String(field.after)}</span>
+                </li>
+              )))}
+            </ul>
+          )}
+        </div>
+      )}
     </section>
   );
 }
@@ -729,10 +865,14 @@ function ExportPanel({
 
 export function LayoutStudioShell({ initialDocument }: { readonly initialDocument: LayoutDocument }) {
   const [session, setSession] = useState(() => new EditorSession(initialDocument));
+  const lastSavedRevisionRef = useRef<number | null>(null);
   const [sessionState, setSessionState] = useState<EditorSessionState>(() => session.getState());
   const [repository, setRepository] = useState<BrowserLayoutRepository | null>(null);
   const [viewMode, setViewMode] = useState<ViewMode>("2d");
   const [zoom, setZoom] = useState(1);
+  const [panState, setPanState] = useState<PanState>({ xMm: 0, yMm: 0 });
+  const [showClearance, setShowClearance] = useState(true);
+  const [loadState, setLoadState] = useState<"loading" | "ready" | "error">("loading");
   const [layers, setLayers] = useState<Record<LayerKey, boolean>>({
     walls: true,
     openings: true,
@@ -750,7 +890,7 @@ export function LayoutStudioShell({ initialDocument }: { readonly initialDocumen
     document: cloneDocument(initialDocument),
   }]);
   const [historyStatus, setHistoryStatus] = useState<string | null>(null);
-  const [diffSummary, setDiffSummary] = useState<string | null>(null);
+  const [diffSummary, setDiffSummary] = useState<LayoutDocumentDiff | null>(null);
   const revision = sessionState.document.stateRevision;
 
   const document = sessionState.document;
@@ -791,6 +931,7 @@ export function LayoutStudioShell({ initialDocument }: { readonly initialDocumen
         if (cancelled) return;
 
         if (draftDocument) {
+          lastSavedRevisionRef.current = draftDocument.stateRevision;
           const nextSession = new EditorSession(draftDocument);
           setSession(nextSession);
           setSessionState(nextSession.getState());
@@ -811,8 +952,12 @@ export function LayoutStudioShell({ initialDocument }: { readonly initialDocumen
           });
         }
         setRepository(nextRepository);
+        setLoadState("ready");
       } catch (error) {
-        if (!cancelled) setHistoryStatus(storageErrorMessage(error));
+        if (!cancelled) {
+          setHistoryStatus(storageErrorMessage(error));
+          setLoadState("error");
+        }
       }
     };
 
@@ -824,13 +969,22 @@ export function LayoutStudioShell({ initialDocument }: { readonly initialDocumen
 
   useEffect(() => {
     if (!repository) return;
+    const currentDocument = session.getState().document;
+    const expectedRevision = lastSavedRevisionRef.current;
     void repository
-      .saveDraft(session.getState().document, null)
-      .then(() => setHistoryStatus(copy.history.draftSaved))
+      .saveDraft(currentDocument, expectedRevision)
+      .then(() => {
+        lastSavedRevisionRef.current = currentDocument.stateRevision;
+        setHistoryStatus(copy.history.draftSaved);
+      })
       .catch((error: unknown) => setHistoryStatus(storageErrorMessage(error)));
   }, [repository, revision, session]);
 
   const refresh = () => setSessionState(session.getState());
+  const fitToView = () => {
+    setZoom(1);
+    setPanState({ xMm: 0, yMm: 0 });
+  };
   const select = (entityId: string | null) => {
     session.select(entityId);
     refresh();
@@ -865,7 +1019,9 @@ export function LayoutStudioShell({ initialDocument }: { readonly initialDocumen
       reasonCode: "LOCAL_NUMERIC_EDIT",
       reason: copy.versions.userReason,
     };
-    const result = selectedEntity.id.startsWith("column.")
+    const isSelectedColumn = document.columns.some((column) => column.id === selectedEntity.id);
+    const isSelectedObject = document.objects.some((object) => object.id === selectedEntity.id);
+    const result = isSelectedColumn
       ? session.dispatch({
           ...common,
           type: "UPDATE_COLUMN",
@@ -879,15 +1035,23 @@ export function LayoutStudioShell({ initialDocument }: { readonly initialDocumen
             rotationDeg: parsed.rotationDeg,
           },
         })
-      : session.dispatch({
+      : isSelectedObject ? session.dispatch({
           ...common,
-          type: "MOVE_OBJECT",
+          type: "UPDATE_OBJECT",
           payload: {
             objectId: selectedEntity.id,
             xMm: parsed.xMm,
             yMm: parsed.yMm,
             zMm: parsed.zMm,
+            rotationDeg: parsed.rotationDeg,
+            widthMm: parsed.widthMm,
+            depthMm: parsed.depthMm,
+            heightMm: parsed.heightMm,
           },
+        }) : session.dispatch({
+          ...common,
+          type: "MOVE_OBJECT",
+          payload: { objectId: selectedEntity.id },
         });
     setCommandIssues(result.issues);
     setInspectorError(result.ok ? null : result.issues[0]?.message ?? copy.inspector.commandFailed);
@@ -947,16 +1111,28 @@ export function LayoutStudioShell({ initialDocument }: { readonly initialDocumen
       setHistoryStatus(storageErrorMessage(error));
     }
   };
+  const restoreCheckpoint = async (checkpointId: string) => {
+    if (!repository) {
+      setHistoryStatus(copy.history.storageUnavailable);
+      return;
+    }
+    try {
+      const restored = await repository.restoreCheckpoint(checkpointId, document.stateRevision);
+      lastSavedRevisionRef.current = restored.stateRevision;
+      const nextSession = new EditorSession(restored);
+      setSession(nextSession);
+      setSessionState(nextSession.getState());
+      setHistoryStatus(copy.history.checkpointRestored);
+    } catch (error) {
+      setHistoryStatus(storageErrorMessage(error));
+    }
+  };
   const compareVersions = () => {
     const first = versions[0];
     const last = versions.at(-1);
     if (!first || !last) return;
     const diff = diffLayoutDocuments(first.id, first.document, last.id, last.document);
-    setDiffSummary(
-      diff.addedEntityIds.length === 0 && diff.removedEntityIds.length === 0 && diff.changed.length === 0
-        ? copy.history.diffEmpty
-        : copy.history.diffSummary(diff.addedEntityIds.length, diff.removedEntityIds.length, diff.changed.length),
-    );
+    setDiffSummary(diff);
   };
 
   const exportArtifact = async (format: "json" | "svg" | "png" | "glb" | "print") => {
@@ -1036,12 +1212,17 @@ export function LayoutStudioShell({ initialDocument }: { readonly initialDocumen
         return;
       }
 
-      const THREE = await import("three");
       const { GLTFExporter } = await import("three/examples/jsm/exporters/GLTFExporter.js");
       const runtime = await import("@/lib/layout-studio/adapters/three/three-runtime");
-      const scene = runtime.buildThreeScene(compileSceneDescriptor(exactDerived.sceneProjection));
+      const exactDescriptor = compileSceneDescriptor(exactVersion.content, exactDerived.sceneProjection);
+      const exactLights = compileLightDescriptors(exactVersion.content);
+      const scene = runtime.buildThreeScene(exactDescriptor, {
+        materials: compileThreeMaterialOptions(exactVersion.content, exactDescriptor),
+        lights: exactLights.length > 0
+          ? exactLights
+          : [{ sourceId: "export.ambient-fallback", kind: "ambient", color: "#FFFFFF", intensity: 1 }],
+      });
       try {
-        scene.add(new THREE.AmbientLight(0xffffff, 1));
         const buffer = await new Promise<ArrayBuffer>((resolve, reject) => {
           new GLTFExporter().parse(
             scene,
@@ -1086,6 +1267,16 @@ export function LayoutStudioShell({ initialDocument }: { readonly initialDocumen
         <span>{copy.disclaimer}</span>
       </div>
 
+      <p className={styles.loadState} role={loadState === "error" ? "alert" : "status"} aria-live="polite">
+        {loadState === "loading"
+          ? copy.states.loading
+          : loadState === "error"
+            ? copy.states.error
+            : document.walls.length === 0 && document.objects.length === 0
+              ? copy.states.empty
+              : copy.states.ready}
+      </p>
+
       <nav className={styles.toolbar} aria-label={copy.toolbar.viewMode}>
         <div className={styles.segmented}>
           <button type="button" aria-pressed={viewMode === "2d"} onClick={() => setViewMode("2d")}>{copy.toolbar.twoD}</button>
@@ -1099,7 +1290,14 @@ export function LayoutStudioShell({ initialDocument }: { readonly initialDocumen
           <button type="button" aria-label={copy.toolbar.zoomOut} onClick={() => setZoom((value) => Math.max(0.5, value - 0.25))}>−</button>
           <span>{copy.toolbar.zoom}: {Math.round(zoom * 100)}%</span>
           <button type="button" aria-label={copy.toolbar.zoomIn} onClick={() => setZoom((value) => Math.min(3, value + 0.25))}>+</button>
-          <button type="button" onClick={() => setZoom(1)}>{copy.toolbar.fit}</button>
+          <button type="button" onClick={fitToView}>{copy.toolbar.fit}</button>
+          <button type="button" aria-label={copy.toolbar.panLeft} onClick={() => setPanState((value) => ({ ...value, xMm: value.xMm - 300 }))}>←</button>
+          <button type="button" aria-label={copy.toolbar.panRight} onClick={() => setPanState((value) => ({ ...value, xMm: value.xMm + 300 }))}>→</button>
+          <button type="button" aria-label={copy.toolbar.panUp} onClick={() => setPanState((value) => ({ ...value, yMm: value.yMm - 300 }))}>↑</button>
+          <button type="button" aria-label={copy.toolbar.panDown} onClick={() => setPanState((value) => ({ ...value, yMm: value.yMm + 300 }))}>↓</button>
+          <button type="button" aria-pressed={showClearance} onClick={() => setShowClearance((value) => !value)}>
+            {copy.toolbar.clearance}
+          </button>
         </div>
       </nav>
 
@@ -1127,8 +1325,11 @@ export function LayoutStudioShell({ initialDocument }: { readonly initialDocumen
                 document={document}
                 layers={layers}
                 zoom={zoom}
+                panState={panState}
+                showClearance={showClearance}
                 selection={sessionState.selection}
                 onSelect={select}
+                onPan={setPanState}
               />
             ) : (
               <SceneCanvas document={document} layers={layers} selection={sessionState.selection} onSelect={select} />
@@ -1154,6 +1355,7 @@ export function LayoutStudioShell({ initialDocument }: { readonly initialDocumen
             onCheckpoint={createCheckpoint}
             onPublish={publishVersion}
             onCompare={compareVersions}
+            onRestore={(checkpointId) => void restoreCheckpoint(checkpointId)}
           />
           <ExportPanel onExport={exportArtifact} />
         </aside>
