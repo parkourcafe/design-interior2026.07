@@ -1,0 +1,37 @@
+{
+  "feature": "Feature-flagged ArchiDom Layout Studio M2 MVP",
+  "framework": "vitest",
+  "language": "typescript",
+  "test_command": "npm run test",
+  "source_dir": "lib/layout-studio",
+  "doc_context": "ArchiDom Layout Studio release package 2026-08-04; Architecture v1; ADR-0004",
+  "auto_mode": true,
+  "dry_run": false,
+  "slices": [
+    {"id":"LS-010","layer":"domain","status":"completed"},
+    {"id":"LS-011","layer":"domain-service","status":"completed"},
+    {"id":"LS-012","layer":"domain-service","status":"completed"},
+    {"id":"LS-050","layer":"application","status":"completed"},
+    {"id":"LS-020","layer":"infrastructure","status":"completed"},
+    {"id":"LS-030","layer":"infrastructure","status":"completed"},
+    {"id":"LS-060","layer":"infrastructure","status":"completed"}
+  ],
+  "current_slice": 7,
+  "phase": "complete",
+  "layer_map": {
+    "lib/layout-studio/domain/": "domain",
+    "lib/layout-studio/application/": "application",
+    "lib/layout-studio/adapters/": "infrastructure",
+    "components/layout-studio/": "infrastructure"
+  },
+  "files_modified": [
+    "lib/layout-studio",
+    "components/layout-studio",
+    "app/app/layout-studio",
+    "lib/i18n/ru.ts",
+    ".env.example",
+    "package.json",
+    "package-lock.json"
+  ],
+  "test_files_created": ["tests/layout-studio"]
+}
