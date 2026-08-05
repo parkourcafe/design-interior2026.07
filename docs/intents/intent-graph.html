@@ -1,0 +1,935 @@
+<title>Карта интентов RemHaOS — 28 интентов, 4 сегмента</title>
+<style>
+  :root {
+    color-scheme: light dark;
+
+    --bg: #E8EBEE;
+    --surface: #F6F8F9;
+    --surface-2: #EDF0F2;
+    --ink: #171A1D;
+    --ink-2: #4E5860;
+    --ink-3: #7C868E;
+    --rule: #C4CCD2;
+    --rule-soft: #D8DEE3;
+
+    --seg-designer: #2E5C8A;
+    --seg-client: #4A7A46;
+    --seg-studio: #A8632A;
+    --seg-partner: #6A4A84;
+    --flag: #B4453A;
+
+    --mono: ui-monospace, "SF Mono", "JetBrains Mono", "Cascadia Mono", Menlo, Consolas, "Liberation Mono", monospace;
+    --sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+
+    --step: clamp(0.75rem, 0.68rem + 0.35vw, 0.95rem);
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #131619;
+      --surface: #1B1F23;
+      --surface-2: #21262B;
+      --ink: #E6EAEC;
+      --ink-2: #9AA5AD;
+      --ink-3: #6E7A82;
+      --rule: #2C333A;
+      --rule-soft: #262C32;
+
+      --seg-designer: #7FB0E0;
+      --seg-client: #8CBF83;
+      --seg-studio: #E0A264;
+      --seg-partner: #B392D0;
+      --flag: #E0756A;
+    }
+  }
+
+  :root[data-theme="dark"] {
+    --bg: #131619;
+    --surface: #1B1F23;
+    --surface-2: #21262B;
+    --ink: #E6EAEC;
+    --ink-2: #9AA5AD;
+    --ink-3: #6E7A82;
+    --rule: #2C333A;
+    --rule-soft: #262C32;
+
+    --seg-designer: #7FB0E0;
+    --seg-client: #8CBF83;
+    --seg-studio: #E0A264;
+    --seg-partner: #B392D0;
+    --flag: #E0756A;
+  }
+
+  :root[data-theme="light"] {
+    --bg: #E8EBEE;
+    --surface: #F6F8F9;
+    --surface-2: #EDF0F2;
+    --ink: #171A1D;
+    --ink-2: #4E5860;
+    --ink-3: #7C868E;
+    --rule: #C4CCD2;
+    --rule-soft: #D8DEE3;
+
+    --seg-designer: #2E5C8A;
+    --seg-client: #4A7A46;
+    --seg-studio: #A8632A;
+    --seg-partner: #6A4A84;
+    --flag: #B4453A;
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--ink);
+    font-family: var(--sans);
+    font-size: 16px;
+    line-height: 1.6;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .sheet {
+    max-width: 1360px;
+    margin: 0 auto;
+    padding: clamp(1.25rem, 3vw, 2.75rem) clamp(1rem, 3vw, 2.5rem) 4rem;
+    display: flex;
+    flex-direction: column;
+    gap: clamp(1.75rem, 3.5vw, 3rem);
+  }
+
+  /* ---- title block ---- */
+
+  .titleblock {
+    border: 1px solid var(--rule);
+    background: var(--surface);
+    display: grid;
+    grid-template-columns: minmax(0, 2.2fr) minmax(0, 1fr);
+  }
+
+  .titleblock > div { padding: 1.1rem 1.25rem; }
+
+  .titleblock-main { border-right: 1px solid var(--rule); }
+
+  .eyebrow {
+    font-family: var(--mono);
+    font-size: 0.7rem;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--ink-3);
+    margin: 0 0 0.5rem;
+  }
+
+  h1 {
+    font-family: var(--mono);
+    font-size: clamp(1.15rem, 0.95rem + 1.1vw, 1.7rem);
+    font-weight: 600;
+    letter-spacing: -0.015em;
+    line-height: 1.2;
+    text-wrap: balance;
+    margin: 0 0 0.55rem;
+  }
+
+  .lede {
+    margin: 0;
+    max-width: 62ch;
+    color: var(--ink-2);
+    font-size: 0.95rem;
+  }
+
+  .facts {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.85rem 1rem;
+    align-content: start;
+  }
+
+  .fact-k {
+    font-family: var(--mono);
+    font-size: 0.66rem;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--ink-3);
+    display: block;
+  }
+
+  .fact-v {
+    font-family: var(--mono);
+    font-size: 1rem;
+    font-variant-numeric: tabular-nums;
+    color: var(--ink);
+  }
+
+  /* ---- key / legend ---- */
+
+  h2 {
+    font-family: var(--mono);
+    font-size: 0.78rem;
+    font-weight: 600;
+    letter-spacing: 0.13em;
+    text-transform: uppercase;
+    color: var(--ink-2);
+    margin: 0 0 0.9rem;
+    padding-bottom: 0.5rem;
+    border-bottom: 1px solid var(--rule);
+  }
+
+  .key-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+    gap: 0.85rem 1.5rem;
+  }
+
+  .key-row {
+    display: flex;
+    align-items: baseline;
+    gap: 0.6rem;
+    font-size: 0.85rem;
+    color: var(--ink-2);
+  }
+
+  .chip {
+    width: 9px;
+    height: 9px;
+    flex: none;
+    transform: translateY(-1px);
+    background: currentColor;
+  }
+
+  .key-row b {
+    font-family: var(--mono);
+    font-weight: 600;
+    font-size: 0.8rem;
+    color: var(--ink);
+  }
+
+  .key-row .n {
+    font-family: var(--mono);
+    font-variant-numeric: tabular-nums;
+    color: var(--ink-3);
+    margin-left: auto;
+    font-size: 0.78rem;
+  }
+
+  .swatch-designer { color: var(--seg-designer); }
+  .swatch-client   { color: var(--seg-client); }
+  .swatch-studio   { color: var(--seg-studio); }
+  .swatch-partner  { color: var(--seg-partner); }
+
+  .key-lines {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem 1.75rem;
+    margin-top: 1.1rem;
+    padding-top: 0.9rem;
+    border-top: 1px dashed var(--rule);
+    font-size: 0.8rem;
+    color: var(--ink-2);
+  }
+
+  .key-lines span { display: inline-flex; align-items: center; gap: 0.5rem; }
+
+  .key-lines svg { flex: none; }
+
+  /* ---- board ---- */
+
+  .board-scroll { overflow-x: auto; padding-bottom: 0.5rem; }
+
+  .board { position: relative; min-width: 1080px; }
+
+  .wires {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    pointer-events: none;
+    z-index: 2;
+    overflow: visible;
+  }
+
+  .wire { fill: none; }
+  .wire-seq     { stroke: var(--rule); stroke-width: 1.5; }
+  .wire-cross   { stroke: var(--flag); stroke-width: 1.4; stroke-dasharray: 5 4; }
+  .wire-overlap { stroke: var(--ink-3); stroke-width: 1.2; stroke-dasharray: 2 4; opacity: 0.55; }
+  .wire-merge   { stroke: var(--flag); stroke-width: 1.6; stroke-dasharray: 2 3; }
+
+  .lanes {
+    position: relative;
+    z-index: 1;
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 2.25rem;
+    align-items: start;
+  }
+
+  .lane { display: flex; flex-direction: column; gap: 0.55rem; }
+
+  .lane-head {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding-bottom: 0.5rem;
+    border-bottom: 2px solid currentColor;
+    font-family: var(--mono);
+    font-size: 0.74rem;
+    letter-spacing: 0.09em;
+    text-transform: uppercase;
+    position: sticky;
+    top: 0;
+    background: var(--bg);
+    z-index: 3;
+  }
+
+  .lane-head .count {
+    margin-left: auto;
+    font-variant-numeric: tabular-nums;
+    color: var(--ink-3);
+  }
+
+  .lane-sub {
+    font-size: 0.72rem;
+    color: var(--ink-3);
+    margin: -0.25rem 0 0.3rem;
+    line-height: 1.4;
+  }
+
+  /* ---- nodes ---- */
+
+  .node {
+    background: var(--surface);
+    border: 1px solid var(--rule);
+    border-radius: 2px;
+    padding: 0.6rem 0.7rem;
+    display: grid;
+    gap: 0.3rem;
+    transition: opacity 120ms linear, border-color 120ms linear;
+  }
+
+  .node-top {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    font-family: var(--mono);
+    font-size: 0.66rem;
+    letter-spacing: 0.04em;
+  }
+
+  .node-step {
+    font-variant-numeric: tabular-nums;
+    color: var(--ink-3);
+    min-width: 1.4em;
+  }
+
+  .node-id { color: inherit; font-weight: 600; }
+
+  .node-pri {
+    margin-left: auto;
+    font-size: 0.62rem;
+    letter-spacing: 0.06em;
+    padding: 0.05rem 0.3rem;
+    border: 1px solid var(--rule);
+    color: var(--ink-2);
+    border-radius: 1px;
+  }
+
+  .node-name {
+    font-family: var(--sans);
+    color: var(--ink);
+    line-height: 1.32;
+    text-wrap: balance;
+  }
+
+  .node-type {
+    font-family: var(--mono);
+    font-size: 0.62rem;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--ink-3);
+  }
+
+  .p1 { padding: 0.75rem 0.8rem; }
+  .p1 .node-name { font-size: 0.95rem; font-weight: 550; }
+  .p2 .node-name { font-size: 0.85rem; }
+  .p3 { padding: 0.5rem 0.6rem; }
+  .p3 .node-name { font-size: 0.78rem; color: var(--ink-2); }
+
+  .p1 .node-pri { border-color: currentColor; color: inherit; }
+
+  .lane-designer .node-id, .lane-designer .lane-head { color: var(--seg-designer); }
+  .lane-client   .node-id, .lane-client   .lane-head { color: var(--seg-client); }
+  .lane-studio   .node-id, .lane-studio   .lane-head { color: var(--seg-studio); }
+  .lane-partner  .node-id, .lane-partner  .lane-head { color: var(--seg-partner); }
+
+  .detached {
+    margin-top: 0.65rem;
+    padding-top: 0.75rem;
+    border-top: 1px dashed var(--rule);
+    display: flex;
+    flex-direction: column;
+    gap: 0.55rem;
+  }
+
+  .detached-label {
+    font-family: var(--mono);
+    font-size: 0.62rem;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--ink-3);
+  }
+
+  .flagged { border-color: var(--flag); }
+
+  /* hover focus */
+  .board.is-focused .node { opacity: 0.28; }
+  .board.is-focused .node.lit { opacity: 1; border-color: var(--ink-2); }
+  .board.is-focused .wire { opacity: 0.1; }
+  .board.is-focused .wire.lit { opacity: 1; }
+
+  /* ---- schedule table (duplicates) ---- */
+
+  .table-wrap { overflow-x: auto; border: 1px solid var(--rule); background: var(--surface); }
+
+  table { border-collapse: collapse; width: 100%; min-width: 720px; font-size: 0.87rem; }
+
+  th, td { text-align: left; padding: 0.65rem 0.85rem; border-bottom: 1px solid var(--rule-soft); vertical-align: top; }
+
+  thead th {
+    font-family: var(--mono);
+    font-size: 0.65rem;
+    letter-spacing: 0.11em;
+    text-transform: uppercase;
+    color: var(--ink-3);
+    font-weight: 600;
+    border-bottom: 1px solid var(--rule);
+    background: var(--surface-2);
+  }
+
+  tbody tr:last-child td { border-bottom: 0; }
+
+  td.pair { font-family: var(--mono); font-size: 0.75rem; white-space: nowrap; color: var(--ink-2); }
+
+  .verdict {
+    display: inline-block;
+    font-family: var(--mono);
+    font-size: 0.64rem;
+    letter-spacing: 0.07em;
+    text-transform: uppercase;
+    padding: 0.1rem 0.4rem;
+    border: 1px solid var(--rule);
+    border-radius: 1px;
+    color: var(--ink-2);
+    white-space: nowrap;
+  }
+
+  .verdict-merge { border-color: var(--flag); color: var(--flag); }
+
+  .added td { background: color-mix(in srgb, var(--flag) 7%, transparent); }
+
+  .note {
+    font-size: 0.85rem;
+    color: var(--ink-2);
+    max-width: 78ch;
+  }
+
+  ol.findings { margin: 0; padding-left: 1.2rem; display: grid; gap: 0.6rem; max-width: 82ch; }
+  ol.findings li { color: var(--ink-2); font-size: 0.9rem; }
+  ol.findings strong { color: var(--ink); font-weight: 600; }
+
+  code {
+    font-family: var(--mono);
+    font-size: 0.85em;
+    background: var(--surface-2);
+    border: 1px solid var(--rule-soft);
+    border-radius: 2px;
+    padding: 0.05em 0.3em;
+  }
+
+  .crosslinks-mobile { display: none; }
+
+  footer {
+    font-family: var(--mono);
+    font-size: 0.68rem;
+    letter-spacing: 0.06em;
+    color: var(--ink-3);
+    border-top: 1px solid var(--rule);
+    padding-top: 0.9rem;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.4rem 1.5rem;
+  }
+
+  @media (max-width: 860px) {
+    .titleblock { grid-template-columns: 1fr; }
+    .titleblock-main { border-right: 0; border-bottom: 1px solid var(--rule); }
+    .board { min-width: 0; }
+    .board-scroll { overflow-x: visible; }
+    .wires { display: none; }
+    .lanes { grid-template-columns: 1fr; gap: 2rem; }
+    .lane-head { position: static; }
+    .crosslinks-mobile { display: block; }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    * { transition: none !important; }
+  }
+</style>
+
+<div class="sheet">
+
+  <header class="titleblock">
+    <div class="titleblock-main">
+      <p class="eyebrow">RemHaOS · Intent layer · Россия</p>
+      <h1>Карта интентов: 28 намерений, 4 сегмента</h1>
+      <p class="lede">
+        Четыре дорожки — четыре аудитории продукта. Внутри дорожки сплошная линия показывает
+        заданную последовательность шагов, красная пунктирная — три кросс-связи «дизайнер ↔ клиент»,
+        серая точечная — тематические пересечения, разобранные в схедуле дублей ниже.
+      </p>
+    </div>
+    <div class="facts">
+      <div><span class="fact-k">Интентов</span><span class="fact-v">28</span></div>
+      <div><span class="fact-k">Истинных дублей</span><span class="fact-v">0</span></div>
+      <div><span class="fact-k">P1 / P2 / P3</span><span class="fact-v">16 / 10 / 2</span></div>
+      <div><span class="fact-k">Пар к слиянию</span><span class="fact-v">1</span></div>
+    </div>
+  </header>
+
+  <section>
+    <h2>Ключ</h2>
+    <div class="key-grid">
+      <div class="key-row swatch-designer"><i class="chip"></i><b>Designer Workflow</b><span class="n">9</span></div>
+      <div class="key-row swatch-client"><i class="chip"></i><b>Client Education</b><span class="n">12</span></div>
+      <div class="key-row swatch-studio"><i class="chip"></i><b>Studio Management</b><span class="n">5</span></div>
+      <div class="key-row swatch-partner"><i class="chip"></i><b>Partner Collaboration</b><span class="n">2</span></div>
+    </div>
+    <div class="key-lines">
+      <span>
+        <svg width="34" height="8" aria-hidden="true"><line x1="0" y1="4" x2="34" y2="4" stroke="var(--rule)" stroke-width="1.5"/></svg>
+        последовательность внутри сегмента
+      </span>
+      <span>
+        <svg width="34" height="8" aria-hidden="true"><line x1="0" y1="4" x2="34" y2="4" stroke="var(--flag)" stroke-width="1.4" stroke-dasharray="5 4"/></svg>
+        кросс-связь дизайнер ↔ клиент
+      </span>
+      <span>
+        <svg width="34" height="8" aria-hidden="true"><line x1="0" y1="4" x2="34" y2="4" stroke="var(--ink-3)" stroke-width="1.2" stroke-dasharray="2 4"/></svg>
+        тематическое пересечение
+      </span>
+      <span>Размер карточки — приоритет: P1 крупный, P3 мелкий</span>
+      <span>Номер <code>01</code> — шаг последовательности, <code>—</code> — вне неё</span>
+    </div>
+  </section>
+
+  <section>
+    <h2>Граф</h2>
+    <div class="board-scroll">
+      <div class="board" id="board">
+        <svg class="wires" id="wires" aria-hidden="true"></svg>
+        <div class="lanes">
+
+          <div class="lane lane-designer">
+            <div class="lane-head"><i class="chip"></i>Designer Workflow<span class="count">9</span></div>
+            <p class="lane-sub">Линейный пресейл: от брифа до повестки первой встречи.</p>
+
+            <article class="node p1" id="D001">
+              <div class="node-top"><span class="node-step">01</span><span class="node-id">DESIGNER_001</span><span class="node-pri">P1</span></div>
+              <div class="node-name">Собрать информацию от клиента</div>
+              <div class="node-type">Informational · low</div>
+            </article>
+            <article class="node p1" id="D002">
+              <div class="node-top"><span class="node-step">02</span><span class="node-id">DESIGNER_002</span><span class="node-pri">P1</span></div>
+              <div class="node-name">Структурировать противоречивые желания</div>
+              <div class="node-type">Informational · medium</div>
+            </article>
+            <article class="node p1" id="D005">
+              <div class="node-top"><span class="node-step">03</span><span class="node-id">DESIGNER_005</span><span class="node-pri">P1</span></div>
+              <div class="node-name">Выявить риски до встречи</div>
+              <div class="node-type">Informational · medium</div>
+            </article>
+            <article class="node p1" id="D003">
+              <div class="node-top"><span class="node-step">04</span><span class="node-id">DESIGNER_003</span><span class="node-pri">P1</span></div>
+              <div class="node-name">Рассчитать справедливую цену</div>
+              <div class="node-type">Transactional · medium</div>
+            </article>
+            <article class="node p1" id="D004">
+              <div class="node-top"><span class="node-step">05</span><span class="node-id">DESIGNER_004</span><span class="node-pri">P1</span></div>
+              <div class="node-name">Подготовить коммерческое предложение</div>
+              <div class="node-type">Transactional · low</div>
+            </article>
+            <article class="node p1" id="D006">
+              <div class="node-top"><span class="node-step">06</span><span class="node-id">DESIGNER_006</span><span class="node-pri">P1</span></div>
+              <div class="node-name">Управлять ожиданиями клиента</div>
+              <div class="node-type">Informational · medium</div>
+            </article>
+            <article class="node p1" id="D009">
+              <div class="node-top"><span class="node-step">07</span><span class="node-id">DESIGNER_009</span><span class="node-pri">P1</span></div>
+              <div class="node-name">Подготовить повестку первой встречи</div>
+              <div class="node-type">Informational · low</div>
+            </article>
+
+            <div class="detached">
+              <span class="detached-label">Вне последовательности</span>
+              <article class="node p2 flagged" id="D010">
+                <div class="node-top"><span class="node-step">—</span><span class="node-id">DESIGNER_010</span><span class="node-pri">P2</span></div>
+                <div class="node-name">Управлять версиями и согласованиями</div>
+                <div class="node-type">Transactional · high</div>
+              </article>
+              <article class="node p2 flagged" id="D008">
+                <div class="node-top"><span class="node-step">—</span><span class="node-id">DESIGNER_008</span><span class="node-pri">P2</span></div>
+                <div class="node-name">Отследить историю решений</div>
+                <div class="node-type">Informational · high</div>
+              </article>
+            </div>
+          </div>
+
+          <div class="lane lane-client">
+            <div class="lane-head"><i class="chip"></i>Client Education<span class="count">12</span></div>
+            <p class="lane-sub">Путь решения клиента: от выбора дизайнера до согласования.</p>
+
+            <article class="node p1" id="C001">
+              <div class="node-top"><span class="node-step">01</span><span class="node-id">CLIENT_001</span><span class="node-pri">P1</span></div>
+              <div class="node-name">Выбрать дизайнера</div>
+              <div class="node-type">Informational · high</div>
+            </article>
+            <article class="node p1" id="C010">
+              <div class="node-top"><span class="node-step">02</span><span class="node-id">CLIENT_010</span><span class="node-pri">P1</span></div>
+              <div class="node-name">Понять процесс работы</div>
+              <div class="node-type">Informational · low</div>
+            </article>
+            <article class="node p1" id="C002">
+              <div class="node-top"><span class="node-step">03</span><span class="node-id">CLIENT_002</span><span class="node-pri">P1</span></div>
+              <div class="node-name">Понять стоимость проекта</div>
+              <div class="node-type">Informational · medium</div>
+            </article>
+            <article class="node p1" id="C003">
+              <div class="node-top"><span class="node-step">04</span><span class="node-id">CLIENT_003</span><span class="node-pri">P1</span></div>
+              <div class="node-name">Узнать, что входит в дизайн-проект</div>
+              <div class="node-type">Informational · low</div>
+            </article>
+            <article class="node p1" id="C004">
+              <div class="node-top"><span class="node-step">05</span><span class="node-id">CLIENT_004</span><span class="node-pri">P1</span></div>
+              <div class="node-name">Узнать сроки выполнения</div>
+              <div class="node-type">Informational · low</div>
+            </article>
+            <article class="node p2" id="C005">
+              <div class="node-top"><span class="node-step">06</span><span class="node-id">CLIENT_005</span><span class="node-pri">P2</span></div>
+              <div class="node-name">Выбрать стиль интерьера</div>
+              <div class="node-type">Informational · low</div>
+            </article>
+            <article class="node p2" id="C006">
+              <div class="node-top"><span class="node-step">07</span><span class="node-id">CLIENT_006</span><span class="node-pri">P2</span></div>
+              <div class="node-name">Спланировать пространство</div>
+              <div class="node-type">Informational · medium</div>
+            </article>
+            <article class="node p1" id="C008">
+              <div class="node-top"><span class="node-step">08</span><span class="node-id">CLIENT_008</span><span class="node-pri">P1</span></div>
+              <div class="node-name">Согласовать решения</div>
+              <div class="node-type">Transactional · low</div>
+            </article>
+
+            <div class="detached">
+              <span class="detached-label">Вне последовательности</span>
+              <article class="node p2" id="C007">
+                <div class="node-top"><span class="node-step">—</span><span class="node-id">CLIENT_007</span><span class="node-pri">P2</span></div>
+                <div class="node-name">Выбрать материалы</div>
+                <div class="node-type">Informational · medium</div>
+              </article>
+              <article class="node p2" id="C009">
+                <div class="node-top"><span class="node-step">—</span><span class="node-id">CLIENT_009</span><span class="node-pri">P2</span></div>
+                <div class="node-name">Избежать ошибок</div>
+                <div class="node-type">Informational · low</div>
+              </article>
+              <article class="node p2" id="C011">
+                <div class="node-top"><span class="node-step">—</span><span class="node-id">CLIENT_011</span><span class="node-pri">P2</span></div>
+                <div class="node-name">Оценить качество работы</div>
+                <div class="node-type">Informational · medium</div>
+              </article>
+              <article class="node p3" id="C012">
+                <div class="node-top"><span class="node-step">—</span><span class="node-id">CLIENT_012</span><span class="node-pri">P3</span></div>
+                <div class="node-name">Получить консультацию</div>
+                <div class="node-type">Transactional · high</div>
+              </article>
+            </div>
+          </div>
+
+          <div class="lane lane-studio">
+            <div class="lane-head"><i class="chip"></i>Studio Management<span class="count">5</span></div>
+            <p class="lane-sub">Правила студии, портфель проектов, метрики пресейла.</p>
+
+            <article class="node p1" id="S003">
+              <div class="node-top"><span class="node-step">01</span><span class="node-id">STUDIO_003</span><span class="node-pri">P1</span></div>
+              <div class="node-name">Настроить правила ценообразования</div>
+              <div class="node-type">Transactional · medium</div>
+            </article>
+            <article class="node p1" id="S001">
+              <div class="node-top"><span class="node-step">02</span><span class="node-id">STUDIO_001</span><span class="node-pri">P1</span></div>
+              <div class="node-name">Управлять командой проектов</div>
+              <div class="node-type">Informational · high</div>
+            </article>
+            <article class="node p2" id="S002">
+              <div class="node-top"><span class="node-step">03</span><span class="node-id">STUDIO_002</span><span class="node-pri">P2</span></div>
+              <div class="node-name">Анализировать метрики продаж</div>
+              <div class="node-type">Informational · high</div>
+            </article>
+
+            <div class="detached">
+              <span class="detached-label">Вне последовательности</span>
+              <article class="node p1" id="D007">
+                <div class="node-top"><span class="node-step">—</span><span class="node-id">DESIGNER_007</span><span class="node-pri">P1</span></div>
+                <div class="node-name">Стандартизировать процесс в студии</div>
+                <div class="node-type">Informational · medium · префикс DESIGNER, сегмент studio</div>
+              </article>
+              <article class="node p3" id="S004">
+                <div class="node-top"><span class="node-step">—</span><span class="node-id">STUDIO_004</span><span class="node-pri">P3</span></div>
+                <div class="node-name">Интегрировать с другими инструментами</div>
+                <div class="node-type">Transactional · high</div>
+              </article>
+            </div>
+          </div>
+
+          <div class="lane lane-partner">
+            <div class="lane-head"><i class="chip"></i>Partner Collab.<span class="count">2</span></div>
+            <p class="lane-sub">Архитекторы и подрядчики: доступ к проекту и его изменениям.</p>
+
+            <article class="node p2" id="P001">
+              <div class="node-top"><span class="node-step">—</span><span class="node-id">PARTNER_001</span><span class="node-pri">P2</span></div>
+              <div class="node-name">Получить информацию о проекте</div>
+              <div class="node-type">Informational · low</div>
+            </article>
+            <article class="node p2" id="P002">
+              <div class="node-top"><span class="node-step">—</span><span class="node-id">PARTNER_002</span><span class="node-pri">P2</span></div>
+              <div class="node-name">Отслеживать изменения проекта</div>
+              <div class="node-type">Informational · high</div>
+            </article>
+            <p class="lane-sub">Последовательность между этими двумя интентами в исходной иерархии не задана. PARTNER_002 тематически пересекается с DESIGNER_008 и DESIGNER_010 — линией не показано, чтобы не тянуть связь через весь лист; разбор в схедуле дублей.</p>
+          </div>
+
+        </div>
+      </div>
+    </div>
+
+    <div class="crosslinks-mobile">
+      <p class="note"><strong>Связи между дорожками</strong> (на узком экране линии скрыты):
+        DESIGNER_001 ⇢ CLIENT_010 · DESIGNER_003 ⇢ CLIENT_002 · DESIGNER_004 ⇢ CLIENT_008 —
+        три пары «предложение → спрос». Пересечения: DESIGNER_010 ↔ DESIGNER_008 (к слиянию),
+        CLIENT_005 ↔ CLIENT_006 ↔ CLIENT_007 (хаб).
+      </p>
+    </div>
+  </section>
+
+  <section>
+    <h2>Схедуль дублей · 5 пар + 1 добавлена</h2>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Пара</th>
+            <th>Тема пересечения</th>
+            <th>Вердикт</th>
+            <th>Действие</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td class="pair">DESIGNER_001<br>CLIENT_010</td>
+            <td>Сбор информации на старте проекта</td>
+            <td><span class="verdict">Не дубль</span></td>
+            <td>Разные сегменты: дизайнер ищет «шаблон брифа», клиент — «как работает дизайнер». Взаимная ссылка.</td>
+          </tr>
+          <tr>
+            <td class="pair">DESIGNER_003<br>CLIENT_002</td>
+            <td>Ценообразование</td>
+            <td><span class="verdict">Не дубль</span></td>
+            <td>Разные роли: калькулятор для дизайнера vs. разбор «из чего складывается цена» для клиента.</td>
+          </tr>
+          <tr>
+            <td class="pair">DESIGNER_004<br>CLIENT_008</td>
+            <td>КП и согласование</td>
+            <td><span class="verdict">Не дубль</span></td>
+            <td>Парные интенты — supply и demand одного шага воронки. Взаимная ссылка.</td>
+          </tr>
+          <tr>
+            <td class="pair">CLIENT_005<br>CLIENT_006<br>CLIENT_007</td>
+            <td>Планирование дизайна</td>
+            <td><span class="verdict">Не дубли</span></td>
+            <td>Последовательные шаги одной темы. Хаб-страница «Руководство по планированию дизайна» + ссылки на детальные.</td>
+          </tr>
+          <tr>
+            <td class="pair">DESIGNER_008<br>DESIGNER_010</td>
+            <td>Отслеживание изменений проекта</td>
+            <td><span class="verdict verdict-merge">Объединить</span></td>
+            <td>Один сегмент, одна тема, оба P2, оба high-difficulty — единственная пара с реальным риском каннибализации. Одна страница «Управление изменениями и историей проекта» с двумя разделами.</td>
+          </tr>
+          <tr class="added">
+            <td class="pair">PARTNER_002<br>DESIGNER_008 / 010</td>
+            <td>Отслеживание изменений проекта</td>
+            <td><span class="verdict">Не дубль</span></td>
+            <td><strong>Добавлено при ревизии:</strong> третий интент на ту же тему, пропущенный в исходном разборе. Сегмент другой (партнёр), но формулировка «отслеживать изменения проекта» почти дословно совпадает — при слиянии пары выше ключевые слова для партнёрской страницы нужно развести явно.</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    <p class="note" style="margin-top:0.9rem">
+      Истинных дублей в реестре нет: ни одна пара не совпадает одновременно по формулировке цели,
+      конкурентному запросу и сегменту аудитории — а совпадение по всем трём критериям и есть условие слияния.
+    </p>
+  </section>
+
+  <section>
+    <h2>Что стоит починить в данных</h2>
+    <ol class="findings">
+      <li><strong>В реестре нет рёбер.</strong> У всех 28 записей <code>parent_intent: null</code> и <code>child_intents: []</code> — вся структура графа держится на отдельном документе иерархии. Пока рёбра не перенесены в реестр, генерировать по нему перелинковку, хлебные крошки или sitemap нельзя.</li>
+      <li><strong><code>cannibalization_risk: "Low"</code> проставлен всем 28 записям.</strong> Поле не различает пару DESIGNER_008 / DESIGNER_010 и, например, PARTNER_001 — то есть сейчас оно не несёт информации. То же с <code>confidence: 0.85</code> у всех записей: это константа по умолчанию, а не оценка.</li>
+      <li><strong>Кириллические канонические URL,</strong> причём один — с запятой: <code>/узнать,-что-входит-в-дизайн-проект/</code>. Запятая в пути допустима, но ломает ручной обмен ссылками и часть аналитики. Нужен пересмотр слага.</li>
+      <li><strong>Расхождение в исходных документах:</strong> отчёт называет кластер Studio Management «5 интентов», но перечисляет 4 — в списке пропущен DESIGNER_007, который по реестру относится к studio. Реестр в этом месте прав, отчёт — нет.</li>
+      <li><strong>Префикс ID не равен сегменту.</strong> DESIGNER_007 живёт в кластере Studio Management с <code>user_segment: "studio"</code>. Пока это единственный случай, но он ломает наивную группировку по префиксу ID.</li>
+    </ol>
+  </section>
+
+  <footer>
+    <span>RemHaOS · intent layer v1</span>
+    <span>Узлов: 28 · Рёбер: 20</span>
+    <span>Источник: intent-registry.json + Intent Hierarchy &amp; Relationships</span>
+    <span>05.08.2026</span>
+  </footer>
+
+</div>
+
+<script>
+(function () {
+  var EDGES = [
+    ['D001','D002','seq'], ['D002','D005','seq'], ['D005','D003','seq'],
+    ['D003','D004','seq'], ['D004','D006','seq'], ['D006','D009','seq'],
+
+    ['C001','C010','seq'], ['C010','C002','seq'], ['C002','C003','seq'],
+    ['C003','C004','seq'], ['C004','C005','seq'], ['C005','C006','seq'],
+    ['C006','C008','seq'],
+
+    ['S003','S001','seq'], ['S001','S002','seq'],
+
+    ['D001','C010','cross'], ['D003','C002','cross'], ['D004','C008','cross'],
+
+    ['D010','D008','merge'],
+    ['C006','C007','overlap']
+  ];
+
+  var board = document.getElementById('board');
+  var svg = document.getElementById('wires');
+  if (!board || !svg) return;
+
+  var NS = 'http://www.w3.org/2000/svg';
+
+  function markers() {
+    var defs = document.createElementNS(NS, 'defs');
+    [['seq', 'var(--rule)'], ['cross', 'var(--flag)'], ['merge', 'var(--flag)']].forEach(function (m) {
+      var mk = document.createElementNS(NS, 'marker');
+      mk.setAttribute('id', 'ah-' + m[0]);
+      mk.setAttribute('viewBox', '0 0 8 8');
+      mk.setAttribute('refX', '7');
+      mk.setAttribute('refY', '4');
+      mk.setAttribute('markerWidth', '7');
+      mk.setAttribute('markerHeight', '7');
+      mk.setAttribute('orient', 'auto-start-reverse');
+      var p = document.createElementNS(NS, 'path');
+      p.setAttribute('d', 'M0.5,0.8 L7,4 L0.5,7.2 Z');
+      p.setAttribute('fill', m[1]);
+      mk.appendChild(p);
+      defs.appendChild(mk);
+    });
+    return defs;
+  }
+
+  function rectOf(el, base) {
+    var r = el.getBoundingClientRect();
+    return {
+      left: r.left - base.left, right: r.right - base.left,
+      top: r.top - base.top, bottom: r.bottom - base.top,
+      cx: r.left - base.left + r.width / 2,
+      cy: r.top - base.top + r.height / 2
+    };
+  }
+
+  function draw() {
+    var base = board.getBoundingClientRect();
+    svg.setAttribute('viewBox', '0 0 ' + base.width + ' ' + base.height);
+    svg.innerHTML = '';
+    svg.appendChild(markers());
+
+    var crossTotal = EDGES.filter(function (e) {
+      var a = document.getElementById(e[0]), b = document.getElementById(e[1]);
+      return a && b && a.closest('.lane') !== b.closest('.lane');
+    }).length;
+    var crossSeen = 0;
+
+    EDGES.forEach(function (e) {
+      var a = document.getElementById(e[0]);
+      var b = document.getElementById(e[1]);
+      if (!a || !b) return;
+
+      var ra = rectOf(a, base), rb = rectOf(b, base);
+      var sameLane = a.closest('.lane') === b.closest('.lane');
+      var d, path = document.createElementNS(NS, 'path');
+
+      if (sameLane && rb.top > ra.bottom - 1) {
+        d = 'M' + ra.cx + ',' + (ra.bottom + 1) + ' L' + rb.cx + ',' + (rb.top - 5);
+      } else if (sameLane) {
+        var side = ra.right + 14;
+        d = 'M' + ra.right + ',' + ra.cy + ' C' + side + ',' + ra.cy + ' ' + side + ',' + rb.cy + ' ' + rb.right + ',' + rb.cy;
+      } else {
+        // Cross-lane: orthogonal run through the gutter, one vertical track per
+        // edge so parallel links stay readable instead of collapsing into one line.
+        var ltr = rb.cx > ra.cx;
+        var x1 = ltr ? ra.right : ra.left;
+        var x2 = ltr ? rb.left - 5 : rb.right + 5;
+        var track = (crossSeen - (crossTotal - 1) / 2) * 9;
+        crossSeen += 1;
+        var gx = (x1 + x2) / 2 + track;
+        d = 'M' + x1 + ',' + ra.cy + ' H' + gx + ' V' + rb.cy + ' H' + x2;
+      }
+
+      path.setAttribute('d', d);
+      path.setAttribute('class', 'wire wire-' + e[2]);
+      if (e[2] !== 'overlap') path.setAttribute('marker-end', 'url(#ah-' + e[2] + ')');
+      path.dataset.from = e[0];
+      path.dataset.to = e[1];
+      svg.appendChild(path);
+    });
+  }
+
+  function lightUp(id) {
+    board.classList.add('is-focused');
+    var keep = { };
+    keep[id] = true;
+    svg.querySelectorAll('.wire').forEach(function (w) {
+      if (w.dataset.from === id || w.dataset.to === id) {
+        w.classList.add('lit');
+        keep[w.dataset.from] = true;
+        keep[w.dataset.to] = true;
+      }
+    });
+    Object.keys(keep).forEach(function (k) {
+      var n = document.getElementById(k);
+      if (n) n.classList.add('lit');
+    });
+  }
+
+  function clearFocus() {
+    board.classList.remove('is-focused');
+    board.querySelectorAll('.lit').forEach(function (n) { n.classList.remove('lit'); });
+    svg.querySelectorAll('.lit').forEach(function (n) { n.classList.remove('lit'); });
+  }
+
+  board.querySelectorAll('.node').forEach(function (n) {
+    n.tabIndex = 0;
+    n.addEventListener('mouseenter', function () { lightUp(n.id); });
+    n.addEventListener('focus', function () { lightUp(n.id); });
+    n.addEventListener('mouseleave', clearFocus);
+    n.addEventListener('blur', clearFocus);
+  });
+
+  draw();
+  if (window.ResizeObserver) new ResizeObserver(draw).observe(board);
+  window.addEventListener('resize', draw);
+  if (document.fonts && document.fonts.ready) document.fonts.ready.then(draw);
+})();
+</script>
