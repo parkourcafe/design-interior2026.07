@@ -1,0 +1,74 @@
+id,priority,implementation_status,verification_status,note
+LS-AT-001,P0,IMPLEMENTED,UNVERIFIED,simple fixture and frozen schema
+LS-AT-002,P0,PARTIAL,EXTERNAL_HOLD,KORA fixture contains owner intent; remaining survey fields open
+LS-AT-003,P0,IMPLEMENTED,UNVERIFIED,AJV integer contract
+LS-AT-004,P0,IMPLEMENTED,UNVERIFIED,duplicate ID semantic validation
+LS-AT-005,P0,IMPLEMENTED,UNVERIFIED,missing node validation
+LS-AT-006,P0,IMPLEMENTED,UNVERIFIED,derived area without canonical mutation
+LS-AT-010,P0,IMPLEMENTED,UNVERIFIED,8100x3000 owner-intent contour
+LS-AT-011,P0,IMPLEMENTED,UNVERIFIED,250x250 column
+LS-AT-012,P0,PARTIAL,EXTERNAL_HOLD,column height assumed pending survey
+LS-AT-013,P0,PARTIAL,EXTERNAL_HOLD,door width/axis fixed; height/frame/swing pending
+LS-AT-014,P0,PARTIAL,EXTERNAL_HOLD,full rear equipment set-out pending
+LS-AT-015,P0,PARTIAL,EXTERNAL_HOLD,central sink set-out pending
+LS-AT-016,P0,IMPLEMENTED,UNVERIFIED,left 1500 opening and continuous right wall
+LS-AT-017,P0,IMPLEMENTED,UNVERIFIED,zero wall blocker
+LS-AT-018,P0,IMPLEMENTED,UNVERIFIED,opening bounds blocker
+LS-AT-019,P1,IMPLEMENTED,UNVERIFIED,clearance overlap validation
+LS-AT-020,P0,IMPLEMENTED,UNVERIFIED,authenticated KORA route
+LS-AT-021,P0,IMPLEMENTED,UNVERIFIED,SVG entity selection
+LS-AT-022,P0,IMPLEMENTED,UNVERIFIED,presentation state separate
+LS-AT-023,P0,IMPLEMENTED,UNVERIFIED,canonical SVG dimensions
+LS-AT-024,P0,IMPLEMENTED,UNVERIFIED,view state does not mutate document
+LS-AT-025,P0,IMPLEMENTED,UNVERIFIED,selected SVG highlight
+LS-AT-026,P1,PARTIAL,UNVERIFIED,golden generation deferred to verification
+LS-AT-030,P0,IMPLEMENTED,UNVERIFIED,command revision increment
+LS-AT-031,P0,IMPLEMENTED,UNVERIFIED,locked column rejection
+LS-AT-032,P0,IMPLEMENTED,UNVERIFIED,locked opening rejection
+LS-AT-033,P0,IMPLEMENTED,UNVERIFIED,invalid state preservation
+LS-AT-034,P0,IMPLEMENTED,UNVERIFIED,monotonic undo
+LS-AT-035,P0,IMPLEMENTED,UNVERIFIED,monotonic redo
+LS-AT-036,P0,IMPLEMENTED,UNVERIFIED,stale revision rejection
+LS-AT-037,P1,IMPLEMENTED,UNVERIFIED,replay ledger and conflict
+LS-AT-040,P0,IMPLEMENTED,UNVERIFIED,2D and 3D share document revision
+LS-AT-041,P0,IMPLEMENTED,UNVERIFIED,scene projection with segmented openings
+LS-AT-042,P0,IMPLEMENTED,UNVERIFIED,scene recompiles from canonical document
+LS-AT-043,P0,IMPLEMENTED,UNVERIFIED,single ceiling visibility
+LS-AT-044,P1,PARTIAL,UNVERIFIED,camera deterministic; reset control pending polish
+LS-AT-045,P0,PARTIAL,UNVERIFIED,WebGL runtime present; forced fallback pending
+LS-AT-046,P0,IMPLEMENTED,UNVERIFIED,geometry/material/context disposal
+LS-AT-050,P0,IMPLEMENTED,UNVERIFIED,matte concrete material
+LS-AT-051,P0,IMPLEMENTED,UNVERIFIED,steel/concrete PBR distinction
+LS-AT-052,P0,IMPLEMENTED,UNVERIFIED,hemisphere/directional/task lighting
+LS-AT-053,P1,IMPLEMENTED,UNVERIFIED,warm task light
+LS-AT-054,P0,IMPLEMENTED,UNVERIFIED,canonical material assignment command
+LS-AT-060,P0,IMPLEMENTED,UNVERIFIED,local draft reload
+LS-AT-061,P0,IMPLEMENTED,UNVERIFIED,checkpoint list/load/restore
+LS-AT-062,P0,IMPLEMENTED,UNVERIFIED,immutable version and hash
+LS-AT-063,P0,IMPLEMENTED,UNVERIFIED,post-publish edits remain draft
+LS-AT-064,P0,IMPLEMENTED,UNVERIFIED,new version identity/hash
+LS-AT-065,P0,IMPLEMENTED,UNVERIFIED,old version immutable
+LS-AT-066,P0,IMPLEMENTED,UNVERIFIED,full entity/root diff
+LS-AT-067,P0,PARTIAL,UNVERIFIED,controlled storage exceptions; quota UI polish pending
+LS-AT-068,P0,IMPLEMENTED,UNVERIFIED,semantic hash excludes revision
+LS-AT-070,P0,IMPLEMENTED,UNVERIFIED,exact JSON plus schema/hash gate
+LS-AT-071,P0,IMPLEMENTED,UNVERIFIED,exact SVG with visible openings
+LS-AT-072,P1,IMPLEMENTED,UNVERIFIED,requested PNG dimensions
+LS-AT-073,P0,IMPLEMENTED,UNVERIFIED,GLB 2.0 metres and box meshes
+LS-AT-074,P0,IMPLEMENTED,UNVERIFIED,exact print artifact/hash/warnings/schedule
+LS-AT-075,P0,IMPLEMENTED,UNVERIFIED,complete manifest all formats
+LS-AT-076,P0,IMPLEMENTED,UNVERIFIED,central privacy gate
+LS-AT-077,P0,IMPLEMENTED,UNVERIFIED,exports load immutable version by ID
+LS-AT-080,P0,IMPLEMENTED,UNVERIFIED,default-off 404
+LS-AT-081,P0,IMPLEMENTED,UNVERIFIED,local module without production credentials
+LS-AT-082,P0,IMPLEMENTED,UNVERIFIED,no migrations added
+LS-AT-083,P0,PARTIAL,UNVERIFIED,full repository regression deferred
+LS-AT-084,P0,IMPLEMENTED,UNVERIFIED,pure domain dependency direction
+LS-AT-085,P0,IMPLEMENTED,UNVERIFIED,verification intentionally deferred
+LS-AT-086,P0,IMPLEMENTED,UNVERIFIED,draft reload recovery
+LS-AT-087,P0,IMPLEMENTED,UNVERIFIED,isolated continuation workspace
+LS-AT-090,P0,IMPLEMENTED,UNVERIFIED,numeric command benchmark deferred
+LS-AT-091,P1,PARTIAL,EXTERNAL_HOLD,KORA interaction benchmark needs final set-out
+LS-AT-092,P1,PARTIAL,EXTERNAL_HOLD,KORA first-frame needs final set-out
+LS-AT-093,P1,IMPLEMENTED,UNVERIFIED,100-box benchmark deferred
+LS-AT-094,P1,IMPLEMENTED,UNVERIFIED,browser GPU/memory profile deferred
