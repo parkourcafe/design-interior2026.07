@@ -7,9 +7,8 @@ import type {
 
 export interface ThreeLightDescriptor {
   sourceId: string;
-  kind: "ambient" | "directional" | "point" | "hemisphere";
+  kind: "ambient" | "directional" | "point" | "linear_proxy";
   color?: THREE.ColorRepresentation;
-  groundColor?: THREE.ColorRepresentation;
   intensity?: number;
   positionM?: { x: number; y: number; z: number };
   distanceM?: number;
@@ -76,15 +75,13 @@ function buildLight(descriptor: ThreeLightDescriptor): THREE.Light {
       light = new THREE.DirectionalLight(color, intensity);
       break;
     case "point":
+    case "linear_proxy":
       light = new THREE.PointLight(
         color,
         intensity,
         descriptor.distanceM ?? 0,
         descriptor.decay ?? 2,
       );
-      break;
-    case "hemisphere":
-      light = new THREE.HemisphereLight(color, descriptor.groundColor ?? 0x444444, intensity);
       break;
     case "ambient":
       light = new THREE.AmbientLight(color, intensity);

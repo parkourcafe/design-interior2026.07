@@ -5,7 +5,12 @@ import {
 import { compileSceneDescriptor } from "@/lib/layout-studio/adapters/three/scene-compiler";
 import { exportSceneDescriptorToGlb } from "@/lib/layout-studio/adapters/three/glb-export";
 import { buildPrintSummary } from "@/lib/layout-studio/application/print-summary";
-import { deriveLayout, type LayoutDocument } from "@/lib/layout-studio/domain";
+import {
+  deriveLayout,
+  semanticHash,
+  validateLayoutDocument,
+  type LayoutDocument,
+} from "@/lib/layout-studio/domain";
 
 interface ExportableLayoutVersion {
   versionId: string;
@@ -135,6 +140,21 @@ export class LayoutExportService {
     const version = await this.options.repository.loadVersion(versionId);
     if (!version) {
       throw new LayoutExportError("VERSION_NOT_FOUND", "Версия для экспорта не найдена");
+    }
+
+    const validation = validateLayoutDocument(version.content);
+    if (!validation.valid) {
+      throw new LayoutExportError(
+        "VERSION_SCHEMA_INVALID",
+        `Версия не соответствует frozen schema: ${validation.issues[0]?.path ?? "/"}`,
+      );
+    }
+    const actualSemanticHash = await semanticHash(version.content);
+    if (actualSemanticHash !== version.semanticHash) {
+      throw new LayoutExportError(
+        "SEMANTIC_HASH_MISMATCH",
+        "Содержимое версии не соответствует сохранённому semantic hash",
+      );
     }
 
     const warnings = [...(version.warnings ?? [])];

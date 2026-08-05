@@ -45,6 +45,6 @@ export async function proxy(request: NextRequest) {
 }
 
 export const config = {
-  // Только кабинет дизайнера. Публичные маршруты (/i, /p, /api) не трогаем.
-  matcher: ["/dashboard/:path*"],
+  // Только приватные рабочие пространства. Публичные маршруты (/i, /p, /api) не трогаем.
+  matcher: ["/dashboard/:path*", "/app/layout-studio/:path*"],
 };

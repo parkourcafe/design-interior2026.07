@@ -22,23 +22,23 @@ export interface LayoutWall {
   endNodeId: string;
   thicknessMm: number;
   heightMm: number;
-  kind: string;
+  kind: "existing" | "partition";
   locked: boolean;
-  label?: string;
+  label: string;
   [key: string]: unknown;
 }
 
 export interface LayoutOpening {
   id: string;
   parentWallId: string;
-  kind: string;
+  kind: "door" | "free_opening" | "window";
   offsetMm: number;
   widthMm: number;
   heightMm: number;
   sillMm: number;
-  handing?: string;
+  handing?: "left" | "right" | "double" | "none";
   locked: boolean;
-  label?: string;
+  label: string;
   [key: string]: unknown;
 }
 
@@ -50,30 +50,39 @@ export interface LayoutColumn {
   depthMm: number;
   baseZMm: number;
   heightMm: number;
-  rotationDeg: number;
+  rotationDeg: 0 | 90 | 180 | 270;
   locked: boolean;
-  label?: string;
+  label: string;
   [key: string]: unknown;
 }
 
 export interface LayoutObject {
   id: string;
-  kind: string;
+  kind: "counter" | "sink" | "equipment" | "decor" | "service";
+  catalogKey?: string;
   xMm: number;
   yMm: number;
   zMm: number;
   widthMm: number;
   depthMm: number;
   heightMm: number;
-  rotationDeg: number;
+  rotationDeg: 0 | 90 | 180 | 270;
   locked: boolean;
-  label?: string;
+  label: string;
+  notes?: string;
   [key: string]: unknown;
 }
 
 export interface LayoutEntity {
   id: string;
   [key: string]: unknown;
+}
+
+export interface LayoutClearanceZone extends LayoutEntity {
+  label: string;
+  polygon: Array<{ xMm: number; yMm: number }>;
+  severity: "info" | "warning" | "blocking";
+  relatedObjectIds: string[];
 }
 
 export interface LayoutMaterial extends LayoutEntity {
@@ -92,7 +101,7 @@ export interface LayoutMaterialAssignment extends LayoutEntity {
   materialId: string;
 }
 
-export type LayoutLightKind = "ambient" | "directional" | "point" | "hemisphere";
+export type LayoutLightKind = "ambient" | "directional" | "point" | "linear_proxy";
 
 export interface LayoutLight extends LayoutEntity {
   kind: LayoutLightKind;
@@ -103,9 +112,6 @@ export interface LayoutLight extends LayoutEntity {
   intensity: number;
   label: string;
   targetId?: string;
-  groundColor?: string;
-  distanceMm?: number;
-  decay?: number;
 }
 
 export interface LayoutDocument {
@@ -133,7 +139,7 @@ export interface LayoutDocument {
   openings: LayoutOpening[];
   columns: LayoutColumn[];
   objects: LayoutObject[];
-  clearanceZones: LayoutEntity[];
+  clearanceZones: LayoutClearanceZone[];
   materials: LayoutMaterial[];
   materialAssignments: LayoutMaterialAssignment[];
   lights: LayoutLight[];

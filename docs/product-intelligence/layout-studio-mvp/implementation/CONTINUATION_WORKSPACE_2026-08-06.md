@@ -1,6 +1,6 @@
 # ArchiDom Layout Studio — continuation workspace
 
-Date: 2026-08-06  
+Date: 2026-08-06
 Status: IMPLEMENTATION COMPLETE IN LOCAL CONTINUATION; VERIFICATION DEFERRED
 
 ## Why this workspace exists

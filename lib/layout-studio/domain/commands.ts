@@ -75,7 +75,9 @@ export function applyLayoutCommand(
     if (updates.widthMm !== undefined) object.widthMm = updates.widthMm;
     if (updates.depthMm !== undefined) object.depthMm = updates.depthMm;
     if (updates.heightMm !== undefined) object.heightMm = updates.heightMm;
-    if (updates.rotationDeg !== undefined) object.rotationDeg = updates.rotationDeg;
+    if (updates.rotationDeg !== undefined) {
+      object.rotationDeg = updates.rotationDeg as typeof object.rotationDeg;
+    }
   } else if (command.type === "UPDATE_OPENING") {
     const opening = next.openings.find((candidate) => candidate.id === command.payload.openingId);
     if (!opening) {
@@ -93,7 +95,9 @@ export function applyLayoutCommand(
     if (updates.widthMm !== undefined) opening.widthMm = updates.widthMm;
     if (updates.heightMm !== undefined) opening.heightMm = updates.heightMm;
     if (updates.sillMm !== undefined) opening.sillMm = updates.sillMm;
-    if (updates.handing !== undefined) opening.handing = updates.handing;
+    if (updates.handing !== undefined) {
+      opening.handing = updates.handing as typeof opening.handing;
+    }
   } else if (command.type === "UPDATE_COLUMN") {
     const column = next.columns.find((candidate) => candidate.id === command.payload.columnId);
     if (!column) {
@@ -119,7 +123,9 @@ export function applyLayoutCommand(
     if (updates.depthMm !== undefined) column.depthMm = updates.depthMm;
     if (updates.baseZMm !== undefined) column.baseZMm = updates.baseZMm;
     if (updates.heightMm !== undefined) column.heightMm = updates.heightMm;
-    if (updates.rotationDeg !== undefined) column.rotationDeg = updates.rotationDeg;
+    if (updates.rotationDeg !== undefined) {
+      column.rotationDeg = updates.rotationDeg as typeof column.rotationDeg;
+    }
   } else if (command.type === "ASSIGN_MATERIAL") {
     const assignment = next.materialAssignments.find(
       (candidate) => candidate.id === command.payload.assignmentId,

@@ -7,6 +7,7 @@ import {
   wallLength,
 } from "./shared";
 import type { LayoutDocument, LayoutIssue, LayoutValidationResult } from "./types";
+import { validateFrozenLayoutSchema } from "./schema";
 
 const ROOT_FIELDS = [
   "contractVersion",
@@ -35,8 +36,9 @@ const ENTITY_SHAPES = {
       "heightMm",
       "kind",
       "locked",
+      "label",
     ],
-    optional: ["label"],
+    optional: [],
   },
   openings: {
     required: [
@@ -48,8 +50,9 @@ const ENTITY_SHAPES = {
       "heightMm",
       "sillMm",
       "locked",
+      "label",
     ],
-    optional: ["handing", "label"],
+    optional: ["handing"],
   },
   columns: {
     required: [
@@ -62,8 +65,9 @@ const ENTITY_SHAPES = {
       "heightMm",
       "rotationDeg",
       "locked",
+      "label",
     ],
-    optional: ["label"],
+    optional: [],
   },
   objects: {
     required: [
@@ -77,24 +81,13 @@ const ENTITY_SHAPES = {
       "heightMm",
       "rotationDeg",
       "locked",
-    ],
-    optional: ["label"],
-  },
-  clearanceZones: {
-    required: ["id"],
-    optional: [
-      "kind",
-      "targetId",
-      "xMm",
-      "yMm",
-      "zMm",
-      "widthMm",
-      "depthMm",
-      "heightMm",
-      "rotationDeg",
-      "locked",
       "label",
     ],
+    optional: ["catalogKey", "notes"],
+  },
+  clearanceZones: {
+    required: ["id", "label", "polygon", "severity", "relatedObjectIds"],
+    optional: [],
   },
   materials: {
     required: [
@@ -115,7 +108,7 @@ const ENTITY_SHAPES = {
   },
   lights: {
     required: ["id", "kind", "xMm", "yMm", "zMm", "color", "intensity", "label"],
-    optional: ["targetId", "groundColor", "distanceMm", "decay"],
+    optional: ["targetId"],
   },
 } as const;
 
@@ -339,6 +332,8 @@ function inRange(value: unknown, minimum: number, maximum: number): boolean {
 }
 
 export function validateLayoutDocument(document: LayoutDocument): LayoutValidationResult {
+  const schemaResult = validateFrozenLayoutSchema(document);
+  if (!schemaResult.valid) return schemaResult;
   const issues: LayoutIssue[] = [];
 
   if (!isRecord(document)) {
@@ -488,7 +483,7 @@ export function validateLayoutDocument(document: LayoutDocument): LayoutValidati
     }
   }
 
-  const lightKinds = new Set(["ambient", "directional", "point", "hemisphere"]);
+  const lightKinds = new Set(["ambient", "directional", "point", "linear_proxy"]);
   for (const [index, light] of (Array.isArray(document.lights) ? document.lights : []).entries()) {
     const path = `lights[${index}]`;
     if (!lightKinds.has(light.kind)) {
@@ -496,9 +491,6 @@ export function validateLayoutDocument(document: LayoutDocument): LayoutValidati
     }
     if (!HEX_COLOR.test(light.color)) {
       shapeIssue(issues, "INVALID_COLOR", "Цвет должен быть в формате #RRGGBB", `${path}.color`, light.id);
-    }
-    if (light.groundColor !== undefined && !HEX_COLOR.test(light.groundColor)) {
-      shapeIssue(issues, "INVALID_COLOR", "Цвет должен быть в формате #RRGGBB", `${path}.groundColor`, light.id);
     }
     if (!inRange(light.intensity, 0, 100_000)) {
       shapeIssue(issues, "INVALID_LIGHT_INTENSITY", "Интенсивность света должна быть в диапазоне 0..100000", `${path}.intensity`, light.id);

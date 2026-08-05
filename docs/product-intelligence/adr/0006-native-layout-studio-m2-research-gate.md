@@ -1,6 +1,6 @@
 # ADR-0006 — Native ArchiDom Layout Studio M2 research gate
 
-Date: 2026-08-04  
+Date: 2026-08-04
 Status: Accepted for isolated research implementation only
 
 ## Decision

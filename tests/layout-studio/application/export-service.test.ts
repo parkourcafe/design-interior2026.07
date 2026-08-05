@@ -2,7 +2,10 @@ import { createHash } from "node:crypto";
 
 import { describe, expect, it } from "vitest";
 
-import { LayoutExportService } from "@/lib/layout-studio/application/export-service";
+import {
+  LayoutExportService,
+  type LayoutVersionReader,
+} from "@/lib/layout-studio/application/export-service";
 import { MemoryLayoutRepository } from "@/lib/layout-studio/adapters/local/memory-layout-repository";
 import { applyLayoutCommand } from "@/lib/layout-studio/domain";
 
@@ -30,7 +33,7 @@ function sha256(artifact: unknown): string {
   return createHash("sha256").update(bytesOf(artifact)).digest("hex");
 }
 
-function makeService(repository: MemoryLayoutRepository): LayoutExportService {
+function makeService(repository: LayoutVersionReader): LayoutExportService {
   return new LayoutExportService({
     repository,
     generatorVersion: "archidom-layout-studio/test",
@@ -231,4 +234,45 @@ describe("LS-060: exact-version JSON/SVG export", () => {
       });
     },
   );
+
+  it("fails closed when immutable content no longer matches its semantic hash", async () => {
+    const document = makeSimpleRoom();
+    const repository = new MemoryLayoutRepository();
+    const version = await repository.publishVersion(document, {
+      versionId: "version.simple-room.corrupt-hash",
+      authorType: "human",
+      reasonCode: "CORRUPTION_TEST",
+      reason: "Проверка semantic hash",
+      createdAt: generatedAt,
+      warnings: [],
+    });
+    const corrupted = structuredClone(version);
+    corrupted.content.objects[0]!.xMm += 1;
+
+    await expect(makeService({
+      loadVersion: async () => corrupted,
+    }).exportVersion(version.versionId, "json")).rejects.toMatchObject({
+      code: "SEMANTIC_HASH_MISMATCH",
+    });
+  });
+
+  it("fails closed when stored version content violates the frozen schema", async () => {
+    const repository = new MemoryLayoutRepository();
+    const version = await repository.publishVersion(makeSimpleRoom(), {
+      versionId: "version.simple-room.corrupt-schema",
+      authorType: "human",
+      reasonCode: "CORRUPTION_TEST",
+      reason: "Проверка frozen schema",
+      createdAt: generatedAt,
+      warnings: [],
+    });
+    const corrupted = structuredClone(version);
+    corrupted.content.objects[0]!.rotationDeg = 45 as 0;
+
+    await expect(makeService({
+      loadVersion: async () => corrupted,
+    }).exportVersion(version.versionId, "json")).rejects.toMatchObject({
+      code: "VERSION_SCHEMA_INVALID",
+    });
+  });
 });

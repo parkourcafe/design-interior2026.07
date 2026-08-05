@@ -2,14 +2,11 @@ import type { LayoutDocument } from "@/lib/layout-studio/domain";
 
 export interface LightDescriptor {
   sourceId: string;
-  kind: "ambient" | "directional" | "point" | "hemisphere";
+  kind: "ambient" | "directional" | "point" | "linear_proxy";
   color: string;
   intensity: number;
   positionM: { x: number; y: number; z: number };
   targetSourceId?: string;
-  groundColor?: string;
-  distanceM?: number;
-  decay?: number;
 }
 
 export function compileLightDescriptors(document: LayoutDocument): LightDescriptor[] {
@@ -24,8 +21,5 @@ export function compileLightDescriptors(document: LayoutDocument): LightDescript
       z: light.yMm / 1000,
     },
     ...(light.targetId === undefined ? {} : { targetSourceId: light.targetId }),
-    ...(light.groundColor === undefined ? {} : { groundColor: light.groundColor }),
-    ...(light.distanceMm === undefined ? {} : { distanceM: light.distanceMm / 1000 }),
-    ...(light.decay === undefined ? {} : { decay: light.decay }),
   }));
 }

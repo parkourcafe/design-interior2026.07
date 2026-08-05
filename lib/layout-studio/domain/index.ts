@@ -27,3 +27,4 @@ export type {
   LayoutWall,
 } from "./types";
 export { validateLayoutDocument } from "./validate";
+export { frozenSchema, validateFrozenLayoutSchema } from "./schema";
