@@ -1,0 +1,15 @@
+import { deriveLayout, type LayoutDocument } from "../../domain";
+
+const esc = (value: string) => value.replace(/[&<>"']/g, (char) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[char]!);
+
+export function renderLayoutSvg(document: LayoutDocument, selectedId?: string): string {
+  const derived = deriveLayout(document); const pad = 500; const width = Math.max(1, derived.bounds.maxX - derived.bounds.minX); const height = Math.max(1, derived.bounds.maxY - derived.bounds.minY);
+  const wallLines = derived.walls.map((wall) => `<line data-source-id="${esc(wall.id)}" x1="${wall.start.xMm}" y1="${wall.start.yMm}" x2="${wall.end.xMm}" y2="${wall.end.yMm}" stroke="#252525" stroke-width="${wall.thicknessMm}" stroke-linecap="square"/>`).join("");
+  const openings = document.openings.flatMap((opening) => { const wall = derived.walls.find((item) => item.id === opening.parentWallId); if (!wall) return []; const dx = wall.end.xMm - wall.start.xMm; const dy = wall.end.yMm - wall.start.yMm; const length = Math.hypot(dx, dy); const start = opening.offsetMm / length; const end = (opening.offsetMm + opening.widthMm) / length; return [`<line data-source-id="${esc(opening.id)}" x1="${wall.start.xMm + dx * start}" y1="${wall.start.yMm + dy * start}" x2="${wall.start.xMm + dx * end}" y2="${wall.start.yMm + dy * end}" stroke="#f8f5ef" stroke-width="${wall.thicknessMm + 20}"/><line x1="${wall.start.xMm + dx * start}" y1="${wall.start.yMm + dy * start}" x2="${wall.start.xMm + dx * end}" y2="${wall.start.yMm + dy * end}" stroke="#2a74ff" stroke-width="24" stroke-dasharray="80 45"/>`]; }).join("");
+  const columns = document.columns.map((item) => `<rect data-source-id="${esc(item.id)}" x="${item.xMm - item.widthMm / 2}" y="${item.yMm - item.depthMm / 2}" width="${item.widthMm}" height="${item.depthMm}" fill="#797979"/>`).join("");
+  const objects = document.objects.map((item) => `<g data-source-id="${esc(item.id)}" class="${selectedId === item.id ? "selected" : ""}" transform="translate(${item.xMm} ${item.yMm}) rotate(${item.rotationDeg})"><rect x="${-item.widthMm / 2}" y="${-item.depthMm / 2}" width="${item.widthMm}" height="${item.depthMm}" fill="#c7b59a" stroke="#4a4036" stroke-width="20"/><text x="0" y="0" text-anchor="middle" font-size="120">${esc(item.label)}</text></g>`).join("");
+  const zones = document.clearanceZones.map((zone) => `<polygon data-source-id="${esc(zone.id)}" points="${zone.polygon.map((p) => `${p.xMm},${p.yMm}`).join(" ")}" fill="rgba(255,170,0,.14)" stroke="#e59b00" stroke-width="18" stroke-dasharray="70 40"/>`).join("");
+  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="${derived.bounds.minX - pad} ${derived.bounds.minY - pad} ${width + 2 * pad} ${height + 2 * pad}" role="img" aria-label="${esc(document.name)}"><style>.selected rect{stroke:#ff3b30;stroke-width:55}</style><g id="walls">${wallLines}${openings}</g><g id="columns">${columns}</g><g id="clearance">${zones}</g><g id="objects">${objects}</g></svg>`;
+}
+
+export class SvgProjectionAdapter { render(document: LayoutDocument) { return renderLayoutSvg(document); } }

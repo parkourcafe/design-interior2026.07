@@ -16,15 +16,18 @@
   "dependencies": {
     "@supabase/ssr": "0.12.3",
     "@supabase/supabase-js": "2.110.7",
+    "ajv": "^8.17.1",
     "next": "^16.2.10",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
+    "three": "^0.179.1",
     "zod": "^3.23.8"
   },
   "devDependencies": {
     "@types/node": "^20.16.11",
     "@types/react": "^18.3.11",
     "@types/react-dom": "^18.3.0",
+    "@types/three": "^0.179.0",
     "autoprefixer": "^10.4.20",
     "dotenv": "^16.4.5",
     "eslint": "^8.57.1",
