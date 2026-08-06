@@ -36,6 +36,23 @@ const revisionIdList = z.array(claimRevisionId).max(500);
 const commitM2Identifier = z.string().min(1).max(160)
   .refine((value) => value === value.trim(), "identifier_must_be_trimmed");
 const commitM2IdentifierList = z.array(commitM2Identifier).max(500);
+const m2ClientVariant = z.object({
+  variantId: commitM2Identifier,
+  role: z.enum(["preferred", "value_engineered", "premium"]),
+  layoutDocumentId: commitM2Identifier,
+  layoutVersionId: commitM2Identifier,
+  layoutRevisionId: uuid,
+  semanticHash: z.string().regex(/^sha256:[0-9a-f]{64}$/),
+  selectionRevisionIds: commitM2IdentifierList.min(1).refine(
+    (ids) => new Set(ids).size === ids.length,
+    "selection_revision_ids_must_be_unique",
+  ),
+  budget: z.object({
+    amountRub: z.number().int().safe().nonnegative(),
+    staleSelectionRevisionIds: commitM2IdentifierList,
+    missingPriceSelectionRevisionIds: commitM2IdentifierList,
+  }).strict(),
+}).strict();
 const m2LayoutSchemaVersion = "project-ceo-m2-layout/0.1" as const;
 const maxM2LayoutContentBytes = 65_536;
 const maxM2LayoutDepth = 64;
@@ -155,6 +172,52 @@ const baselineDescriptor = z.object({
 }).strict();
 
 export const projectCeoCommandSchema = z.discriminatedUnion("kind", [
+  projectSelector.extend({
+    contractVersion: z.literal(PROJECTCEO_COMMAND_CONTRACT_VERSION),
+    kind: z.literal("submit_m2_client_review"),
+    payload: z.object({
+      packageId: uuid,
+      submissionId: commitM2Identifier,
+      revisionId: uuid,
+      expectedRevisionId: uuid.nullable(),
+      approvalPackageId: commitM2Identifier,
+      roomId: commitM2Identifier,
+      designIntentRevisionId: commitM2Identifier,
+      variants: z.array(m2ClientVariant).length(3).refine(
+        (variants) => new Set(variants.map((variant) => variant.role)).size === 3,
+        "three_variant_roles_required",
+      ),
+      budgetAsOf: z.string().datetime({ offset: true }),
+      staleAfterDays: z.number().int().safe().positive(),
+      reason: z.string().trim().min(3).max(4000),
+    }).strict(),
+  }).strict(),
+  projectSelector.extend({
+    contractVersion: z.literal(PROJECTCEO_COMMAND_CONTRACT_VERSION),
+    kind: z.literal("review_m2_client_submission"),
+    payload: z.object({
+      packageId: uuid,
+      submissionId: commitM2Identifier,
+      revisionId: uuid,
+      expectedRevisionId: uuid,
+      chosenVariantId: commitM2Identifier,
+      decision: z.enum(["approved", "rejected", "change_requested"]),
+      reason: z.string().trim().min(3).max(4000),
+    }).strict(),
+  }).strict(),
+  projectSelector.extend({
+    contractVersion: z.literal(PROJECTCEO_COMMAND_CONTRACT_VERSION),
+    kind: z.literal("publish_m2_m3_handoff"),
+    payload: z.object({
+      packageId: uuid,
+      handoffId: commitM2Identifier,
+      revisionId: uuid,
+      expectedRevisionId: uuid.nullable(),
+      approvedCommitId: commitM2Identifier,
+      approvedCommitRevisionId: uuid,
+      reason: z.string().trim().min(3).max(4000),
+    }).strict(),
+  }).strict(),
   projectSelector.extend({
     contractVersion: z.literal(PROJECTCEO_COMMAND_CONTRACT_VERSION),
     kind: z.literal("create_invitation"),

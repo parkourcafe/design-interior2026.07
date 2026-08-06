@@ -210,7 +210,10 @@ begin
     ('projectceo_product_api.distribute_release_request_bound(uuid,text,uuid,bigint,text)'),
     ('projectceo_product_api.acknowledge_release_request_bound(uuid,uuid,text,bigint,text)'),
     ('projectceo_product_api.approve_no_change(uuid,text,text,text,bigint,text)'),
-    ('projectceo_product_api.append_m2_workspace_revision(uuid,uuid,text,text,text,text,text,jsonb,text,bigint,text)')
+    ('projectceo_product_api.append_m2_workspace_revision(uuid,uuid,text,text,text,text,text,jsonb,text,bigint,text)'),
+    ('projectceo_product_api.submit_m2_client_review(uuid,uuid,text,text,text,text,text,text,jsonb,text,integer,text,bigint,text)'),
+    ('projectceo_product_api.review_m2_client_submission(uuid,uuid,text,text,text,text,text,text,bigint,text)'),
+    ('projectceo_product_api.publish_m2_m3_handoff(uuid,uuid,text,text,text,text,text,text,bigint,text)')
   ) expected(signature)
   where to_regprocedure(expected.signature) is null
   limit 1;
@@ -225,7 +228,7 @@ begin
     and p.prokind = 'f';
   -- The layout migration retains one owner-only compatibility implementation
   -- behind the public request-bound wrapper.
-  if v_count <> 18 then
+  if v_count <> 21 then
     raise exception 'DB4_UNEXPECTED_RPC_COUNT:%', v_count;
   end if;
 
@@ -255,6 +258,42 @@ begin
     'EXECUTE'
   ) then
     raise exception 'DB4_WORKER_RPC_HUMAN_EXPOSURE';
+  end if;
+
+  -- Cycle 6 adds exactly three request-bound human functions. Only
+  -- authenticated may execute them; anon/service/worker remain denied.
+  if not has_function_privilege(
+    'authenticated',
+    'projectceo_product_api.submit_m2_client_review(uuid,uuid,text,text,text,text,text,text,jsonb,text,integer,text,bigint,text)',
+    'EXECUTE'
+  ) or not has_function_privilege(
+    'authenticated',
+    'projectceo_product_api.review_m2_client_submission(uuid,uuid,text,text,text,text,text,text,bigint,text)',
+    'EXECUTE'
+  ) or not has_function_privilege(
+    'authenticated',
+    'projectceo_product_api.publish_m2_m3_handoff(uuid,uuid,text,text,text,text,text,text,bigint,text)',
+    'EXECUTE'
+  ) then
+    raise exception 'DB4_CYCLE6_AUTHENTICATED_RPC_GRANT_MISSING';
+  end if;
+
+  select forbidden.role_name || ':' || cycle6.signature into v_problem
+  from (values
+    ('projectceo_product_api.submit_m2_client_review(uuid,uuid,text,text,text,text,text,text,jsonb,text,integer,text,bigint,text)'),
+    ('projectceo_product_api.review_m2_client_submission(uuid,uuid,text,text,text,text,text,text,bigint,text)'),
+    ('projectceo_product_api.publish_m2_m3_handoff(uuid,uuid,text,text,text,text,text,text,bigint,text)')
+  ) cycle6(signature)
+  cross join (values
+    ('anon'),
+    ('service_role'),
+    ('pi_human_executor'),
+    ('pi_worker_executor')
+  ) forbidden(role_name)
+  where has_function_privilege(forbidden.role_name, cycle6.signature, 'EXECUTE')
+  limit 1;
+  if v_problem is not null then
+    raise exception 'DB4_CYCLE6_RPC_GRANT_BROADENED:%', v_problem;
   end if;
 end
 $db4_schema_security$;

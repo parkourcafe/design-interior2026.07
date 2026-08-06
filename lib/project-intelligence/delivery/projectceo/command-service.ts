@@ -202,6 +202,52 @@ export class ProjectCeoCommandService {
     try {
       const { scope, delivery } = await this.context(command.projectId);
       const idempotencyKey = this.idempotencyKey(command);
+      if (command.kind === "submit_m2_client_review") {
+        return completed(requestId, await this.product.submitM2ClientReview({
+          projectId: command.projectId,
+          packageId: command.payload.packageId,
+          submissionId: command.payload.submissionId,
+          revisionId: command.payload.revisionId,
+          expectedRevisionId: command.payload.expectedRevisionId,
+          approvalPackageId: command.payload.approvalPackageId,
+          roomId: command.payload.roomId,
+          designIntentRevisionId: command.payload.designIntentRevisionId,
+          variants: command.payload.variants,
+          budgetAsOf: command.payload.budgetAsOf,
+          staleAfterDays: command.payload.staleAfterDays,
+          reason: command.payload.reason,
+          expectedStateRevision: scope.stateRevision,
+          idempotencyKey,
+        }));
+      }
+      if (command.kind === "review_m2_client_submission") {
+        return completed(requestId, await this.product.reviewM2ClientSubmission({
+          projectId: command.projectId,
+          packageId: command.payload.packageId,
+          submissionId: command.payload.submissionId,
+          revisionId: command.payload.revisionId,
+          expectedRevisionId: command.payload.expectedRevisionId,
+          chosenVariantId: command.payload.chosenVariantId,
+          decision: command.payload.decision,
+          reason: command.payload.reason,
+          expectedStateRevision: scope.stateRevision,
+          idempotencyKey,
+        }));
+      }
+      if (command.kind === "publish_m2_m3_handoff") {
+        return completed(requestId, await this.product.publishM2M3Handoff({
+          projectId: command.projectId,
+          packageId: command.payload.packageId,
+          handoffId: command.payload.handoffId,
+          revisionId: command.payload.revisionId,
+          expectedRevisionId: command.payload.expectedRevisionId,
+          approvedCommitId: command.payload.approvedCommitId,
+          approvedCommitRevisionId: command.payload.approvedCommitRevisionId,
+          reason: command.payload.reason,
+          expectedStateRevision: scope.stateRevision,
+          idempotencyKey,
+        }));
+      }
       if (command.kind === "create_invitation") {
         const tokenSecret = this.dependencies.tokenSecret!;
         const now = (this.dependencies.now ?? (() => new Date()))();

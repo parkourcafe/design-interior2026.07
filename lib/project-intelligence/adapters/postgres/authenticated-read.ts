@@ -127,6 +127,7 @@ export interface AuthenticatedReadM2ApprovedCommitPayload {
   readonly chosenVariant: {
     readonly layoutDocumentId: string;
     readonly layoutVersionId: string;
+    readonly layoutRevisionId?: string;
     readonly role: "preferred" | "value_engineered" | "premium";
     readonly semanticHash: `sha256:${string}`;
     readonly variantId: string;
@@ -137,6 +138,8 @@ export interface AuthenticatedReadM2ApprovedCommitPayload {
   readonly roomId: string;
   readonly submittedAt: string;
   readonly submissionReason: string;
+  readonly clientSubmissionId?: string;
+  readonly clientReviewRevisionId?: string;
 }
 
 export interface AuthenticatedReadM2ApprovedCommit {
@@ -186,6 +189,9 @@ export interface AuthenticatedProjectReadProjection {
   readonly m2ClientHandoffs?: readonly Readonly<Record<string, unknown>>[];
   readonly m2ApprovedCommits: readonly AuthenticatedReadM2ApprovedCommit[];
   readonly m2LayoutVersions: readonly AuthenticatedReadM2LayoutVersion[];
+  readonly m2ClientReviewSubmissions: readonly Readonly<Record<string, unknown>>[];
+  readonly m2ClientReviews: readonly Readonly<Record<string, unknown>>[];
+  readonly m2M3Handoffs: readonly Readonly<Record<string, unknown>>[];
   readonly decisions: readonly AuthenticatedReadDecision[];
   readonly distributionSummary: readonly AuthenticatedReadDistributionSummary[];
   readonly executionPackages: readonly ExecutionDeliveryEnvelope[];
@@ -317,25 +323,30 @@ function isApprovedCommitBudget(
 function isApprovedCommitChosenVariant(
   value: unknown,
 ): value is AuthenticatedReadM2ApprovedCommitPayload["chosenVariant"] {
-  if (!isRecord(value) || !hasExactKeys(value, [
+  if (!isRecord(value)) return false;
+  const keys = [
     "variantId",
     "role",
     "layoutDocumentId",
     "layoutVersionId",
     "semanticHash",
-  ])) {
+  ];
+  const isClientReviewed = Object.hasOwn(value, "layoutRevisionId");
+  if (!hasExactKeys(value, isClientReviewed ? [...keys, "layoutRevisionId"] : keys)) {
     return false;
   }
   return isIdentifier(value.variantId)
     && (value.role === "preferred" || value.role === "value_engineered" || value.role === "premium")
     && isIdentifier(value.layoutDocumentId)
     && isIdentifier(value.layoutVersionId)
+    && (!isClientReviewed || isUuid(value.layoutRevisionId))
     && typeof value.semanticHash === "string"
     && /^sha256:[0-9a-f]{64}$/.test(value.semanticHash);
 }
 
 function isApprovedCommitPayload(value: unknown): value is AuthenticatedReadM2ApprovedCommitPayload {
-  if (!isRecord(value) || !hasExactKeys(value, [
+  if (!isRecord(value)) return false;
+  const keys = [
     "approvalPackageId",
     "roomId",
     "designIntentRevisionId",
@@ -346,7 +357,12 @@ function isApprovedCommitPayload(value: unknown): value is AuthenticatedReadM2Ap
     "reviewedAt",
     "submissionReason",
     "reviewReason",
-  ])) {
+  ];
+  const isClientReviewed = Object.hasOwn(value, "clientSubmissionId")
+    || Object.hasOwn(value, "clientReviewRevisionId");
+  if (!hasExactKeys(value, isClientReviewed
+    ? [...keys, "clientSubmissionId", "clientReviewRevisionId"]
+    : keys)) {
     return false;
   }
   if (!Array.isArray(value.approvedSelectionRevisionIds)
@@ -362,6 +378,10 @@ function isApprovedCommitPayload(value: unknown): value is AuthenticatedReadM2Ap
     && isIdentifier(value.designIntentRevisionId)
     && isApprovedCommitChosenVariant(value.chosenVariant)
     && isApprovedCommitBudget(value.budget)
+    && (!isClientReviewed || (
+      isIdentifier(value.clientSubmissionId)
+      && isUuid(value.clientReviewRevisionId)
+    ))
     && isTimestamp(value.submittedAt)
     && isTimestamp(value.reviewedAt)
     && Date.parse(value.reviewedAt) >= Date.parse(value.submittedAt)
@@ -450,6 +470,58 @@ function isLayoutVersion(value: unknown): value is AuthenticatedReadM2LayoutVers
     && isTimestamp(value.createdAt);
 }
 
+function isM2ClientReviewSubmission(value: unknown): boolean {
+  return isRecord(value)
+    && hasExactKeys(value, [
+      "id", "packageId", "revisionId", "revisionNo", "status",
+      "assignedClientUserId", "payload", "createdAt",
+    ])
+    && isIdentifier(value.id)
+    && isUuid(value.packageId)
+    && isUuid(value.revisionId)
+    && isRevisionNumber(value.revisionNo)
+    && value.status === "submitted"
+    && isUuid(value.assignedClientUserId)
+    && isRecord(value.payload)
+    && isTimestamp(value.createdAt);
+}
+
+function isM2ClientReview(value: unknown): boolean {
+  return isRecord(value)
+    && hasExactKeys(value, [
+      "id", "packageId", "revisionId", "revisionNo", "status",
+      "submissionId", "chosenVariantId", "createdAt",
+    ])
+    && isIdentifier(value.id)
+    && isUuid(value.packageId)
+    && isUuid(value.revisionId)
+    && isRevisionNumber(value.revisionNo)
+    && (value.status === "approved" || value.status === "rejected" || value.status === "change_requested")
+    && isIdentifier(value.submissionId)
+    && isIdentifier(value.chosenVariantId)
+    && isTimestamp(value.createdAt);
+}
+
+function isM2M3Handoff(value: unknown): boolean {
+  return isRecord(value)
+    && hasExactKeys(value, [
+      "id", "packageId", "revisionId", "revisionNo", "status",
+      "approvedCommitId", "layoutRevisionId", "selectionRevisionIds", "createdAt",
+    ])
+    && isIdentifier(value.id)
+    && isUuid(value.packageId)
+    && isUuid(value.revisionId)
+    && isRevisionNumber(value.revisionNo)
+    && value.status === "published"
+    && isIdentifier(value.approvedCommitId)
+    && isUuid(value.layoutRevisionId)
+    && Array.isArray(value.selectionRevisionIds)
+    && value.selectionRevisionIds.length > 0
+    && value.selectionRevisionIds.every(isIdentifier)
+    && new Set(value.selectionRevisionIds).size === value.selectionRevisionIds.length
+    && isTimestamp(value.createdAt);
+}
+
 function parseAuthenticatedProjectRead(value: unknown): AuthenticatedProjectReadResult {
   if (!isRecord(value) || !hasExactKeys(value, [
     "contractVersion",
@@ -503,6 +575,9 @@ function parseAuthenticatedProjectRead(value: unknown): AuthenticatedProjectRead
     "executionPackages",
     "m2ApprovedCommits",
     "m2LayoutVersions",
+    "m2ClientReviewSubmissions",
+    "m2ClientReviews",
+    "m2M3Handoffs",
     "noChangeTerminals",
     "packages",
     "packageVersions",
@@ -518,6 +593,12 @@ function parseAuthenticatedProjectRead(value: unknown): AuthenticatedProjectRead
     && data.m2ApprovedCommits.every(isApprovedCommit);
   const validM2LayoutVersions = Array.isArray(data.m2LayoutVersions)
     && data.m2LayoutVersions.every(isLayoutVersion);
+  const validM2ClientReviewSubmissions = Array.isArray(data.m2ClientReviewSubmissions)
+    && data.m2ClientReviewSubmissions.every(isM2ClientReviewSubmission);
+  const validM2ClientReviews = Array.isArray(data.m2ClientReviews)
+    && data.m2ClientReviews.every(isM2ClientReview);
+  const validM2M3Handoffs = Array.isArray(data.m2M3Handoffs)
+    && data.m2M3Handoffs.every(isM2M3Handoff);
   const validScope = isUuid(scope.actorUserId)
     && isUuid(scope.organizationId)
     && isUuid(scope.projectId)
@@ -529,6 +610,9 @@ function parseAuthenticatedProjectRead(value: unknown): AuthenticatedProjectRead
     || !validArrays
     || !validM2ApprovedCommits
     || !validM2LayoutVersions
+    || !validM2ClientReviewSubmissions
+    || !validM2ClientReviews
+    || !validM2M3Handoffs
     || !validScope
     || !isRecord(data.extensionStatus)
     || projectMetadata === null
@@ -563,7 +647,7 @@ export class ProjectCeoAuthenticatedReadPostgresAdapter {
       await callRpc(
         this.client,
         "projectceo_read_api",
-        "get_project_workspace_read_v5",
+        "get_project_workspace_read_v6",
         {
           project_id: input.projectId,
           package_id: input.packageId,
