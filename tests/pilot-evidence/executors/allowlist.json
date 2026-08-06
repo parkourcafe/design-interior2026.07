@@ -3,7 +3,7 @@
   "executors": [
     {
       "path": "tests/pilot-evidence/run-m2-pilot-evidence.zsh",
-      "digest": "sha256:34cc268c1731b5a70bbe5e8e6d1a75eb8bd246d9b69dde44970dfdf06c6c4aaa"
+      "digest": "sha256:0582874d94f60adb6bb62c072df4b5dfb43d4b3e1c99531da6c4d8388866d121"
     },
     {
       "path": "tests/pilot-evidence/executors/pending-external-system.zsh",

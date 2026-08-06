@@ -178,7 +178,8 @@ Infrastructure gate реализован, но сам цикл **не завер
 - Challenge nonce.
 - Five distinct request-bound role/session/request bindings.
 - Exact command/state/replay/audit/read/lineage receipts.
-- Kora producer фактически запускается и пишет protected receipt.
+- Раннер вызывает Kora producer и валидирует его protected receipt: обвязка
+  проверена, сам producer добавлен отдельно (см. ниже).
 - Finalizer перечитывает persisted PENDING и Kora receipt, проверяет digests и scope.
 - PASS публикуется только atomic rename последней операцией.
 - Failure cleanup удаляет PASS/temp/receipts.
@@ -193,6 +194,31 @@ Infrastructure gate реализован, но сам цикл **не завер
 - `tests/pilot-evidence/finalize-m2-pilot-evidence.ts`;
 - `tests/pilot-evidence/executors/allowlist.json`;
 - `tests/pilot-evidence/executors/pending-external-system.zsh`.
+
+### Kora five-session producer (добавлен 2026-08-06)
+
+- `tests/pilot-evidence/executors/kora-five-session-producer.zsh` — repository-owned
+  producer: запускает реальный `tests/ap1/e2e/run-five-sessions.zsh`, собирает
+  идентификаторы этого прогона и вызывает builder. Ничего не выдумывает.
+- `tests/pilot-evidence/kora-five-session-receipt.ts` — тестируемый builder:
+  маппинг AP1-ролей на Cycle 7 (`owner→owner_lead`, `client→client_approver`),
+  строгая RFC-4122 проверка, пять различных bindings, приватность, запись `wx`/0600.
+- `tests/pilot-evidence/kora-five-session-receipt-cli.ts` — CLI для producer'а.
+- `tests/pilot-evidence/kora-five-session-receipt.test.ts` — 23 теста, включая
+  интеграционный: receipt проходит через реальный `finalizeM2PilotEvidence` до PASS.
+
+Источники идентификаторов — только фактический прогон: `userId` из session-файла
+AP1, `sessionId` из `auth.sessions` disposable-базы, `requestId` из ответа живого
+аутентифицированного `GET /api/projectceo/portfolio` под cookie-jar той же роли.
+
+**Producer намеренно НЕ добавлен в allowlist** — это должен сделать независимый
+ревьюер (см. §8).
+
+Попутно исправлен дефект самого раннера: `local status=$?` в `cleanup()` —
+в zsh `status` read-only, из-за чего trap обрывался на первой строке и
+failure-cleanup не удалял PENDING/RECEIPT/KORA_RECEIPT. Воспроизведено на zsh 5.9,
+исправлено в обоих скриптах, покрыто регрессионным тестом; digest раннера в
+`allowlist.json` обновлён под исправленный файл.
 
 ## 4. Доказательства и проверки
 
@@ -257,8 +283,21 @@ fac3e4e test(m2): add fail-closed external pilot gate
 
 ## 6. Что не сделано
 
-Cycle 7 и полный M2 P0 не завершены, потому что отсутствует один внешний реальный
-пакет. В workspace проверены существующие кандидаты:
+Cycle 7 и полный M2 P0 не завершены. Блокеров четыре, а не один:
+
+1. **Внешний реальный пакет** — не предоставлен (см. §7).
+2. **Внешний executor** — единственный allowlisted (`pending-external-system.zsh`)
+   честно отдаёт exit 75 без receipt. Нужен реальный, с доступом к disposable
+   окружению, после RED/GREEN/REFACTOR и независимого review.
+3. **Kora producer не в allowlist** — скрипт написан и покрыт тестами, но
+   раннер отклонит его до добавления записи ревьюером (§8).
+4. **Среда прогона** — Cycle 7 привязан к рабочей станции владельца:
+   `tests/ap1/e2e/run-five-sessions.zsh` требует
+   `DOCKER_HOST=unix://$HOME/.colima/archidom-ap1/docker.sock` и отвергает любой
+   другой (`AP1_DOCKER_HOST_REJECTED`, exit 65), плюс `AP1_KORA_SITE_PHOTO` и
+   локальный Supabase. В удалённой сессии/CI прогон невозможен.
+
+В workspace проверены существующие кандидаты на внешний пакет:
 
 - `fixtures/project-intelligence/kitchen-worktop` — явно `synthetic: true`;
 - `Ubud Food Hall - MEP Existing.pdf` — тот же Kora/Ubud контур;
@@ -300,16 +339,34 @@ Cycle 7 и полный M2 P0 не завершены, потому что от�
 
 ## 8. Точная следующая команда после появления данных
 
-После создания reviewed и git-tracked external executor:
+Сначала ревьюер добавляет producer в allowlist (одна запись; digest считается
+командой ниже, потому что после любой правки скрипта он меняется):
+
+```bash
+shasum -a 256 tests/pilot-evidence/executors/kora-five-session-producer.zsh \
+  | awk '{print "sha256:"$1}'
+```
+
+```json
+{
+  "path": "tests/pilot-evidence/executors/kora-five-session-producer.zsh",
+  "digest": "sha256:<вывод команды выше>"
+}
+```
+
+Затем, после создания reviewed и git-tracked external executor:
 
 ```bash
 ARCHIDOM_EXTERNAL_PILOT_MANIFEST=/absolute/private/path/external-manifest.json \
 ARCHIDOM_EXTERNAL_PILOT_EXECUTOR=/absolute/repo/path/tests/pilot-evidence/executors/<executor>.zsh \
 ARCHIDOM_EXTERNAL_PILOT_EXECUTOR_SHA256=sha256:<reviewed-digest> \
-ARCHIDOM_KORA_FIVE_SESSION_PRODUCER=/absolute/repo/path/tests/pilot-evidence/executors/<kora-producer>.zsh \
-ARCHIDOM_KORA_FIVE_SESSION_PRODUCER_SHA256=sha256:<reviewed-digest> \
+ARCHIDOM_KORA_FIVE_SESSION_PRODUCER=/absolute/repo/path/tests/pilot-evidence/executors/kora-five-session-producer.zsh \
+ARCHIDOM_KORA_FIVE_SESSION_PRODUCER_SHA256=sha256:<digest из команды выше> \
 zsh tests/pilot-evidence/run-m2-pilot-evidence.zsh
 ```
+
+Прогон возможен только на машине с профилем Colima `archidom-ap1` и поднятым
+disposable Supabase; `AP1_KORA_SITE_PHOTO` должен быть читаем.
 
 Не добавлять executor в allowlist до RED/GREEN/REFACTOR и независимого review.
 

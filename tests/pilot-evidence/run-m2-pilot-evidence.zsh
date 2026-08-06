@@ -15,10 +15,12 @@ receipt_artifact="${evidence_dir}/RECEIPT.json"
 kora_five_receipt="${evidence_dir}/KORA_RECEIPT.json"
 
 cleanup() {
-  local status=$?
+  # `status` is a read-only special parameter in zsh: declaring it local aborts
+  # this function on its first line and silently skips the failure cleanup.
+  local exit_status=$?
   rm -f -- "${evidence_dir}/PASS.json.tmp"
-  if (( status != 0 )); then rm -f -- "${pending_artifact}" "${receipt_artifact}" "${kora_five_receipt}"; fi
-  return ${status}
+  if (( exit_status != 0 )); then rm -f -- "${pending_artifact}" "${receipt_artifact}" "${kora_five_receipt}"; fi
+  return ${exit_status}
 }
 trap cleanup EXIT INT TERM
 
