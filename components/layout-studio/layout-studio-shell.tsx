@@ -3,7 +3,13 @@
 import type { CSSProperties } from "react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { OrbitControls as OrbitControlsInstance } from "three/examples/jsm/controls/OrbitControls.js";
-import type { Scene, WebGLRenderer } from "three";
+import type {
+  Material,
+  Mesh,
+  PerspectiveCamera as PerspectiveCameraInstance,
+  Scene,
+  WebGLRenderer,
+} from "three";
 
 import {
   BrowserLayoutRepository,
@@ -61,6 +67,19 @@ interface PanState {
   xMm: number;
   yMm: number;
 }
+
+interface CameraPose {
+  position: { x: number; y: number; z: number };
+  target: { x: number; y: number; z: number };
+}
+
+interface HighlightedMesh {
+  mesh: Mesh;
+  original: Material | Material[];
+}
+
+const SELECTION_EMISSIVE = 0x5ee6a8;
+const SELECTION_EMISSIVE_INTENSITY = 0.55;
 
 const EMPTY_DRAFT: InspectorDraft = {
   xMm: "",
@@ -393,7 +412,7 @@ function PlanCanvas({
 }
 
 function SceneCanvas({
-  document,
+  document: sessionDocument,
   layers,
   selection,
   onSelect,
@@ -403,11 +422,26 @@ function SceneCanvas({
   readonly selection: string | null;
   readonly onSelect: (id: string | null) => void;
 }) {
+  // EditorSession.getState() hands out a fresh deep clone on every refresh, so
+  // the raw prop changes identity on a bare selection click. Pinning it to the
+  // monotonic revision keeps the WebGL scene alive across non-mutating updates.
+  const documentKey = `${sessionDocument.documentId}#${sessionDocument.stateRevision}`;
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const document = useMemo(() => sessionDocument, [documentKey]);
   const containerRef = useRef<HTMLDivElement | null>(null);
   const onSelectRef = useRef(onSelect);
+  // Camera reset restores the deterministic home pose in place: rebuilding the
+  // whole scene to move a camera would drop the WebGL context on every click.
+  const cameraRef = useRef<PerspectiveCameraInstance | null>(null);
+  const controlsRef = useRef<OrbitControlsInstance | null>(null);
+  const homePoseRef = useRef<CameraPose | null>(null);
+  // Selection highlight swaps materials on the live scene. Rebuilding the scene
+  // per selection would drop the WebGL context and cancel an in-flight orbit.
+  const sceneRef = useRef<Scene | null>(null);
+  const highlightRef = useRef<HighlightedMesh[]>([]);
+  const selectionRef = useRef<string | null>(selection);
   const [webglState, setWebglState] = useState<"loading" | "ready" | "fallback">("loading");
   const [ceilingVisible, setCeilingVisible] = useState(true);
-  const [resetCameraToken, setResetCameraToken] = useState(0);
   const descriptor = useMemo(
     () => compileSceneDescriptor(document, deriveLayout(document).sceneProjection),
     [document],
@@ -444,6 +478,60 @@ function SceneCanvas({
   useEffect(() => {
     onSelectRef.current = onSelect;
   }, [onSelect]);
+  useEffect(() => {
+    selectionRef.current = selection;
+  }, [selection]);
+
+  // Restores the meshes swapped by the last highlight and disposes the clones.
+  const clearHighlight = () => {
+    for (const entry of highlightRef.current) {
+      const applied = Array.isArray(entry.mesh.material) ? entry.mesh.material : [entry.mesh.material];
+      entry.mesh.material = entry.original;
+      for (const material of applied) material.dispose();
+    }
+    highlightRef.current = [];
+  };
+
+  const applyHighlight = (
+    THREE: typeof import("three"),
+    scene: Scene,
+    entityId: string | null,
+  ): void => {
+    clearHighlight();
+    if (!entityId) return;
+    scene.traverse((object) => {
+      if (!(object instanceof THREE.Mesh)) return;
+      const canonicalId = String(object.userData.parentSourceId ?? object.userData.sourceId ?? "");
+      if (canonicalId !== entityId) return;
+
+      const original = object.material as Material | Material[];
+      const sources = Array.isArray(original) ? original : [original];
+      const highlighted = sources.map((material) => {
+        if (!(material instanceof THREE.MeshStandardMaterial)) return material.clone();
+        const clone = material.clone();
+        clone.emissive.set(SELECTION_EMISSIVE);
+        clone.emissiveIntensity = SELECTION_EMISSIVE_INTENSITY;
+        return clone;
+      });
+      highlightRef.current.push({ mesh: object, original });
+      object.material = Array.isArray(original) ? highlighted : highlighted[0];
+    });
+  };
+
+  // Selection changes repaint the existing scene; they never rebuild it.
+  useEffect(() => {
+    const scene = sceneRef.current;
+    if (!scene || webglState !== "ready") return;
+    let cancelled = false;
+    void import("three").then((THREE) => {
+      if (cancelled || sceneRef.current !== scene) return;
+      applyHighlight(THREE, scene, selection);
+    });
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selection, webglState]);
 
   useEffect(() => {
     const container = containerRef.current;
@@ -481,18 +569,8 @@ function SceneCanvas({
         });
         disposeScene = runtime.disposeThreeScene;
         scene.background = new THREE.Color(0x26302a);
-        scene.traverse((object) => {
-          if (!(object instanceof THREE.Mesh)) return;
-          const canonicalId = String(object.userData.parentSourceId ?? object.userData.sourceId ?? "");
-          if (canonicalId !== selection) return;
-          const materials = Array.isArray(object.material) ? object.material : [object.material];
-          for (const material of materials) {
-            if (material instanceof THREE.MeshStandardMaterial) {
-              material.emissive.set(0x5ee6a8);
-              material.emissiveIntensity = 0.55;
-            }
-          }
-        });
+        sceneRef.current = scene;
+        applyHighlight(THREE, scene, selectionRef.current);
 
         const camera = new THREE.PerspectiveCamera(45, 1, 0.02, 250);
         const bounds = new THREE.Box3().setFromObject(scene);
@@ -512,6 +590,13 @@ function SceneCanvas({
         controls.enableDamping = true;
         controls.target.copy(center);
         controls.update();
+
+        cameraRef.current = camera;
+        controlsRef.current = controls;
+        homePoseRef.current = {
+          position: { x: camera.position.x, y: camera.position.y, z: camera.position.z },
+          target: { x: center.x, y: center.y, z: center.z },
+        };
 
         const resize = () => {
           if (!renderer) return;
@@ -563,6 +648,11 @@ function SceneCanvas({
       window.cancelAnimationFrame(animationFrame);
       resizeObserver?.disconnect();
       detachPointer?.();
+      clearHighlight();
+      cameraRef.current = null;
+      controlsRef.current = null;
+      homePoseRef.current = null;
+      sceneRef.current = null;
       controls?.dispose();
       if (scene && disposeScene) disposeScene(scene);
       if (renderer) {
@@ -571,7 +661,22 @@ function SceneCanvas({
         renderer.domElement.remove();
       }
     };
-  }, [ceilingVisible, lightOptions, materialOptions, resetCameraToken, selection, visibleDescriptor]);
+    // Selection is handled by the highlight effect above so that picking an
+    // object never tears down the renderer, the controls or the camera pose.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ceilingVisible, lightOptions, materialOptions, visibleDescriptor]);
+
+  const resetCamera = () => {
+    const camera = cameraRef.current;
+    const controls = controlsRef.current;
+    const home = homePoseRef.current;
+    if (!camera || !controls || !home) return;
+    camera.position.set(home.position.x, home.position.y, home.position.z);
+    controls.target.set(home.target.x, home.target.y, home.target.z);
+    camera.lookAt(controls.target);
+    camera.updateProjectionMatrix();
+    controls.update();
+  };
 
   return (
     <div className={styles.scene} role="img" aria-label={copy.canvas.title3d}>
@@ -607,7 +712,7 @@ function SceneCanvas({
       })}
       <div ref={containerRef} className={styles.webglHost} />
       <div className={styles.sceneControls}>
-        <button type="button" onClick={() => setResetCameraToken((value) => value + 1)}>
+        <button type="button" disabled={webglState !== "ready"} onClick={resetCamera}>
           {copy.canvas.resetCamera}
         </button>
         <button type="button" aria-pressed={ceilingVisible} onClick={() => setCeilingVisible((value) => !value)}>
@@ -641,12 +746,29 @@ function LayerPanel({
     { key: "objects", label: copy.layers.objects, entities: document.objects },
     { key: "lights", label: copy.layers.lights, entities: document.lights },
   ];
+  // Disclosure is user state: a controlled `open` prop would re-collapse the
+  // group the designer just opened on every unrelated re-render (autosave, …).
+  const [expanded, setExpanded] = useState<Record<LayerKey, boolean>>({
+    walls: true,
+    openings: false,
+    columns: false,
+    objects: true,
+    lights: false,
+  });
   return (
     <aside className={styles.panel}>
       <h2>{copy.layers.title}</h2>
       <div className={styles.layerGroups}>
         {groups.map((group) => (
-          <details key={group.key} open={group.key === "objects" || group.key === "walls"}>
+          <details
+            key={group.key}
+            open={expanded[group.key]}
+            onToggle={(event) => {
+              // Read before the updater runs: React clears currentTarget after dispatch.
+              const isOpen = (event.currentTarget as HTMLDetailsElement).open;
+              setExpanded((current) => ({ ...current, [group.key]: isOpen }));
+            }}
+          >
             <summary>
               <label>
                 <input
@@ -924,9 +1046,12 @@ export function LayoutStudioShell({ initialDocument }: { readonly initialDocumen
 
     const hydrate = async () => {
       try {
+        // Namespaced per document: version ids ("V1", "V2", …) are numbered per
+        // document, so a shared namespace would collide across preview routes
+        // and the immutability guard would reject the second document's V1.
         const nextRepository = new BrowserLayoutRepository({
           storage: window.localStorage,
-          namespace: "synthetic-preview-v1",
+          namespace: `preview-v1:${initialDocument.documentId}`,
         });
         const [draftDocument, persistedVersions, persistedCheckpoints] = await Promise.all([
           nextRepository.loadDraft(initialDocument.documentId),
@@ -1146,12 +1271,16 @@ export function LayoutStudioShell({ initialDocument }: { readonly initialDocumen
         return;
       }
 
-      const filename = `archidom-layout-${safeFilePart(latestPublished.id)}`;
+      // The sidecar name is derived from the artifact it describes, so exporting
+      // every format leaves one manifest per artifact instead of overwriting.
       const downloadManifest = (manifest: Record<string, unknown>) => {
+        const artifactName = typeof manifest.filename === "string"
+          ? manifest.filename
+          : `archidom-layout-${safeFilePart(latestPublished.id)}`;
         downloadArtifact(
           JSON.stringify({ ...manifest, disclaimer: copy.export.manifestDisclaimer }, null, 2),
           "application/json",
-          `${filename}.manifest.json`,
+          `${safeFilePart(artifactName)}.manifest.json`,
         );
       };
 
@@ -1173,11 +1302,12 @@ export function LayoutStudioShell({ initialDocument }: { readonly initialDocumen
       const exactDerived = deriveLayout(exactVersion.content);
       const exactProjection = createSvgProjection(exactDerived, { versionId: exactVersion.versionId });
       const svg = serializeSvgProjection(exactProjection);
+      const pngArtifactId = `layout-${exactVersion.semanticHash.slice(0, 16)}-png`;
       const manifestFor = async (artifact: string | ArrayBuffer | Blob) => ({
         contractVersion: "archidom.layout-export/0.1",
-        artifactId: `${filename}-png`,
+        artifactId: pngArtifactId,
         format: "png",
-        filename: `${filename}.png`,
+        filename: `${pngArtifactId}.png`,
         mimeType: "image/png",
         byteLength: artifact instanceof Blob ? artifact.size : typeof artifact === "string" ? new TextEncoder().encode(artifact).byteLength : artifact.byteLength,
         documentId: exactVersion.documentId,
@@ -1209,7 +1339,7 @@ export function LayoutStudioShell({ initialDocument }: { readonly initialDocumen
         const blob = await new Promise<Blob>((resolve, reject) =>
           canvas.toBlob((value) => value ? resolve(value) : reject(new Error(copy.export.failed)), "image/png"),
         );
-        downloadArtifact(blob, "image/png", `${filename}.png`);
+        downloadArtifact(blob, "image/png", `${pngArtifactId}.png`);
         downloadManifest(await manifestFor(blob));
         return;
       }

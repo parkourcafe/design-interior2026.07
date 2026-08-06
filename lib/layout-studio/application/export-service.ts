@@ -4,7 +4,10 @@ import {
 } from "@/lib/layout-studio/adapters/svg/svg-projection";
 import { compileSceneDescriptor } from "@/lib/layout-studio/adapters/three/scene-compiler";
 import { exportSceneDescriptorToGlb } from "@/lib/layout-studio/adapters/three/glb-export";
-import { buildPrintSummary } from "@/lib/layout-studio/application/print-summary";
+import {
+  buildPrintSummary,
+  type PrintScheduleRow,
+} from "@/lib/layout-studio/application/print-summary";
 import {
   deriveLayout,
   semanticHash,
@@ -102,6 +105,57 @@ function assertPublicExport(value: unknown): void {
       "Экспорт содержит приватную ссылку или локальный идентификатор",
     );
   }
+}
+
+function labelOf(entity: { id: string; label?: unknown }): string {
+  return typeof entity.label === "string" && entity.label.length > 0 ? entity.label : entity.id;
+}
+
+/**
+ * Flattens the canonical document into the element schedule printed with a version.
+ * Deterministic order: walls, openings, columns, objects — the reading order of the plan.
+ */
+function buildSchedule(document: LayoutDocument): PrintScheduleRow[] {
+  const nodeById = new Map(document.nodes.map((node) => [node.id, node]));
+  const rows: PrintScheduleRow[] = [];
+
+  for (const wall of document.walls) {
+    const start = nodeById.get(wall.startNodeId);
+    const end = nodeById.get(wall.endNodeId);
+    const lengthMm =
+      start && end ? Math.round(Math.hypot(end.xMm - start.xMm, end.yMm - start.yMm)) : 0;
+    rows.push({
+      group: "Стены",
+      entityId: wall.id,
+      label: labelOf(wall),
+      dimensions: `длина ${lengthMm} · высота ${wall.heightMm} · толщина ${wall.thicknessMm}`,
+    });
+  }
+  for (const opening of document.openings) {
+    rows.push({
+      group: "Проёмы",
+      entityId: opening.id,
+      label: labelOf(opening),
+      dimensions: `ширина ${opening.widthMm} · высота ${opening.heightMm} · порог ${opening.sillMm} · смещение ${opening.offsetMm} по ${opening.parentWallId}`,
+    });
+  }
+  for (const column of document.columns) {
+    rows.push({
+      group: "Колонны",
+      entityId: column.id,
+      label: labelOf(column),
+      dimensions: `${column.widthMm}×${column.depthMm} · высота ${column.heightMm} · ось X${column.xMm} Y${column.yMm}`,
+    });
+  }
+  for (const object of document.objects) {
+    rows.push({
+      group: "Объекты",
+      entityId: object.id,
+      label: labelOf(object),
+      dimensions: `${object.widthMm}×${object.depthMm}×${object.heightMm} · X${object.xMm} Y${object.yMm} Z${object.zMm}`,
+    });
+  }
+  return rows;
 }
 
 const FORMAT_DETAILS: Record<
@@ -205,6 +259,7 @@ export class LayoutExportService {
           versionId: version.versionId,
           semanticHash: version.semanticHash,
           warnings,
+          schedule: buildSchedule(version.content),
         });
         break;
     }

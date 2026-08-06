@@ -1,0 +1,1374 @@
+{
+  "runId": "r13",
+  "startedAt": "2026-08-06T12:54:08.186Z",
+  "screenshots": [
+    {
+      "name": "01-unauth-redirect-login",
+      "file": "screenshots/01-unauth-redirect-login.png",
+      "sha256": "76fa310ca664a64db688dfd1153672594115fb86e4619d3178f2816bd6fa1789"
+    },
+    {
+      "name": "02-kora-authenticated-2d",
+      "file": "screenshots/02-kora-authenticated-2d.png",
+      "sha256": "e3252b8518876dcdc8abbc1dd0d08441aedb6d0c564a5ef9a8efb1ad124d2135"
+    },
+    {
+      "name": "03-kora-3d-ceiling-visible",
+      "file": "screenshots/03-kora-3d-ceiling-visible.png",
+      "sha256": "d96f00e731c19aa68fe985e6caa0a44b04d4a21951c65c6a5837fa843adac904"
+    },
+    {
+      "name": "04-kora-3d-ceiling-hidden",
+      "file": "screenshots/04-kora-3d-ceiling-hidden.png",
+      "sha256": "961b0fbae79b9e921ec9d15759a2aed363f636d629b2d47e8afc8d254099a52d"
+    },
+    {
+      "name": "05a-kora-3d-camera-home",
+      "file": "screenshots/05a-kora-3d-camera-home.png",
+      "sha256": "fc4053e5cf5bb81c935f073ba28a1c072878332f84f0ecd434d24eff7fe9977d"
+    },
+    {
+      "name": "05b-kora-3d-camera-orbited",
+      "file": "screenshots/05b-kora-3d-camera-orbited.png",
+      "sha256": "1ce1f8f552dc675cbbd3cb90f38550d894ff1901d36a9fbbcbf7c00124ec72ce"
+    },
+    {
+      "name": "05c-kora-3d-camera-reset",
+      "file": "screenshots/05c-kora-3d-camera-reset.png",
+      "sha256": "85de8fd1a71f975c377f8d88d5db798feb92b0651ea1d66d6e73b5680c1ff4e3"
+    },
+    {
+      "name": "07-kora-published-version",
+      "file": "screenshots/07-kora-published-version.png",
+      "sha256": "6892b664834ea077419e7e9a5771b1386359aae60d8fe51f05f15952f5da68a5"
+    },
+    {
+      "name": "08-kora-after-reload",
+      "file": "screenshots/08-kora-after-reload.png",
+      "sha256": "ec62aefdaaf82085b356e082055ceccba098cb2a767feb003a099b7055ec78fe"
+    },
+    {
+      "name": "09-synthetic-3d-after-edit",
+      "file": "screenshots/09-synthetic-3d-after-edit.png",
+      "sha256": "509839ff5ce989f783aa711571e9af9a8ca5fae625b103cd63ef62f968378c65"
+    }
+  ],
+  "artifacts": [
+    {
+      "format": "JSON",
+      "artifact": "layout-12a989ef19237987-json.json",
+      "artifactBytes": 4784,
+      "artifactSha256": "a21b8014b9a9da3661361f8eff59b6f2e09fcdd775b9b9d85bf8a8a5d83ea618",
+      "manifest": {
+        "contractVersion": "archidom.layout-export/0.1",
+        "artifactId": "layout-12a989ef19237987-json",
+        "format": "json",
+        "filename": "layout-12a989ef19237987-json.json",
+        "mimeType": "application/json",
+        "byteLength": 4784,
+        "documentId": "layout.kora.liquid-station",
+        "versionId": "V1",
+        "semanticHash": "12a989ef19237987f1c4cf64e491fe0393f4baad1af10c79436828ce220b4267",
+        "artifactChecksum": "a21b8014b9a9da3661361f8eff59b6f2e09fcdd775b9b9d85bf8a8a5d83ea618",
+        "generatedAt": "2026-08-06T12:55:25.057Z",
+        "generatorVersion": "archidom-layout-studio-preview/0.1",
+        "warnings": [
+          "PARTIAL_OWNER_LOCK",
+          "CLEAR_HEIGHT_ASSUMED_3000",
+          "DOOR_HEIGHT_AND_SWING_NOT_SITE_VERIFIED",
+          "COLUMN_ABSOLUTE_AXIS_NOT_SITE_VERIFIED",
+          "EQUIPMENT_SET_OUT_PENDING"
+        ],
+        "disclaimer": "Sidecar manifest относится только к синтетической preview-версии и не является evidence KORA."
+      }
+    },
+    {
+      "format": "SVG",
+      "artifact": "layout-12a989ef19237987-svg.svg",
+      "artifactBytes": 1890,
+      "artifactSha256": "b4ce0e5f70a3777f26fd55100bf767bb5012bbf2ce8ee06b610c9fe6cd00c198",
+      "manifest": {
+        "contractVersion": "archidom.layout-export/0.1",
+        "artifactId": "layout-12a989ef19237987-svg",
+        "format": "svg",
+        "filename": "layout-12a989ef19237987-svg.svg",
+        "mimeType": "image/svg+xml",
+        "byteLength": 1890,
+        "documentId": "layout.kora.liquid-station",
+        "versionId": "V1",
+        "semanticHash": "12a989ef19237987f1c4cf64e491fe0393f4baad1af10c79436828ce220b4267",
+        "artifactChecksum": "b4ce0e5f70a3777f26fd55100bf767bb5012bbf2ce8ee06b610c9fe6cd00c198",
+        "generatedAt": "2026-08-06T12:55:27.588Z",
+        "generatorVersion": "archidom-layout-studio-preview/0.1",
+        "warnings": [
+          "PARTIAL_OWNER_LOCK",
+          "CLEAR_HEIGHT_ASSUMED_3000",
+          "DOOR_HEIGHT_AND_SWING_NOT_SITE_VERIFIED",
+          "COLUMN_ABSOLUTE_AXIS_NOT_SITE_VERIFIED",
+          "EQUIPMENT_SET_OUT_PENDING"
+        ],
+        "disclaimer": "Sidecar manifest относится только к синтетической preview-версии и не является evidence KORA."
+      }
+    },
+    {
+      "format": "PNG",
+      "artifact": "layout-12a989ef19237987-png.png",
+      "artifactBytes": 32864,
+      "artifactSha256": "ebb5e8b48d784ac6707e62d8e250646ebe05ad2c35e039e3e96f4a0a663262bf",
+      "manifest": {
+        "contractVersion": "archidom.layout-export/0.1",
+        "artifactId": "layout-12a989ef19237987-png",
+        "format": "png",
+        "filename": "layout-12a989ef19237987-png.png",
+        "mimeType": "image/png",
+        "byteLength": 32864,
+        "documentId": "layout.kora.liquid-station",
+        "versionId": "V1",
+        "semanticHash": "12a989ef19237987f1c4cf64e491fe0393f4baad1af10c79436828ce220b4267",
+        "artifactChecksum": "ebb5e8b48d784ac6707e62d8e250646ebe05ad2c35e039e3e96f4a0a663262bf",
+        "generatedAt": "2026-08-06T12:55:30.386Z",
+        "generatorVersion": "archidom-layout-studio-preview/0.1",
+        "warnings": [
+          "PARTIAL_OWNER_LOCK",
+          "CLEAR_HEIGHT_ASSUMED_3000",
+          "DOOR_HEIGHT_AND_SWING_NOT_SITE_VERIFIED",
+          "COLUMN_ABSOLUTE_AXIS_NOT_SITE_VERIFIED",
+          "EQUIPMENT_SET_OUT_PENDING"
+        ],
+        "disclaimer": "Sidecar manifest относится только к синтетической preview-версии и не является evidence KORA."
+      }
+    },
+    {
+      "format": "GLB",
+      "artifact": "layout-12a989ef19237987-glb.glb",
+      "artifactBytes": 3236,
+      "artifactSha256": "0a4aa37da053cb0f787f5e787ae0569361383725360fcfb0a6bf1fb42353ae77",
+      "manifest": {
+        "contractVersion": "archidom.layout-export/0.1",
+        "artifactId": "layout-12a989ef19237987-glb",
+        "format": "glb",
+        "filename": "layout-12a989ef19237987-glb.glb",
+        "mimeType": "model/gltf-binary",
+        "byteLength": 3236,
+        "documentId": "layout.kora.liquid-station",
+        "versionId": "V1",
+        "semanticHash": "12a989ef19237987f1c4cf64e491fe0393f4baad1af10c79436828ce220b4267",
+        "artifactChecksum": "0a4aa37da053cb0f787f5e787ae0569361383725360fcfb0a6bf1fb42353ae77",
+        "generatedAt": "2026-08-06T12:55:32.659Z",
+        "generatorVersion": "archidom-layout-studio-preview/0.1",
+        "warnings": [
+          "PARTIAL_OWNER_LOCK",
+          "CLEAR_HEIGHT_ASSUMED_3000",
+          "DOOR_HEIGHT_AND_SWING_NOT_SITE_VERIFIED",
+          "COLUMN_ABSOLUTE_AXIS_NOT_SITE_VERIFIED",
+          "EQUIPMENT_SET_OUT_PENDING"
+        ],
+        "disclaimer": "Sidecar manifest относится только к синтетической preview-версии и не является evidence KORA."
+      }
+    },
+    {
+      "format": "Печатная сводка",
+      "artifact": "layout-12a989ef19237987-print.html",
+      "artifactBytes": 3336,
+      "artifactSha256": "5509d6acc971c02d44c7ffb5f68715901574f6cdc0dd2b377c0cabf931fd18df",
+      "manifest": {
+        "contractVersion": "archidom.layout-export/0.1",
+        "artifactId": "layout-12a989ef19237987-print",
+        "format": "print",
+        "filename": "layout-12a989ef19237987-print.html",
+        "mimeType": "text/html",
+        "byteLength": 3336,
+        "documentId": "layout.kora.liquid-station",
+        "versionId": "V1",
+        "semanticHash": "12a989ef19237987f1c4cf64e491fe0393f4baad1af10c79436828ce220b4267",
+        "artifactChecksum": "5509d6acc971c02d44c7ffb5f68715901574f6cdc0dd2b377c0cabf931fd18df",
+        "generatedAt": "2026-08-06T12:55:35.188Z",
+        "generatorVersion": "archidom-layout-studio-preview/0.1",
+        "warnings": [
+          "PARTIAL_OWNER_LOCK",
+          "CLEAR_HEIGHT_ASSUMED_3000",
+          "DOOR_HEIGHT_AND_SWING_NOT_SITE_VERIFIED",
+          "COLUMN_ABSOLUTE_AXIS_NOT_SITE_VERIFIED",
+          "EQUIPMENT_SET_OUT_PENDING"
+        ],
+        "disclaimer": "Sidecar manifest относится только к синтетической preview-версии и не является evidence KORA."
+      }
+    }
+  ],
+  "metrics": {
+    "webgl": {
+      "available": true,
+      "version": "WebGL 2.0 (OpenGL ES 3.0 Chromium)",
+      "renderer": "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero) (0x0000C0DE)), SwiftShader driver)"
+    },
+    "tokenProbe": {
+      "localStorageKeys": []
+    },
+    "accessTokenPresent": true,
+    "svg2d": {
+      "polygons": 4,
+      "openingLines": 6,
+      "rects": 5,
+      "texts": [
+        "Гостевая стойка",
+        "Рабочая поверхность 900",
+        "8100 мм",
+        "3000 мм",
+        "8100 мм",
+        "3000 мм"
+      ],
+      "viewBox": "-624 -624 9348 4248"
+    },
+    "sceneObjects": [
+      {
+        "sourceId": "wall.kora.rear",
+        "w": 49,
+        "h": 76,
+        "label": "Стена"
+      },
+      {
+        "sourceId": "wall.kora.rear.segment.2",
+        "w": 18,
+        "h": 23,
+        "label": "Свет"
+      },
+      {
+        "sourceId": "wall.kora.rear.segment.3",
+        "w": 55,
+        "h": 77,
+        "label": "Свет"
+      },
+      {
+        "sourceId": "wall.kora.right",
+        "w": 76,
+        "h": 45,
+        "label": "Стена"
+      },
+      {
+        "sourceId": "wall.kora.front",
+        "w": 122,
+        "h": 37,
+        "label": "Стена"
+      },
+      {
+        "sourceId": "wall.kora.left",
+        "w": 74,
+        "h": 23,
+        "label": "Стена"
+      },
+      {
+        "sourceId": "opening.kora.rear-door",
+        "w": 16,
+        "h": 17,
+        "label": "Проём"
+      },
+      {
+        "sourceId": "opening.kora.left-access",
+        "w": 17,
+        "h": 16,
+        "label": "Проём"
+      },
+      {
+        "sourceId": "column.kora.center",
+        "w": 12,
+        "h": 73,
+        "label": "Колонна"
+      },
+      {
+        "sourceId": "object.kora.counter",
+        "w": 105,
+        "h": 36,
+        "label": "Объект"
+      },
+      {
+        "sourceId": "object.kora.worktop",
+        "w": 105,
+        "h": 23,
+        "label": "Объект"
+      },
+      {
+        "sourceId": "floor.kora.main",
+        "w": 122,
+        "h": 25,
+        "label": "Свет"
+      },
+      {
+        "sourceId": "ceiling.kora.main",
+        "w": 122,
+        "h": 25,
+        "label": "Свет"
+      },
+      {
+        "sourceId": "light.kora.ambient",
+        "w": 16,
+        "h": 17,
+        "label": "Свет"
+      },
+      {
+        "sourceId": "light.kora.task",
+        "w": 16,
+        "h": 17,
+        "label": "Свет"
+      }
+    ],
+    "render": {
+      "withCeiling": {
+        "width": 1022,
+        "height": 815,
+        "distinctColors": 85,
+        "lumMin": 21.8,
+        "lumMedian": 45.4,
+        "lumMax": 249,
+        "lumMean": 54.3
+      },
+      "withoutCeiling": {
+        "width": 1022,
+        "height": 815,
+        "distinctColors": 89,
+        "lumMin": 21.8,
+        "lumMedian": 45.4,
+        "lumMax": 255,
+        "lumMean": 51
+      }
+    },
+    "cameraViewportBox": "1020x667",
+    "cameraReset": {
+      "orbitDelta": {
+        "meanAbsDiff": 5.928,
+        "changedPixelPct": 6.072
+      },
+      "resetDelta": {
+        "meanAbsDiff": 0.849,
+        "changedPixelPct": 1.114
+      },
+      "canvasAfter": {
+        "w": 1020,
+        "h": 667,
+        "id": "Интерактивная трёхмерная сцена планировки"
+      }
+    },
+    "published": {
+      "Document ID": "layout.kora.liquid-station",
+      "Версия контракта": "archidom.layout-document/0.1",
+      "Ревизия состояния": "0",
+      "Последняя опубликованная версия": "V1",
+      "Semantic hash": "12a989ef19237987f1c4cf64e491fe0393f4baad1af10c79436828ce220b4267",
+      "Результат проверки": "Замечаний нет"
+    },
+    "editableEntities": [
+      {
+        "label": "Фронтальная стойка",
+        "locked": false
+      },
+      {
+        "label": "Центральная двойная мойка",
+        "locked": false
+      },
+      {
+        "label": "Кофемашина",
+        "locked": false
+      },
+      {
+        "label": "Холодильный модуль",
+        "locked": false
+      },
+      {
+        "label": "Морозильный модуль",
+        "locked": false
+      },
+      {
+        "label": "Рабочий стол",
+        "locked": false
+      },
+      {
+        "label": "Высокий холодильный шкаф 1",
+        "locked": false
+      },
+      {
+        "label": "Высокий холодильный шкаф 2",
+        "locked": false
+      },
+      {
+        "label": "Нейтральный рабочий свет",
+        "locked": false
+      },
+      {
+        "label": "Тёплый декоративный свет",
+        "locked": false
+      }
+    ],
+    "edit": {
+      "entity": [
+        "Объект",
+        "object.synthetic-liquid-station.front-counter"
+      ],
+      "from": "1200",
+      "to": "1450",
+      "revBefore": 0,
+      "revAfter": 1
+    },
+    "localStorageKeys": [],
+    "exactVersion": {
+      "v1Id": "V1",
+      "v1Hash": "f1503112a4c069f066c17186c47f54dc9475d6a3e0eb0521f6ada0b44d1e460a",
+      "manifest": {
+        "contractVersion": "archidom.layout-export/0.1",
+        "artifactId": "layout-f1503112a4c069f0-json",
+        "format": "json",
+        "filename": "layout-f1503112a4c069f0-json.json",
+        "mimeType": "application/json",
+        "byteLength": 7317,
+        "documentId": "document.synthetic-liquid-station",
+        "versionId": "V1",
+        "semanticHash": "f1503112a4c069f066c17186c47f54dc9475d6a3e0eb0521f6ada0b44d1e460a",
+        "artifactChecksum": "501841c0fdab48bfafc90e2f886e02522177c659ef4ad9a0415631aa7228d03e",
+        "generatedAt": "2026-08-06T12:56:23.053Z",
+        "generatorVersion": "archidom-layout-studio-preview/0.1",
+        "warnings": [
+          "Синтетический fixture для тестов; не является evidence KORA или строительной документацией."
+        ],
+        "disclaimer": "Sidecar manifest относится только к синтетической preview-версии и не является evidence KORA."
+      }
+    },
+    "performance": {
+      "cdp": {
+        "Timestamp": 4792.215362,
+        "AudioHandlers": 0,
+        "AudioWorkletProcessors": 0,
+        "Documents": 1,
+        "Frames": 1,
+        "JSEventListeners": 800,
+        "LayoutObjects": 491,
+        "MediaKeySessions": 0,
+        "MediaKeys": 0,
+        "Nodes": 645,
+        "Resources": 41,
+        "ContextLifecycleStateObservers": 17,
+        "V8PerContextDatas": 3,
+        "WorkerGlobalScopes": 1,
+        "UACSSResources": 0,
+        "RTCPeerConnections": 0,
+        "ResourceFetchers": 3,
+        "AdSubframes": 0,
+        "DetachedScriptStates": 0,
+        "ArrayBufferContents": 166,
+        "LayoutCount": 0,
+        "RecalcStyleCount": 0,
+        "LayoutDuration": 0,
+        "RecalcStyleDuration": 0,
+        "DevToolsCommandDuration": 1.7e-05,
+        "ScriptDuration": 0,
+        "V8CompileDuration": 0,
+        "TaskDuration": 2.1e-05,
+        "TaskOtherDuration": 4e-06,
+        "ThreadTime": 0.000104,
+        "ProcessTime": 4.43,
+        "JSHeapUsedSize": 13017604,
+        "JSHeapTotalSize": 17530880,
+        "FirstMeaningfulPaint": 4772.349963,
+        "DomContentLoaded": 4771.896611,
+        "NavigationStart": 4758.873323
+      },
+      "jsMemory": {
+        "usedJSHeapSize": 15523043,
+        "totalJSHeapSize": 20034075,
+        "jsHeapSizeLimit": 4294705152
+      },
+      "frameTiming": {
+        "p50": 16.700000000186265,
+        "p95": 16.90000000037253,
+        "max": 19.5,
+        "n": 89
+      }
+    },
+    "provisionalBenchmark": {
+      "note": "Provisional signal on the owner-intent fixture. LS-AT-091/092 remain EXTERNAL_HOLD until the final set-out.",
+      "caveat": "Software WebGL (SwiftShader) in a sandbox with all external hosts blocked; the render-blocking Google Fonts stylesheet fails with ERR_CONNECTION_RESET and inflates navigation timings.",
+      "navigationTiming": {
+        "responseEndMs": 75,
+        "domContentLoadedMs": 13078,
+        "firstContentfulPaintMs": 0,
+        "planReadyMs": 13139
+      },
+      "firstContentfulPaintMs": {
+        "n": 3,
+        "min": 12766,
+        "max": 13172,
+        "mean": 13005
+      },
+      "viewSwitchMs": {
+        "n": 3,
+        "min": 1030,
+        "max": 1204,
+        "mean": 1091
+      },
+      "commandApplyMs": {
+        "n": 3,
+        "min": 66,
+        "max": 400,
+        "mean": 187
+      }
+    },
+    "externalBlockedHosts": [
+      "fonts.googleapis.com"
+    ]
+  },
+  "finishedAt": "2026-08-06T12:57:29.624Z",
+  "checks": [
+    {
+      "id": "LS-AT-020.a",
+      "name": "unauthenticated KORA route redirects to /login",
+      "ok": true,
+      "detail": "http://127.0.0.1:3100/login",
+      "scope": "LS-AT-020 unauthenticated"
+    },
+    {
+      "id": "ENV.webgl",
+      "name": "browser exposes a WebGL context",
+      "ok": true,
+      "detail": {
+        "available": true,
+        "version": "WebGL 2.0 (OpenGL ES 3.0 Chromium)",
+        "renderer": "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero) (0x0000C0DE)), SwiftShader driver)"
+      },
+      "scope": "LS-AT-020 unauthenticated"
+    },
+    {
+      "id": "AUTH.signup-mode",
+      "name": "login form switches to account creation",
+      "ok": true,
+      "detail": "Создать аккаунт",
+      "scope": "auth signup/signin"
+    },
+    {
+      "id": "AUTH.register",
+      "name": "server route creates a confirmed account through GoTrue admin API",
+      "ok": true,
+      "detail": {
+        "status": 200
+      },
+      "scope": "auth signup/signin"
+    },
+    {
+      "id": "AUTH.password-grant",
+      "name": "GoTrue issues a session for the password grant",
+      "ok": true,
+      "detail": {
+        "status": 200
+      },
+      "scope": "auth signup/signin"
+    },
+    {
+      "id": "AUTH.cookie",
+      "name": "real Supabase session cookie present after sign-in",
+      "ok": true,
+      "detail": [
+        {
+          "name": "sb-127-auth-token",
+          "httpOnly": false,
+          "path": "/"
+        }
+      ],
+      "scope": "auth signup/signin"
+    },
+    {
+      "id": "AUTH.gotrue-user",
+      "name": "GoTrue /auth/v1/user validates the browser session token",
+      "ok": true,
+      "detail": {
+        "status": 200,
+        "snippet": "{\"id\":\"62f6a4fc-1833-41e7-b7e3-83b94a492867\",\"aud\":\"authenticated\",\"role\":\"authenticated\",\"email\":\"layout-studio.qa+r13@archidom.invalid\",\"email_confirmed_at\":\""
+      },
+      "scope": "auth signup/signin"
+    },
+    {
+      "id": "LS-AT-020.b",
+      "name": "authenticated KORA route renders the editor",
+      "ok": true,
+      "detail": {
+        "status": 200,
+        "h1": "Редактор планировки",
+        "docName": "KORA Liquid Station — owner intent",
+        "url": "http://127.0.0.1:3100/app/layout-studio/kora-liquid-station"
+      },
+      "scope": "LS-AT-020 authenticated KORA"
+    },
+    {
+      "id": "LS-AT-010.browser",
+      "name": "KORA contour renders 8100×3000 → 24.30 m²",
+      "ok": true,
+      "detail": {
+        "areaText": "Площадь 24.30 м²",
+        "header": [
+          "Ревизия 0",
+          "Единицы mm",
+          "Площадь 24.30 м²",
+          "Черновик без изменений"
+        ]
+      },
+      "scope": "LS-AT-020 authenticated KORA"
+    },
+    {
+      "id": "LS-AT-021/023.browser",
+      "name": "2D plan renders wall polygons, openings and dimensions",
+      "ok": true,
+      "detail": {
+        "polygons": 4,
+        "openingLines": 6,
+        "rects": 5,
+        "texts": [
+          "Гостевая стойка",
+          "Рабочая поверхность 900",
+          "8100 мм",
+          "3000 мм",
+          "8100 мм",
+          "3000 мм"
+        ],
+        "viewBox": "-624 -624 9348 4248"
+      },
+      "scope": "LS-AT-020 authenticated KORA"
+    },
+    {
+      "id": "LS-AT-031.browser",
+      "name": "locked KORA column is read-only in the inspector",
+      "ok": true,
+      "detail": {
+        "notice": [
+          "Элемент заблокирован и доступен только для просмотра."
+        ],
+        "allInputsDisabled": true,
+        "buttons": [
+          {
+            "label": "Применить числа",
+            "disabled": true
+          },
+          {
+            "label": "Сбросить поля",
+            "disabled": true
+          }
+        ]
+      },
+      "scope": "LS-AT-031/032 locked entities"
+    },
+    {
+      "id": "LS-AT-032.browser",
+      "name": "locked KORA opening cannot be edited",
+      "ok": true,
+      "detail": {
+        "notice": [
+          "Элемент заблокирован и доступен только для просмотра."
+        ],
+        "applyDisabled": true
+      },
+      "scope": "LS-AT-031/032 locked entities"
+    },
+    {
+      "id": "LS-AT-040",
+      "name": "2D and 3D report the same document revision",
+      "ok": true,
+      "detail": {
+        "rev2d": 0,
+        "rev3d": 0
+      },
+      "scope": "LS-AT-040/041/043/045 3D"
+    },
+    {
+      "id": "LS-AT-045.browser",
+      "name": "WebGL runtime is active in the 3D viewport",
+      "ok": true,
+      "detail": {
+        "webglLabel": 1
+      },
+      "scope": "LS-AT-040/041/043/045 3D"
+    },
+    {
+      "id": "LS-AT-041.a",
+      "name": "walls are split into segments around openings",
+      "ok": true,
+      "detail": [
+        "wall.kora.rear.segment.2",
+        "wall.kora.rear.segment.3"
+      ],
+      "scope": "LS-AT-040/041/043/045 3D"
+    },
+    {
+      "id": "LS-AT-041.b",
+      "name": "openings render as point markers, not separate volumes",
+      "ok": true,
+      "detail": {
+        "openingMarks": [
+          {
+            "sourceId": "opening.kora.rear-door",
+            "w": 16,
+            "h": 17,
+            "label": "Проём"
+          },
+          {
+            "sourceId": "opening.kora.left-access",
+            "w": 17,
+            "h": 16,
+            "label": "Проём"
+          }
+        ],
+        "wallSegments": [
+          {
+            "sourceId": "wall.kora.rear.segment.2",
+            "w": 18,
+            "h": 23,
+            "label": "Свет"
+          },
+          {
+            "sourceId": "wall.kora.rear.segment.3",
+            "w": 55,
+            "h": 77,
+            "label": "Свет"
+          }
+        ]
+      },
+      "scope": "LS-AT-040/041/043/045 3D"
+    },
+    {
+      "id": "LS-AT-043.a",
+      "name": "exactly one canonical ceiling exists in the scene",
+      "ok": true,
+      "detail": [
+        "ceiling.kora.main"
+      ],
+      "scope": "LS-AT-040/041/043/045 3D"
+    },
+    {
+      "id": "LS-AT-050/051/052.browser",
+      "name": "3D viewport renders a shaded, non-uniform WebGL image",
+      "ok": true,
+      "detail": {
+        "width": 1022,
+        "height": 815,
+        "distinctColors": 85,
+        "lumMin": 21.8,
+        "lumMedian": 45.4,
+        "lumMax": 249,
+        "lumMean": 54.3
+      },
+      "scope": "LS-AT-040/041/043/045 3D"
+    },
+    {
+      "id": "LS-AT-043.b",
+      "name": "hiding the ceiling changes the rendered scene",
+      "ok": true,
+      "detail": {
+        "withCeiling": {
+          "width": 1022,
+          "height": 815,
+          "distinctColors": 85,
+          "lumMin": 21.8,
+          "lumMedian": 45.4,
+          "lumMax": 249,
+          "lumMean": 54.3
+        },
+        "withoutCeiling": {
+          "width": 1022,
+          "height": 815,
+          "distinctColors": 89,
+          "lumMin": 21.8,
+          "lumMedian": 45.4,
+          "lumMax": 255,
+          "lumMean": 51
+        }
+      },
+      "scope": "LS-AT-040/041/043/045 3D"
+    },
+    {
+      "id": "LS-AT-044.sizes",
+      "name": "camera screenshots share one raster size",
+      "ok": true,
+      "detail": [
+        "1020x668",
+        "1020x668",
+        "1020x668"
+      ],
+      "scope": "LS-AT-044 camera reset"
+    },
+    {
+      "id": "LS-AT-044.a",
+      "name": "orbiting visibly changes the camera framing",
+      "ok": true,
+      "detail": {
+        "meanAbsDiff": 5.928,
+        "changedPixelPct": 6.072
+      },
+      "scope": "LS-AT-044 camera reset"
+    },
+    {
+      "id": "LS-AT-044.b",
+      "name": "reset restores the deterministic home framing",
+      "ok": true,
+      "detail": {
+        "orbitDelta": {
+          "meanAbsDiff": 5.928,
+          "changedPixelPct": 6.072
+        },
+        "resetDelta": {
+          "meanAbsDiff": 0.849,
+          "changedPixelPct": 1.114
+        }
+      },
+      "scope": "LS-AT-044 camera reset"
+    },
+    {
+      "id": "LS-AT-044.c",
+      "name": "reset keeps the WebGL runtime alive without errors",
+      "ok": true,
+      "detail": {
+        "stillActive": true,
+        "canvasAfter": {
+          "w": 1020,
+          "h": 667,
+          "id": "Интерактивная трёхмерная сцена планировки"
+        },
+        "resetErrors": []
+      },
+      "scope": "LS-AT-044 camera reset"
+    },
+    {
+      "id": "LS-AT-046.browser",
+      "name": "selecting in 3D reuses the WebGL context instead of recreating it",
+      "ok": true,
+      "detail": {
+        "sameNode": true,
+        "canvasCount": 1
+      },
+      "scope": "LS-AT-046 context lifetime"
+    },
+    {
+      "id": "LS-AT-061.browser",
+      "name": "checkpoint is created and listed",
+      "ok": true,
+      "detail": "ВЕРСИИ И CHECKPOINTS\nСоздать checkpoint\nОпубликовать версию\nСравнить крайние версии\n\nЛокальный checkpoint создан\n\nCheckpoints\nCP-MSHIQS33Восстановить\nВерсии\n\nОпубликованных версий пока нет",
+      "scope": "LS-AT-06x/07x versions and exports"
+    },
+    {
+      "id": "LS-AT-062.browser",
+      "name": "publishing produces an immutable version with a semantic hash",
+      "ok": true,
+      "detail": {
+        "Document ID": "layout.kora.liquid-station",
+        "Версия контракта": "archidom.layout-document/0.1",
+        "Ревизия состояния": "0",
+        "Последняя опубликованная версия": "V1",
+        "Semantic hash": "12a989ef19237987f1c4cf64e491fe0393f4baad1af10c79436828ce220b4267",
+        "Результат проверки": "Замечаний нет"
+      },
+      "scope": "LS-AT-06x/07x versions and exports"
+    },
+    {
+      "id": "LS-AT-07x.json",
+      "name": "JSON export downloads with a matching sidecar manifest",
+      "ok": true,
+      "detail": {
+        "bytes": 4784,
+        "versionId": "V1",
+        "semanticHash": "12a989ef19237987f1c4cf64e491fe0393f4baad1af10c79436828ce220b4267",
+        "checksumMatches": true,
+        "mimeType": "application/json",
+        "filename": "layout-12a989ef19237987-json.json"
+      },
+      "scope": "LS-AT-06x/07x versions and exports"
+    },
+    {
+      "id": "LS-AT-07x.svg",
+      "name": "SVG export downloads with a matching sidecar manifest",
+      "ok": true,
+      "detail": {
+        "bytes": 1890,
+        "versionId": "V1",
+        "semanticHash": "12a989ef19237987f1c4cf64e491fe0393f4baad1af10c79436828ce220b4267",
+        "checksumMatches": true,
+        "mimeType": "image/svg+xml",
+        "filename": "layout-12a989ef19237987-svg.svg"
+      },
+      "scope": "LS-AT-06x/07x versions and exports"
+    },
+    {
+      "id": "LS-AT-07x.png",
+      "name": "PNG export downloads with a matching sidecar manifest",
+      "ok": true,
+      "detail": {
+        "bytes": 32864,
+        "versionId": "V1",
+        "semanticHash": "12a989ef19237987f1c4cf64e491fe0393f4baad1af10c79436828ce220b4267",
+        "checksumMatches": true,
+        "mimeType": "image/png",
+        "filename": "layout-12a989ef19237987-png.png"
+      },
+      "scope": "LS-AT-06x/07x versions and exports"
+    },
+    {
+      "id": "LS-AT-07x.glb",
+      "name": "GLB export downloads with a matching sidecar manifest",
+      "ok": true,
+      "detail": {
+        "bytes": 3236,
+        "versionId": "V1",
+        "semanticHash": "12a989ef19237987f1c4cf64e491fe0393f4baad1af10c79436828ce220b4267",
+        "checksumMatches": true,
+        "mimeType": "model/gltf-binary",
+        "filename": "layout-12a989ef19237987-glb.glb"
+      },
+      "scope": "LS-AT-06x/07x versions and exports"
+    },
+    {
+      "id": "LS-AT-07x.print",
+      "name": "Печатная сводка export downloads with a matching sidecar manifest",
+      "ok": true,
+      "detail": {
+        "bytes": 3336,
+        "versionId": "V1",
+        "semanticHash": "12a989ef19237987f1c4cf64e491fe0393f4baad1af10c79436828ce220b4267",
+        "checksumMatches": true,
+        "mimeType": "text/html",
+        "filename": "layout-12a989ef19237987-print.html"
+      },
+      "scope": "LS-AT-06x/07x versions and exports"
+    },
+    {
+      "id": "LS-AT-075",
+      "name": "each exported format leaves its own sidecar manifest",
+      "ok": true,
+      "detail": [
+        "layout-12a989ef19237987-glb.glb.manifest.json",
+        "layout-12a989ef19237987-json.json.manifest.json",
+        "layout-12a989ef19237987-png.png.manifest.json",
+        "layout-12a989ef19237987-print.html.manifest.json",
+        "layout-12a989ef19237987-svg.svg.manifest.json"
+      ],
+      "scope": "LS-AT-06x/07x versions and exports"
+    },
+    {
+      "id": "LS-AT-071",
+      "name": "exported SVG draws every opening as visible geometry",
+      "ok": true,
+      "detail": {
+        "file": "layout-12a989ef19237987-svg.svg",
+        "openings": [
+          "opening.kora.rear-door",
+          "opening.kora.left-access"
+        ],
+        "linesPerOpening": [
+          2,
+          2
+        ]
+      },
+      "scope": "LS-AT-06x/07x versions and exports"
+    },
+    {
+      "id": "LS-AT-074",
+      "name": "print artifact carries the element schedule, hash and warnings",
+      "ok": true,
+      "detail": {
+        "file": "layout-12a989ef19237987-print.html",
+        "missingRows": [],
+        "scheduleRows": 9
+      },
+      "scope": "LS-AT-06x/07x versions and exports"
+    },
+    {
+      "id": "LS-AT-073",
+      "name": "GLB export is a valid glTF 2.0 binary container",
+      "ok": true,
+      "detail": {
+        "file": "layout-12a989ef19237987-glb.glb",
+        "magic": "glTF",
+        "version": 2,
+        "bytes": 3236
+      },
+      "scope": "LS-AT-06x/07x versions and exports"
+    },
+    {
+      "id": "LS-AT-072",
+      "name": "PNG export is produced at the requested raster size",
+      "ok": true,
+      "detail": {
+        "file": "layout-12a989ef19237987-png.png",
+        "width": 1600,
+        "height": 900,
+        "distinctColors": 21,
+        "lumMin": 29.7,
+        "lumMedian": 242.1,
+        "lumMax": 242.1,
+        "lumMean": 218.4
+      },
+      "scope": "LS-AT-06x/07x versions and exports"
+    },
+    {
+      "id": "LS-AT-060/086.browser",
+      "name": "checkpoints and published versions survive a full page reload",
+      "ok": true,
+      "detail": {
+        "history": "ВЕРСИИ И CHECKPOINTS\nСоздать checkpoint\nОпубликовать версию\nСравнить крайние версии\n\nЧерновик сохранён локально\n\nCheckpoints\nCP-MSHIQS33Восстановить\nВерсии\nV1",
+        "footer": {
+          "Document ID": "layout.kora.liquid-station",
+          "Версия контракта": "archidom.layout-document/0.1",
+          "Ревизия состояния": "0",
+          "Последняя опубликованная версия": "V1",
+          "Semantic hash": "12a989ef19237987f1c4cf64e491fe0393f4baad1af10c79436828ce220b4267",
+          "Результат проверки": "Замечаний нет"
+        }
+      },
+      "scope": "LS-AT-060/086 reload"
+    },
+    {
+      "id": "LS-AT-030.browser",
+      "name": "a numeric inspector edit dispatches a command and increments the revision",
+      "ok": true,
+      "detail": {
+        "entity": [
+          "Объект",
+          "object.synthetic-liquid-station.front-counter"
+        ],
+        "from": "1200",
+        "to": "1450",
+        "revBefore": 0,
+        "revAfter": 1
+      },
+      "scope": "LS-AT-030/034/035/042 synthetic editable"
+    },
+    {
+      "id": "LS-AT-042",
+      "name": "the 3D scene recompiles from the canonical document after an edit",
+      "ok": true,
+      "detail": {
+        "movedObjects": [
+          "wall.synthetic-liquid-station.north",
+          "wall.synthetic-liquid-station.east",
+          "wall.synthetic-liquid-station.east.segment.2",
+          "wall.synthetic-liquid-station.east.segment.3",
+          "wall.synthetic-liquid-station.south",
+          "wall.synthetic-liquid-station.south.segment.2",
+          "wall.synthetic-liquid-station.south.segment.3",
+          "wall.synthetic-liquid-station.west",
+          "opening.synthetic-liquid-station.entry-door",
+          "opening.synthetic-liquid-station.service-door",
+          "column.synthetic-liquid-station.structural",
+          "object.synthetic-liquid-station.front-counter",
+          "object.synthetic-liquid-station.central-double-sink",
+          "object.synthetic-liquid-station.rear-coffee-machine",
+          "object.synthetic-liquid-station.rear-refrigerator",
+          "object.synthetic-liquid-station.rear-freezer",
+          "object.synthetic-liquid-station.rear-worktable",
+          "object.synthetic-liquid-station.tall-fridge-left",
+          "object.synthetic-liquid-station.tall-fridge-right",
+          "floor.synthetic-liquid-station.main",
+          "ceiling.synthetic-liquid-station.main",
+          "light.synthetic-liquid-station.neutral-task",
+          "light.synthetic-liquid-station.warm-decorative"
+        ],
+        "sample": [
+          {
+            "id": "wall.synthetic-liquid-station.north",
+            "before": {
+              "left": 736,
+              "top": 410
+            },
+            "after": {
+              "left": 736,
+              "top": 423
+            }
+          },
+          {
+            "id": "wall.synthetic-liquid-station.east",
+            "before": {
+              "left": 1160,
+              "top": 562
+            },
+            "after": {
+              "left": 1160,
+              "top": 595
+            }
+          },
+          {
+            "id": "wall.synthetic-liquid-station.east.segment.2",
+            "before": {
+              "left": 1187,
+              "top": 750
+            },
+            "after": {
+              "left": 1187,
+              "top": 811
+            }
+          }
+        ]
+      },
+      "scope": "LS-AT-030/034/035/042 synthetic editable"
+    },
+    {
+      "id": "LS-AT-034/035.browser",
+      "name": "undo and redo advance the revision monotonically",
+      "ok": true,
+      "detail": {
+        "revAfterEdit": 1,
+        "revUndo": 2,
+        "revRedo": 3
+      },
+      "scope": "LS-AT-030/034/035/042 synthetic editable"
+    },
+    {
+      "id": "SYNTH.publish",
+      "name": "synthetic document publishes a version with a semantic hash",
+      "ok": true,
+      "detail": {
+        "Document ID": "document.synthetic-liquid-station",
+        "Версия контракта": "archidom.layout-document/0.1",
+        "Ревизия состояния": "3",
+        "Последняя опубликованная версия": "V1",
+        "Semantic hash": "f1503112a4c069f066c17186c47f54dc9475d6a3e0eb0521f6ada0b44d1e460a",
+        "Результат проверки": "Замечаний нет"
+      },
+      "scope": "LS-AT-077 exact-version binding"
+    },
+    {
+      "id": "LS-AT-077",
+      "name": "exact-version export is bound to the requested published version",
+      "ok": true,
+      "detail": {
+        "requested": "V1",
+        "manifestVersion": "V1",
+        "requestedHash": "f1503112a4c069f0",
+        "manifestHash": "f1503112a4c069f0"
+      },
+      "scope": "LS-AT-077 exact-version binding"
+    },
+    {
+      "id": "LS-AT-070.browser",
+      "name": "JSON export carries the frozen contract version and canonical units",
+      "ok": true,
+      "detail": {
+        "keys": [
+          "versionId",
+          "semanticHash",
+          "content"
+        ],
+        "contractVersion": "archidom.layout-document/0.1",
+        "canonicalUnits": "mm"
+      },
+      "scope": "LS-AT-077 exact-version binding"
+    },
+    {
+      "id": "LS-AT-076",
+      "name": "no exported artifact leaks paths, emails, tokens or storage references",
+      "ok": true,
+      "detail": [],
+      "scope": "LS-AT-076 export privacy"
+    },
+    {
+      "id": "LS-AT-094",
+      "name": "browser GPU/memory/frame profile captured for the live WebGL scene",
+      "ok": true,
+      "detail": {
+        "jsHeapMB": 15,
+        "frameTiming": {
+          "p50": 16.700000000186265,
+          "p95": 16.90000000037253,
+          "max": 19.5,
+          "n": 89
+        }
+      },
+      "scope": "LS-AT-094 profile"
+    },
+    {
+      "id": "BENCH.recorded",
+      "name": "provisional KORA interaction benchmark captured (signal, not acceptance)",
+      "ok": true,
+      "detail": {
+        "note": "Provisional signal on the owner-intent fixture. LS-AT-091/092 remain EXTERNAL_HOLD until the final set-out.",
+        "caveat": "Software WebGL (SwiftShader) in a sandbox with all external hosts blocked; the render-blocking Google Fonts stylesheet fails with ERR_CONNECTION_RESET and inflates navigation timings.",
+        "navigationTiming": {
+          "responseEndMs": 75,
+          "domContentLoadedMs": 13078,
+          "firstContentfulPaintMs": 0,
+          "planReadyMs": 13139
+        },
+        "firstContentfulPaintMs": {
+          "n": 3,
+          "min": 12766,
+          "max": 13172,
+          "mean": 13005
+        },
+        "viewSwitchMs": {
+          "n": 3,
+          "min": 1030,
+          "max": 1204,
+          "mean": 1091
+        },
+        "commandApplyMs": {
+          "n": 3,
+          "min": 66,
+          "max": 400,
+          "mean": 187
+        }
+      },
+      "scope": "LS-AT-091/092 provisional benchmark"
+    },
+    {
+      "id": "BROWSER.console",
+      "name": "no application console errors during the authenticated run",
+      "ok": true,
+      "detail": {
+        "appErrors": [],
+        "blockedResourceErrors": 9,
+        "externalHosts": [
+          "fonts.googleapis.com"
+        ]
+      },
+      "scope": "wrap-up"
+    },
+    {
+      "id": "BROWSER.same-origin-network",
+      "name": "no same-origin request failed with a 4xx/5xx status",
+      "ok": true,
+      "detail": [],
+      "scope": "wrap-up"
+    },
+    {
+      "id": "BROWSER.pageerrors",
+      "name": "no uncaught page exceptions",
+      "ok": true,
+      "detail": [],
+      "scope": "wrap-up"
+    }
+  ],
+  "console": [
+    {
+      "scope": "LS-AT-020 unauthenticated",
+      "type": "error",
+      "text": "Failed to load resource: net::ERR_CONNECTION_RESET"
+    },
+    {
+      "scope": "auth signup/signin",
+      "type": "error",
+      "text": "Failed to load resource: net::ERR_CONNECTION_RESET"
+    },
+    {
+      "scope": "LS-AT-020 authenticated KORA",
+      "type": "error",
+      "text": "Failed to load resource: net::ERR_CONNECTION_RESET"
+    },
+    {
+      "scope": "LS-AT-060/086 reload",
+      "type": "error",
+      "text": "Failed to load resource: net::ERR_CONNECTION_RESET"
+    },
+    {
+      "scope": "LS-AT-030/034/035/042 synthetic editable",
+      "type": "error",
+      "text": "Failed to load resource: net::ERR_CONNECTION_RESET"
+    },
+    {
+      "scope": "LS-AT-091/092 provisional benchmark",
+      "type": "error",
+      "text": "Failed to load resource: net::ERR_CONNECTION_RESET"
+    },
+    {
+      "scope": "LS-AT-091/092 provisional benchmark",
+      "type": "error",
+      "text": "Failed to load resource: net::ERR_CONNECTION_RESET"
+    },
+    {
+      "scope": "LS-AT-091/092 provisional benchmark",
+      "type": "error",
+      "text": "Failed to load resource: net::ERR_CONNECTION_RESET"
+    },
+    {
+      "scope": "LS-AT-091/092 provisional benchmark",
+      "type": "error",
+      "text": "Failed to load resource: net::ERR_CONNECTION_RESET"
+    }
+  ],
+  "pageErrors": [],
+  "networkErrors": [
+    {
+      "scope": "LS-AT-020 unauthenticated",
+      "url": "https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;600&family=Golos+Text:wght@400;500;600&display=swap",
+      "failure": "net::ERR_CONNECTION_RESET"
+    },
+    {
+      "scope": "auth signup/signin",
+      "url": "https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;600&family=Golos+Text:wght@400;500;600&display=swap",
+      "failure": "net::ERR_CONNECTION_RESET"
+    },
+    {
+      "scope": "auth signup/signin",
+      "url": "http://127.0.0.1:3100/dashboard?_rsc=axTTu7JsSBAkbTj7",
+      "failure": "net::ERR_ABORTED"
+    },
+    {
+      "scope": "auth signup/signin",
+      "url": "http://127.0.0.1:3100/dashboard?_rsc=loSHYWxTXYzvguC3",
+      "failure": "net::ERR_ABORTED"
+    },
+    {
+      "scope": "auth signup/signin",
+      "url": "http://127.0.0.1:3100/dashboard/setup?_rsc=j79Vj4yH5aoiafxS",
+      "failure": "net::ERR_ABORTED"
+    },
+    {
+      "scope": "auth signup/signin",
+      "url": "http://127.0.0.1:3100/dashboard?_rsc=j79Vj4yH5aoiafxS",
+      "failure": "net::ERR_ABORTED"
+    },
+    {
+      "scope": "auth signup/signin",
+      "url": "http://127.0.0.1:3100/dashboard/analytics?_rsc=j79Vj4yH5aoiafxS",
+      "failure": "net::ERR_ABORTED"
+    },
+    {
+      "scope": "auth signup/signin",
+      "url": "http://127.0.0.1:3100/dashboard/setup?_rsc=IOe_mmh6jQxP6_Ru",
+      "failure": "net::ERR_ABORTED"
+    },
+    {
+      "scope": "auth signup/signin",
+      "url": "http://127.0.0.1:3100/dashboard/analytics?_rsc=IOe_mmh6jQxP6_Ru",
+      "failure": "net::ERR_ABORTED"
+    },
+    {
+      "scope": "LS-AT-020 authenticated KORA",
+      "url": "https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;600&family=Golos+Text:wght@400;500;600&display=swap",
+      "failure": "net::ERR_CONNECTION_RESET"
+    },
+    {
+      "scope": "LS-AT-060/086 reload",
+      "url": "https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;600&family=Golos+Text:wght@400;500;600&display=swap",
+      "failure": "net::ERR_CONNECTION_RESET"
+    },
+    {
+      "scope": "LS-AT-030/034/035/042 synthetic editable",
+      "url": "https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;600&family=Golos+Text:wght@400;500;600&display=swap",
+      "failure": "net::ERR_CONNECTION_RESET"
+    },
+    {
+      "scope": "LS-AT-091/092 provisional benchmark",
+      "url": "https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;600&family=Golos+Text:wght@400;500;600&display=swap",
+      "failure": "net::ERR_CONNECTION_RESET"
+    },
+    {
+      "scope": "LS-AT-091/092 provisional benchmark",
+      "url": "https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;600&family=Golos+Text:wght@400;500;600&display=swap",
+      "failure": "net::ERR_CONNECTION_RESET"
+    },
+    {
+      "scope": "LS-AT-091/092 provisional benchmark",
+      "url": "https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;600&family=Golos+Text:wght@400;500;600&display=swap",
+      "failure": "net::ERR_CONNECTION_RESET"
+    },
+    {
+      "scope": "LS-AT-091/092 provisional benchmark",
+      "url": "https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;600&family=Golos+Text:wght@400;500;600&display=swap",
+      "failure": "net::ERR_CONNECTION_RESET"
+    }
+  ],
+  "summary": {
+    "total": 49,
+    "passed": 49,
+    "failed": []
+  }
+}

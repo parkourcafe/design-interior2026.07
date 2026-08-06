@@ -18,6 +18,9 @@ export interface SvgOpeningProjection {
   heightMm: number;
   sillMm: number;
   kind: string;
+  /** Opening span resolved onto the parent wall axis, so the export is drawable. */
+  startPoint: SvgPoint;
+  endPoint: SvgPoint;
 }
 
 export interface SvgBoxProjection {
@@ -44,6 +47,28 @@ export function createSvgProjection(
   options: { versionId?: string } = {},
 ): SvgProjection {
   const bounds = derived.bounds ?? { minXMm: 0, minYMm: 0, maxXMm: 0, maxYMm: 0 };
+  const nodeById = new Map(derived.sceneProjection.nodes.map((node) => [node.id, node]));
+  const wallById = new Map(derived.sceneProjection.walls.map((wall) => [wall.id, wall]));
+  const openingSpan = (opening: { parentWallId: string; offsetMm: number; widthMm: number }): {
+    startPoint: SvgPoint;
+    endPoint: SvgPoint;
+  } => {
+    const wall = wallById.get(opening.parentWallId);
+    const start = wall ? nodeById.get(wall.startNodeId) : undefined;
+    const end = wall ? nodeById.get(wall.endNodeId) : undefined;
+    if (!start || !end) {
+      return { startPoint: { xMm: 0, yMm: 0 }, endPoint: { xMm: 0, yMm: 0 } };
+    }
+    const dx = end.xMm - start.xMm;
+    const dy = end.yMm - start.yMm;
+    const length = Math.hypot(dx, dy) || 1;
+    const at = (distanceMm: number): SvgPoint => ({
+      xMm: start.xMm + (dx / length) * distanceMm,
+      yMm: start.yMm + (dy / length) * distanceMm,
+    });
+    return { startPoint: at(opening.offsetMm), endPoint: at(opening.offsetMm + opening.widthMm) };
+  };
+
   return {
     units: "mm",
     viewBox: {
@@ -64,6 +89,7 @@ export function createSvgProjection(
       heightMm: opening.heightMm,
       sillMm: opening.sillMm,
       kind: opening.kind,
+      ...openingSpan(opening),
     })),
     boxes: [
       ...derived.sceneProjection.columns.map((column) => ({
@@ -97,25 +123,43 @@ function escapeXml(value: string): string {
     .replaceAll(">", "&gt;");
 }
 
+/** Presentation palette of the exported plan. Kept literal so an artifact stays self-contained. */
+const SVG_PAPER = "#F5F2EB";
+const SVG_INK = "#17201B";
+const SVG_GREEN = "#244E3B";
+
 export function serializeSvgProjection(projection: SvgProjection): string {
   const { viewBox } = projection;
   const versionAttribute = projection.versionId
     ? ` data-version-id="${escapeXml(projection.versionId)}"`
     : "";
+  const background =
+    `<rect x="${viewBox.x}" y="${viewBox.y}" width="${viewBox.width}" height="${viewBox.height}" fill="${SVG_PAPER}"/>`;
   const walls = projection.walls
     .map(
       (wall) =>
-        `<polygon data-source-id="${escapeXml(wall.sourceId)}" points="${wall.points
+        `<polygon data-source-id="${escapeXml(wall.sourceId)}" fill="${SVG_INK}" points="${wall.points
           .map((point) => `${point.xMm},${point.yMm}`)
           .join(" ")}"/>`,
     )
     .join("");
+  // Openings are drawn as an explicit stroked span on the wall axis: an exported
+  // plan has to *show* where the wall is interrupted, not only carry the numbers.
   const openings = projection.openings
     .map(
       (opening) =>
         `<g data-source-id="${escapeXml(opening.sourceId)}" data-parent-wall-id="${escapeXml(
           opening.parentWallId,
-        )}" data-offset-mm="${opening.offsetMm}" data-width-mm="${opening.widthMm}"/>`,
+        )}" data-kind="${escapeXml(opening.kind)}" data-offset-mm="${opening.offsetMm}" data-width-mm="${
+          opening.widthMm
+        }" data-height-mm="${opening.heightMm}" data-sill-mm="${opening.sillMm}">` +
+        `<line x1="${opening.startPoint.xMm}" y1="${opening.startPoint.yMm}" x2="${
+          opening.endPoint.xMm
+        }" y2="${opening.endPoint.yMm}" stroke="${SVG_PAPER}" stroke-width="140" stroke-linecap="butt"/>` +
+        `<line x1="${opening.startPoint.xMm}" y1="${opening.startPoint.yMm}" x2="${
+          opening.endPoint.xMm
+        }" y2="${opening.endPoint.yMm}" stroke="${SVG_GREEN}" stroke-width="40" stroke-linecap="butt"/>` +
+        `</g>`,
     )
     .join("");
   const boxes = projection.boxes
@@ -125,11 +169,11 @@ export function serializeSvgProjection(projection: SvgProjection): string {
           box.xMm - box.widthMm / 2
         }" y="${box.yMm - box.depthMm / 2}" width="${box.widthMm}" height="${
           box.depthMm
-        }" transform="rotate(${box.rotationDeg} ${box.xMm} ${box.yMm})"/>`,
+        }" transform="rotate(${box.rotationDeg} ${box.xMm} ${box.yMm})" fill="none" stroke="${SVG_INK}" stroke-width="30"/>`,
     )
     .join("");
 
   return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="${viewBox.x} ${viewBox.y} ${
     viewBox.width
-  } ${viewBox.height}" data-units="mm"${versionAttribute}>${walls}${openings}${boxes}</svg>`;
+  } ${viewBox.height}" data-units="mm"${versionAttribute}>${background}${walls}${openings}${boxes}</svg>`;
 }

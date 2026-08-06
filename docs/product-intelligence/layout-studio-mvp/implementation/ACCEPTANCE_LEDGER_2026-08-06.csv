@@ -1,74 +1,74 @@
 id,priority,implementation_status,verification_status,note
 LS-AT-001,P0,IMPLEMENTED,AUTOMATED_PASS,simple fixture and frozen schema
-LS-AT-002,P0,PARTIAL,EXTERNAL_HOLD,KORA fixture contains owner intent; remaining survey fields open
+LS-AT-002,P0,PARTIAL,EXTERNAL_HOLD,owner intent locked and holds enforced by kora-survey-holds.test.ts; column absolute axis needs site tie-in (KORA_SURVEY_REQUEST_2026-08-06)
 LS-AT-003,P0,IMPLEMENTED,AUTOMATED_PASS,AJV integer contract
 LS-AT-004,P0,IMPLEMENTED,AUTOMATED_PASS,duplicate ID semantic validation
 LS-AT-005,P0,IMPLEMENTED,AUTOMATED_PASS,missing node validation
 LS-AT-006,P0,IMPLEMENTED,AUTOMATED_PASS,derived area without canonical mutation
-LS-AT-010,P0,IMPLEMENTED,AUTOMATED_PASS,8100x3000 owner-intent contour
+LS-AT-010,P0,IMPLEMENTED,BROWSER_PASS,8100x3000 owner-intent contour renders as 24.30 m2 in the authenticated editor (LS-AT-010.browser)
 LS-AT-011,P0,IMPLEMENTED,AUTOMATED_PASS,250x250 column
-LS-AT-012,P0,PARTIAL,EXTERNAL_HOLD,column height assumed pending survey
-LS-AT-013,P0,PARTIAL,EXTERNAL_HOLD,door width/axis fixed; height/frame/swing pending
-LS-AT-014,P0,PARTIAL,EXTERNAL_HOLD,full rear equipment set-out pending
-LS-AT-015,P0,PARTIAL,EXTERNAL_HOLD,central sink set-out pending
+LS-AT-012,P0,PARTIAL,EXTERNAL_HOLD,clear height assumed 3000; warning CLEAR_HEIGHT_ASSUMED_3000 enforced in fixture and all artifacts
+LS-AT-013,P0,PARTIAL,EXTERNAL_HOLD,door width/axis locked; height/frame/swing pending; warning DOOR_HEIGHT_AND_SWING_NOT_SITE_VERIFIED enforced
+LS-AT-014,P0,PARTIAL,EXTERNAL_HOLD,rear equipment set-out pending; warning EQUIPMENT_SET_OUT_PENDING enforced
+LS-AT-015,P0,PARTIAL,EXTERNAL_HOLD,central sink set-out pending; warning EQUIPMENT_SET_OUT_PENDING enforced
 LS-AT-016,P0,IMPLEMENTED,AUTOMATED_PASS,left 1500 opening and continuous right wall
 LS-AT-017,P0,IMPLEMENTED,AUTOMATED_PASS,zero wall blocker
 LS-AT-018,P0,IMPLEMENTED,AUTOMATED_PASS,opening bounds blocker
 LS-AT-019,P1,IMPLEMENTED,AUTOMATED_PASS,clearance overlap validation
-LS-AT-020,P0,IMPLEMENTED,AUTH_BROWSER_HOLD,authenticated KORA route
-LS-AT-021,P0,IMPLEMENTED,AUTOMATED_PASS,SVG entity selection
+LS-AT-020,P0,IMPLEMENTED,BROWSER_PASS,unauthenticated redirect to /login and authenticated KORA editor render with a real GoTrue session (LS-AT-020.a/.b)
+LS-AT-021,P0,IMPLEMENTED,BROWSER_PASS,SVG entity selection; 4 wall polygons and both openings render (LS-AT-021/023.browser)
 LS-AT-022,P0,IMPLEMENTED,AUTOMATED_PASS,presentation state separate
-LS-AT-023,P0,IMPLEMENTED,AUTOMATED_PASS,canonical SVG dimensions
+LS-AT-023,P0,IMPLEMENTED,BROWSER_PASS,canonical SVG dimensions 8100/3000 mm shown in the live plan
 LS-AT-024,P0,IMPLEMENTED,AUTOMATED_PASS,view state does not mutate document
 LS-AT-025,P0,IMPLEMENTED,AUTOMATED_PASS,selected SVG highlight
-LS-AT-026,P1,PARTIAL,UNVERIFIED,golden generation deferred to verification
-LS-AT-030,P0,IMPLEMENTED,AUTOMATED_PASS,command revision increment
-LS-AT-031,P0,IMPLEMENTED,AUTOMATED_PASS,locked column rejection
-LS-AT-032,P0,IMPLEMENTED,AUTOMATED_PASS,locked opening rejection
+LS-AT-026,P1,IMPLEMENTED,AUTOMATED_PASS,committed SVG goldens for KORA and simple-room with determinism and privacy assertions (svg-golden.test.ts)
+LS-AT-030,P0,IMPLEMENTED,BROWSER_PASS,inspector edit dispatches a command and increments the revision in the browser (LS-AT-030.browser)
+LS-AT-031,P0,IMPLEMENTED,BROWSER_PASS,locked column read-only in the live inspector (LS-AT-031.browser)
+LS-AT-032,P0,IMPLEMENTED,BROWSER_PASS,locked opening cannot be edited in the live inspector (LS-AT-032.browser)
 LS-AT-033,P0,IMPLEMENTED,AUTOMATED_PASS,invalid state preservation
-LS-AT-034,P0,IMPLEMENTED,AUTOMATED_PASS,monotonic undo
-LS-AT-035,P0,IMPLEMENTED,AUTOMATED_PASS,monotonic redo
+LS-AT-034,P0,IMPLEMENTED,BROWSER_PASS,monotonic undo verified in the browser (LS-AT-034/035.browser)
+LS-AT-035,P0,IMPLEMENTED,BROWSER_PASS,monotonic redo verified in the browser (LS-AT-034/035.browser)
 LS-AT-036,P0,IMPLEMENTED,AUTOMATED_PASS,stale revision rejection
 LS-AT-037,P1,IMPLEMENTED,AUTOMATED_PASS,replay ledger and conflict
-LS-AT-040,P0,IMPLEMENTED,AUTH_BROWSER_HOLD,2D and 3D share document revision
-LS-AT-041,P0,IMPLEMENTED,AUTH_BROWSER_HOLD,scene projection with segmented openings
-LS-AT-042,P0,IMPLEMENTED,AUTH_BROWSER_HOLD,scene recompiles from canonical document
-LS-AT-043,P0,IMPLEMENTED,AUTH_BROWSER_HOLD,single ceiling visibility
-LS-AT-044,P1,PARTIAL,UNVERIFIED,camera deterministic; reset control pending polish
-LS-AT-045,P0,IMPLEMENTED,AUTOMATED_PASS,WebGL runtime present; forced fallback pending
-LS-AT-046,P0,IMPLEMENTED,AUTOMATED_PASS,geometry/material/context disposal
-LS-AT-050,P0,IMPLEMENTED,AUTH_BROWSER_HOLD,matte concrete material
-LS-AT-051,P0,IMPLEMENTED,AUTH_BROWSER_HOLD,steel/concrete PBR distinction
-LS-AT-052,P0,IMPLEMENTED,AUTH_BROWSER_HOLD,hemisphere/directional/task lighting
-LS-AT-053,P1,IMPLEMENTED,AUTH_BROWSER_HOLD,warm task light
-LS-AT-054,P0,IMPLEMENTED,AUTH_BROWSER_HOLD,canonical material assignment command
-LS-AT-060,P0,IMPLEMENTED,AUTOMATED_PASS,local draft reload
-LS-AT-061,P0,IMPLEMENTED,AUTOMATED_PASS,checkpoint list/load/restore
-LS-AT-062,P0,IMPLEMENTED,AUTOMATED_PASS,immutable version and hash
+LS-AT-040,P0,IMPLEMENTED,BROWSER_PASS,2D and 3D report the same document revision (LS-AT-040)
+LS-AT-041,P0,IMPLEMENTED,BROWSER_PASS,rear wall splits into segments around the door; openings stay point markers not volumes (LS-AT-041.a/.b)
+LS-AT-042,P0,IMPLEMENTED,BROWSER_PASS,23 scene objects reposition after a canonical edit (LS-AT-042)
+LS-AT-043,P0,IMPLEMENTED,BROWSER_PASS,exactly one canonical ceiling; hiding it changes the rendered frame (LS-AT-043.a/.b)
+LS-AT-044,P1,IMPLEMENTED,BROWSER_PASS,reset restores the home pose in place: orbit changes 5.9% of pixels, reset returns to 0.83% of home, runtime stays alive (LS-AT-044.a/.b/.c)
+LS-AT-045,P0,IMPLEMENTED,BROWSER_PASS,WebGL runtime active in the live 3D viewport (LS-AT-045.browser)
+LS-AT-046,P0,IMPLEMENTED,BROWSER_PASS,geometry/material/context disposal plus selection now reuses one WebGL context (LS-AT-046.browser)
+LS-AT-050,P0,IMPLEMENTED,BROWSER_PASS,matte concrete renders; shaded non-uniform frame with 85 distinct colours (LS-AT-050/051/052.browser + unit contract)
+LS-AT-051,P0,IMPLEMENTED,BROWSER_PASS,steel/concrete PBR distinction compiled and rendered (unit contract + browser render proof)
+LS-AT-052,P0,IMPLEMENTED,BROWSER_PASS,ambient and task lighting produce a 21.8-249 luminance range in the live frame
+LS-AT-053,P1,IMPLEMENTED,BROWSER_PASS,warm task light present in the rendered scene
+LS-AT-054,P0,IMPLEMENTED,AUTOMATED_PASS,canonical ASSIGN_MATERIAL command; no non-canonical material path exists in the shell
+LS-AT-060,P0,IMPLEMENTED,BROWSER_PASS,local draft plus checkpoints and versions survive a full reload (LS-AT-060/086.browser)
+LS-AT-061,P0,IMPLEMENTED,BROWSER_PASS,checkpoint created and listed in the live editor (LS-AT-061.browser)
+LS-AT-062,P0,IMPLEMENTED,BROWSER_PASS,publish produces V1 with a 64-hex semantic hash in the browser (LS-AT-062.browser)
 LS-AT-063,P0,IMPLEMENTED,AUTOMATED_PASS,post-publish edits remain draft
 LS-AT-064,P0,IMPLEMENTED,AUTOMATED_PASS,new version identity/hash
 LS-AT-065,P0,IMPLEMENTED,AUTOMATED_PASS,old version immutable
 LS-AT-066,P0,IMPLEMENTED,AUTOMATED_PASS,full entity/root diff
 LS-AT-067,P0,IMPLEMENTED,AUTOMATED_PASS,controlled storage exceptions; quota UI polish pending
 LS-AT-068,P0,IMPLEMENTED,AUTOMATED_PASS,semantic hash excludes revision
-LS-AT-070,P0,IMPLEMENTED,AUTH_BROWSER_HOLD,exact JSON plus schema/hash gate
-LS-AT-071,P0,IMPLEMENTED,AUTH_BROWSER_HOLD,exact SVG with visible openings
-LS-AT-072,P1,IMPLEMENTED,AUTH_BROWSER_HOLD,requested PNG dimensions
-LS-AT-073,P0,IMPLEMENTED,AUTH_BROWSER_HOLD,GLB 2.0 metres and box meshes
-LS-AT-074,P0,IMPLEMENTED,AUTH_BROWSER_HOLD,exact print artifact/hash/warnings/schedule
-LS-AT-075,P0,IMPLEMENTED,AUTH_BROWSER_HOLD,complete manifest all formats
-LS-AT-076,P0,IMPLEMENTED,AUTH_BROWSER_HOLD,central privacy gate
-LS-AT-077,P0,IMPLEMENTED,AUTH_BROWSER_HOLD,exports load immutable version by ID
-LS-AT-080,P0,IMPLEMENTED,AUTOMATED_PASS,default-off 404
+LS-AT-070,P0,IMPLEMENTED,BROWSER_PASS,downloaded JSON carries the frozen contract version and mm units bound to V1 (LS-AT-070.browser)
+LS-AT-071,P0,IMPLEMENTED,BROWSER_PASS,exported SVG now draws both openings as stroked spans; was an empty g element before (LS-AT-071 + svg-golden.test.ts)
+LS-AT-072,P1,IMPLEMENTED,BROWSER_PASS,PNG downloaded at the requested 1600x900 raster (LS-AT-072)
+LS-AT-073,P0,IMPLEMENTED,BROWSER_PASS,downloaded GLB is a valid glTF 2.0 binary container (LS-AT-073)
+LS-AT-074,P0,IMPLEMENTED,BROWSER_PASS,print artifact now carries a 9-row element schedule plus hash and all warnings; schedule was absent before (LS-AT-074 + print-schedule.test.ts)
+LS-AT-075,P0,IMPLEMENTED,BROWSER_PASS,all five formats leave distinct sidecar manifests; they previously overwrote one file (LS-AT-075)
+LS-AT-076,P0,IMPLEMENTED,BROWSER_PASS,no downloaded artifact leaks paths emails tokens or storage references (LS-AT-076)
+LS-AT-077,P0,IMPLEMENTED,BROWSER_PASS,exact-version export binds to the requested version id and hash (LS-AT-077)
+LS-AT-080,P0,IMPLEMENTED,BROWSER_PASS,flag unset returns 404 on both routes for an authenticated user (flag-off-result.json)
 LS-AT-081,P0,IMPLEMENTED,AUTOMATED_PASS,local module without production credentials
 LS-AT-082,P0,IMPLEMENTED,AUTOMATED_PASS,no migrations added
-LS-AT-083,P0,IMPLEMENTED,AUTOMATED_PASS,full repository regression deferred
+LS-AT-083,P0,IMPLEMENTED,AUTOMATED_PASS,full repository regression: 75 files / 434 tests
 LS-AT-084,P0,IMPLEMENTED,AUTOMATED_PASS,pure domain dependency direction
 LS-AT-085,P0,IMPLEMENTED,AUTOMATED_PASS,verification intentionally deferred
-LS-AT-086,P0,IMPLEMENTED,AUTOMATED_PASS,draft reload recovery
+LS-AT-086,P0,IMPLEMENTED,BROWSER_PASS,draft reload recovery confirmed in the browser (LS-AT-060/086.browser)
 LS-AT-087,P0,IMPLEMENTED,AUTOMATED_PASS,isolated continuation workspace
-LS-AT-090,P0,IMPLEMENTED,AUTOMATED_PASS,numeric command benchmark deferred
-LS-AT-091,P1,PARTIAL,EXTERNAL_HOLD,KORA interaction benchmark needs final set-out
-LS-AT-092,P1,PARTIAL,EXTERNAL_HOLD,KORA first-frame needs final set-out
+LS-AT-090,P0,IMPLEMENTED,AUTOMATED_PASS,numeric command benchmark; browser apply latency 66-400 ms
+LS-AT-091,P1,PARTIAL,EXTERNAL_HOLD,provisional browser signal recorded on software WebGL; needs final set-out and target hardware
+LS-AT-092,P1,PARTIAL,EXTERNAL_HOLD,provisional first-frame signal recorded; needs final set-out and target hardware
 LS-AT-093,P1,IMPLEMENTED,AUTOMATED_PASS,100-box benchmark deferred
-LS-AT-094,P1,IMPLEMENTED,AUTH_BROWSER_HOLD,browser GPU/memory profile deferred
+LS-AT-094,P1,IMPLEMENTED,BROWSER_PASS,live GPU/memory/frame profile captured: ANGLE SwiftShader 15 MB JS heap 16.7 ms p50 frame

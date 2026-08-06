@@ -1,0 +1,19 @@
+{
+  "authenticated": true,
+  "results": [
+    {
+      "route": "/app/layout-studio",
+      "status": 404,
+      "finalPath": "/app/layout-studio",
+      "rendersEditor": false
+    },
+    {
+      "route": "/app/layout-studio/kora-liquid-station",
+      "status": 404,
+      "finalPath": "/app/layout-studio/kora-liquid-station",
+      "rendersEditor": false
+    }
+  ],
+  "pass": true,
+  "checkedAt": "2026-08-06T12:58:41.231Z"
+}
