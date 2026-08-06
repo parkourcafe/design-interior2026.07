@@ -72,3 +72,21 @@ while it was running.
 - KORA survey-dependent geometry rows marked `EXTERNAL_HOLD` in the acceptance ledger:
   still open and not converted into assumptions.
 - Production merge: NOT AUTHORIZED.
+
+## Continuation closure — commit 679b3c5
+
+The resumed acceptance pass closed the remaining code-level findings for monotonic
+history, idempotency conflicts, checkpoint hydration, version envelope/lineage,
+corruption recovery, root-level diff, segmented wall openings, single-ceiling control,
+WebGL selection highlighting and unified exact-version GLB/print export.
+
+Final automated evidence on this commit: 70 test files / 408 tests PASS, including
+14 Layout Studio files / 80 tests; lint has no errors, strict typecheck and production
+build pass, `npm audit` reports zero vulnerabilities. Headless Chromium against the real
+Supabase client configuration rendered the login controls without overlay/errors and
+confirmed unauthenticated KORA Layout Studio redirects to `/login`.
+
+The acceptance ledger now distinguishes `AUTOMATED_PASS`, `AUTH_BROWSER_HOLD` and
+`EXTERNAL_HOLD`. An actual authenticated editor/export/visual run still requires a real
+ArchiDom user session; KORA clear height, door site details and equipment/sink set-out
+remain owner/survey inputs. Neither class is silently waived.
