@@ -27,6 +27,7 @@ production-adoption scope — только RU.
 8. [Request-bound UI report](./wave-3/integration/REQUEST_BOUND_UI_REPORT.md) — принятый application слой и remaining live gaps.
 9. [Production Adoption Plan](./wave-3/production-adoption/PRODUCTION_ADOPTION_PLAN.md) — отдельная production boundary.
 10. [Charter v0.4 adoption report](./wave-3/CHARTER_V0_4_ADOPTION_REPORT.md) — traceability принятия нового контракта.
+11. [M2 P0 handoff для нового чата](./M2_P0_NEW_CHAT_HANDOFF_2026-08-06.md) — фактический статус циклов 1–7, evidence, intentional RED и следующий шаг.
 
 Исторические architecture/product документы сохраняются для traceability, но их
 противоречащие v0.4 product/edition/naming решения не являются действующим scope.
