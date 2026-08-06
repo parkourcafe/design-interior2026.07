@@ -633,6 +633,11 @@ function roleScopedWorkspace(role: ProjectCeoRole): ProjectWorkspaceView {
     m2Materials: isGuest ? [] : m2Materials,
     m2BudgetFrames: isGuest ? [] : m2BudgetFrames,
     m2ClientHandoffs: isGuest ? [] : m2ClientHandoffs,
+    m2ClientReviewSubmissions: [],
+    m2ClientReviews: [],
+    m2M3Handoffs: [],
+    m2ApprovedCommits: [],
+    m2LayoutVersions: [],
     baseline: koraBaseline,
     releases: isGuest
       ? releases.filter((release) => release.packageId === actor.packageId && release.status === "current")

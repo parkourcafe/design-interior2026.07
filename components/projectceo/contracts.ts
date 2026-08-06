@@ -311,6 +311,85 @@ export interface M2ClientHandoffView {
   readonly createdAt: string;
 }
 
+export interface M2ClientReviewVariantView {
+  readonly variantId: string;
+  readonly role: "preferred" | "value_engineered" | "premium";
+  readonly layoutDocumentId: string;
+  readonly layoutVersionId: string;
+  readonly layoutRevisionId: string;
+  readonly semanticHash: `sha256:${string}`;
+  readonly selectionRevisionIds: readonly string[];
+  readonly selections: readonly { readonly revisionId: string; readonly title: string; readonly supplierRef: string }[];
+  readonly budget: {
+    readonly amountRub: number;
+    readonly staleSelectionRevisionIds: readonly string[];
+    readonly missingPriceSelectionRevisionIds: readonly string[];
+  };
+}
+
+export interface M2ClientReviewSubmissionView {
+  readonly id: string;
+  readonly packageId: string;
+  readonly revisionId: string;
+  readonly revisionNo: number;
+  readonly status: "submitted";
+  readonly assignedClientUserId: string;
+  readonly approvalPackageId: string;
+  readonly roomId: string;
+  readonly designIntentRevisionId: string;
+  readonly variants: readonly M2ClientReviewVariantView[];
+  readonly budgetAsOf: string;
+  readonly staleAfterDays: number;
+  readonly createdAt: string;
+}
+
+export interface M2ClientReviewView {
+  readonly id: string;
+  readonly packageId: string;
+  readonly revisionId: string;
+  readonly revisionNo: number;
+  readonly status: "approved" | "rejected" | "change_requested";
+  readonly submissionId: string;
+  readonly chosenVariantId: string;
+  readonly createdAt: string;
+}
+
+export interface M2M3HandoffView {
+  readonly id: string;
+  readonly packageId: string;
+  readonly revisionId: string;
+  readonly revisionNo: number;
+  readonly status: "published";
+  readonly approvedCommitId: string;
+  readonly approvedCommitRevisionId: string;
+  readonly layoutRevisionId: string;
+  readonly selectionRevisionIds: readonly string[];
+  readonly budget: { readonly amountRub: number | null };
+  readonly createdAt: string;
+}
+
+export interface M2ApprovedCommitView {
+  readonly id: string;
+  readonly packageId: string;
+  readonly revisionId: string;
+  readonly layoutRevisionId: string;
+  readonly selectionRevisionIds: readonly string[];
+  readonly amountRub: number | null;
+  readonly clientSubmissionId: string | null;
+}
+
+export interface M2LayoutVersionView {
+  readonly documentId: string;
+  readonly versionId: string;
+  readonly packageId: string;
+  readonly revisionId: string;
+  readonly roomId: string;
+  readonly variantId: string;
+  readonly role: "preferred" | "value_engineered" | "premium";
+  readonly semanticHash: `sha256:${string}`;
+  readonly selectionRevisionIds: readonly string[];
+}
+
 export interface InvitationView {
   readonly id: string;
   readonly recipientLabel: string;
@@ -407,6 +486,11 @@ export interface ProjectWorkspaceView {
   readonly m2Materials: readonly M2MaterialView[];
   readonly m2BudgetFrames: readonly M2BudgetFrameView[];
   readonly m2ClientHandoffs: readonly M2ClientHandoffView[];
+  readonly m2ClientReviewSubmissions: readonly M2ClientReviewSubmissionView[];
+  readonly m2ClientReviews: readonly M2ClientReviewView[];
+  readonly m2M3Handoffs: readonly M2M3HandoffView[];
+  readonly m2ApprovedCommits: readonly M2ApprovedCommitView[];
+  readonly m2LayoutVersions: readonly M2LayoutVersionView[];
   readonly baseline: BaselineSummary;
   readonly releases: readonly ReleaseSummary[];
   readonly changes: readonly ChangeRequestView[];

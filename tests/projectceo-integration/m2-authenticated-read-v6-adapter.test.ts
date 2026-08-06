@@ -23,7 +23,40 @@ function envelope(extra: Record<string, unknown> = {}) {
       m2ClientReviewSubmissions: [{
         id: "submission-1", packageId, revisionId: "73000000-0000-4000-8000-000000000010",
         revisionNo: 1, status: "submitted", assignedClientUserId: "73000000-0000-4000-8000-000000000011",
-        payload: { roomId: "living-room", variants: ["preferred", "value_engineered", "premium"] },
+        payload: {
+          approvalPackageId: "approval-living-room", roomId: "living-room",
+          designIntentRevisionId: "decision-living-room-r4",
+          budgetAsOf: "2026-08-06T09:45:00.000Z", staleAfterDays: 30,
+          submittedByActorUserId: "73000000-0000-4000-8000-000000000020",
+          submissionReason: "Три варианта отправлены клиенту на согласование",
+          submittedAt: "2026-08-06T10:00:00.000Z",
+          variants: [
+            {
+              variantId: "variant-preferred", role: "preferred",
+              layoutDocumentId: "layout-preferred", layoutVersionId: "layout-preferred@2",
+              layoutRevisionId: "73000000-0000-4000-8000-000000000021",
+              semanticHash: `sha256:${"a".repeat(64)}`,
+              selectionRevisionIds: ["selection-preferred-r2"],
+              budget: { amountRub: 125000, staleSelectionRevisionIds: [], missingPriceSelectionRevisionIds: [] },
+            },
+            {
+              variantId: "variant-value", role: "value_engineered",
+              layoutDocumentId: "layout-value", layoutVersionId: "layout-value@1",
+              layoutRevisionId: "73000000-0000-4000-8000-000000000022",
+              semanticHash: `sha256:${"b".repeat(64)}`,
+              selectionRevisionIds: ["selection-value-r1"],
+              budget: { amountRub: 98000, staleSelectionRevisionIds: [], missingPriceSelectionRevisionIds: [] },
+            },
+            {
+              variantId: "variant-premium", role: "premium",
+              layoutDocumentId: "layout-premium", layoutVersionId: "layout-premium@3",
+              layoutRevisionId: "73000000-0000-4000-8000-000000000023",
+              semanticHash: `sha256:${"c".repeat(64)}`,
+              selectionRevisionIds: ["selection-premium-r3"],
+              budget: { amountRub: 189000, staleSelectionRevisionIds: [], missingPriceSelectionRevisionIds: [] },
+            },
+          ],
+        },
         createdAt: "2026-08-06T10:00:00.000Z",
       }],
       m2ClientReviews: [{
@@ -34,8 +67,12 @@ function envelope(extra: Record<string, unknown> = {}) {
       m2M3Handoffs: [{
         id: "handoff-1", packageId, revisionId: "73000000-0000-4000-8000-000000000013",
         revisionNo: 1, status: "published", approvedCommitId: "commit-1",
+        approvedCommitRevisionId: "73000000-0000-4000-8000-000000000015",
         layoutRevisionId: "73000000-0000-4000-8000-000000000014",
-        selectionRevisionIds: ["selection-a@1"], createdAt: "2026-08-06T12:00:00.000Z",
+        selectionRevisionIds: ["selection-a@1"],
+        budget: { asOf: "2026-08-06T09:45:00.000Z", staleAfterDays: 30, amountRub: 125000,
+          staleSelectionRevisionIds: [], missingPriceSelectionRevisionIds: [] },
+        createdAt: "2026-08-06T12:00:00.000Z",
       }],
       ...extra,
     },
@@ -70,7 +107,7 @@ describe("Cycle 6 authenticated read v6 adapter", () => {
       expect.objectContaining({ status: "approved", chosenVariantId: "variant-preferred" }),
     ]);
     expect(data.m2M3Handoffs).toEqual([
-      expect.objectContaining({ approvedCommitId: "commit-1", selectionRevisionIds: ["selection-a@1"] }),
+      expect.objectContaining({ approvedCommitId: "commit-1", approvedCommitRevisionId: "73000000-0000-4000-8000-000000000015", selectionRevisionIds: ["selection-a@1"], budget: expect.objectContaining({ amountRub: 125000 }) }),
     ]);
   });
 
@@ -81,6 +118,16 @@ describe("Cycle 6 authenticated read v6 adapter", () => {
   ])("fails closed for %s", async (_name, extra) => {
     const adapter = new ProjectCeoAuthenticatedReadPostgresAdapter(client(envelope(extra), []));
     await expect(adapter.getProjectWorkspaceRead({ projectId, packageId }))
+      .rejects.toThrow("Invalid ProjectCEO authenticated read envelope");
+  });
+
+  it("fails closed when a nested dirty-price reference is outside the exact variant selections", async () => {
+    const value = structuredClone(envelope());
+    (value.data.m2ClientReviewSubmissions[0]!.payload.variants[0]!.budget as {
+      staleSelectionRevisionIds: string[];
+    }).staleSelectionRevisionIds = ["selection-from-another-variant@1"];
+    await expect(new ProjectCeoAuthenticatedReadPostgresAdapter(client(value, []))
+      .getProjectWorkspaceRead({ projectId, packageId }))
       .rejects.toThrow("Invalid ProjectCEO authenticated read envelope");
   });
 });

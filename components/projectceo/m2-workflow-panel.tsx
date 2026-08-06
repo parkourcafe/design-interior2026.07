@@ -6,6 +6,7 @@ import type { ProjectWorkspaceView } from "./contracts";
 import { ProjectCeoCommandButton, sendProjectCeoCommand } from "./command-client";
 import { PROJECTCEO_COMMAND_CONTRACT_VERSION } from "@/lib/project-intelligence/delivery/projectceo/command-contract";
 import { ru } from "@/lib/i18n/ru";
+import { buildClientReviewSubmissionCommand } from "./m2-cycle6-command-builders";
 
 const copy = ru.projectCeo;
 
@@ -20,6 +21,34 @@ function ComposerMessage({ error }: { readonly error: boolean }) {
   return error ? (
     <p role="status" className="text-xs text-red-700">{copy.common.commandUnavailable}</p>
   ) : null;
+}
+
+function Cycle6SubmitComposer({ view }: { readonly view: ProjectWorkspaceView }) {
+  const router = useRouter();
+  const [pending, setPending] = useState(false);
+  const layouts = view.m2LayoutVersions;
+  const roomId = layouts[0]?.roomId;
+  const sameRoom = layouts.length === 3 && layouts.every((item) => item.roomId === roomId && item.selectionRevisionIds.length > 0);
+  const roles = new Set(layouts.map((item) => item.role));
+  const approval = view.approvalPackages.find((item) => item.status === "approved");
+  const designIntent = approval?.items.find((item) => item.targetKind === "decision_revision");
+  const selectionByRevision = new Map(view.selections.map((item) => [item.revisionId, item]));
+  const ready = sameRoom && roles.size === 3 && approval && designIntent
+    && layouts.every((layout) => layout.selectionRevisionIds.every((id) => selectionByRevision.get(id)?.priceObservation));
+  if ((view.actor.role !== "owner" && view.actor.role !== "architect") || !ready || !approval || !designIntent || !roomId) return null;
+  async function submit() {
+    if (pending) return;
+    const budgetAsOf = new Date().toISOString();
+    setPending(true);
+    try {
+      // Persisted command kind: "submit_m2_client_review".
+      const response = await sendProjectCeoCommand(buildClientReviewSubmissionCommand(view, {
+        now: budgetAsOf, submissionId: `submission-${crypto.randomUUID()}`, revisionId: crypto.randomUUID(),
+      }));
+      if (response.status === "completed") router.refresh();
+    } finally { setPending(false); }
+  }
+  return <button type="button" disabled={pending} className="btn-primary mt-4 w-full" onClick={() => void submit()}>{copy.workspace.decisions.cycle6Submit}</button>;
 }
 
 function DecisionComposer({ view }: { readonly view: ProjectWorkspaceView }) {
@@ -263,6 +292,7 @@ export function M2WorkflowPanel({ view }: { readonly view: ProjectWorkspaceView 
       <DecisionComposer view={view} />
       <SelectionComposer view={view} />
       <M2ExpansionPanel view={view} />
+      <Cycle6SubmitComposer view={view} />
       {canCreateApproval && (!approval || approval.status === "approved" || approval.status === "rejected" || approval.status === "change_requested") && (
         <ProjectCeoCommandButton
           command={{

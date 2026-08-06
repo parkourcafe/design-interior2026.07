@@ -616,8 +616,11 @@ begin
   if v_role in ('owner_lead','architect') then
     select coalesce(jsonb_agg(jsonb_build_object('id',r.entity_id,'packageId',r.package_id,
       'revisionId',r.revision_id,'revisionNo',r.revision_no,'status',r.status,
-      'approvedCommitId',r.payload->>'approvedCommitId','layoutRevisionId',r.payload->>'layoutRevisionId',
-      'selectionRevisionIds',r.payload->'selectionRevisionIds','createdAt',r.created_at)
+      'approvedCommitId',r.payload->>'approvedCommitId',
+      'approvedCommitRevisionId',r.payload->>'approvedCommitRevisionId',
+      'layoutRevisionId',r.payload->>'layoutRevisionId',
+      'selectionRevisionIds',r.payload->'selectionRevisionIds','budget',r.payload->'budget',
+      'createdAt',r.created_at)
       order by r.created_at),'[]'::jsonb) into v_handoffs
     from projectceo_product.m2_workspace_revisions r where r.organization_id=v_org and r.project_id=project_id
       and (package_id is null or r.package_id=package_id) and r.entity_kind='m2_m3_handoff';

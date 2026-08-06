@@ -41,17 +41,17 @@
     {
       "id": "M2-060",
       "layer": "infrastructure",
-      "status": "in_progress",
+      "status": "completed",
       "description": "Client review UI and exact-version M2 to M3 handoff"
     },
     {
       "id": "M2-070",
       "layer": "infrastructure",
-      "status": "pending",
+      "status": "in_progress",
       "description": "Authenticated Kora and external real-package pilot evidence"
     }
   ],
-  "current_slice": 5,
+  "current_slice": 6,
   "phase": "red",
   "layer_map": {
     "lib/project-intelligence/modules/decisions/": "domain",

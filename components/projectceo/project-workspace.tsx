@@ -21,6 +21,8 @@ import { ScenarioPanel, ScenarioSwitcher } from "./state-panel";
 import { ProjectCeoCommandButton, sendProjectCeoCommand } from "./command-client";
 import { PROJECTCEO_COMMAND_CONTRACT_VERSION } from "@/lib/project-intelligence/delivery/projectceo/command-contract";
 import { M2WorkflowPanel } from "./m2-workflow-panel";
+import { M2ClientReviewPanel } from "./m2-client-review-panel";
+import { M2M3ApprovedInputCard } from "./m2-m3-approved-input-card";
 
 const projectCeoRu = ru.projectCeo;
 
@@ -607,7 +609,11 @@ function DecisionsView({
 
   return (
     <>
-    <M2WorkflowPanel view={view} />
+    {view.actor.role === "client"
+      ? <M2ClientReviewPanel view={view} />
+      : (view.actor.role === "owner" || view.actor.role === "architect")
+        ? <><M2WorkflowPanel view={view} /><M2M3ApprovedInputCard view={view} /></>
+        : null}
     <div className="mt-4 grid gap-4 lg:grid-cols-2">
       <section className="rounded-2xl border border-line bg-white p-5 shadow-sm">
         <div className="flex items-center justify-between gap-3">

@@ -180,6 +180,29 @@ export interface AuthenticatedReadM2LayoutVersion {
   readonly versionId: string;
 }
 
+export interface AuthenticatedReadM2ClientReviewSubmission {
+  readonly id: string; readonly packageId: string; readonly revisionId: string; readonly revisionNo: number;
+  readonly status: "submitted"; readonly assignedClientUserId: string; readonly createdAt: string;
+  readonly payload: {
+    readonly approvalPackageId: string; readonly roomId: string; readonly designIntentRevisionId: string;
+    readonly budgetAsOf: string; readonly staleAfterDays: number; readonly submittedByActorUserId: string;
+    readonly submissionReason: string; readonly submittedAt: string;
+    readonly variants: readonly {
+      readonly variantId: string; readonly role: "preferred" | "value_engineered" | "premium";
+      readonly layoutDocumentId: string; readonly layoutVersionId: string; readonly layoutRevisionId: string;
+      readonly semanticHash: `sha256:${string}`; readonly selectionRevisionIds: readonly string[];
+      readonly budget: { readonly amountRub: number; readonly staleSelectionRevisionIds: readonly string[]; readonly missingPriceSelectionRevisionIds: readonly string[] };
+    }[];
+  };
+}
+
+export interface AuthenticatedReadM2M3Handoff {
+  readonly id: string; readonly packageId: string; readonly revisionId: string; readonly revisionNo: number;
+  readonly status: "published"; readonly approvedCommitId: string; readonly approvedCommitRevisionId: string;
+  readonly layoutRevisionId: string; readonly selectionRevisionIds: readonly string[];
+  readonly budget: AuthenticatedReadM2ApprovedCommitPayload["budget"]; readonly createdAt: string;
+}
+
 export interface AuthenticatedProjectReadProjection {
   readonly approvalPackages: readonly Readonly<Record<string, unknown>>[];
   readonly m2Rooms?: readonly Readonly<Record<string, unknown>>[];
@@ -189,9 +212,9 @@ export interface AuthenticatedProjectReadProjection {
   readonly m2ClientHandoffs?: readonly Readonly<Record<string, unknown>>[];
   readonly m2ApprovedCommits: readonly AuthenticatedReadM2ApprovedCommit[];
   readonly m2LayoutVersions: readonly AuthenticatedReadM2LayoutVersion[];
-  readonly m2ClientReviewSubmissions: readonly Readonly<Record<string, unknown>>[];
+  readonly m2ClientReviewSubmissions: readonly AuthenticatedReadM2ClientReviewSubmission[];
   readonly m2ClientReviews: readonly Readonly<Record<string, unknown>>[];
-  readonly m2M3Handoffs: readonly Readonly<Record<string, unknown>>[];
+  readonly m2M3Handoffs: readonly AuthenticatedReadM2M3Handoff[];
   readonly decisions: readonly AuthenticatedReadDecision[];
   readonly distributionSummary: readonly AuthenticatedReadDistributionSummary[];
   readonly executionPackages: readonly ExecutionDeliveryEnvelope[];
@@ -470,7 +493,39 @@ function isLayoutVersion(value: unknown): value is AuthenticatedReadM2LayoutVers
     && isTimestamp(value.createdAt);
 }
 
-function isM2ClientReviewSubmission(value: unknown): boolean {
+function isM2ClientReviewSubmission(value: unknown): value is AuthenticatedReadM2ClientReviewSubmission {
+  if (!isRecord(value) || !isRecord(value.payload)) return false;
+  const payload = value.payload;
+  if (!hasExactKeys(payload, ["approvalPackageId", "roomId", "designIntentRevisionId", "variants", "budgetAsOf", "staleAfterDays", "submittedByActorUserId", "submissionReason", "submittedAt"])
+    || !isIdentifier(payload.approvalPackageId) || !isIdentifier(payload.roomId) || !isIdentifier(payload.designIntentRevisionId)
+    || !isTimestamp(payload.budgetAsOf) || !isRevisionNumber(payload.staleAfterDays)
+    || !isUuid(payload.submittedByActorUserId) || !isReason(payload.submissionReason) || !isTimestamp(payload.submittedAt)
+    || !Array.isArray(payload.variants) || payload.variants.length !== 3) return false;
+  const roles = new Set<string>();
+  const variantIds = new Set<string>();
+  const layoutRevisionIds = new Set<string>();
+  for (const candidate of payload.variants) {
+    if (!isRecord(candidate) || !hasExactKeys(candidate, ["variantId", "role", "layoutDocumentId", "layoutVersionId", "layoutRevisionId", "semanticHash", "selectionRevisionIds", "budget"])
+      || !isIdentifier(candidate.variantId) || !isIdentifier(candidate.layoutDocumentId) || !isIdentifier(candidate.layoutVersionId)
+      || !isUuid(candidate.layoutRevisionId) || typeof candidate.semanticHash !== "string" || !/^sha256:[0-9a-f]{64}$/.test(candidate.semanticHash)
+      || (candidate.role !== "preferred" && candidate.role !== "value_engineered" && candidate.role !== "premium")
+      || !Array.isArray(candidate.selectionRevisionIds) || candidate.selectionRevisionIds.length < 1
+      || !candidate.selectionRevisionIds.every(isIdentifier) || new Set(candidate.selectionRevisionIds).size !== candidate.selectionRevisionIds.length
+      || !isRecord(candidate.budget) || !hasExactKeys(candidate.budget, ["amountRub", "staleSelectionRevisionIds", "missingPriceSelectionRevisionIds"])
+      || typeof candidate.budget.amountRub !== "number" || !Number.isSafeInteger(candidate.budget.amountRub) || candidate.budget.amountRub < 0
+      || !Array.isArray(candidate.budget.staleSelectionRevisionIds) || !candidate.budget.staleSelectionRevisionIds.every(isIdentifier)
+      || !Array.isArray(candidate.budget.missingPriceSelectionRevisionIds) || !candidate.budget.missingPriceSelectionRevisionIds.every(isIdentifier)) return false;
+    const staleIds = candidate.budget.staleSelectionRevisionIds as readonly string[];
+    const missingIds = candidate.budget.missingPriceSelectionRevisionIds as readonly string[];
+    const selectionIds = candidate.selectionRevisionIds as readonly string[];
+    if (new Set(staleIds).size !== staleIds.length || new Set(missingIds).size !== missingIds.length
+      || !staleIds.every((id) => selectionIds.includes(id))
+      || !missingIds.every((id) => selectionIds.includes(id))) return false;
+    roles.add(candidate.role);
+    variantIds.add(candidate.variantId as string);
+    layoutRevisionIds.add(candidate.layoutRevisionId as string);
+  }
+  if (roles.size !== 3 || variantIds.size !== 3 || layoutRevisionIds.size !== 3) return false;
   return isRecord(value)
     && hasExactKeys(value, [
       "id", "packageId", "revisionId", "revisionNo", "status",
@@ -502,11 +557,11 @@ function isM2ClientReview(value: unknown): boolean {
     && isTimestamp(value.createdAt);
 }
 
-function isM2M3Handoff(value: unknown): boolean {
+function isM2M3Handoff(value: unknown): value is AuthenticatedReadM2M3Handoff {
   return isRecord(value)
     && hasExactKeys(value, [
       "id", "packageId", "revisionId", "revisionNo", "status",
-      "approvedCommitId", "layoutRevisionId", "selectionRevisionIds", "createdAt",
+      "approvedCommitId", "approvedCommitRevisionId", "layoutRevisionId", "selectionRevisionIds", "budget", "createdAt",
     ])
     && isIdentifier(value.id)
     && isUuid(value.packageId)
@@ -514,11 +569,13 @@ function isM2M3Handoff(value: unknown): boolean {
     && isRevisionNumber(value.revisionNo)
     && value.status === "published"
     && isIdentifier(value.approvedCommitId)
+    && isUuid(value.approvedCommitRevisionId)
     && isUuid(value.layoutRevisionId)
     && Array.isArray(value.selectionRevisionIds)
     && value.selectionRevisionIds.length > 0
     && value.selectionRevisionIds.every(isIdentifier)
     && new Set(value.selectionRevisionIds).size === value.selectionRevisionIds.length
+    && isApprovedCommitBudget(value.budget)
     && isTimestamp(value.createdAt);
 }
 

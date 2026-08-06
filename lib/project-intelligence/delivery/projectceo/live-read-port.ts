@@ -27,7 +27,12 @@ import {
   type PortfolioView,
   type ProjectCeoActor,
   type M2BudgetFrameView,
+  type M2ApprovedCommitView,
   type M2ClientHandoffView,
+  type M2ClientReviewSubmissionView,
+  type M2ClientReviewView,
+  type M2M3HandoffView,
+  type M2LayoutVersionView,
   type M2MaterialView,
   type M2RoomView,
   type M2VariantView,
@@ -554,6 +559,119 @@ function m2WorkspaceViews(value: unknown): {
   return { rooms, variants, materials, budgets, handoffs };
 }
 
+function stringList(value: unknown): readonly string[] {
+  return Array.isArray(value) ? value.filter((item): item is string => typeof item === "string") : [];
+}
+
+const SUBMISSION_KEYS = ["approvalPackageId", "roomId", "designIntentRevisionId", "variants", "budgetAsOf", "staleAfterDays", "submittedByActorUserId", "submissionReason", "submittedAt"] as const;
+const VARIANT_KEYS = ["variantId", "role", "layoutDocumentId", "layoutVersionId", "layoutRevisionId", "semanticHash", "selectionRevisionIds", "budget"] as const;
+const BUDGET_KEYS = ["amountRub", "staleSelectionRevisionIds", "missingPriceSelectionRevisionIds"] as const;
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+function exactObjectKeys(value: UnknownRecord, keys: readonly string[]): boolean {
+  return Object.keys(value).length === keys.length && Object.keys(value).every((key) => keys.includes(key));
+}
+function exactSubmissionPayload(value: unknown): boolean {
+  const payload = record(value);
+  if (!exactObjectKeys(payload, SUBMISSION_KEYS) || !Array.isArray(payload.variants) || payload.variants.length !== 3
+    || !Number.isFinite(Date.parse(text(payload.budgetAsOf))) || !Number.isSafeInteger(payload.staleAfterDays)) return false;
+  const variants = rows(payload.variants);
+  const roles = new Set([variants[0]?.role, variants[1]?.role, variants[2]?.role]);
+  const variantIds = new Set([variants[0]?.variantId, variants[1]?.variantId, variants[2]?.variantId]);
+  const layoutRevisionIds = new Set([variants[0]?.layoutRevisionId, variants[1]?.layoutRevisionId, variants[2]?.layoutRevisionId]);
+  if (roles.size !== 3 || variantIds.size !== 3 || layoutRevisionIds.size !== 3) return false;
+  return variants.every((variant) => {
+    const selectionRevisionIds = stringList(variant.selectionRevisionIds);
+    const budget = record(variant.budget);
+    const staleSelectionRevisionIds = stringList(budget.staleSelectionRevisionIds);
+    const missingPriceSelectionRevisionIds = stringList(budget.missingPriceSelectionRevisionIds);
+    return exactObjectKeys(variant, VARIANT_KEYS) && exactObjectKeys(budget, BUDGET_KEYS)
+      && UUID.test(text(variant.layoutRevisionId)) && /^sha256:[0-9a-f]{64}$/i.test(text(variant.semanticHash))
+      && selectionRevisionIds.length > 0 && new Set(selectionRevisionIds).size === selectionRevisionIds.length
+      && Number.isSafeInteger(budget.amountRub) && integer(budget.amountRub, -1) >= 0
+      && staleSelectionRevisionIds.every((id) => selectionRevisionIds.includes(id))
+      && missingPriceSelectionRevisionIds.every((id) => selectionRevisionIds.includes(id));
+  });
+}
+
+function m2Cycle6Views(delivery: AuthenticatedProjectReadProjection): {
+  readonly m2ClientReviewSubmissions: readonly M2ClientReviewSubmissionView[];
+  readonly m2ClientReviews: readonly M2ClientReviewView[];
+  readonly m2M3Handoffs: readonly M2M3HandoffView[];
+  readonly m2ApprovedCommits: readonly M2ApprovedCommitView[];
+  readonly m2LayoutVersions: readonly M2LayoutVersionView[];
+} {
+  const selectionByRevision = new Map(delivery.selections.map((item) => [item.revisionId, item]));
+  const m2ClientReviewSubmissions = delivery.m2ClientReviewSubmissions.flatMap((item) => {
+    if (!exactSubmissionPayload(item.payload)) return [];
+    const payload = record(item.payload);
+    const variants = rows(payload.variants).flatMap((variant) => {
+      const budget = record(variant.budget);
+      const selectionRevisionIds = stringList(variant.selectionRevisionIds);
+      const role = variant.role;
+      const semanticHash = nullableText(variant.semanticHash);
+      const layoutRevisionId = nullableText(variant.layoutRevisionId);
+      if ((role !== "preferred" && role !== "value_engineered" && role !== "premium")
+        || !semanticHash?.startsWith("sha256:") || !layoutRevisionId) return [];
+      return [{
+        variantId: text(variant.variantId), role: role as "preferred" | "value_engineered" | "premium", layoutDocumentId: text(variant.layoutDocumentId),
+        layoutVersionId: text(variant.layoutVersionId), layoutRevisionId,
+        semanticHash: semanticHash as `sha256:${string}`, selectionRevisionIds,
+        selections: selectionRevisionIds.map((revisionId) => ({
+          revisionId,
+          title: selectionByRevision.get(revisionId)?.title ?? revisionId,
+          supplierRef: text(selectionByRevision.get(revisionId)?.specification.supplierRef),
+        })),
+        budget: {
+          amountRub: integer(budget.amountRub),
+          staleSelectionRevisionIds: stringList(budget.staleSelectionRevisionIds),
+          missingPriceSelectionRevisionIds: stringList(budget.missingPriceSelectionRevisionIds),
+        },
+      }];
+    });
+    const id = nullableText(item.id); const packageId = nullableText(item.packageId);
+    const revisionId = nullableText(item.revisionId); const assignedClientUserId = nullableText(item.assignedClientUserId);
+    if (!id || !packageId || !revisionId || !assignedClientUserId || variants.length !== 3) return [];
+    return [{
+      id, packageId, revisionId, revisionNo: integer(item.revisionNo, 1), status: "submitted" as const,
+      assignedClientUserId, approvalPackageId: text(payload.approvalPackageId), roomId: text(payload.roomId),
+      designIntentRevisionId: text(payload.designIntentRevisionId), variants,
+      budgetAsOf: text(payload.budgetAsOf), staleAfterDays: integer(payload.staleAfterDays),
+      createdAt: timestamp(item.createdAt),
+    }];
+  });
+  const m2ClientReviews = delivery.m2ClientReviews.flatMap((item) => {
+    const status = item.status;
+    if (status !== "approved" && status !== "rejected" && status !== "change_requested") return [];
+    return [{ id: text(item.id), packageId: text(item.packageId), revisionId: text(item.revisionId),
+      revisionNo: integer(item.revisionNo, 1), status: status as "approved" | "rejected" | "change_requested", submissionId: text(item.submissionId),
+      chosenVariantId: text(item.chosenVariantId), createdAt: timestamp(item.createdAt) }];
+  });
+  const m2LayoutVersions = delivery.m2LayoutVersions.map((layout) => ({
+    documentId: layout.documentId, versionId: layout.versionId, packageId: layout.packageId,
+    revisionId: layout.revisionId, roomId: layout.roomId, variantId: layout.variantId,
+    role: layout.role, semanticHash: layout.semanticHash,
+    selectionRevisionIds: stringList(record(layout.payload.layoutContent).selectionRevisionIds),
+  }));
+  const m2ApprovedCommits = delivery.m2ApprovedCommits.map((commit) => ({
+    id: commit.id, packageId: commit.packageId, revisionId: commit.revisionId,
+    layoutRevisionId: commit.payload.chosenVariant.layoutRevisionId ?? "",
+    selectionRevisionIds: commit.payload.approvedSelectionRevisionIds,
+    amountRub: commit.payload.budget.amountRub ?? null,
+    clientSubmissionId: commit.payload.clientSubmissionId ?? null,
+  }));
+  const m2M3Handoffs = delivery.m2M3Handoffs.map((item) => {
+    const approvedCommitId = text(item.approvedCommitId);
+    return {
+      id: text(item.id), packageId: text(item.packageId), revisionId: text(item.revisionId),
+      revisionNo: integer(item.revisionNo, 1), status: "published" as const, approvedCommitId,
+      approvedCommitRevisionId: text(item.approvedCommitRevisionId),
+      layoutRevisionId: text(item.layoutRevisionId), selectionRevisionIds: stringList(item.selectionRevisionIds),
+      budget: { amountRub: integer(item.budget.amountRub) }, createdAt: timestamp(item.createdAt),
+    };
+  });
+  return { m2ClientReviewSubmissions, m2ClientReviews, m2M3Handoffs, m2ApprovedCommits, m2LayoutVersions };
+}
+
 function releaseRecipientViews(
   recipients: readonly AuthenticatedReadReleaseRecipient[],
 ): readonly ParticipantView[] {
@@ -1049,6 +1167,7 @@ export class ProjectCeoLiveReadPort implements ProjectCeoUiReadPort {
       const m4Envelopes = delivery.executionPackages;
       const execution = m4Views(m4Envelopes);
       const m2 = m2WorkspaceViews(delivery);
+      const m2Cycle6 = m2Cycle6Views(delivery);
       let access = { invitations: [] as readonly InvitationView[], participants: [] as readonly ParticipantView[], grants: [] as readonly AccessGrantView[] };
       if (can(actor.role, "manage_access")) {
         const envelope = await this.foundation.listProjectAccess(input.projectId);
@@ -1108,6 +1227,11 @@ export class ProjectCeoLiveReadPort implements ProjectCeoUiReadPort {
         m2Materials: m2.materials,
         m2BudgetFrames: m2.budgets,
         m2ClientHandoffs: m2.handoffs,
+        m2ClientReviewSubmissions: m2Cycle6.m2ClientReviewSubmissions,
+        m2ClientReviews: m2Cycle6.m2ClientReviews,
+        m2M3Handoffs: m2Cycle6.m2M3Handoffs,
+        m2ApprovedCommits: m2Cycle6.m2ApprovedCommits,
+        m2LayoutVersions: m2Cycle6.m2LayoutVersions,
         baseline,
         releases,
         changes: execution.changes,

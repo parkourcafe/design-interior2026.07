@@ -1,7 +1,7 @@
 # ArchiDom M2 Completion Agent Loop Plan
 
 Date: 2026-08-06
-Status: active Agent Loop; slices 1–5 completed, slice 6 in progress
+Status: active Agent Loop; slices 1–6 completed, slice 7 in progress
 Target: authenticated M2 P0, not production adoption
 
 ## 1. Outcome
@@ -177,9 +177,9 @@ M2 P0 is complete only when all are true:
 
 ## 8. Immediate next action
 
-Start Slice 6 with an isolated RED contract for the Russian client review surface and
-an exact immutable M2-to-M3 handoff. Prove separate designer/client scopes and ensure
-M3 cannot consume a draft or a newer unapproved Layout Document revision.
+Start Slice 7 with authenticated pilot evidence for the full Kora room package and one
+external real package through the same Organization/Project/Package contracts. Prove
+five separate role sessions, replay/audit/privacy and no manual private-table writes.
 
 ## 9. Execution evidence
 
@@ -265,3 +265,25 @@ Status: completed.
   PASS. Focused independent reviewer suite: 127/127 PASS, verdict CLEAR.
 - Scope note: this completes authenticated repository integration, not CAD/BIM, a
   production deployment or real-package pilot evidence.
+
+### 2026-08-06 — M2-060 Client review and exact M2-to-M3 handoff
+
+Status: completed.
+
+- RED/GREEN/REFACTOR: separate package-assigned Russian client review, exactly three
+  immutable variants, exact layout/selection revisions, RUB budget warnings and
+  approve/change-request/reject actions; designer authoring is hidden from clients.
+- Persistence: request-bound submit/review/publish commands and read v6; the server
+  derives identity, scope and timestamps, validates authoritative approved selections,
+  price provenance and deterministic budget, then appends the canonical Approved M2
+  commit and exact M3 handoff with dedicated command/audit evidence.
+- Trust boundary: client review cannot be skipped, self-reviewed, forged through the
+  generic append API or rewritten as revision 2; M3 consumes only the persisted exact
+  commit/layout revision/selection set/budget, never a draft or browser-built snapshot.
+- Security: package-only client read/review succeeds; project client, sibling package,
+  other Organization, builder and guest negatives pass; private schemas remain
+  inaccessible under authenticated sessions.
+- Verification: 98 test files / 781 tests PASS; strict typecheck PASS; ESLint has zero
+  errors (12 warnings); Next.js production build PASS; complete DB4, concurrency and
+  restart replay PASS on PostgreSQL 16 and 17. Independent persistence and UI reviews:
+  CLEAR. This remains disposable-pilot evidence, not production adoption.
