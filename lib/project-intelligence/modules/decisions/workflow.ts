@@ -1,4 +1,3 @@
-import { canonicalJson } from "../../application/change-handoff/canonical";
 import { compareCodePoints } from "../../ordering";
 import type {
   ApprovalPackage,
@@ -17,6 +16,21 @@ import {
   REVISION_CLAIM_STATUSES,
   REVISION_REVIEW_STATUSES,
 } from "./contracts";
+
+function canonicalJson(value: unknown): string {
+  const canonicalize = (candidate: unknown): unknown => {
+    if (Array.isArray(candidate)) return candidate.map(canonicalize);
+    if (candidate === null || typeof candidate !== "object") return candidate;
+
+    return Object.fromEntries(
+      Object.entries(candidate as Record<string, unknown>)
+        .sort(([left], [right]) => compareCodePoints(left, right))
+        .map(([key, child]) => [key, canonicalize(child)]),
+    );
+  };
+
+  return JSON.stringify(canonicalize(value));
+}
 
 export class DecisionContractError extends Error {
   constructor(
