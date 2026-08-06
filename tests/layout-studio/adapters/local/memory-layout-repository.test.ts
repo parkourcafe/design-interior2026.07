@@ -38,12 +38,16 @@ describe("LS-050: MemoryLayoutRepository", () => {
     await expect(repository.loadCheckpoint(checkpoint.checkpointId)).resolves.toMatchObject({
       document: { objects: [expect.objectContaining({ xMm: 1000 })] },
     });
+    await expect(repository.listCheckpoints(draft.documentId)).resolves.toEqual([
+      expect.objectContaining({ checkpointId: checkpoint.checkpointId }),
+    ]);
   });
 
   it("publishes immutable versions and reports an exact A-to-B diff", async () => {
     const repository = new MemoryLayoutRepository();
     const documentA = makeSimpleRoom();
     const versionA = await repository.publishVersion(documentA, VERSION_A);
+    expect(versionA.contractVersion).toBe("archidom.layout-version/0.1");
     const moved = applyLayoutCommand(documentA, moveTableCommand(documentA));
 
     expect(moved.ok).toBe(true);
@@ -80,5 +84,19 @@ describe("LS-050: MemoryLayoutRepository", () => {
     await expect(repository.publishVersion(documentA, VERSION_A)).rejects.toMatchObject({
       code: "VERSION_IMMUTABLE",
     });
+  });
+
+  it("rejects invalid documents and missing version parents", async () => {
+    const repository = new MemoryLayoutRepository();
+    const invalid = makeSimpleRoom();
+    invalid.objects[0]!.rotationDeg = 45 as 0;
+    await expect(repository.publishVersion(invalid, VERSION_A)).rejects.toMatchObject({
+      code: "VERSION_SCHEMA_INVALID",
+    });
+    await expect(repository.publishVersion(makeSimpleRoom(), {
+      ...VERSION_A,
+      versionId: "version.simple-room.orphan",
+      parentVersionId: "version.missing",
+    })).rejects.toMatchObject({ code: "PARENT_VERSION_NOT_FOUND" });
   });
 });

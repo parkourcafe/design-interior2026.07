@@ -423,12 +423,14 @@ function SceneCanvas({
       : [{ sourceId: "preview.ambient-fallback", kind: "ambient" as const, color: "#FFFFFF", intensity: 1 }];
   }, [document]);
   const visible = useMemo(() => descriptor.objects.filter((item) => {
-    if (document.walls.some((entity) => entity.id === item.sourceId)) return layers.walls;
+    if (item.kind === "ceiling") return layers.lights && ceilingVisible;
+    const canonicalId = item.parentSourceId ?? item.sourceId;
+    if (document.walls.some((entity) => entity.id === canonicalId)) return layers.walls;
     if (document.openings.some((entity) => entity.id === item.sourceId)) return layers.openings;
     if (document.columns.some((entity) => entity.id === item.sourceId)) return layers.columns;
     if (document.objects.some((entity) => entity.id === item.sourceId)) return layers.objects;
     return layers.lights;
-  }), [descriptor.objects, document, layers]);
+  }), [ceilingVisible, descriptor.objects, document, layers]);
   const visibleDescriptor = useMemo(
     () => ({ ...descriptor, objects: visible }),
     [descriptor, visible],
@@ -476,17 +478,21 @@ function SceneCanvas({
         scene = runtime.buildThreeScene(visibleDescriptor, {
           materials: materialOptions,
           lights: lightOptions,
-          ceiling: {
-            sourceId: "preview.ceiling",
-            widthM: Math.max(0.1, (maxX - minX) || 7.2),
-            depthM: Math.max(0.1, (maxZ - minZ) || 4.6),
-            heightM: document.floor.clearHeightMm / 1000,
-            visible: ceilingVisible,
-            material: { color: 0xdedbd1, roughness: 1, side: THREE.DoubleSide },
-          },
         });
         disposeScene = runtime.disposeThreeScene;
         scene.background = new THREE.Color(0x26302a);
+        scene.traverse((object) => {
+          if (!(object instanceof THREE.Mesh)) return;
+          const canonicalId = String(object.userData.parentSourceId ?? object.userData.sourceId ?? "");
+          if (canonicalId !== selection) return;
+          const materials = Array.isArray(object.material) ? object.material : [object.material];
+          for (const material of materials) {
+            if (material instanceof THREE.MeshStandardMaterial) {
+              material.emissive.set(0x5ee6a8);
+              material.emissiveIntensity = 0.55;
+            }
+          }
+        });
 
         const camera = new THREE.PerspectiveCamera(45, 1, 0.02, 250);
         const bounds = new THREE.Box3().setFromObject(scene);
@@ -531,7 +537,9 @@ function SceneCanvas({
           raycaster.setFromCamera(pointer, camera);
           const hit = raycaster.intersectObjects(scene.children, true)
             .find((candidate) => typeof candidate.object.userData.sourceId === "string");
-          onSelectRef.current(hit ? String(hit.object.userData.sourceId) : null);
+          onSelectRef.current(hit
+            ? String(hit.object.userData.parentSourceId ?? hit.object.userData.sourceId)
+            : null);
         };
         renderer.domElement.addEventListener("pointerdown", handlePointer);
         detachPointer = () => renderer?.domElement.removeEventListener("pointerdown", handlePointer);
@@ -563,7 +571,7 @@ function SceneCanvas({
         renderer.domElement.remove();
       }
     };
-  }, [ceilingVisible, document.floor.clearHeightMm, lightOptions, materialOptions, maxX, maxZ, minX, minZ, resetCameraToken, visibleDescriptor]);
+  }, [ceilingVisible, lightOptions, materialOptions, resetCameraToken, selection, visibleDescriptor]);
 
   return (
     <div className={styles.scene} role="img" aria-label={copy.canvas.title3d}>
@@ -884,11 +892,7 @@ export function LayoutStudioShell({ initialDocument }: { readonly initialDocumen
   const [inspectorError, setInspectorError] = useState<string | null>(null);
   const [commandIssues, setCommandIssues] = useState<LayoutIssue[]>([]);
   const [checkpoints, setCheckpoints] = useState<LocalSnapshot[]>([]);
-  const [versions, setVersions] = useState<LocalSnapshot[]>(() => [{
-    id: "V1",
-    createdAt: new Date(0).toISOString(),
-    document: cloneDocument(initialDocument),
-  }]);
+  const [versions, setVersions] = useState<LocalSnapshot[]>([]);
   const [historyStatus, setHistoryStatus] = useState<string | null>(null);
   const [diffSummary, setDiffSummary] = useState<LayoutDocumentDiff | null>(null);
   const revision = sessionState.document.stateRevision;
@@ -924,9 +928,10 @@ export function LayoutStudioShell({ initialDocument }: { readonly initialDocumen
           storage: window.localStorage,
           namespace: "synthetic-preview-v1",
         });
-        const [draftDocument, persistedVersions] = await Promise.all([
+        const [draftDocument, persistedVersions, persistedCheckpoints] = await Promise.all([
           nextRepository.loadDraft(initialDocument.documentId),
           nextRepository.listVersions(initialDocument.documentId),
+          nextRepository.listCheckpoints(initialDocument.documentId),
         ]);
         if (cancelled) return;
 
@@ -938,19 +943,18 @@ export function LayoutStudioShell({ initialDocument }: { readonly initialDocumen
           setHistoryStatus(copy.history.draftLoaded);
         }
         if (persistedVersions.length > 0) {
-          setVersions((current) => {
-            const baseline = current[0];
-            const restored = persistedVersions.map((version) => ({
+          setVersions(persistedVersions.map((version) => ({
               id: version.versionId,
               createdAt: version.createdAt,
               document: cloneDocument(version.content),
               semanticHash: version.semanticHash,
-            }));
-            return baseline && !restored.some((item) => item.id === baseline.id)
-              ? [baseline, ...restored]
-              : restored;
-          });
+            })));
         }
+        setCheckpoints(persistedCheckpoints.map((checkpoint) => ({
+          id: checkpoint.checkpointId,
+          createdAt: checkpoint.createdAt,
+          document: cloneDocument(checkpoint.document),
+        })));
         setRepository(nextRepository);
         setLoadState("ready");
       } catch (error) {
@@ -1137,10 +1141,6 @@ export function LayoutStudioShell({ initialDocument }: { readonly initialDocumen
 
   const exportArtifact = async (format: "json" | "svg" | "png" | "glb" | "print") => {
     try {
-      if (format === "print") {
-        window.print();
-        return;
-      }
       if (!repository || !latestPublished?.semanticHash) {
         setHistoryStatus(copy.export.publishRequired);
         return;
@@ -1155,16 +1155,12 @@ export function LayoutStudioShell({ initialDocument }: { readonly initialDocumen
         );
       };
 
-      if (format === "json" || format === "svg") {
+      if (format === "json" || format === "svg" || format === "glb" || format === "print") {
         const exported = await new LayoutExportService({
           repository,
           generatorVersion: "archidom-layout-studio-preview/0.1",
         }).exportVersion(latestPublished.id, format);
-        downloadArtifact(
-          exported.artifact,
-          format === "json" ? "application/json" : "image/svg+xml",
-          `${filename}.${format}`,
-        );
+        downloadArtifact(exported.artifact, exported.manifest.mimeType, exported.manifest.filename);
         downloadManifest(exported.manifest as unknown as Record<string, unknown>);
         return;
       }
@@ -1179,12 +1175,18 @@ export function LayoutStudioShell({ initialDocument }: { readonly initialDocumen
       const svg = serializeSvgProjection(exactProjection);
       const manifestFor = async (artifact: string | ArrayBuffer | Blob) => ({
         contractVersion: "archidom.layout-export/0.1",
+        artifactId: `${filename}-png`,
+        format: "png",
+        filename: `${filename}.png`,
+        mimeType: "image/png",
+        byteLength: artifact instanceof Blob ? artifact.size : typeof artifact === "string" ? new TextEncoder().encode(artifact).byteLength : artifact.byteLength,
         documentId: exactVersion.documentId,
         versionId: exactVersion.versionId,
         semanticHash: exactVersion.semanticHash,
         artifactChecksum: await artifactChecksum(artifact),
         generatedAt: new Date().toISOString(),
         generatorVersion: "archidom-layout-studio-preview/0.1",
+        warnings: [...exactVersion.content.metadata.warnings],
       });
 
       if (format === "png") {
@@ -1197,7 +1199,7 @@ export function LayoutStudioShell({ initialDocument }: { readonly initialDocumen
         });
         const canvas = globalThis.document.createElement("canvas");
         canvas.width = 1600;
-        canvas.height = Math.max(900, Math.round(1600 * projection.viewBox.height / projection.viewBox.width));
+        canvas.height = Math.max(900, Math.round(1600 * exactProjection.viewBox.height / exactProjection.viewBox.width));
         const context = canvas.getContext("2d");
         if (!context) throw new Error(copy.export.failed);
         context.fillStyle = "#f4f0e8";
@@ -1212,33 +1214,6 @@ export function LayoutStudioShell({ initialDocument }: { readonly initialDocumen
         return;
       }
 
-      const { GLTFExporter } = await import("three/examples/jsm/exporters/GLTFExporter.js");
-      const runtime = await import("@/lib/layout-studio/adapters/three/three-runtime");
-      const exactDescriptor = compileSceneDescriptor(exactVersion.content, exactDerived.sceneProjection);
-      const exactLights = compileLightDescriptors(exactVersion.content);
-      const scene = runtime.buildThreeScene(exactDescriptor, {
-        materials: compileThreeMaterialOptions(exactVersion.content, exactDescriptor),
-        lights: exactLights.length > 0
-          ? exactLights
-          : [{ sourceId: "export.ambient-fallback", kind: "ambient", color: "#FFFFFF", intensity: 1 }],
-      });
-      try {
-        const buffer = await new Promise<ArrayBuffer>((resolve, reject) => {
-          new GLTFExporter().parse(
-            scene,
-            (result) => {
-              if (result instanceof ArrayBuffer) resolve(result);
-              else resolve(new TextEncoder().encode(JSON.stringify(result)).buffer);
-            },
-            reject,
-            { binary: true },
-          );
-        });
-        downloadArtifact(buffer, "model/gltf-binary", `${filename}.glb`);
-        downloadManifest(await manifestFor(buffer));
-      } finally {
-        runtime.disposeThreeScene(scene);
-      }
     } catch {
       setHistoryStatus(copy.export.failed);
     }

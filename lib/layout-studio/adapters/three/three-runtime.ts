@@ -50,6 +50,7 @@ function buildSceneObject(
   if (descriptor.geometry.type === "point") {
     const point = new THREE.Object3D();
     identify(point, descriptor.sourceId, descriptor.kind);
+    if (descriptor.parentSourceId) point.userData.parentSourceId = descriptor.parentSourceId;
     positionObject(point, descriptor);
     return point;
   }
@@ -61,6 +62,7 @@ function buildSceneObject(
   );
   const mesh = new THREE.Mesh(geometry, materialForObject(descriptor));
   identify(mesh, descriptor.sourceId, descriptor.kind);
+  if (descriptor.parentSourceId) mesh.userData.parentSourceId = descriptor.parentSourceId;
   positionObject(mesh, descriptor);
   return mesh;
 }

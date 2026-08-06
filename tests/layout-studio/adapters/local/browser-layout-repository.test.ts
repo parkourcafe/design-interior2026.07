@@ -92,6 +92,9 @@ describe("LS-050: BrowserLayoutRepository", () => {
     ).resolves.toMatchObject({
       document: { objects: [expect.objectContaining({ xMm: 1000 })] },
     });
+    await expect(
+      createRepository(storage, "user.alpha").listCheckpoints(document.documentId),
+    ).resolves.toEqual([expect.objectContaining({ checkpointId: checkpoint.checkpointId })]);
   });
 
   it("keeps published versions immutable while later edits create a new draft", async () => {
@@ -139,6 +142,20 @@ describe("LS-050: BrowserLayoutRepository", () => {
     await expect(repository.loadDraft(saved.documentId)).resolves.toMatchObject({
       stateRevision: 3,
       objects: [expect.objectContaining({ xMm: 1000 })],
+    });
+  });
+
+  it("reports corrupted local records as recoverable", async () => {
+    const storage = new FakeStorage();
+    const repository = createRepository(storage, "user.alpha");
+    const document = makeSimpleRoom();
+    await repository.saveDraft(document, null);
+    const key = [...storage.values.keys()][0]!;
+    storage.values.set(key, "{broken-json");
+
+    await expect(repository.loadDraft(document.documentId)).rejects.toMatchObject({
+      code: "STORAGE_CORRUPTED",
+      recoverable: true,
     });
   });
 });

@@ -32,6 +32,7 @@ export class EditorSession {
   private dirty = false;
   private readonly undoStack: LayoutDocument[] = [];
   private readonly redoStack: LayoutDocument[] = [];
+  private readonly commandLedger = new Map<string, { fingerprint: string; document: LayoutDocument }>();
 
   constructor(initialDocument: LayoutDocument) {
     this.document = cloneDocument(initialDocument);
@@ -42,6 +43,18 @@ export class EditorSession {
   }
 
   dispatch(command: LayoutCommand): ApplyLayoutCommandResult {
+    const fingerprint = JSON.stringify(command);
+    const recorded = this.commandLedger.get(command.idempotencyKey);
+    if (recorded) {
+      if (recorded.fingerprint !== fingerprint) {
+        return historyResult(this.document, {
+          code: "IDEMPOTENCY_CONFLICT",
+          severity: "blocking",
+          message: "Ключ идемпотентности уже использован другой командой",
+        });
+      }
+      return historyResult(recorded.document);
+    }
     const result = applyLayoutCommand(this.document, command);
     if (!result.ok) {
       return {
@@ -55,6 +68,10 @@ export class EditorSession {
     this.document = cloneDocument(result.document);
     this.redoStack.length = 0;
     this.dirty = true;
+    this.commandLedger.set(command.idempotencyKey, {
+      fingerprint,
+      document: cloneDocument(this.document),
+    });
     return historyResult(this.document);
   }
 
@@ -69,7 +86,9 @@ export class EditorSession {
     }
 
     this.redoStack.push(cloneDocument(this.document));
+    const revision = this.document.stateRevision + 1;
     this.document = cloneDocument(previous);
+    this.document.stateRevision = revision;
     this.dirty = this.undoStack.length > 0;
     return historyResult(this.document);
   }
@@ -85,7 +104,9 @@ export class EditorSession {
     }
 
     this.undoStack.push(cloneDocument(this.document));
+    const revision = this.document.stateRevision + 1;
     this.document = cloneDocument(next);
+    this.document.stateRevision = revision;
     this.dirty = this.undoStack.length > 0;
     return historyResult(this.document);
   }

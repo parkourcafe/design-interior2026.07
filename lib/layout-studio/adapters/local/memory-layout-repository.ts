@@ -1,6 +1,7 @@
 import {
   diffLayoutDocuments,
   semanticHash,
+  validateLayoutDocument,
   type LayoutDocument,
   type LayoutDocumentDiff,
 } from "@/lib/layout-studio/domain";
@@ -33,6 +34,7 @@ export interface VersionPublicationInput {
 }
 
 export interface LayoutVersion extends VersionPublicationInput {
+  contractVersion: "archidom.layout-version/0.1";
   documentId: string;
   semanticHash: string;
   content: LayoutDocument;
@@ -88,10 +90,28 @@ export class MemoryLayoutRepository {
     return checkpoint ? clone(checkpoint) : null;
   }
 
+  async listCheckpoints(documentId: string): Promise<LayoutCheckpoint[]> {
+    return [...this.checkpoints.values()]
+      .filter((checkpoint) => checkpoint.documentId === documentId)
+      .sort((left, right) => left.createdAt.localeCompare(right.createdAt))
+      .map(clone);
+  }
+
   async publishVersion(
     document: LayoutDocument,
     input: VersionPublicationInput,
   ): Promise<LayoutVersion> {
+    const validation = validateLayoutDocument(document);
+    if (!validation.valid) {
+      throw new LayoutRepositoryError("VERSION_SCHEMA_INVALID", "Невалидный документ нельзя опубликовать");
+    }
+    if (input.parentVersionId) {
+      const parent = this.versions.get(input.parentVersionId);
+      if (!parent) throw new LayoutRepositoryError("PARENT_VERSION_NOT_FOUND", "Родительская версия не найдена");
+      if (parent.documentId !== document.documentId) {
+        throw new LayoutRepositoryError("PARENT_DOCUMENT_MISMATCH", "Родительская версия относится к другому документу");
+      }
+    }
     if (this.versions.has(input.versionId) || this.pendingVersionIds.has(input.versionId)) {
       throw new LayoutRepositoryError("VERSION_IMMUTABLE", "Опубликованную версию нельзя заменить");
     }
@@ -100,6 +120,7 @@ export class MemoryLayoutRepository {
     try {
       const content = clone(document);
       const version: LayoutVersion = {
+        contractVersion: "archidom.layout-version/0.1",
         ...clone(input),
         documentId: content.documentId,
         semanticHash: await semanticHash(content),

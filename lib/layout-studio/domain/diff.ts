@@ -59,5 +59,17 @@ export function diffLayoutDocuments(
     }
   }
 
+  const rootBefore = Object.fromEntries(
+    Object.entries(before).filter(([key]) => !ENTITY_COLLECTIONS.includes(key as never)),
+  );
+  const rootAfter = Object.fromEntries(
+    Object.entries(after).filter(([key]) => !ENTITY_COLLECTIONS.includes(key as never)),
+  );
+  const rootFields = fieldDiffs(rootBefore, rootAfter)
+    .filter((field) => field.path !== "stateRevision");
+  if (rootFields.length > 0) {
+    changed.unshift({ entityId: before.documentId, entityType: "document", fields: rootFields });
+  }
+
   return { fromVersionId, toVersionId, addedEntityIds, removedEntityIds, changed };
 }

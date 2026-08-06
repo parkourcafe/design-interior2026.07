@@ -28,7 +28,7 @@ describe("LS-021: EditorSession", () => {
     expect(session.undo().ok).toBe(true);
     expect(session.getState()).toMatchObject({
       document: {
-        stateRevision: 3,
+        stateRevision: 5,
         objects: [expect.objectContaining({ id: "object.simple-room.table", xMm: 1000 })],
       },
       selection: "object.simple-room.table",
@@ -38,7 +38,7 @@ describe("LS-021: EditorSession", () => {
 
     expect(session.redo().ok).toBe(true);
     expect(session.getState().document.objects[0]).toMatchObject({ xMm: 1100 });
-    expect(session.getState().document.stateRevision).toBe(4);
+    expect(session.getState().document.stateRevision).toBe(6);
   });
 
   it("preserves the last valid state on a stale command and clears redo after a new edit", () => {
@@ -55,12 +55,36 @@ describe("LS-021: EditorSession", () => {
 
     expect(rejected.ok).toBe(false);
     expect(rejected.issues).toContainEqual(expect.objectContaining({ code: "STATE_STALE" }));
-    expect(session.getState().document).toEqual(initial);
+    expect(session.getState().document).toMatchObject({
+      stateRevision: 5,
+      objects: [expect.objectContaining({ id: "object.simple-room.table", xMm: 1000 })],
+    });
     expect(session.getState().canRedo).toBe(true);
 
-    const accepted = session.dispatch(moveTableCommand(initial, 1300));
+    const current = session.getState().document;
+    const accepted = session.dispatch(moveTableCommand(current, 1300));
 
     expect(accepted.ok).toBe(true);
     expect(session.getState().canRedo).toBe(false);
+  });
+
+  it("replays the same idempotency key once and rejects conflicting reuse", () => {
+    const initial = makeSimpleRoom();
+    const session = new EditorSession(initial);
+    const command = moveTableCommand(initial);
+    const first = session.dispatch(command);
+    const replay = session.dispatch(command);
+    const conflict = session.dispatch({
+      ...command,
+      payload: { ...command.payload, xMm: 1400 },
+    } as LayoutCommand);
+
+    expect(first.ok).toBe(true);
+    expect(replay.document).toEqual(first.document);
+    expect(session.getState().document.stateRevision).toBe(4);
+    expect(conflict).toMatchObject({
+      ok: false,
+      issues: [expect.objectContaining({ code: "IDEMPOTENCY_CONFLICT" })],
+    });
   });
 });

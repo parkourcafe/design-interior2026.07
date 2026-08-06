@@ -1,6 +1,7 @@
 import {
   diffLayoutDocuments,
   semanticHash,
+  validateLayoutDocument,
   type LayoutDocument,
   type LayoutDocumentDiff,
 } from "@/lib/layout-studio/domain";
@@ -112,6 +113,18 @@ export class BrowserLayoutRepository {
     return checkpoint ? clone(checkpoint) : null;
   }
 
+  async listCheckpoints(documentId: string): Promise<LayoutCheckpoint[]> {
+    const prefix = this.kindPrefix("checkpoint");
+    const checkpoints: LayoutCheckpoint[] = [];
+    for (let index = 0; index < this.storage.length; index += 1) {
+      const key = this.storage.key(index);
+      if (!key?.startsWith(prefix)) continue;
+      const checkpoint = this.read<LayoutCheckpoint>(key);
+      if (checkpoint?.documentId === documentId) checkpoints.push(checkpoint);
+    }
+    return checkpoints.sort((left, right) => left.createdAt.localeCompare(right.createdAt)).map(clone);
+  }
+
   async restoreCheckpoint(
     checkpointId: string,
     expectedRevision: number,
@@ -140,6 +153,17 @@ export class BrowserLayoutRepository {
     document: LayoutDocument,
     input: VersionPublicationInput,
   ): Promise<LayoutVersion> {
+    const validation = validateLayoutDocument(document);
+    if (!validation.valid) {
+      throw new LayoutRepositoryError("VERSION_SCHEMA_INVALID", "Невалидный документ нельзя опубликовать");
+    }
+    if (input.parentVersionId) {
+      const parent = await this.loadVersion(input.parentVersionId);
+      if (!parent) throw new LayoutRepositoryError("PARENT_VERSION_NOT_FOUND", "Родительская версия не найдена");
+      if (parent.documentId !== document.documentId) {
+        throw new LayoutRepositoryError("PARENT_DOCUMENT_MISMATCH", "Родительская версия относится к другому документу");
+      }
+    }
     const key = this.key("version", input.versionId);
     if (this.storage.getItem(key) !== null || this.pendingVersionIds.has(input.versionId)) {
       throw new LayoutRepositoryError("VERSION_IMMUTABLE", "Опубликованную версию нельзя заменить");
@@ -149,6 +173,7 @@ export class BrowserLayoutRepository {
     try {
       const content = clone(document);
       const version: LayoutVersion = {
+        contractVersion: "archidom.layout-version/0.1",
         ...clone(input),
         documentId: content.documentId,
         semanticHash: await semanticHash(content),
@@ -212,7 +237,16 @@ export class BrowserLayoutRepository {
 
   private read<T>(key: string): T | null {
     const stored = this.storage.getItem(key);
-    return stored === null ? null : (JSON.parse(stored) as T);
+    if (stored === null) return null;
+    try {
+      return JSON.parse(stored) as T;
+    } catch {
+      throw new BrowserLayoutRepositoryError(
+        "STORAGE_CORRUPTED",
+        "Локальные данные повреждены и не могут быть прочитаны",
+        true,
+      );
+    }
   }
 
   private write(key: string, value: unknown): void {

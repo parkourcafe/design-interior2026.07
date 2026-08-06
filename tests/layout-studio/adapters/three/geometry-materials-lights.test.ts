@@ -29,15 +29,15 @@ describe("LS-030: canonical geometry to Three descriptors", () => {
         expect.objectContaining({
           sourceId: "wall.synthetic-liquid-station.east",
           kind: "wall",
-          geometry: { type: "box", widthM: 4.6, heightM: 3, depthM: 0.2 },
-          positionM: { x: 7.2, y: 1.5, z: 2.3 },
+          geometry: { type: "box", widthM: 2.75, heightM: 3, depthM: 0.2 },
+          positionM: { x: 7.2, y: 1.5, z: 1.375 },
           rotationYRad: -Math.PI / 2,
         }),
         expect.objectContaining({
           sourceId: "opening.synthetic-liquid-station.service-door",
           kind: "opening",
           parentSourceId: "wall.synthetic-liquid-station.east",
-          geometry: { type: "box", widthM: 0.9, heightM: 2.1, depthM: 0.2 },
+          geometry: { type: "point" },
           positionM: { x: 7.2, y: 1.05, z: 3.2 },
           rotationYRad: -Math.PI / 2,
         }),
@@ -47,9 +47,11 @@ describe("LS-030: canonical geometry to Three descriptors", () => {
     const south = descriptor.objects.find(
       ({ sourceId }) => sourceId === "wall.synthetic-liquid-station.south",
     );
-    expect(south?.geometry).toEqual({ type: "box", widthM: 7.2, heightM: 3, depthM: 0.2 });
-    expect(south?.positionM).toEqual({ x: 3.6, y: 1.5, z: 4.6 });
+    expect(south?.geometry).toEqual({ type: "box", widthM: 0.65, heightM: 3, depthM: 0.2 });
+    expect(south?.positionM).toEqual({ x: 6.875, y: 1.5, z: 4.6 });
     expect(Math.abs(south?.rotationYRad ?? 0)).toBeCloseTo(Math.PI);
+    expect(descriptor.objects.filter(({ parentSourceId }) =>
+      parentSourceId === "wall.synthetic-liquid-station.east")).toHaveLength(4);
 
     expect(descriptor.objects).toEqual(
       expect.arrayContaining([

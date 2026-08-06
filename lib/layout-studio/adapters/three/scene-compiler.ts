@@ -56,27 +56,63 @@ export function compileSceneDescriptor(
   const floor = document?.floor ?? projection.floor;
   const elevationMm = floor?.elevationMm ?? 0;
 
+  const openingsByWall = new Map<string, typeof projection.openings>();
+  for (const opening of projection.openings) {
+    const list = openingsByWall.get(opening.parentWallId) ?? [];
+    list.push(opening);
+    openingsByWall.set(opening.parentWallId, list);
+  }
   const walls: SceneObjectDescriptor[] = projection.walls.flatMap((wall) => {
     const start = nodes.get(wall.startNodeId);
     const end = nodes.get(wall.endNodeId);
     if (!start || !end) return [];
     const lengthMm = Math.hypot(end.xMm - start.xMm, end.yMm - start.yMm);
-    return [{
-      sourceId: wall.id,
-      kind: "wall",
-      geometry: {
-        type: "box",
-        widthM: meters(lengthMm),
-        heightM: meters(wall.heightMm),
-        depthM: meters(wall.thicknessMm),
-      },
-      positionM: {
-        x: meters((start.xMm + end.xMm) / 2),
-        y: meters(elevationMm + wall.heightMm / 2),
-        z: meters((start.yMm + end.yMm) / 2),
-      },
-      rotationYRad: wallRotation(start, end),
-    }];
+    if (lengthMm === 0) return [];
+    const wallOpenings = [...(openingsByWall.get(wall.id) ?? [])]
+      .sort((left, right) => left.offsetMm - right.offsetMm);
+    const spans: Array<{ startMm: number; endMm: number; baseMm: number; heightMm: number }> = [];
+    let cursorMm = 0;
+    for (const opening of wallOpenings) {
+      if (opening.offsetMm > cursorMm) {
+        spans.push({ startMm: cursorMm, endMm: opening.offsetMm, baseMm: 0, heightMm: wall.heightMm });
+      }
+      if (opening.sillMm > 0) {
+        spans.push({ startMm: opening.offsetMm, endMm: opening.offsetMm + opening.widthMm, baseMm: 0, heightMm: opening.sillMm });
+      }
+      const topMm = opening.sillMm + opening.heightMm;
+      if (topMm < wall.heightMm) {
+        spans.push({ startMm: opening.offsetMm, endMm: opening.offsetMm + opening.widthMm, baseMm: topMm, heightMm: wall.heightMm - topMm });
+      }
+      cursorMm = Math.max(cursorMm, opening.offsetMm + opening.widthMm);
+    }
+    if (cursorMm < lengthMm) {
+      spans.push({ startMm: cursorMm, endMm: lengthMm, baseMm: 0, heightMm: wall.heightMm });
+    }
+    if (spans.length === 0 && wallOpenings.length === 0) {
+      spans.push({ startMm: 0, endMm: lengthMm, baseMm: 0, heightMm: wall.heightMm });
+    }
+    const ux = (end.xMm - start.xMm) / lengthMm;
+    const uy = (end.yMm - start.yMm) / lengthMm;
+    return spans.filter((span) => span.endMm > span.startMm && span.heightMm > 0).map((span, index) => {
+      const centerMm = (span.startMm + span.endMm) / 2;
+      return {
+        sourceId: index === 0 ? wall.id : `${wall.id}.segment.${index + 1}`,
+        parentSourceId: wall.id,
+        kind: "wall",
+        geometry: {
+          type: "box" as const,
+          widthM: meters(span.endMm - span.startMm),
+          heightM: meters(span.heightMm),
+          depthM: meters(wall.thicknessMm),
+        },
+        positionM: {
+          x: meters(start.xMm + ux * centerMm),
+          y: meters(elevationMm + span.baseMm + span.heightMm / 2),
+          z: meters(start.yMm + uy * centerMm),
+        },
+        rotationYRad: wallRotation(start, end),
+      };
+    });
   });
 
   const wallById = new Map(projection.walls.map((wall) => [wall.id, wall]));
@@ -95,12 +131,7 @@ export function compileSceneDescriptor(
       sourceId: opening.id,
       parentSourceId: parent.id,
       kind: "opening",
-      geometry: {
-        type: "box",
-        widthM: meters(opening.widthMm),
-        heightM: meters(opening.heightMm),
-        depthM: meters(parent.thicknessMm),
-      },
+      geometry: { type: "point" },
       positionM: {
         x: meters(start.xMm + (dx / lengthMm) * centerOffsetMm),
         y: meters(elevationMm + opening.sillMm + opening.heightMm / 2),
