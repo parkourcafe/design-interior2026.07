@@ -242,18 +242,18 @@ productionChanged = false
 От base `origin/codex/ap1-migration-chain-reconciliation`:
 
 ```text
-0b38d8d fix(m2): preserve legacy operations and project-scope reads
-aa0a1f3 feat(m2): add exact design approval contracts
-af64fa3 feat(m2): persist exact approved design commits
-a501544 feat(m2): define authenticated layout version contract
-9ae5e1d feat(m2): persist authenticated layout versions
-f0272b3 feat(m2): define exact client review and m3 handoff
-a951a66 feat(m2): persist exact client review and m3 handoff
-30b03ca feat(m2): add authenticated client review and m3 ui
-3337b39 test(m2): add fail-closed external pilot gate
+77c09af feat(m2): add exact design approval contracts
+2023798 feat(m2): persist exact approved design commits
+aa4655d feat(m2): define authenticated layout version contract
+bf5e058 feat(m2): persist authenticated layout versions
+82ed0e9 feat(m2): define exact client review and m3 handoff
+e77ad36 feat(m2): persist exact client review and m3 handoff
+87a3df2 feat(m2): add authenticated client review and m3 ui
+fac3e4e test(m2): add fail-closed external pilot gate
+40a5feb docs(m2): hand off p0 agent loop
 ```
 
-Этот handoff должен быть отдельным последним documentation commit.
+Хеши актуальны после rebase на base commit `01d76e5` от 6 августа 2026 года.
 
 ## 6. Что не сделано
 
@@ -315,12 +315,15 @@ zsh tests/pilot-evidence/run-m2-pilot-evidence.zsh
 
 ## 9. Git/PR handoff
 
-- Working tree перед публикацией должен быть clean.
+- Working tree опубликован clean.
 - Текущая ветка: `codex/archidom-m2-p0-integration`.
 - Remote: `parkourcafe/design-interior2026.07`.
-- Новый PR должен быть draft и base должен быть
-  `codex/ap1-migration-chain-reconciliation`, потому что это stacked work поверх
-  draft PR #62. Base на remote default branch создаёт загрязнённый diff.
+- Draft PR создан: `https://github.com/parkourcafe/design-interior2026.07/pull/66`.
+- Base PR #66 — `codex/ap1-migration-chain-reconciliation`; это stacked work поверх
+  draft PR #62. После rebase GitHub показывает PR #66 как `MERGEABLE`.
+- Vercel check PR #66 красный из-за project collaboration/access configuration,
+  а не из-за обнаруженной ошибки build. Supabase Preview пропущен; Vercel Preview
+  Comments зелёный. Нужна отдельная настройка прав Vercel владельцем проекта.
 - После merge PR #62 нужно rebase/retarget текущий M2 PR на актуальную default/main
   ветку и повторить CI.
 
