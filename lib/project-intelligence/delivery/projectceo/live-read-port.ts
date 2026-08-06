@@ -951,6 +951,9 @@ export class ProjectCeoLiveReadPort implements ProjectCeoUiReadPort {
           projectId,
           packageId: scope.accessScope === "package" ? scope.packageId ?? null : null,
         });
+        if (readEnvelope.error) {
+          throw new ProjectIntelligenceAdapterError(readEnvelope.error.code, null);
+        }
         const delivery = readEnvelope.data;
         const packages = projectPackages({ packages: delivery.packages });
         const baseline = baselineFrom(delivery);
@@ -1035,6 +1038,9 @@ export class ProjectCeoLiveReadPort implements ProjectCeoUiReadPort {
         projectId: input.projectId,
         packageId: scope.accessScope === "package" ? scope.packageId ?? null : null,
       });
+      if (readEnvelope.error) {
+        throw new ProjectIntelligenceAdapterError(readEnvelope.error.code, null);
+      }
       const delivery = readEnvelope.data;
       const packages = projectPackages({ packages: delivery.packages });
       const sources = sourceViews(delivery.sources);

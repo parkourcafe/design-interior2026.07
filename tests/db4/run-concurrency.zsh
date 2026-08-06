@@ -136,4 +136,87 @@ if [[
   exit 1
 fi
 
+# Two independently valid immutable documents race for one public versionId.
+# The workflow lock/state precondition plus the version uniqueness invariant
+# must leave exactly one publication; the losing transaction fails closed.
+layout_state=$(psql_exec db4-layout-race-state "
+  select state_revision from project_intelligence.project_workflows
+  where project_id='${project}'
+")
+layout_a=$(psql_exec db4-layout-race-payload-a "
+  with source as (
+    select jsonb_set(payload->'layoutContent','{documentId}','\"layout-race-a\"'::jsonb) content
+    from projectceo_product.m2_workspace_revisions
+    where project_id='${project}' and entity_kind='layout_version'
+      and entity_id='layout-document-db4-secondary'
+    order by revision_no desc limit 1
+  )
+  select jsonb_build_object(
+    'versionId','layout-version-concurrent-r1','roomId','db4-room',
+    'variantId','db4-variant-value','role','value_engineered',
+    'semanticHash',projectceo_product._m2_layout_semantic_hash(content),
+    'schemaVersion','project-ceo-m2-layout/0.1','layoutContent',content
+  ) from source
+")
+layout_b=$(psql_exec db4-layout-race-payload-b "
+  with source as (
+    select jsonb_set(payload->'layoutContent','{documentId}','\"layout-race-b\"'::jsonb) content
+    from projectceo_product.m2_workspace_revisions
+    where project_id='${project}' and entity_kind='layout_version'
+      and entity_id='layout-document-db4-secondary'
+    order by revision_no desc limit 1
+  )
+  select jsonb_build_object(
+    'versionId','layout-version-concurrent-r1','roomId','db4-room',
+    'variantId','db4-variant-value','role','value_engineered',
+    'semanticHash',projectceo_product._m2_layout_semantic_hash(content),
+    'schemaVersion','project-ceo-m2-layout/0.1','layoutContent',content
+  ) from source
+")
+layout_call_a="begin;
+set local role authenticated;
+set local request.jwt.claim.sub='32222222-2222-4222-8222-222222222222';
+select projectceo_product_api.append_m2_workspace_revision(
+  '${project}','${package}','layout_version','layout-race-a',
+  'layout-race-a-revision-r1',null,'published','${layout_a}'::jsonb,
+  'DB4 concurrent layout A',${layout_state},'db4-layout-race-a'
+); commit;"
+layout_call_b="begin;
+set local role authenticated;
+set local request.jwt.claim.sub='32222222-2222-4222-8222-222222222222';
+select projectceo_product_api.append_m2_workspace_revision(
+  '${project}','${package}','layout_version','layout-race-b',
+  'layout-race-b-revision-r1',null,'published','${layout_b}'::jsonb,
+  'DB4 concurrent layout B',${layout_state},'db4-layout-race-b'
+); commit;"
+
+set +e
+psql_exec db4-layout-race-a "${layout_call_a}" >"${tmpdir}/layout-a.out" 2>&1 &
+layout_pid_a=$!
+psql_exec db4-layout-race-b "${layout_call_b}" >"${tmpdir}/layout-b.out" 2>&1 &
+layout_pid_b=$!
+wait "${layout_pid_a}"; layout_status_a=$?
+wait "${layout_pid_b}"; layout_status_b=$?
+set -e
+
+if [[ $(( layout_status_a + layout_status_b )) == 0 ]] \
+  || [[ "${layout_status_a}" != "0" && "${layout_status_b}" != "0" ]]; then
+  print -u2 -r -- "Concurrent layout version race did not select exactly one winner"
+  sed -n '1,120p' "${tmpdir}/layout-a.out" >&2
+  sed -n '1,120p' "${tmpdir}/layout-b.out" >&2
+  exit 1
+fi
+
+layout_result=$(psql_exec db4-layout-race-assert "
+  select count(*)::text || '|' || count(distinct entity_id)::text
+  from projectceo_product.m2_workspace_revisions
+  where project_id='${project}' and package_id='${package}'
+    and entity_kind='layout_version'
+    and payload->>'versionId'='layout-version-concurrent-r1'
+")
+if [[ "${layout_result}" != "1|1" ]]; then
+  print -u2 -r -- "Concurrent layout version race persisted invalid state: ${layout_result}"
+  exit 1
+fi
+
 print -r -- "DB4_CONCURRENCY_OK"

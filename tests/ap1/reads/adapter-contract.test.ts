@@ -20,6 +20,8 @@ function envelope(overrides: Readonly<Record<string, unknown>> = {}) {
       executionPackages: [],
       extensionStatus: { workspaceRead: "durable_ap1" },
       latestBaseline: null,
+      m2ApprovedCommits: [],
+      m2LayoutVersions: [],
       noChangeTerminals: [],
       packages: [],
       packageVersions: [],
@@ -89,7 +91,7 @@ describe("AP1 authenticated read postgres adapter", () => {
     });
     expect(calls).toEqual([{
       schema: "projectceo_read_api",
-      functionName: "get_project_workspace_read_v3",
+      functionName: "get_project_workspace_read_v5",
       args: { project_id: projectId, package_id: packageId },
     }]);
     expect(JSON.stringify(calls)).not.toMatch(/actor|organization|role|recipient/i);

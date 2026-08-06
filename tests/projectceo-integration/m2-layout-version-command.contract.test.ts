@@ -46,6 +46,7 @@ async function validCommand(): Promise<MutableCommandFixture> {
   layoutContent.documentId = "living-room-layout";
   layoutContent.projectId = uuid.project;
   layoutContent.variant.id = "variant-preferred";
+  layoutContent.variant.status = "published";
 
   return {
     contractVersion: PROJECTCEO_COMMAND_CONTRACT_VERSION,
@@ -264,6 +265,15 @@ describe("publish_m2_layout_version command contract", () => {
     expect(projectCeoCommandSchema.safeParse(command).success).toBe(true);
 
     layout.objects[0]!.xMm += 1;
+    expect(projectCeoCommandSchema.safeParse(command).success).toBe(false);
+  });
+
+  it("rejects publication of a LayoutDocument whose variant is still draft", async () => {
+    const command = await validCommand();
+    const layout = command.payload.layoutContent as LayoutDocument;
+    layout.variant.status = "draft";
+    command.payload.semanticHash = `sha256:${await semanticHash(layout)}`;
+
     expect(projectCeoCommandSchema.safeParse(command).success).toBe(false);
   });
 

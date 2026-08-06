@@ -432,6 +432,29 @@ export class ProjectCeoCommandService {
           idempotencyKey,
         }));
       }
+      if (command.kind === "publish_m2_layout_version") {
+        return completed(requestId, await this.product.appendM2WorkspaceRevision({
+          projectId: command.projectId,
+          packageId: command.payload.packageId,
+          entityKind: "layout_version",
+          entityId: command.payload.documentId,
+          revisionId: command.payload.revisionId,
+          expectedRevisionId: command.payload.expectedRevisionId,
+          status: "published",
+          payload: {
+            versionId: command.payload.versionId,
+            roomId: command.payload.roomId,
+            variantId: command.payload.variantId,
+            role: command.payload.role,
+            semanticHash: command.payload.semanticHash,
+            schemaVersion: command.payload.schemaVersion,
+            layoutContent: command.payload.layoutContent,
+          },
+          reason: command.payload.reason,
+          expectedStateRevision: scope.stateRevision,
+          idempotencyKey,
+        }));
+      }
       if (command.kind === "create_approval_package") {
         return completed(requestId, await this.product.createApprovalPackage({
           projectId: command.projectId,
@@ -503,6 +526,9 @@ export class ProjectCeoCommandService {
           projectId: command.projectId,
           packageId: scope.accessScope === "package" ? scope.packageId ?? null : null,
         });
+        if (read.error) {
+          throw new ProjectIntelligenceAdapterError(read.error.code, null);
+        }
         const distribution = read.data.recipientDistributions.find((item) => (
           item.distributionId === command.payload.distributionId
         ));
@@ -556,6 +582,9 @@ export class ProjectCeoCommandService {
           projectId: command.projectId,
           packageId: scope.accessScope === "package" ? scope.packageId ?? null : null,
         });
+        if (read.error) {
+          throw new ProjectIntelligenceAdapterError(read.error.code, null);
+        }
         const version = delivery.packageVersions.find((item) => (
           item.id === command.payload.productionPackageVersionId
         ));

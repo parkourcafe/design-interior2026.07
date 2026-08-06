@@ -3,6 +3,19 @@ import type { LayoutDocument } from "./types";
 
 const EPHEMERAL_FIELDS = new Set(["stateRevision", "updatedAt", "selection", "session"]);
 
+function compareUnicodeCodePoints(left: string, right: string): number {
+  const leftPoints = Array.from(left, (character) => character.codePointAt(0)!);
+  const rightPoints = Array.from(right, (character) => character.codePointAt(0)!);
+  const sharedLength = Math.min(leftPoints.length, rightPoints.length);
+
+  for (let index = 0; index < sharedLength; index += 1) {
+    const difference = leftPoints[index]! - rightPoints[index]!;
+    if (difference !== 0) return difference;
+  }
+
+  return leftPoints.length - rightPoints.length;
+}
+
 export function canonicalValue(value: unknown): unknown {
   if (Array.isArray(value)) return value.map(canonicalValue);
   if (!isRecord(value)) return value;
@@ -19,7 +32,7 @@ export function canonicalSerialize(document: LayoutDocument): string {
   const normalized = structuredClone(document) as LayoutDocument;
   for (const collectionName of ENTITY_COLLECTIONS) {
     normalized[collectionName] = [...entityArray(normalized, collectionName)].sort((a, b) =>
-      a.id.localeCompare(b.id),
+      compareUnicodeCodePoints(a.id, b.id),
     ) as never;
   }
   return JSON.stringify(canonicalValue(normalized));

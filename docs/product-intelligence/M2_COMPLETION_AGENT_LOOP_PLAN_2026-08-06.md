@@ -1,7 +1,7 @@
 # ArchiDom M2 Completion Agent Loop Plan
 
 Date: 2026-08-06
-Status: proposed execution plan; implementation requires slice approval
+Status: active Agent Loop; slices 1–5 completed, slice 6 in progress
 Target: authenticated M2 P0, not production adoption
 
 ## 1. Outcome
@@ -177,10 +177,9 @@ M2 P0 is complete only when all are true:
 
 ## 8. Immediate next action
 
-Start Slice 5 with an isolated RED contract for an authenticated Layout Studio
-repository over `get_project_workspace_read_v4` and request-bound commands. Remove
-browser-local persistence from the pilot path without weakening the existing generic
-Layout Studio domain behavior.
+Start Slice 6 with an isolated RED contract for the Russian client review surface and
+an exact immutable M2-to-M3 handoff. Prove separate designer/client scopes and ensure
+M3 cannot consume a draft or a newer unapproved Layout Document revision.
 
 ## 9. Execution evidence
 
@@ -245,3 +244,24 @@ Status: completed.
   migration/security/concurrency/restart-replay harness PASS on PostgreSQL 16 and 17.
 - Security reviewer verdict: CLEAR for Slice 4 closure. Evidence is disposable-pilot
   evidence only and does not authorize production adoption.
+
+### 2026-08-06 — M2-050 Authenticated Layout Studio repository
+
+Status: completed.
+
+- RED/GREEN: added an authenticated repository port, request-bound HTTP adapter and
+  narrow project/package layouts route over read v5 and `publish_m2_layout_version`.
+- Exact persistence: validates the complete Layout Document, canonical SHA-256,
+  project/package/room/variant/role lineage, immutable revision history and optimistic
+  parent revision; first publication and later revisions have distinct stale checks.
+- Security hardening: no service-role browser path, no trusted local/session storage,
+  strict response envelopes, controlled auth/scope errors, builder content redaction,
+  sibling package/room isolation and bounded JSON/resource depth/size.
+- Database evidence: publication, idempotency/reuse negatives, Unicode canonical
+  parity, append-only audit, role read matrix, concurrency race and restart replay pass
+  in the complete DB4 harness on PostgreSQL 16 and 17.
+- Verification: 90 test files / 687 tests PASS; strict typecheck PASS; ESLint has zero
+  errors (12 warnings, including pre-existing warnings); Next.js production build
+  PASS. Focused independent reviewer suite: 127/127 PASS, verdict CLEAR.
+- Scope note: this completes authenticated repository integration, not CAD/BIM, a
+  production deployment or real-package pilot evidence.

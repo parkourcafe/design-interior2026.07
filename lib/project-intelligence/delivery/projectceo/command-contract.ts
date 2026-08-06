@@ -467,6 +467,13 @@ export const projectCeoCommandSchema = z.discriminatedUnion("kind", [
       if (payload.variantId !== document.variant.id) {
         context.addIssue({ code: z.ZodIssueCode.custom, path: ["variantId"], message: "layout_variant_id_mismatch" });
       }
+      if (document.variant.status !== "published") {
+        context.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ["layoutContent", "variant", "status"],
+          message: "layout_variant_must_be_published",
+        });
+      }
       const actualHash = `sha256:${sha256Hex(canonicalSerialize(document))}`;
       if (payload.semanticHash !== actualHash) {
         context.addIssue({ code: z.ZodIssueCode.custom, path: ["semanticHash"], message: "layout_semantic_hash_mismatch" });

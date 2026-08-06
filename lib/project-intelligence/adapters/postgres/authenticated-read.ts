@@ -114,6 +114,69 @@ export interface AuthenticatedReadReleaseRecipient {
   readonly userId: string;
 }
 
+export interface AuthenticatedReadM2ApprovedCommitPayload {
+  readonly approvalPackageId: string;
+  readonly approvedSelectionRevisionIds: readonly string[];
+  readonly budget: {
+    readonly amountRub?: number;
+    readonly asOf: string;
+    readonly missingPriceSelectionRevisionIds: readonly [];
+    readonly staleAfterDays: number;
+    readonly staleSelectionRevisionIds: readonly [];
+  };
+  readonly chosenVariant: {
+    readonly layoutDocumentId: string;
+    readonly layoutVersionId: string;
+    readonly role: "preferred" | "value_engineered" | "premium";
+    readonly semanticHash: `sha256:${string}`;
+    readonly variantId: string;
+  };
+  readonly designIntentRevisionId: string;
+  readonly reviewedAt: string;
+  readonly reviewReason: string;
+  readonly roomId: string;
+  readonly submittedAt: string;
+  readonly submissionReason: string;
+}
+
+export interface AuthenticatedReadM2ApprovedCommit {
+  readonly createdAt: string;
+  readonly id: string;
+  readonly packageId: string;
+  readonly payload: AuthenticatedReadM2ApprovedCommitPayload;
+  readonly revisionId: string;
+  readonly revisionNo: number;
+  readonly status: "approved";
+}
+
+export interface AuthenticatedReadM2LayoutVersionPayload {
+  /** Omitted by the read projection for builder sessions. */
+  readonly layoutContent?: Readonly<Record<string, unknown>>;
+  readonly role: "preferred" | "value_engineered" | "premium";
+  readonly roomId: string;
+  readonly schemaVersion: "project-ceo-m2-layout/0.1";
+  readonly semanticHash: `sha256:${string}`;
+  readonly variantId: string;
+  readonly versionId: string;
+}
+
+export interface AuthenticatedReadM2LayoutVersion {
+  readonly createdAt: string;
+  readonly documentId: string;
+  readonly id: string;
+  readonly packageId: string;
+  readonly payload: AuthenticatedReadM2LayoutVersionPayload;
+  readonly revisionId: string;
+  readonly revisionNo: number;
+  readonly role: "preferred" | "value_engineered" | "premium";
+  readonly roomId: string;
+  readonly schemaVersion: "project-ceo-m2-layout/0.1";
+  readonly semanticHash: `sha256:${string}`;
+  readonly status: "published";
+  readonly variantId: string;
+  readonly versionId: string;
+}
+
 export interface AuthenticatedProjectReadProjection {
   readonly approvalPackages: readonly Readonly<Record<string, unknown>>[];
   readonly m2Rooms?: readonly Readonly<Record<string, unknown>>[];
@@ -121,6 +184,8 @@ export interface AuthenticatedProjectReadProjection {
   readonly m2Materials?: readonly Readonly<Record<string, unknown>>[];
   readonly m2BudgetFrames?: readonly Readonly<Record<string, unknown>>[];
   readonly m2ClientHandoffs?: readonly Readonly<Record<string, unknown>>[];
+  readonly m2ApprovedCommits: readonly AuthenticatedReadM2ApprovedCommit[];
+  readonly m2LayoutVersions: readonly AuthenticatedReadM2LayoutVersion[];
   readonly decisions: readonly AuthenticatedReadDecision[];
   readonly distributionSummary: readonly AuthenticatedReadDistributionSummary[];
   readonly executionPackages: readonly ExecutionDeliveryEnvelope[];
@@ -160,6 +225,25 @@ export interface AuthenticatedProjectReadEnvelope {
   readonly stateRevision: number;
 }
 
+export interface AuthenticatedProjectReadControlledError {
+  readonly contractVersion: typeof AUTHENTICATED_READ_CONTRACT_VERSION;
+  readonly requestId: string;
+  readonly data: null;
+  readonly error:
+    | { readonly code: "forbidden"; readonly messageKey: "projectceo.read.forbidden" }
+    | { readonly code: "not_found"; readonly messageKey: "projectceo.read.not_found" }
+    | {
+      readonly code: "validation_failed";
+      readonly messageKey: "projectceo.read.validation_failed";
+    };
+  readonly scope: null;
+  readonly stateRevision: null;
+}
+
+export type AuthenticatedProjectReadResult =
+  | AuthenticatedProjectReadEnvelope
+  | AuthenticatedProjectReadControlledError;
+
 function isRecord(value: unknown): value is Record<string, unknown> {
   return value !== null && typeof value === "object" && !Array.isArray(value);
 }
@@ -169,8 +253,242 @@ function isUuid(value: unknown): value is string {
     && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value);
 }
 
-function parseAuthenticatedProjectRead(value: unknown): AuthenticatedProjectReadEnvelope {
-  if (!isRecord(value) || !isRecord(value.data) || !isRecord(value.scope)) {
+function hasExactKeys(value: Record<string, unknown>, keys: readonly string[]): boolean {
+  const actualKeys = Object.keys(value);
+  return actualKeys.length === keys.length && actualKeys.every((key) => keys.includes(key));
+}
+
+function isIdentifier(value: unknown): value is string {
+  return typeof value === "string"
+    && value.length > 0
+    && value.length <= 160
+    && value === value.trim();
+}
+
+function isTimestamp(value: unknown): value is string {
+  return typeof value === "string"
+    && /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})$/.test(value)
+    && Number.isFinite(Date.parse(value));
+}
+
+function isRevisionNumber(value: unknown): value is number {
+  return typeof value === "number" && Number.isSafeInteger(value) && value > 0;
+}
+
+function isReason(value: unknown): value is string {
+  return typeof value === "string"
+    && value.length >= 3
+    && value.length <= 4000
+    && value === value.trim();
+}
+
+function isEmptyArray(value: unknown): value is readonly [] {
+  return Array.isArray(value) && value.length === 0;
+}
+
+function isApprovedCommitBudget(
+  value: unknown,
+): value is AuthenticatedReadM2ApprovedCommitPayload["budget"] {
+  if (!isRecord(value)) return false;
+  const requiredKeys = [
+    "asOf",
+    "staleAfterDays",
+    "staleSelectionRevisionIds",
+    "missingPriceSelectionRevisionIds",
+  ] as const;
+  const allowedKeys = [...requiredKeys, "amountRub"];
+  if (!requiredKeys.every((key) => Object.hasOwn(value, key))) return false;
+  if (!Object.keys(value).every((key) => allowedKeys.includes(key as typeof allowedKeys[number]))) {
+    return false;
+  }
+  return isTimestamp(value.asOf)
+    && typeof value.staleAfterDays === "number"
+    && Number.isSafeInteger(value.staleAfterDays)
+    && value.staleAfterDays > 0
+    && (!Object.hasOwn(value, "amountRub") || (
+      typeof value.amountRub === "number"
+      && Number.isSafeInteger(value.amountRub)
+      && value.amountRub >= 0
+    ))
+    && isEmptyArray(value.staleSelectionRevisionIds)
+    && isEmptyArray(value.missingPriceSelectionRevisionIds);
+}
+
+function isApprovedCommitChosenVariant(
+  value: unknown,
+): value is AuthenticatedReadM2ApprovedCommitPayload["chosenVariant"] {
+  if (!isRecord(value) || !hasExactKeys(value, [
+    "variantId",
+    "role",
+    "layoutDocumentId",
+    "layoutVersionId",
+    "semanticHash",
+  ])) {
+    return false;
+  }
+  return isIdentifier(value.variantId)
+    && (value.role === "preferred" || value.role === "value_engineered" || value.role === "premium")
+    && isIdentifier(value.layoutDocumentId)
+    && isIdentifier(value.layoutVersionId)
+    && typeof value.semanticHash === "string"
+    && /^sha256:[0-9a-f]{64}$/.test(value.semanticHash);
+}
+
+function isApprovedCommitPayload(value: unknown): value is AuthenticatedReadM2ApprovedCommitPayload {
+  if (!isRecord(value) || !hasExactKeys(value, [
+    "approvalPackageId",
+    "roomId",
+    "designIntentRevisionId",
+    "chosenVariant",
+    "approvedSelectionRevisionIds",
+    "budget",
+    "submittedAt",
+    "reviewedAt",
+    "submissionReason",
+    "reviewReason",
+  ])) {
+    return false;
+  }
+  if (!Array.isArray(value.approvedSelectionRevisionIds)
+    || value.approvedSelectionRevisionIds.length < 1
+    || value.approvedSelectionRevisionIds.length > 500
+    || !value.approvedSelectionRevisionIds.every(isIdentifier)
+    || new Set(value.approvedSelectionRevisionIds).size !== value.approvedSelectionRevisionIds.length
+  ) {
+    return false;
+  }
+  return isIdentifier(value.approvalPackageId)
+    && isIdentifier(value.roomId)
+    && isIdentifier(value.designIntentRevisionId)
+    && isApprovedCommitChosenVariant(value.chosenVariant)
+    && isApprovedCommitBudget(value.budget)
+    && isTimestamp(value.submittedAt)
+    && isTimestamp(value.reviewedAt)
+    && Date.parse(value.reviewedAt) >= Date.parse(value.submittedAt)
+    && isReason(value.submissionReason)
+    && isReason(value.reviewReason);
+}
+
+function isApprovedCommit(value: unknown): value is AuthenticatedReadM2ApprovedCommit {
+  if (!isRecord(value) || !hasExactKeys(value, [
+    "id",
+    "packageId",
+    "revisionId",
+    "revisionNo",
+    "status",
+    "payload",
+    "createdAt",
+  ])) {
+    return false;
+  }
+  return isIdentifier(value.id)
+    && isUuid(value.packageId)
+    && isUuid(value.revisionId)
+    && isRevisionNumber(value.revisionNo)
+    && value.status === "approved"
+    && isApprovedCommitPayload(value.payload)
+    && isTimestamp(value.createdAt);
+}
+
+function isLayoutVersionPayload(value: unknown): value is AuthenticatedReadM2LayoutVersionPayload {
+  if (!isRecord(value)) return false;
+  const requiredKeys = [
+    "versionId",
+    "roomId",
+    "variantId",
+    "role",
+    "semanticHash",
+    "schemaVersion",
+  ] as const;
+  const allowedKeys = [...requiredKeys, "layoutContent"];
+  if (!requiredKeys.every((key) => Object.hasOwn(value, key))) return false;
+  if (!Object.keys(value).every((key) => allowedKeys.includes(key as typeof allowedKeys[number]))) {
+    return false;
+  }
+  return isIdentifier(value.versionId)
+    && isIdentifier(value.roomId)
+    && isIdentifier(value.variantId)
+    && (value.role === "preferred" || value.role === "value_engineered" || value.role === "premium")
+    && typeof value.semanticHash === "string"
+    && /^sha256:[0-9a-f]{64}$/.test(value.semanticHash)
+    && value.schemaVersion === "project-ceo-m2-layout/0.1"
+    && (!Object.hasOwn(value, "layoutContent") || isRecord(value.layoutContent));
+}
+
+function isLayoutVersion(value: unknown): value is AuthenticatedReadM2LayoutVersion {
+  if (!isRecord(value) || !hasExactKeys(value, [
+    "id",
+    "documentId",
+    "versionId",
+    "packageId",
+    "revisionId",
+    "revisionNo",
+    "semanticHash",
+    "roomId",
+    "variantId",
+    "role",
+    "schemaVersion",
+    "status",
+    "payload",
+    "createdAt",
+  ])) {
+    return false;
+  }
+  if (!isLayoutVersionPayload(value.payload)) return false;
+  return isIdentifier(value.id)
+    && value.documentId === value.id
+    && value.versionId === value.payload.versionId
+    && isUuid(value.packageId)
+    && isUuid(value.revisionId)
+    && isRevisionNumber(value.revisionNo)
+    && value.semanticHash === value.payload.semanticHash
+    && value.roomId === value.payload.roomId
+    && value.variantId === value.payload.variantId
+    && value.role === value.payload.role
+    && value.schemaVersion === value.payload.schemaVersion
+    && value.status === "published"
+    && isTimestamp(value.createdAt);
+}
+
+function parseAuthenticatedProjectRead(value: unknown): AuthenticatedProjectReadResult {
+  if (!isRecord(value) || !hasExactKeys(value, [
+    "contractVersion",
+    "requestId",
+    "data",
+    "error",
+    "scope",
+    "stateRevision",
+  ])) {
+    throw new Error("Invalid ProjectCEO authenticated read envelope");
+  }
+  const validCommonFields = value.contractVersion === AUTHENTICATED_READ_CONTRACT_VERSION
+    && typeof value.requestId === "string"
+    && value.requestId.length > 0;
+  if (value.data === null || value.scope === null || value.stateRevision === null) {
+    if (!validCommonFields
+      || value.data !== null
+      || value.scope !== null
+      || value.stateRevision !== null
+      || !isRecord(value.error)
+      || !hasExactKeys(value.error, ["code", "messageKey"])
+      || (value.error.code !== "forbidden"
+        && value.error.code !== "not_found"
+        && value.error.code !== "validation_failed")
+      || value.error.messageKey !== `projectceo.read.${value.error.code}`
+    ) {
+      throw new Error("Invalid ProjectCEO authenticated read envelope");
+    }
+    return value as unknown as AuthenticatedProjectReadControlledError;
+  }
+  if (!isRecord(value.data)
+    || !isRecord(value.scope)
+    || !hasExactKeys(value.scope, [
+    "accessScope",
+    "actorUserId",
+    "organizationId",
+    "packageId",
+    "projectId",
+  ])) {
     throw new Error("Invalid ProjectCEO authenticated read envelope");
   }
   const data = value.data;
@@ -183,6 +501,8 @@ function parseAuthenticatedProjectRead(value: unknown): AuthenticatedProjectRead
     "decisions",
     "distributionSummary",
     "executionPackages",
+    "m2ApprovedCommits",
+    "m2LayoutVersions",
     "noChangeTerminals",
     "packages",
     "packageVersions",
@@ -194,17 +514,21 @@ function parseAuthenticatedProjectRead(value: unknown): AuthenticatedProjectRead
     "sources",
   ] as const;
   const validArrays = arrayKeys.every((key) => Array.isArray(data[key]));
+  const validM2ApprovedCommits = Array.isArray(data.m2ApprovedCommits)
+    && data.m2ApprovedCommits.every(isApprovedCommit);
+  const validM2LayoutVersions = Array.isArray(data.m2LayoutVersions)
+    && data.m2LayoutVersions.every(isLayoutVersion);
   const validScope = isUuid(scope.actorUserId)
     && isUuid(scope.organizationId)
     && isUuid(scope.projectId)
     && (scope.packageId === null || isUuid(scope.packageId))
     && (scope.accessScope === "project" || scope.accessScope === "package");
   if (
-    value.contractVersion !== AUTHENTICATED_READ_CONTRACT_VERSION
-    || typeof value.requestId !== "string"
-    || value.requestId.length === 0
+    !validCommonFields
     || value.error !== null
     || !validArrays
+    || !validM2ApprovedCommits
+    || !validM2LayoutVersions
     || !validScope
     || !isRecord(data.extensionStatus)
     || projectMetadata === null
@@ -234,12 +558,12 @@ export class ProjectCeoAuthenticatedReadPostgresAdapter {
   async getProjectWorkspaceRead(input: {
     readonly projectId: string;
     readonly packageId: string | null;
-  }): Promise<AuthenticatedProjectReadEnvelope> {
+  }): Promise<AuthenticatedProjectReadResult> {
     return parseAuthenticatedProjectRead(
       await callRpc(
         this.client,
         "projectceo_read_api",
-        "get_project_workspace_read_v3",
+        "get_project_workspace_read_v5",
         {
           project_id: input.projectId,
           package_id: input.packageId,

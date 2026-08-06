@@ -35,13 +35,13 @@
     {
       "id": "M2-050",
       "layer": "infrastructure",
-      "status": "in_progress",
+      "status": "completed",
       "description": "Layout Studio authenticated Project Package repository integration"
     },
     {
       "id": "M2-060",
       "layer": "infrastructure",
-      "status": "pending",
+      "status": "in_progress",
       "description": "Client review UI and exact-version M2 to M3 handoff"
     },
     {
@@ -51,7 +51,7 @@
       "description": "Authenticated Kora and external real-package pilot evidence"
     }
   ],
-  "current_slice": 4,
+  "current_slice": 5,
   "phase": "red",
   "layer_map": {
     "lib/project-intelligence/modules/decisions/": "domain",

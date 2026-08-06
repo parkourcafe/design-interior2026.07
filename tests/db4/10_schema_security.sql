@@ -223,7 +223,9 @@ begin
   join pg_namespace n on n.oid = p.pronamespace
   where n.nspname = 'projectceo_product_api'
     and p.prokind = 'f';
-  if v_count <> 17 then
+  -- The layout migration retains one owner-only compatibility implementation
+  -- behind the public request-bound wrapper.
+  if v_count <> 18 then
     raise exception 'DB4_UNEXPECTED_RPC_COUNT:%', v_count;
   end if;
 

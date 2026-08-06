@@ -64,6 +64,70 @@ select projectceo_product_api.review_approval_package(
 );
 commit;
 
+-- An Approved M2 Commit may only point at an exact, already-published layout
+-- version in the same project/package/room/variant/role lineage. Publish that
+-- immutable version before building the approval snapshot.
+select state_revision as state_revision,
+  jsonb_build_object(
+    'contractVersion', 'archidom.layout-document/0.1',
+    'documentId', 'layout-document-db4',
+    'projectId', '41111111-1111-4111-8111-111111111111',
+    'name', 'Кухня-гостиная · Предпочтительный',
+    'canonicalUnits', 'mm', 'stateRevision', 17,
+    'floor', jsonb_build_object(
+      'id', 'floor-db4', 'label', 'Этаж 1',
+      'elevationMm', 0, 'clearHeightMm', 3100
+    ),
+    'variant', jsonb_build_object(
+      'id', 'db4-variant', 'label', 'Предпочтительный', 'status', 'published'
+    ),
+    'nodes', '[]'::jsonb, 'walls', '[]'::jsonb,
+    'openings', '[]'::jsonb, 'columns', '[]'::jsonb,
+    'objects', '[]'::jsonb, 'clearanceZones', '[]'::jsonb,
+    'materials', '[]'::jsonb, 'materialAssignments', '[]'::jsonb,
+    'lights', '[]'::jsonb,
+    'metadata', jsonb_build_object(
+      'sourceRefs', jsonb_build_array('source:kora-db4-r1'),
+      'warnings', '[]'::jsonb
+    )
+  ) as layout_content,
+  projectceo_product._m2_layout_semantic_hash(jsonb_build_object(
+    'contractVersion', 'archidom.layout-document/0.1',
+    'documentId', 'layout-document-db4',
+    'projectId', '41111111-1111-4111-8111-111111111111',
+    'name', 'Кухня-гостиная · Предпочтительный',
+    'canonicalUnits', 'mm', 'stateRevision', 17,
+    'floor', jsonb_build_object('id','floor-db4','label','Этаж 1','elevationMm',0,'clearHeightMm',3100),
+    'variant', jsonb_build_object('id','db4-variant','label','Предпочтительный','status','published'),
+    'nodes','[]'::jsonb,'walls','[]'::jsonb,'openings','[]'::jsonb,
+    'columns','[]'::jsonb,'objects','[]'::jsonb,'clearanceZones','[]'::jsonb,
+    'materials','[]'::jsonb,'materialAssignments','[]'::jsonb,'lights','[]'::jsonb,
+    'metadata',jsonb_build_object('sourceRefs',jsonb_build_array('source:kora-db4-r1'),'warnings','[]'::jsonb)
+  )) as semantic_hash
+from project_intelligence.project_workflows
+where project_id = '41111111-1111-4111-8111-111111111111'
+\gset db4_layout_
+
+begin;
+set local role authenticated;
+set local request.jwt.claim.sub = '32222222-2222-4222-8222-222222222222';
+select projectceo_product_api.append_m2_workspace_revision(
+  '41111111-1111-4111-8111-111111111111',
+  '41111111-1111-4111-8111-111111111111',
+  'layout_version', 'layout-document-db4',
+  'layout-version-db4-revision-r1', null, 'published',
+  jsonb_build_object(
+    'versionId', 'layout-version-db4-r1', 'roomId', 'db4-room',
+    'variantId', 'db4-variant', 'role', 'preferred',
+    'semanticHash', :'db4_layout_semantic_hash',
+    'schemaVersion', 'project-ceo-m2-layout/0.1',
+    'layoutContent', :'db4_layout_layout_content'::jsonb
+  ),
+  'DB4 exact published layout lineage', :'db4_layout_state_revision'::bigint,
+  'db4-layout-document-r1'
+);
+commit;
+
 select pw.state_revision as state_revision,
   jsonb_build_object(
     'approvalPackageId', 'approval-db4-m2-exact',
@@ -74,7 +138,7 @@ select pw.state_revision as state_revision,
       'role', 'preferred',
       'layoutDocumentId', 'layout-document-db4',
       'layoutVersionId', 'layout-version-db4-r1',
-      'semanticHash', 'sha256:' || repeat('a', 64)
+      'semanticHash', :'db4_layout_semantic_hash'
     ),
     'approvedSelectionRevisionIds',
       jsonb_build_array('revision-selection-db4-r1'),

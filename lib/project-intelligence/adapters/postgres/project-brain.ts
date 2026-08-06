@@ -92,12 +92,13 @@ export interface M2WorkspaceRevisionMutation {
     | "material"
     | "budget"
     | "client_handoff"
-    | "approved_commit";
+    | "approved_commit"
+    | "layout_version";
   readonly entityId: string;
   readonly revisionId: string;
   readonly revisionNo: number;
   readonly packageId: string;
-  readonly status: "draft" | "submitted" | "approved";
+  readonly status: "draft" | "submitted" | "approved" | "published";
 }
 
 export interface ReleaseDistributionMutation {
