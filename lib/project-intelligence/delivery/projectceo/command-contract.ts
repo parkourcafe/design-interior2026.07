@@ -30,6 +30,9 @@ const claimStatus = z.enum(["extracted", "interpreted", "unknown", "human_origin
 const nodeId = z.string().trim().min(1).max(160);
 const claimRevisionId = z.string().trim().min(1).max(160);
 const revisionIdList = z.array(claimRevisionId).max(500);
+const commitM2Identifier = z.string().min(1).max(160)
+  .refine((value) => value === value.trim(), "identifier_must_be_trimmed");
+const commitM2IdentifierList = z.array(commitM2Identifier).max(500);
 const baselineDescriptor = z.object({
   id: claimRevisionId,
   graphVersionId: claimRevisionId,
@@ -286,6 +289,41 @@ export const projectCeoCommandSchema = z.discriminatedUnion("kind", [
   }).strict(),
   projectSelector.extend({
     contractVersion: z.literal(PROJECTCEO_COMMAND_CONTRACT_VERSION),
+    kind: z.literal("commit_m2_approval"),
+    payload: z.object({
+      packageId: uuid,
+      commitId: commitM2Identifier,
+      revisionId: uuid,
+      expectedRevisionId: commitM2Identifier.nullable(),
+      approvalPackageId: commitM2Identifier,
+      roomId: commitM2Identifier,
+      designIntentRevisionId: commitM2Identifier,
+      chosenVariant: z.object({
+        variantId: commitM2Identifier,
+        role: z.enum(["preferred", "value_engineered", "premium"]),
+        layoutDocumentId: commitM2Identifier,
+        layoutVersionId: commitM2Identifier,
+        semanticHash: z.string().regex(/^sha256:[0-9a-f]{64}$/),
+      }).strict(),
+      approvedSelectionRevisionIds: commitM2IdentifierList.min(1).refine(
+        (ids) => new Set(ids).size === ids.length,
+        "approved_selection_revision_ids_must_be_unique",
+      ),
+      budget: z.object({
+        asOf: z.string().datetime({ offset: true }),
+        staleAfterDays: z.number().int().safe().positive(),
+        amountRub: z.number().int().safe().nonnegative(),
+        staleSelectionRevisionIds: commitM2IdentifierList.max(0),
+        missingPriceSelectionRevisionIds: commitM2IdentifierList.max(0),
+      }).strict(),
+      submittedAt: z.string().datetime({ offset: true }),
+      reviewedAt: z.string().datetime({ offset: true }),
+      submissionReason: z.string().trim().min(3).max(4000),
+      reviewReason: z.string().trim().min(3).max(4000),
+    }).strict(),
+  }).strict(),
+  projectSelector.extend({
+    contractVersion: z.literal(PROJECTCEO_COMMAND_CONTRACT_VERSION),
     kind: z.enum([
       "register_source",
       "review_source",
@@ -300,6 +338,16 @@ export const projectCeoCommandSchema = z.discriminatedUnion("kind", [
       code: z.ZodIssueCode.custom,
       path: ["payload", "maxRub"],
       message: "budget_range_invalid",
+    });
+  }
+  if (
+    command.kind === "commit_m2_approval"
+    && Date.parse(command.payload.reviewedAt) < Date.parse(command.payload.submittedAt)
+  ) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ["payload", "reviewedAt"],
+      message: "reviewed_at_before_submitted_at",
     });
   }
 });

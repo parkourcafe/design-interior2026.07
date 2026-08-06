@@ -177,10 +177,10 @@ M2 P0 is complete only when all are true:
 
 ## 8. Immediate next action
 
-Reconcile the current authenticated migration ledger, then start Slice 4 with an
-isolated RED contract for request-bound M2 persistence and commands.
-Do not merge the Layout Studio branch into the current product branch until the
-integration base and migration ledger have been reconciled and verified.
+Start Slice 5 with an isolated RED contract for an authenticated Layout Studio
+repository over `get_project_workspace_read_v4` and request-bound commands. Remove
+browser-local persistence from the pilot path without weakening the existing generic
+Layout Studio domain behavior.
 
 ## 9. Execution evidence
 
@@ -226,3 +226,22 @@ Status: completed.
   chronology and chosen variant; selection comparison is structural and deterministic.
 - Verification: 73 test files / 440 tests PASS; strict typecheck PASS; targeted ESLint
   PASS; Next.js production build PASS.
+
+### 2026-08-06 — M2-040 Authenticated approved-commit persistence
+
+Status: completed.
+
+- RED/GREEN: strict `commit_m2_approval` command contract, request-bound command
+  dispatch, immutable `approved_commit` ledger revision, audit event and read v4.
+- Security hardening: exact three variant roles, authoritative approved package and
+  selection set, distinct reviewer, event-bound submission/review provenance,
+  package/tenant lineage, initial revision semantics, finite offset timestamps and
+  financial redaction.
+- Replay evidence: valid append, identical idempotent replay, append-only rejection,
+  stale/cross-package/cross-tenant negatives, project-wide reads and non-financial
+  budget redaction run in the DB4 harness.
+- Verification: 79 test files / 511 tests PASS; strict typecheck PASS; ESLint has zero
+  errors (nine pre-existing warnings); Next.js production build PASS; complete
+  migration/security/concurrency/restart-replay harness PASS on PostgreSQL 16 and 17.
+- Security reviewer verdict: CLEAR for Slice 4 closure. Evidence is disposable-pilot
+  evidence only and does not authorize production adoption.

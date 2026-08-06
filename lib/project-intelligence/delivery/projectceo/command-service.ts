@@ -406,6 +406,32 @@ export class ProjectCeoCommandService {
           idempotencyKey,
         }));
       }
+      if (command.kind === "commit_m2_approval") {
+        return completed(requestId, await this.product.appendM2WorkspaceRevision({
+          projectId: command.projectId,
+          packageId: command.payload.packageId,
+          entityKind: "approved_commit",
+          entityId: command.payload.commitId,
+          revisionId: command.payload.revisionId,
+          expectedRevisionId: command.payload.expectedRevisionId,
+          status: "approved",
+          payload: {
+            approvalPackageId: command.payload.approvalPackageId,
+            roomId: command.payload.roomId,
+            designIntentRevisionId: command.payload.designIntentRevisionId,
+            chosenVariant: command.payload.chosenVariant,
+            approvedSelectionRevisionIds: command.payload.approvedSelectionRevisionIds,
+            budget: command.payload.budget,
+            submittedAt: command.payload.submittedAt,
+            reviewedAt: command.payload.reviewedAt,
+            submissionReason: command.payload.submissionReason,
+            reviewReason: command.payload.reviewReason,
+          },
+          reason: command.payload.reviewReason,
+          expectedStateRevision: scope.stateRevision,
+          idempotencyKey,
+        }));
+      }
       if (command.kind === "create_approval_package") {
         return completed(requestId, await this.product.createApprovalPackage({
           projectId: command.projectId,

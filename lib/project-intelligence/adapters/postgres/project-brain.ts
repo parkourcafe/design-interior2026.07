@@ -86,12 +86,18 @@ export interface ProductRevisionMutation {
 }
 
 export interface M2WorkspaceRevisionMutation {
-  readonly entityKind: "room" | "variant" | "material" | "budget" | "client_handoff";
+  readonly entityKind:
+    | "room"
+    | "variant"
+    | "material"
+    | "budget"
+    | "client_handoff"
+    | "approved_commit";
   readonly entityId: string;
   readonly revisionId: string;
   readonly revisionNo: number;
   readonly packageId: string;
-  readonly status: "draft" | "submitted";
+  readonly status: "draft" | "submitted" | "approved";
 }
 
 export interface ReleaseDistributionMutation {

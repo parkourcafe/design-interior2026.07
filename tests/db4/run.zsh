@@ -53,7 +53,9 @@ done
 for sql in \
   "${repo_root}/tests/db3/20_foundation_operations.sql" \
   "${repo_root}/tests/db4/10_schema_security.sql" \
-  "${repo_root}/tests/db4/20_product_operations.sql"; do
+  "${repo_root}/tests/db4/20_product_operations.sql" \
+  "${repo_root}/tests/db4/30_m2_expansion_operations.sql" \
+  "${repo_root}/tests/db4/31_m2_approved_commit_operations.sql"; do
   print -r -- "Running ${sql:t}"
   run_file "${sql}"
 done

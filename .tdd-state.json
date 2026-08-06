@@ -29,13 +29,13 @@
     {
       "id": "M2-040",
       "layer": "infrastructure",
-      "status": "in_progress",
+      "status": "completed",
       "description": "Authenticated persistence, additive commands, RLS and replay gates"
     },
     {
       "id": "M2-050",
       "layer": "infrastructure",
-      "status": "pending",
+      "status": "in_progress",
       "description": "Layout Studio authenticated Project Package repository integration"
     },
     {
@@ -51,8 +51,8 @@
       "description": "Authenticated Kora and external real-package pilot evidence"
     }
   ],
-  "current_slice": 3,
-  "phase": "setup",
+  "current_slice": 4,
+  "phase": "red",
   "layer_map": {
     "lib/project-intelligence/modules/decisions/": "domain",
     "lib/project-intelligence/modules/design-intent/": "domain",
@@ -70,11 +70,21 @@
     "lib/project-intelligence/modules/design-intent/index.ts",
     "lib/project-intelligence/modules/design-intent/budget.ts",
     "lib/project-intelligence/modules/decisions/workflow.ts",
-    "lib/project-intelligence/application/m2-approval/index.ts"
+    "lib/project-intelligence/application/m2-approval/index.ts",
+    "lib/project-intelligence/delivery/projectceo/command-contract.ts",
+    "lib/project-intelligence/delivery/projectceo/command-service.ts",
+    "lib/project-intelligence/adapters/postgres/project-brain.ts",
+    "supabase/migrations/20260802070000_projectceo_m2_approved_commits.sql",
+    "tests/ap1/environment/migration-ledger.sha256",
+    "tests/db4/run.zsh"
   ],
   "test_files_created": [
     "tests/project-intelligence/contracts/m2-room-design-intent.contract.test.ts",
     "tests/project-intelligence/contracts/m2-selection-budget.contract.test.ts",
-    "tests/project-intelligence/application/m2-approval-commit.test.ts"
+    "tests/project-intelligence/application/m2-approval-commit.test.ts",
+    "tests/projectceo-integration/m2-approved-commit-command.contract.test.ts",
+    "tests/projectceo-integration/m2-approved-commit-command-service.test.ts",
+    "tests/projectceo-integration/m2-approved-commit-migration.contract.test.ts",
+    "tests/db4/31_m2_approved_commit_operations.sql"
   ]
 }
