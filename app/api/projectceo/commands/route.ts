@@ -14,6 +14,52 @@ import { projectCeoHttpStatus } from "@/lib/project-intelligence/delivery/projec
 
 export const dynamic = "force-dynamic";
 
+const MAX_COMMAND_BODY_BYTES = 96 * 1024;
+
+function hasOversizedDeclaredBody(request: Request) {
+  const declaredLength = request.headers.get("content-length");
+  if (declaredLength === null || !/^\d+$/.test(declaredLength)) return false;
+  const declaredBytes = Number(declaredLength);
+  return !Number.isSafeInteger(declaredBytes) || declaredBytes > MAX_COMMAND_BODY_BYTES;
+}
+
+async function readBoundedJsonBody(request: Request): Promise<
+  | { readonly ok: true; readonly value: unknown }
+  | { readonly ok: false; readonly tooLarge: boolean }
+> {
+  if (request.body === null) {
+    return { ok: false, tooLarge: false };
+  }
+
+  const reader = request.body.getReader();
+  const chunks: Uint8Array[] = [];
+  let totalBytes = 0;
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      totalBytes += value.byteLength;
+      if (totalBytes > MAX_COMMAND_BODY_BYTES) {
+        await reader.cancel();
+        return { ok: false, tooLarge: true };
+      }
+      chunks.push(value);
+    }
+
+    const bytes = new Uint8Array(totalBytes);
+    let offset = 0;
+    for (const chunk of chunks) {
+      bytes.set(chunk, offset);
+      offset += chunk.byteLength;
+    }
+    return { ok: true, value: JSON.parse(new TextDecoder().decode(bytes)) as unknown };
+  } catch {
+    return { ok: false, tooLarge: false };
+  } finally {
+    reader.releaseLock();
+  }
+}
+
 function errorBody(
   requestId: string,
   code: "unauthenticated" | "identity_unverified" | "forbidden" | "validation_failed" | "operation_unavailable" | "internal_error",
@@ -39,13 +85,18 @@ export async function POST(request: Request) {
   if (!request.headers.get("content-type")?.toLowerCase().startsWith("application/json")) {
     return NextResponse.json(errorBody(requestId, "validation_failed"), { status: 415, headers });
   }
-  let body: unknown;
-  try {
-    body = await request.json();
-  } catch {
-    return NextResponse.json(errorBody(requestId, "validation_failed"), { status: 400, headers });
+  if (hasOversizedDeclaredBody(request)) {
+    void request.body?.cancel();
+    return NextResponse.json(errorBody(requestId, "validation_failed"), { status: 413, headers });
   }
-  const parsed = projectCeoCommandSchema.safeParse(body);
+  const boundedBody = await readBoundedJsonBody(request);
+  if (!boundedBody.ok) {
+    return NextResponse.json(errorBody(requestId, "validation_failed"), {
+      status: boundedBody.tooLarge ? 413 : 400,
+      headers,
+    });
+  }
+  const parsed = projectCeoCommandSchema.safeParse(boundedBody.value);
   if (!parsed.success) {
     return NextResponse.json(errorBody(requestId, "validation_failed"), { status: 400, headers });
   }
