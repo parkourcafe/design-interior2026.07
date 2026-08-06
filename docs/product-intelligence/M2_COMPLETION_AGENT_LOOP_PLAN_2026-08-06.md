@@ -287,3 +287,25 @@ Status: completed.
   errors (12 warnings); Next.js production build PASS; complete DB4, concurrency and
   restart replay PASS on PostgreSQL 16 and 17. Independent persistence and UI reviews:
   CLEAR. This remains disposable-pilot evidence, not production adoption.
+
+### 2026-08-06 — M2-070 External pilot intake gate
+
+Status: in progress; waiting for a supplied external real-package manifest and its
+repository-owned executor integration.
+
+- Kora scope is fixed as the full 1,800 m² project with one explicit architecture
+  package/room; the synthetic kitchen-worktop fixture is explicitly rejected.
+- A fail-closed two-phase runner validates the supplied manifest, invokes a
+  git-tracked allowlisted Kora five-session producer and external executor, binds
+  challenge nonce/file digests/scope/five authenticated sessions/commands/audit/read
+  receipts, and publishes sanitized PASS evidence only by final atomic rename.
+- Direct finalizer calls, arbitrary executors, forged/tampered receipts, mismatched
+  scope/state/replay/lineage, Kora producer substitution and private path/token leaks
+  are covered by executable adversarial tests.
+- Verification: identity tests 10/10 PASS; adversarial tests 7/7 PASS; typed contract
+  tests 6/7 PASS; strict typecheck and targeted ESLint PASS. The one intentional RED is
+  `CYCLE7_EXTERNAL_MANIFEST_REQUIRED`; no external manifest, receipt or PASS was
+  fabricated. The runner exits 66 with `external.status=not_supplied` when absent.
+- This intake gate is ready to receive evidence, but Cycle 7 and M2 P0 remain
+  incomplete until Kora and one external real package are actually executed through
+  the authenticated flow and their machine receipts pass finalization.

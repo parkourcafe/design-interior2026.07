@@ -1,0 +1,13 @@
+{
+  "contractVersion": "archidom.pilot-executor-allowlist/0.1",
+  "executors": [
+    {
+      "path": "tests/pilot-evidence/run-m2-pilot-evidence.zsh",
+      "digest": "sha256:34cc268c1731b5a70bbe5e8e6d1a75eb8bd246d9b69dde44970dfdf06c6c4aaa"
+    },
+    {
+      "path": "tests/pilot-evidence/executors/pending-external-system.zsh",
+      "digest": "sha256:70e5ddb68bec540f43e83d4e88cc5d4ff92389dc8f4e439f667caf567a3fae02"
+    }
+  ]
+}
