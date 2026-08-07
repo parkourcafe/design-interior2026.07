@@ -158,23 +158,63 @@ the façade; none of them draws a counter, a worktop, a sink or rear equipment, 
 `AD01` is at 1:150 without interior joinery. Reading a station set-out off them
 would be inference, which the policy below forbids.
 
+### Correction: the Liquid Station is most likely TENANT 12 on the **1st** floor
+
+The previous entry inferred, from zone naming alone, that the station sits in the
+2nd-floor LOUNGE BAR. Five 1st-floor sheets supplied on 2026-08-07 point elsewhere
+and to a stronger source.
+
+| Supplied | What it is | Bearing on the open rows |
+|---|---|---|
+| `A01 - Layout & Seating Layout 6.pdf` → `A01-201 FIRST FLOOR PLAN` 1:200 | whole ground floor: **TENANT 01–13**, seating, two SERVICE STATIONs, staff/BoH, ±0.000 | **locates TENANT 12** |
+| `MEP Progress 1.1.pdf` → `P02-101 CLEAN WATER SCHEMATIC`, NTS | riser schematic listing **"TENANT 12 SINK"** alongside tenants 1–13 | confirms Tenant 12 has a sink; no set-out (NTS) |
+| `A01 - Public Toilet.pdf` (`A01-202`) | 1st-floor public toilet | none |
+| `A05 - AC Room, Canopy, Door & Window Rev 1.1.pdf` (17 sheets, `A02-1xx/2xx`) | AC room, canopy, doors and windows | none |
+| `AD01 - Planter Box.pdf` (`AD01-101/201`) | 1st-floor planter box | none |
+
+`KORA_COORDINATE_FREEZE.md` lists the missing input as *"exact Tenant 12 contour
+and clear height"*. That names a **tenant unit**, and Tenant 12 is a ground-floor
+tenant — south-east of the tenant block, beside the side-entrance stair, a wide
+shallow unit whose proportions are consistent with an 8100 × 3000 station. Treat
+"Liquid Station = Tenant 12, 1st floor" as the leading hypothesis and the
+Lounge Bar reading as superseded. Neither is confirmed by a sheet that names both.
+
+**Why the values still cannot be taken from these sheets.** Three reasons, any one
+of which is sufficient:
+
+1. `A01-201` is **1:200**. Setting out a 250 × 250 column and a 1200 mm door from a
+   1:200 plan is not survey grade; the policy below forbids proportional reading.
+2. The bottom dimension chain across Tenant 12 reads **3260 + 760 + 4035 = 8055**,
+   against the owner-locked **8100**. A 45 mm difference is exactly what must be
+   resolved by the drawing author — grid versus finished face, or a misread
+   extension line. Choosing whichever number fits would be fabrication.
+3. Tenant 12's **depth** is not dimensioned on any chain reachable on that sheet;
+   the right-hand chain (1050/1210/2390/1320/1070/2530/1770/5370) belongs to the
+   storage / garbage / Gojek block, not to the tenant.
+
+`P02-101` is explicitly `NTS`, so it can corroborate that a sink exists but can
+never supply its position.
+
 ### What is still needed, now named precisely
 
-The **interior / joinery package for the 2nd-floor Lounge Bar** — the counterpart
-of the toilet package's `ID01-101 Washbasin Layout & Section`. In this project's
-numbering that is an `ID` sheet set under section `VIII Details`, alongside
-`AD01 Secondary Skin` and `AD06 Service Area`. It should carry the bar counter,
-work surface, central sink and rear equipment with dimensions, plus the column
-tie-in.
+**The fit-out sheet for TENANT 12 at 1:50 or 1:25** — an enlarged tenant plan with
+its own section. In this project's numbering that lives under `VIII Details` as an
+`AD`/`ID` sheet for the tenant, exactly as `AD01 Planter Box` and `AD06 Service
+Area` are for their scopes. It should carry the unit contour, the column tie-in,
+the door, the counter and work surface, the central sink and the rear equipment.
 
-Failing that, in order of usefulness:
+One sentence of confirmation would also help and costs nothing: **is the "Liquid
+Station" Tenant 12?** If it is something else, name it and the search narrows
+immediately.
 
-1. The **2nd-floor drawing list** (the equivalent of p11 in the toilet package) —
-   one page, and it names every sheet in the series; the right sheet can then be
-   requested by code.
-2. `План_2-го_этажа_1-100.pdf` — interior plan at a working scale.
-3. `План_2-го_этажа_структурный.png` — for the column tie-in (LS-AT-002).
-4. `Разрез_здания.png` — for clear height in the Lounge Bar (LS-AT-012).
+Failing the fit-out sheet, in order of usefulness:
+
+1. The **project drawing list** (the equivalent of p11 in the toilet package) — one
+   page naming every sheet; the right one can then be requested by code.
+2. Any **enlarged tenant plan** at 1:50 covering the Tenant 10–12 row.
+3. `План_2-го_этажа_структурный.png` / the structural ground-floor equivalent —
+   for the column tie-in (LS-AT-002).
+4. `Разрез_здания.png` — for clear height (LS-AT-012).
 5. The drawing-list XLSX inside `DWG - Restaurant Second Floor.rar`.
 
 ### Fastest path
