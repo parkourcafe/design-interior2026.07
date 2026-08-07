@@ -158,7 +158,40 @@ the façade; none of them draws a counter, a worktop, a sink or rear equipment, 
 `AD01` is at 1:150 without interior joinery. Reading a station set-out off them
 would be inference, which the policy below forbids.
 
-### Correction: the Liquid Station is most likely TENANT 12 on the **1st** floor
+### CONFIRMED 2026-08-07 by the owner: **Liquid Station = TENANT 12**, 1st floor
+
+Identity is settled. It is drawn on `A01-201 FIRST FLOOR PLAN` (1:200), south-east
+of the tenant block beside the side-entrance stair.
+
+**The drawing corroborates the owner-intent topology.** At high magnification the
+unit shows, and all of it matches the fixture built on 2026-08-04:
+
+| Seen on `A01-201` | Fixture |
+|---|---|
+| double-leaf door centred in the rear wall | `opening.kora.rear-door`, `handing: "double"` |
+| free-standing square column inside the unit, on roughly the door axis | `column.kora.center`, door centred at X = 3835 |
+| counter run along the open south side facing 8 stools | `object.kora.counter`, guest counter |
+| two sink positions in the counter run (one appears double-bowl) | the pending central sink, `LS-AT-015` |
+| unit open to the seating area on the south side, no wall | why the 3000 "depth" is a working footprint, not a room |
+
+This is qualitative corroboration of the model, not measurement. It is recorded
+here and **not** written into the fixture: the fixture's `metadata` feeds the
+semantic hash, and the published browser evidence is bound to
+`12a989ef19237987f1c4cf64e491fe0393f4baad1af10c79436828ce220b4267`.
+
+**The one numeric conflict to resolve.** The bottom dimension chain on `A01-201`
+brackets Tenant 12 between two extension ticks as **3260 + 760 + 4035 = 8055 mm**,
+against the owner-locked **8100 mm**. Both ticks appear to sit on the inner wall
+faces, so this is not obviously a grid-versus-face difference. 45 mm is small but
+it is the difference between a measured value and a remembered one, and the module
+treats owner-locked geometry as immutable — `kora-survey-holds.test.ts` fails if
+`8100` drifts. **Only the drawing author or a site check can say which is right.**
+Nothing was changed on the strength of a 1:200 sheet.
+
+Tenant 12's depth is not dimensioned on this sheet at all — its south side is the
+open counter line, not a wall, so there is no extension line to read.
+
+### Superseded: the earlier Lounge Bar reading
 
 The previous entry inferred, from zone naming alone, that the station sits in the
 2nd-floor LOUNGE BAR. Five 1st-floor sheets supplied on 2026-08-07 point elsewhere
@@ -172,28 +205,25 @@ and to a stronger source.
 | `A05 - AC Room, Canopy, Door & Window Rev 1.1.pdf` (17 sheets, `A02-1xx/2xx`) | AC room, canopy, doors and windows | none |
 | `AD01 - Planter Box.pdf` (`AD01-101/201`) | 1st-floor planter box | none |
 
-`KORA_COORDINATE_FREEZE.md` lists the missing input as *"exact Tenant 12 contour
-and clear height"*. That names a **tenant unit**, and Tenant 12 is a ground-floor
-tenant — south-east of the tenant block, beside the side-entrance stair, a wide
-shallow unit whose proportions are consistent with an 8100 × 3000 station. Treat
-"Liquid Station = Tenant 12, 1st floor" as the leading hypothesis and the
-Lounge Bar reading as superseded. Neither is confirmed by a sheet that names both.
+`KORA_COORDINATE_FREEZE.md` already named the missing input as *"exact Tenant 12
+contour and clear height"* — consistent with the owner confirmation above. The
+earlier reading that placed the station in the 2nd-floor LOUNGE BAR was inferred
+from zone naming alone and is withdrawn.
 
-**Why the values still cannot be taken from these sheets.** Three reasons, any one
-of which is sufficient:
+**Why no row closes even with the identity settled.** Row by row, against
+`A01-201` (1:200) and `P02-101` (NTS), the only two sheets that show Tenant 12:
 
-1. `A01-201` is **1:200**. Setting out a 250 × 250 column and a 1200 mm door from a
-   1:200 plan is not survey grade; the policy below forbids proportional reading.
-2. The bottom dimension chain across Tenant 12 reads **3260 + 760 + 4035 = 8055**,
-   against the owner-locked **8100**. A 45 mm difference is exactly what must be
-   resolved by the drawing author — grid versus finished face, or a misread
-   extension line. Choosing whichever number fits would be fabrication.
-3. Tenant 12's **depth** is not dimensioned on any chain reachable on that sheet;
-   the right-hand chain (1050/1210/2390/1320/1070/2530/1770/5370) belongs to the
-   storage / garbage / Gojek block, not to the tenant.
+| Row | What the sheets give | What is missing |
+|---|---|---|
+| LS-AT-012 clear height | nothing — no section through Tenant 12 | the whole value |
+| LS-AT-013 door | confirms double-leaf swing | height, frame, structural-vs-clear width |
+| LS-AT-002 column axis | column is visible | no dimension line ties it to any wall face |
+| LS-AT-014 rear equipment | one hatched item visible | no dimensions, no schedule |
+| LS-AT-015 central sink | sink symbols visible; `P02-101` lists "TENANT 12 SINK" | no position, no size; `P02-101` is `NTS` |
 
-`P02-101` is explicitly `NTS`, so it can corroborate that a sink exists but can
-never supply its position.
+Zero of five. A 1:200 plan is not a set-out for a 250 mm column or a 1200 mm door,
+and reading one proportionally is what the policy at the end of this document
+forbids.
 
 ### What is still needed, now named precisely
 
