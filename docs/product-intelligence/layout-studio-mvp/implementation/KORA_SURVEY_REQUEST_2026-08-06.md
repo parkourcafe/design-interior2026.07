@@ -81,7 +81,73 @@ on target hardware with hardware WebGL. The current run records a provisional
 signal only (`metrics.provisionalBenchmark` in `evidence/e2e-result.json`), taken
 on software WebGL with a different scene, and is not acceptance for these rows.
 
-## Preferred delivery: the same drawing package, for the Liquid Station
+## Correction (2026-08-07): the measurements exist — they were never imported
+
+The owner asked, correctly, why measurements are still being requested when the
+survey was already handed over. They were. The gap is not the survey; it is the
+import.
+
+`docs/product-intelligence/agent-runs/ru-validation/` registers a full source
+package — 209 physical sources, ~1.25 GB, indexed by SHA-256 in
+`kora-food-hall-source-manifest` (the machine-readable copy was retired from
+`public/` in `1c803b0` and is still recoverable at `1c803b0^`). Roots:
+`kora ubud bali 03.06.2026/KORA_Construction` (primary working collection) and
+`.../05 Kora Food Hall` (issued package candidate).
+
+Two statements in that register explain the current state:
+
+- `restaurant-second-floor-input.md`: *"геометрия DWG пока не интерпретируется"*;
+- `restaurant-second-floor-supplemental-sources.md`: *"No source has been uploaded
+  to production"*, and every extracted value stays `unknown`/`interpreted` until
+  human review.
+
+So `LS-AT-002/012/013/014/015` are open because **nobody extracted the values into
+`fixtures/layout-studio/kora-liquid-station.v0.1.json`** — not because the site was
+never measured. The files sit in the owner's local project folders; the repository
+holds only their names, hashes and classification.
+
+### Which registered sources close which row
+
+Mapping by the manifest's own `floor`/`discipline` classification. `local` means
+the file was materialized on the owner's machine; `cloud_placeholder` means only a
+reference was recorded.
+
+| Row | Registered source | Availability |
+|---|---|---|
+| LS-AT-014, LS-AT-015 | `Kora Food Hall - 2nd Floor - AD06 - Service Area.pdf` | local, current |
+| LS-AT-002 | `План_2-го_этажа_структурный.png` (structural) | local, reference |
+| LS-AT-002 | `План_2-го_этажа_1-100.pdf` | local, reference |
+| LS-AT-013 | `Kora Food Hall - 2nd Floor - A05 - Doors & Windows Rev 2.pdf` | local, current |
+| LS-AT-013 | `A05-102_Двери_и_окна_2-й_этаж_1-150.pdf` | local, reference |
+| LS-AT-013 | `2F Technical Specification Kora Foodhall Doors.pdf` | cloud placeholder |
+| LS-AT-012 | `Разрез_здания.png`, `Разрез_здания_15-25_градусов.pdf` | local |
+| LS-AT-015 | `сантехника.pdf`, `01. FINAL MEP PLUMBING 14-01-24.dwg` | cloud placeholder |
+| LS-AT-014 | `KORA_MEP_Equipment_Procurement.xlsx` | cloud placeholder |
+| all | `DWG - Restaurant Second Floor.rar` (24 DWG + drawing-list XLSX) | local, reference |
+| context | `2st floor size_250719_211919.pdf`, `furniture_layout_final.png` | cloud placeholder |
+
+`ODE-Final Design.pdf` is registered under `floor = second_floor_toilet`, which
+matches the package supplied on 2026-08-07 and confirms it is not the Liquid
+Station sheet.
+
+**Caveat:** which sheet actually carries the Liquid Station is inferred from names
+and disciplines, not from having opened them. `AD06 - Service Area` is the
+strongest candidate. It is a lead to check, not a verified fact.
+
+### Fastest path
+
+Send the five `local` files first — they are on the machine right now:
+
+1. `Kora Food Hall - 2nd Floor - AD06 - Service Area.pdf`
+2. `План_2-го_этажа_1-100.pdf`
+3. `План_2-го_этажа_структурный.png`
+4. `Kora Food Hall - 2nd Floor - A05 - Doors & Windows Rev 2.pdf`
+5. `Разрез_здания.png`
+
+If the Liquid Station is dimensioned on those sheets, all five rows close with no
+site visit and no new survey.
+
+## Alternative delivery: the same drawing package, for the Liquid Station
 
 The owner supplied *ODE Ubud Foodhall — 2nd Floor Toilet, Final Design,
 17 September 2025* (58 sheets, Nitro Pro). It was reviewed in full: text layer and
