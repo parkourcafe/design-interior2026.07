@@ -134,6 +134,49 @@ Station sheet.
 and disciplines, not from having opened them. `AD06 - Service Area` is the
 strongest candidate. It is a lead to check, not a verified fact.
 
+### Reviewed 2026-08-07: four sheets supplied, none is the Liquid Station
+
+| Supplied | What it is | Closes |
+|---|---|---|
+| `AD06 - Service Area.pdf` (3 sheets, AD06-101…103, 2 May 2026) | back-of-house service corridor, 15040 × 2030 mm: SHISHA / SERVICE / ELECTRICAL, service doors, existing exhaust + fresh-air ducting, light-steel roof, rain gutter | nothing |
+| `AD05 - Main Stair.pdf` (4 sheets) | main stair | nothing |
+| `AD01 - Secondary Skin.pdf` (38 pp, 37 sheets AD01-101…602) | façade/skin package only — plans, situation plans, 9 elevations, 8 sections, frame details. The drawing list on p1 confirms all 37 sheets are Secondary Skin; there is no interior sheet | nothing directly |
+| `3D Exterior.pdf` (11 pp) | visualisation | nothing — renderings are excluded as a coordinate source by policy |
+
+**Genuine progress from `AD01-401 SECOND FLOOR SECTION PLAN` (1:150):** the second
+floor is zoned **LOUNGE BAR · WORKING SPACE · BoH · SHISHA · ELECTRICAL ·
+CIRCULATION · SIDE ENTRANCE · VOID**, on grid A–H, overall 24800 × 25870 mm,
+FFL +3.390 (circulation +3.370).
+
+The Liquid Station is not a separate room — it sits **inside the LOUNGE BAR zone**.
+That is the name to use when asking for the remaining sheets, and it also explains
+the fixture: 8100 × 3000 is the station's working footprint around a bar counter
+inside a larger hall, not a room contour.
+
+Nothing was extracted from these four files. They dimension the building shell and
+the façade; none of them draws a counter, a worktop, a sink or rear equipment, and
+`AD01` is at 1:150 without interior joinery. Reading a station set-out off them
+would be inference, which the policy below forbids.
+
+### What is still needed, now named precisely
+
+The **interior / joinery package for the 2nd-floor Lounge Bar** — the counterpart
+of the toilet package's `ID01-101 Washbasin Layout & Section`. In this project's
+numbering that is an `ID` sheet set under section `VIII Details`, alongside
+`AD01 Secondary Skin` and `AD06 Service Area`. It should carry the bar counter,
+work surface, central sink and rear equipment with dimensions, plus the column
+tie-in.
+
+Failing that, in order of usefulness:
+
+1. The **2nd-floor drawing list** (the equivalent of p11 in the toilet package) —
+   one page, and it names every sheet in the series; the right sheet can then be
+   requested by code.
+2. `План_2-го_этажа_1-100.pdf` — interior plan at a working scale.
+3. `План_2-го_этажа_структурный.png` — for the column tie-in (LS-AT-002).
+4. `Разрез_здания.png` — for clear height in the Lounge Bar (LS-AT-012).
+5. The drawing-list XLSX inside `DWG - Restaurant Second Floor.rar`.
+
 ### Fastest path
 
 Send the five `local` files first — they are on the machine right now:
