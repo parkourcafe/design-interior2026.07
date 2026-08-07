@@ -158,6 +158,65 @@ the façade; none of them draws a counter, a worktop, a sink or rear equipment, 
 `AD01` is at 1:150 without interior joinery. Reading a station set-out off them
 would be inference, which the policy below forbids.
 
+## 2026-08-07 — `A01-312 TENANT 12 LAYOUT` 1:30 received. It contradicts the owner lock.
+
+`Kora Food Hall - 1st Floor - Tenants Layout.pdf` p13 is the set-out sheet asked
+for: `A01-312 TENANT 12 LAYOUT`, **scale 1:30**, `± 0.000`, undated (`xx 2026`).
+Its dimension chains close exactly, so these are stated values, not readings:
+
+- horizontal **8090** = 3350 + 600 + 230 + 340 + 3570
+- vertical **2615** = 1520 + 1095 (left) = 1290 + 230 + 1095 (right)
+
+At high magnification the `230` element resolves to a **free-standing concrete
+column** (aggregate hatch), and the `600` to an **unbuilt gap in the rear wall**
+immediately left of it.
+
+### Drawing versus fixture
+
+| | `A01-312` (1:30) | Fixture (`owner-lock://selena/2026-08-04`) | Δ |
+|---|---|---|---|
+| Width | **8090** | 8100 | 10 |
+| Depth | **2615** | 3000 | **385** |
+| Column section | **230 × 230** | 250 × 250 | 20 |
+| Column centre X | **4065** (face at 3950) | 3835 | **230** |
+| Column centre Y | **1405** (face at 1290 from rear) | 1125 | **280** |
+| Rear opening | **600 wide**, at 3350–3950 | door 1200 wide, at 3235–4435 | **600** |
+| Left side | wall with a step at Y = 1520 | 1500 open / 1500 wall | — |
+| Right side | wall with embedded columns | continuous, no opening | consistent |
+
+Every geometric value differs. This is not a rounding question and it is not the
+45 mm artefact reported yesterday from the 1:200 sheet — that reading is now
+superseded by the 1:30 chain of 8090.
+
+### The question only the owner can answer
+
+The fixture's variant is literally `variant.kora.owner-intent`, status `review`,
+sourced from an owner lock rather than a drawing. So there are two readings, and
+they call for opposite actions:
+
+1. **`A01-312` is the existing unit, and the owner lock is the intended redesign.**
+   Then both are correct, nothing is wrong, and the fixture needs a second variant
+   carrying the as-built — not an overwrite.
+2. **The owner lock is recollection and `A01-312` is authoritative.** Then the
+   fixture's geometry is replaced with the drawing's, the owner-lock rows in
+   `kora-survey-holds.test.ts` are rewritten in the same commit, and LS-AT-002,
+   013, 014, 015 close on drawing provenance.
+
+**Which is it?** Nothing has been changed pending that answer. Overwriting an
+explicit owner lock on the strength of an undated sheet would be exactly the kind
+of silent promotion this document exists to prevent.
+
+One reconciliation worth checking rather than assuming: `A01-312` draws an
+additional strip in front of the unit, across the full 8090, outside the 2615
+chain. If that strip is ~385 mm, the owner's 3000 may be "unit + counter strip"
+measured to a different boundary. The strip is not dimensioned on this sheet, so
+this stays a hypothesis.
+
+### `LS-AT-012` is untouched by this sheet
+
+All 13 tenant sheets (`A01-301`…`A01-313`) are plans. There is no section through
+Tenant 12 anywhere in the package, so clear height remains fully open.
+
 ### CONFIRMED 2026-08-07 by the owner: **Liquid Station = TENANT 12**, 1st floor
 
 Identity is settled. It is drawn on `A01-201 FIRST FLOOR PLAN` (1:200), south-east
