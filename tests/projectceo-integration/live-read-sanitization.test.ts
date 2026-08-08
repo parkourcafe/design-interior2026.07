@@ -29,7 +29,7 @@ function fakeClient(
       if (schemaName === "projectceo_api" && functionName === "list_projects") {
         return { data: foundation(projectEntries), error: null };
       }
-      if (schemaName === "projectceo_read_api" && functionName === "get_project_workspace_read_v3") {
+      if (schemaName === "projectceo_read_api" && functionName === "get_project_workspace_read_v6") {
         return { data: {
           contractVersion: "project-ceo-authenticated-read/0.1",
           requestId: "db:authenticated-read",
@@ -62,6 +62,11 @@ function fakeClient(
             }],
             extensionStatus: {},
             latestBaseline: { id: "baseline-v2", versionNo: 2, semanticHash: `sha256:${"c".repeat(64)}`, publishedAt: "2026-07-17T00:00:00Z" },
+            m2ApprovedCommits: [],
+            m2ClientReviewSubmissions: [],
+            m2ClientReviews: [],
+            m2M3Handoffs: [],
+            m2LayoutVersions: [],
             noChangeTerminals: [],
             packages: [
               { id: "44444444-4444-4444-8444-444444444444", kind: "project_root", name: "Full project", status: "active" },
@@ -227,6 +232,59 @@ function executionWithPhotoDecision(decision: "accepted" | "rejected" | null) {
 }
 
 describe("ProjectCEO live DTO sanitizer", () => {
+  it("fails closed for malformed nested v6 client-review submissions", async () => {
+    const variant = (role: string, suffix: string): {
+      role: string;
+      variantId: string;
+      layoutDocumentId: string;
+      layoutVersionId: string;
+      layoutRevisionId: string;
+      semanticHash: string;
+      selectionRevisionIds: string[];
+      budget: {
+        amountRub: number;
+        staleSelectionRevisionIds: string[];
+        missingPriceSelectionRevisionIds: string[];
+      };
+    } => ({
+      role, variantId: `variant-${suffix}`, layoutDocumentId: `layout-${suffix}`,
+      layoutVersionId: `layout-${suffix}@1`, layoutRevisionId: `88888888-8888-4888-8888-88888888888${suffix}`,
+      semanticHash: `sha256:${suffix.repeat(64)}`, selectionRevisionIds: [`selection-${suffix}`],
+      budget: { amountRub: 125000, staleSelectionRevisionIds: [], missingPriceSelectionRevisionIds: [] },
+    });
+    const valid = {
+      id: "submission-v6", packageId, revisionId: "99999999-9999-4999-8999-999999999999", revisionNo: 1,
+      assignedClientUserId: "66666666-6666-4666-8666-666666666666", createdAt: "2026-08-06T10:00:00Z",
+      payload: { approvalPackageId: "approval-v6", roomId: "room-v6", designIntentRevisionId: "decision-v6",
+        budgetAsOf: "2026-08-06T10:00:00Z", staleAfterDays: 30,
+        variants: [variant("preferred", "1"), variant("value_engineered", "2"), variant("premium", "3")] },
+    };
+    const malformed: Array<(item: typeof valid) => void> = [
+      (item) => { Object.assign(item.payload, { extra: true }); },
+      (item) => { Reflect.deleteProperty(item.payload, "roomId"); },
+      (item) => { item.payload.variants[2]!.role = "preferred"; },
+      (item) => { item.payload.variants[2]!.variantId = item.payload.variants[0]!.variantId; },
+      (item) => { item.payload.variants[0]!.layoutRevisionId = "not-a-uuid"; },
+      (item) => { item.payload.variants[0]!.semanticHash = "sha256:abc"; },
+      (item) => { item.payload.budgetAsOf = "06.08.2026"; },
+      (item) => { item.payload.variants[0]!.budget.amountRub = -1; },
+      (item) => { item.payload.variants[0]!.budget.staleSelectionRevisionIds = ["selection-other"]; },
+    ];
+    for (const mutate of malformed) {
+      const item = structuredClone(valid);
+      mutate(item);
+      const result = await new ProjectCeoLiveReadPort(fakeClient({ m2ClientReviewSubmissions: [item] }), {
+        userId: "66666666-6666-4666-8666-666666666666", displayName: "Controlled user",
+      }).getProjectWorkspace({ projectId, requestId: "ui:v6-malformed" });
+      if (result.error) {
+        expect(result.data).toBeNull();
+        expect(["validation_failed", "internal_error"]).toContain(result.error.code);
+      } else {
+        expect(result.data?.m2ClientReviewSubmissions).toEqual([]);
+      }
+    }
+  });
+
   it("counts exact M4 areas and excludes quarantined evidence", async () => {
     const result = await new ProjectCeoLiveReadPort(client, {
       userId: "66666666-6666-4666-8666-666666666666",
@@ -343,7 +401,7 @@ describe("ProjectCEO live DTO sanitizer", () => {
 
   it("fails closed when a required downstream read returns an error envelope", async () => {
     for (const functionName of [
-      "get_project_workspace_read_v3",
+      "get_project_workspace_read_v6",
       "list_project_access",
       "get_audit_timeline",
     ]) {

@@ -70,6 +70,11 @@ function authenticatedRead(overrides: Readonly<Record<string, unknown>> = {}) {
       executionPackages: [executionDelivery()],
       extensionStatus: {},
       latestBaseline: { id: "baseline-v2" },
+      m2ApprovedCommits: [],
+      m2LayoutVersions: [],
+      m2ClientReviewSubmissions: [],
+      m2ClientReviews: [],
+      m2M3Handoffs: [],
       noChangeTerminals: [],
       packages: [],
       packageVersions: [],
@@ -236,7 +241,7 @@ function fakeClient(calls: Call[], readOverrides: Readonly<Record<string, unknow
             packageMemberships: [],
           }), error: null };
         }
-        if (name === "projectceo_read_api.get_project_workspace_read_v3") {
+        if (name === "projectceo_read_api.get_project_workspace_read_v6") {
           return { data: authenticatedRead(readOverrides), error: null };
         }
         if (name === "projectceo_m4_api.get_execution_delivery") {

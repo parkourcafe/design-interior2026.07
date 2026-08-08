@@ -1127,7 +1127,10 @@ export const ru = {
       history: "История",
     },
     roles: {
-      owner: "Владелец / руководитель",
+      // Внутри код зовёт эту роль owner — это владелец ПРОЕКТА, а не квартиры.
+      // Владелец квартиры у нас client. Пользователю показываем «Дизайнер
+      // проекта», иначе подпись читается ровно наоборот смыслу.
+      owner: "Дизайнер проекта",
       architect: "Архитектор / PM",
       builder: "Строитель / подрядчик",
       client: "Заказчик",
@@ -1414,6 +1417,25 @@ export const ru = {
         materialsCount: "Материалы",
         budgetsCount: "Бюджетные рамки",
         handoffsCount: "Передачи клиенту",
+        clientPreferred: "Рекомендуемый вариант",
+        clientValue: "Рациональный вариант",
+        clientPremium: "Премиальный вариант",
+        clientReviewTitle: "Согласование дизайн-концепции",
+        layoutVersion: "Версия планировки",
+        layoutRevision: "Ревизия планировки",
+        clientSelections: "Выборы и материалы",
+        clientReason: "Причина решения",
+        clientApprove: "Согласовать",
+        clientChange: "Запросить изменения",
+        clientReject: "Отклонить",
+        clientStalePrice: "В варианте есть устаревшая цена — согласование недоступно.",
+        clientMissingPrice: "В варианте отсутствует актуальная цена — согласование недоступно.",
+        m3ApprovedInput: "Утверждённые входные данные M3",
+        m3Publish: "Передать в M3",
+        m3PublishReason: "Передача точного согласованного M2 в M3",
+        m3AwaitingApproval: "Ожидается подтверждённый клиентом M2 commit.",
+        cycle6SubmitReason: "Передача трёх точных вариантов клиенту на согласование",
+        cycle6Submit: "Отправить три варианта клиенту",
       },
       baseline: {
         readiness: "Readiness",
@@ -1493,7 +1515,7 @@ export const ru = {
     fixture: {
       organizationName: "Pilot Project Intelligence",
       actorNames: {
-        owner: "Руководитель проекта",
+        owner: "Дизайнер проекта",
         architect: "Архитектор проекта",
         builder: "Ответственный подрядчик",
         client: "Представитель заказчика",

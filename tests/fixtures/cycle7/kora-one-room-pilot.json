@@ -1,0 +1,33 @@
+{
+  "contractVersion": "archidom.m2-pilot-evidence/0.1",
+  "evidenceClass": "local_fixture_not_production",
+  "synthetic": false,
+  "project": {
+    "name": "Kora Food Hall",
+    "model": "full_project",
+    "areaM2": 1800,
+    "organizationId": "1ed18b6a-b094-414d-bb2e-cbbdef628431",
+    "projectId": "41111111-1111-4111-8111-111111111111"
+  },
+  "selectedScope": {
+    "packageId": "41111111-1111-4111-8111-111111111111",
+    "roomId": "cycle7-kora-living-room",
+    "label": "Кухня-гостиная"
+  },
+  "sessions": [
+    { "name": "owner", "role": "owner_lead", "userId": "31111111-1111-4111-8111-111111111111" },
+    { "name": "architect", "role": "architect", "userId": "32222222-2222-4222-8222-222222222222" },
+    { "name": "client", "role": "client_approver", "userId": "34444444-4444-4444-8444-444444444444" },
+    { "name": "builder", "role": "builder", "userId": "35555555-5555-4555-8555-555555555555" },
+    { "name": "guest", "role": "guest", "userId": "36666666-6666-4666-8666-666666666666" }
+  ],
+  "expectedFlow": [
+    "publish_three_layouts",
+    "bind_authoritative_selections_prices_provenance",
+    "submit_m2_client_review",
+    "review_m2_client_submission",
+    "append_m2_approved_commit_revision",
+    "publish_m2_m3_handoff",
+    "prove_replay_audit_privacy_tenancy_negatives"
+  ]
+}

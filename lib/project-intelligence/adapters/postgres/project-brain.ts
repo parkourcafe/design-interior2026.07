@@ -86,12 +86,19 @@ export interface ProductRevisionMutation {
 }
 
 export interface M2WorkspaceRevisionMutation {
-  readonly entityKind: "room" | "variant" | "material" | "budget" | "client_handoff";
+  readonly entityKind:
+    | "room"
+    | "variant"
+    | "material"
+    | "budget"
+    | "client_handoff"
+    | "approved_commit"
+    | "layout_version";
   readonly entityId: string;
   readonly revisionId: string;
   readonly revisionNo: number;
   readonly packageId: string;
-  readonly status: "draft" | "submitted";
+  readonly status: "draft" | "submitted" | "approved" | "published";
 }
 
 export interface ReleaseDistributionMutation {
@@ -227,6 +234,92 @@ export class ProjectBrainHumanPostgresAdapter {
         idempotency_key: input.idempotencyKey,
       }),
     );
+  }
+
+  async submitM2ClientReview(input: {
+    readonly projectId: string;
+    readonly packageId: string;
+    readonly submissionId: string;
+    readonly revisionId: string;
+    readonly expectedRevisionId: string | null;
+    readonly approvalPackageId: string;
+    readonly roomId: string;
+    readonly designIntentRevisionId: string;
+    readonly variants: readonly Readonly<Record<string, unknown>>[];
+    readonly budgetAsOf: string;
+    readonly staleAfterDays: number;
+    readonly reason: string;
+    readonly expectedStateRevision: number;
+    readonly idempotencyKey: string;
+  }): Promise<CommandMutation<Readonly<Record<string, unknown>>>> {
+    return parseCommandMutation(await callProductRpc(this.client, "submit_m2_client_review", {
+      project_id: input.projectId,
+      package_id: input.packageId,
+      submission_id: input.submissionId,
+      revision_id: input.revisionId,
+      expected_revision_id: input.expectedRevisionId,
+      approval_package_id: input.approvalPackageId,
+      room_id: input.roomId,
+      design_intent_revision_id: input.designIntentRevisionId,
+      variants: input.variants,
+      budget_as_of: input.budgetAsOf,
+      stale_after_days: input.staleAfterDays,
+      reason: input.reason,
+      expected_state_revision: input.expectedStateRevision,
+      idempotency_key: input.idempotencyKey,
+    }));
+  }
+
+  async reviewM2ClientSubmission(input: {
+    readonly projectId: string;
+    readonly packageId: string;
+    readonly submissionId: string;
+    readonly revisionId: string;
+    readonly expectedRevisionId: string;
+    readonly chosenVariantId: string;
+    readonly decision: "approved" | "rejected" | "change_requested";
+    readonly reason: string;
+    readonly expectedStateRevision: number;
+    readonly idempotencyKey: string;
+  }): Promise<CommandMutation<Readonly<Record<string, unknown>>>> {
+    return parseCommandMutation(await callProductRpc(this.client, "review_m2_client_submission", {
+      project_id: input.projectId,
+      package_id: input.packageId,
+      submission_id: input.submissionId,
+      revision_id: input.revisionId,
+      expected_revision_id: input.expectedRevisionId,
+      chosen_variant_id: input.chosenVariantId,
+      decision: input.decision,
+      reason: input.reason,
+      expected_state_revision: input.expectedStateRevision,
+      idempotency_key: input.idempotencyKey,
+    }));
+  }
+
+  async publishM2M3Handoff(input: {
+    readonly projectId: string;
+    readonly packageId: string;
+    readonly handoffId: string;
+    readonly revisionId: string;
+    readonly expectedRevisionId: string | null;
+    readonly approvedCommitId: string;
+    readonly approvedCommitRevisionId: string;
+    readonly reason: string;
+    readonly expectedStateRevision: number;
+    readonly idempotencyKey: string;
+  }): Promise<CommandMutation<Readonly<Record<string, unknown>>>> {
+    return parseCommandMutation(await callProductRpc(this.client, "publish_m2_m3_handoff", {
+      project_id: input.projectId,
+      package_id: input.packageId,
+      handoff_id: input.handoffId,
+      revision_id: input.revisionId,
+      expected_revision_id: input.expectedRevisionId,
+      approved_commit_id: input.approvedCommitId,
+      approved_commit_revision_id: input.approvedCommitRevisionId,
+      reason: input.reason,
+      expected_state_revision: input.expectedStateRevision,
+      idempotency_key: input.idempotencyKey,
+    }));
   }
 
   async createApprovalPackage(input: {

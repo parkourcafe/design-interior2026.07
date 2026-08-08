@@ -136,4 +136,164 @@ if [[
   exit 1
 fi
 
+# Two independently valid immutable documents race for one public versionId.
+# The workflow lock/state precondition plus the version uniqueness invariant
+# must leave exactly one publication; the losing transaction fails closed.
+layout_state=$(psql_exec db4-layout-race-state "
+  select state_revision from project_intelligence.project_workflows
+  where project_id='${project}'
+")
+layout_a=$(psql_exec db4-layout-race-payload-a "
+  with source as (
+    select jsonb_set(payload->'layoutContent','{documentId}','\"layout-race-a\"'::jsonb) content
+    from projectceo_product.m2_workspace_revisions
+    where project_id='${project}' and entity_kind='layout_version'
+      and entity_id='layout-document-db4-secondary'
+    order by revision_no desc limit 1
+  )
+  select jsonb_build_object(
+    'versionId','layout-version-concurrent-r1','roomId','db4-room',
+    'variantId','db4-variant-value','role','value_engineered',
+    'semanticHash',projectceo_product._m2_layout_semantic_hash(content),
+    'schemaVersion','project-ceo-m2-layout/0.1','layoutContent',content
+  ) from source
+")
+layout_b=$(psql_exec db4-layout-race-payload-b "
+  with source as (
+    select jsonb_set(payload->'layoutContent','{documentId}','\"layout-race-b\"'::jsonb) content
+    from projectceo_product.m2_workspace_revisions
+    where project_id='${project}' and entity_kind='layout_version'
+      and entity_id='layout-document-db4-secondary'
+    order by revision_no desc limit 1
+  )
+  select jsonb_build_object(
+    'versionId','layout-version-concurrent-r1','roomId','db4-room',
+    'variantId','db4-variant-value','role','value_engineered',
+    'semanticHash',projectceo_product._m2_layout_semantic_hash(content),
+    'schemaVersion','project-ceo-m2-layout/0.1','layoutContent',content
+  ) from source
+")
+layout_call_a="begin;
+set local role authenticated;
+set local request.jwt.claim.sub='32222222-2222-4222-8222-222222222222';
+select projectceo_product_api.append_m2_workspace_revision(
+  '${project}','${package}','layout_version','layout-race-a',
+  'layout-race-a-revision-r1',null,'published','${layout_a}'::jsonb,
+  'DB4 concurrent layout A',${layout_state},'db4-layout-race-a'
+); commit;"
+layout_call_b="begin;
+set local role authenticated;
+set local request.jwt.claim.sub='32222222-2222-4222-8222-222222222222';
+select projectceo_product_api.append_m2_workspace_revision(
+  '${project}','${package}','layout_version','layout-race-b',
+  'layout-race-b-revision-r1',null,'published','${layout_b}'::jsonb,
+  'DB4 concurrent layout B',${layout_state},'db4-layout-race-b'
+); commit;"
+
+set +e
+psql_exec db4-layout-race-a "${layout_call_a}" >"${tmpdir}/layout-a.out" 2>&1 &
+layout_pid_a=$!
+psql_exec db4-layout-race-b "${layout_call_b}" >"${tmpdir}/layout-b.out" 2>&1 &
+layout_pid_b=$!
+wait "${layout_pid_a}"; layout_status_a=$?
+wait "${layout_pid_b}"; layout_status_b=$?
+set -e
+
+if [[ $(( layout_status_a + layout_status_b )) == 0 ]] \
+  || [[ "${layout_status_a}" != "0" && "${layout_status_b}" != "0" ]]; then
+  print -u2 -r -- "Concurrent layout version race did not select exactly one winner"
+  sed -n '1,120p' "${tmpdir}/layout-a.out" >&2
+  sed -n '1,120p' "${tmpdir}/layout-b.out" >&2
+  exit 1
+fi
+
+layout_result=$(psql_exec db4-layout-race-assert "
+  select count(*)::text || '|' || count(distinct entity_id)::text
+  from projectceo_product.m2_workspace_revisions
+  where project_id='${project}' and package_id='${package}'
+    and entity_kind='layout_version'
+    and payload->>'versionId'='layout-version-concurrent-r1'
+")
+if [[ "${layout_result}" != "1|1" ]]; then
+  print -u2 -r -- "Concurrent layout version race persisted invalid state: ${layout_result}"
+  exit 1
+fi
+
+# Cycle 6 lock order: after one immutable submission, two client decisions at
+# the same workflow revision race. Exactly one review may append; the loser
+# must fail stale after waiting on the workflow/revision locks (never deadlock).
+cycle6_variants=$(psql_exec db4-cycle6-race-variants "
+  select payload->'variants'
+  from projectceo_product.m2_workspace_revisions
+  where project_id='${project}' and entity_kind='m2_client_submission'
+    and entity_id='cycle6-submission'
+  order by revision_no desc limit 1
+")
+cycle6_submit_state=$(psql_exec db4-cycle6-race-submit-state "
+  select state_revision
+  from project_intelligence.project_workflows
+  where project_id='${project}'
+")
+cycle6_setup=$(psql_exec db4-cycle6-race-setup "
+  begin;
+  set local role authenticated;
+  set local request.jwt.claim.sub='31111111-1111-4111-8111-111111111111';
+  select projectceo_product_api.submit_m2_client_review(
+    '${project}','${package}','cycle6-race-submission',
+    '75000000-0000-4000-8000-000000000001',null,
+    'approval-db4-m2-exact','cycle6-living-room','revision-decision-db4-r1',
+    '${cycle6_variants}'::jsonb,
+    '2026-08-06T10:00:00+08:00',30,'Concurrent client review snapshot',
+    ${cycle6_submit_state},
+    'cycle6-race-submit');
+  commit;
+")
+cycle6_state=$(psql_exec db4-cycle6-race-state "
+  select state_revision from project_intelligence.project_workflows where project_id='${project}'
+")
+cycle6_review_a="begin;
+set local role authenticated;
+set local request.jwt.claim.sub='32222222-2222-4222-8222-222222222222';
+select projectceo_product_api.review_m2_client_submission(
+  '${project}','${package}','cycle6-race-submission',
+  '75000000-0000-4000-8000-000000000002','75000000-0000-4000-8000-000000000001',
+  'cycle6-variant-preferred','approved','Concurrent client approval',
+  ${cycle6_state},'cycle6-race-review-a'); commit;"
+cycle6_review_b="begin;
+set local role authenticated;
+set local request.jwt.claim.sub='32222222-2222-4222-8222-222222222222';
+select projectceo_product_api.review_m2_client_submission(
+  '${project}','${package}','cycle6-race-submission',
+  '75000000-0000-4000-8000-000000000003','75000000-0000-4000-8000-000000000001',
+  'cycle6-variant-preferred','rejected','Concurrent client rejection',
+  ${cycle6_state},'cycle6-race-review-b'); commit;"
+
+set +e
+psql_exec db4-cycle6-review-a "${cycle6_review_a}" >"${tmpdir}/cycle6-a.out" 2>&1 &
+cycle6_pid_a=$!
+psql_exec db4-cycle6-review-b "${cycle6_review_b}" >"${tmpdir}/cycle6-b.out" 2>&1 &
+cycle6_pid_b=$!
+wait "${cycle6_pid_a}"; cycle6_status_a=$?
+wait "${cycle6_pid_b}"; cycle6_status_b=$?
+set -e
+
+if [[ $(( cycle6_status_a + cycle6_status_b )) == 0 ]] \
+  || [[ "${cycle6_status_a}" != "0" && "${cycle6_status_b}" != "0" ]]; then
+  print -u2 -r -- "Cycle 6 review race did not select exactly one winner"
+  sed -n '1,120p' "${tmpdir}/cycle6-a.out" >&2
+  sed -n '1,120p' "${tmpdir}/cycle6-b.out" >&2
+  exit 1
+fi
+
+cycle6_result=$(psql_exec db4-cycle6-race-assert "
+  select count(*)::text || '|' || count(distinct revision_id)::text
+  from projectceo_product.m2_workspace_revisions
+  where project_id='${project}' and package_id='${package}'
+    and entity_kind='m2_client_review' and entity_id='cycle6-race-submission'
+")
+if [[ "${cycle6_result}" != "1|1" ]]; then
+  print -u2 -r -- "Cycle 6 review race persisted invalid state: ${cycle6_result}"
+  exit 1
+fi
+
 print -r -- "DB4_CONCURRENCY_OK"
