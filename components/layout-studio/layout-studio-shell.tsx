@@ -15,6 +15,8 @@ import {
   BrowserLayoutRepository,
   BrowserLayoutRepositoryError,
 } from "@/lib/layout-studio/adapters/local/browser-layout-repository";
+import { HttpLayoutRepository } from "@/lib/layout-studio/adapters/http/http-layout-repository";
+import type { LayoutRepositoryPort } from "@/lib/layout-studio/application/layout-repository-port";
 import {
   createSvgProjection,
   serializeSvgProjection,
@@ -993,11 +995,26 @@ function ExportPanel({
   );
 }
 
-export function LayoutStudioShell({ initialDocument }: { readonly initialDocument: LayoutDocument }) {
+/**
+ * Где редактор хранит документ.
+ *
+ * Значение сериализуемое, а не фабрика: страница-владелец — серверный
+ * компонент, функцию через границу не передать. Поэтому режим приезжает
+ * данными, а хранилище создаётся уже здесь, на клиенте.
+ */
+export type LayoutStorageMode = "browser" | "server";
+
+export function LayoutStudioShell({
+  initialDocument,
+  storage = "browser",
+}: {
+  readonly initialDocument: LayoutDocument;
+  readonly storage?: LayoutStorageMode;
+}) {
   const [session, setSession] = useState(() => new EditorSession(initialDocument));
   const lastSavedRevisionRef = useRef<number | null>(null);
   const [sessionState, setSessionState] = useState<EditorSessionState>(() => session.getState());
-  const [repository, setRepository] = useState<BrowserLayoutRepository | null>(null);
+  const [repository, setRepository] = useState<LayoutRepositoryPort | null>(null);
   const [viewMode, setViewMode] = useState<ViewMode>("2d");
   const [zoom, setZoom] = useState(1);
   const [panState, setPanState] = useState<PanState>({ xMm: 0, yMm: 0 });
@@ -1046,13 +1063,16 @@ export function LayoutStudioShell({ initialDocument }: { readonly initialDocumen
 
     const hydrate = async () => {
       try {
-        // Namespaced per document: version ids ("V1", "V2", …) are numbered per
-        // document, so a shared namespace would collide across preview routes
-        // and the immutability guard would reject the second document's V1.
-        const nextRepository = new BrowserLayoutRepository({
-          storage: window.localStorage,
-          namespace: `preview-v1:${initialDocument.documentId}`,
-        });
+        const nextRepository: LayoutRepositoryPort =
+          storage === "server"
+            ? new HttpLayoutRepository(initialDocument.documentId)
+            : // Namespaced per document: version ids ("V1", "V2", …) are numbered per
+              // document, so a shared namespace would collide across preview routes
+              // and the immutability guard would reject the second document's V1.
+              new BrowserLayoutRepository({
+                storage: window.localStorage,
+                namespace: `preview-v1:${initialDocument.documentId}`,
+              });
         const [draftDocument, persistedVersions, persistedCheckpoints] = await Promise.all([
           nextRepository.loadDraft(initialDocument.documentId),
           nextRepository.listVersions(initialDocument.documentId),
@@ -1094,7 +1114,7 @@ export function LayoutStudioShell({ initialDocument }: { readonly initialDocumen
     return () => {
       cancelled = true;
     };
-  }, [initialDocument.documentId]);
+  }, [initialDocument.documentId, storage]);
 
   useEffect(() => {
     if (!repository) return;

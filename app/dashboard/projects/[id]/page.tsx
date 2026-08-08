@@ -7,6 +7,7 @@ import { ru } from "@/lib/i18n/ru";
 import type { Passport } from "@/lib/types";
 import { questionById } from "@/lib/brief/questions";
 import { isProfileComplete } from "@/lib/designer";
+import { isLayoutStudioEnabled } from "@/lib/layout-studio/feature-flag";
 import { getStudio } from "@/lib/studio";
 import { missingFields, firstMeetingQuestions, type RiskCardRow } from "@/lib/review";
 import { isProjectClientUploadPath } from "@/lib/storage/client-upload";
@@ -347,6 +348,16 @@ async function ReviewBoard({
             {ru.review.buildProposal}
           </Link>
         )}
+        {/* Модуль 2 — работа после утверждённого КП. Ссылка появляется только
+            при включённом флаге: иначе она вела бы на 404. */}
+        {isLayoutStudioEnabled() ? (
+          <Link
+            href={`/dashboard/projects/${project.id}/layouts`}
+            className="inline-flex text-sm underline"
+          >
+            {ru.layoutStudio.project.title}
+          </Link>
+        ) : null}
       </div>
     </div>
   );
