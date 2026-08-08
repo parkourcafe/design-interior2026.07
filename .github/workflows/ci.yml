@@ -1,0 +1,70 @@
+name: CI
+
+# Гейты прогоняются здесь, а не на машине владельца. Раньше PostgreSQL 16/17
+# приходилось запускать вручную из терминала, и результат жил только в чужом
+# скриншоте; теперь он лежит в логах прогона и виден в PR.
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  gates:
+    name: lint / typecheck / test / build
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run lint
+      - run: npm run typecheck
+      - run: npm run test
+      - run: npm run build
+
+  database:
+    name: DB4 on ${{ matrix.image }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        image: [postgres:16-alpine, postgres:17-alpine]
+    steps:
+      - uses: actions/checkout@v4
+      # Скриптам нужны только docker, zsh и rg — npm здесь не требуется.
+      - name: Install zsh and ripgrep
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends zsh ripgrep
+      - name: Migration chain, M2 operations, concurrency and restart replay
+        env:
+          PI_DB_IMAGE: ${{ matrix.image }}
+        run: zsh tests/db4/run.zsh
+
+  # Гейт цикла 7 намеренно красный, пока не предоставлен внешний реальный
+  # пакет, поэтому он не входит в блокирующий CI. Здесь он запускается только
+  # чтобы его состояние было видно, и не роняет прогон.
+  cycle7-evidence:
+    name: cycle 7 evidence (informational)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: External real package gate
+        run: npm run test:cycle7
