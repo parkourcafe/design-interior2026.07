@@ -116,6 +116,11 @@ export interface AuthenticatedReadReleaseRecipient {
 
 export interface AuthenticatedProjectReadProjection {
   readonly approvalPackages: readonly Readonly<Record<string, unknown>>[];
+  readonly m2Rooms?: readonly Readonly<Record<string, unknown>>[];
+  readonly m2Variants?: readonly Readonly<Record<string, unknown>>[];
+  readonly m2Materials?: readonly Readonly<Record<string, unknown>>[];
+  readonly m2BudgetFrames?: readonly Readonly<Record<string, unknown>>[];
+  readonly m2ClientHandoffs?: readonly Readonly<Record<string, unknown>>[];
   readonly decisions: readonly AuthenticatedReadDecision[];
   readonly distributionSummary: readonly AuthenticatedReadDistributionSummary[];
   readonly executionPackages: readonly ExecutionDeliveryEnvelope[];
@@ -234,7 +239,7 @@ export class ProjectCeoAuthenticatedReadPostgresAdapter {
       await callRpc(
         this.client,
         "projectceo_read_api",
-        "get_project_workspace_read",
+        "get_project_workspace_read_v3",
         {
           project_id: input.projectId,
           package_id: input.packageId,

@@ -2,9 +2,15 @@ import {
   PROJECTCEO_UI_CONTRACT_VERSION,
   type AccessGrantView,
   type AnalyticsEvent,
+  type ApprovalPackageView,
   type AuditEventView,
   type BaselineSummary,
   type ChangeRequestView,
+  type M2BudgetFrameView,
+  type M2ClientHandoffView,
+  type M2MaterialView,
+  type M2RoomView,
+  type M2VariantView,
   type DecisionView,
   type InvitationView,
   type OnboardingState,
@@ -42,6 +48,15 @@ const fixtureOperations: ProjectCeoOperationStates = {
   register_source: { status: "unavailable", reason: "fixture_read_only" },
   review_source: { status: "unavailable", reason: "fixture_read_only" },
   review_selection: { status: "unavailable", reason: "fixture_read_only" },
+  create_decision: { status: "unavailable", reason: "fixture_read_only" },
+  create_selection: { status: "unavailable", reason: "fixture_read_only" },
+  create_approval_package: { status: "unavailable", reason: "fixture_read_only" },
+  submit_approval_package: { status: "unavailable", reason: "fixture_read_only" },
+  create_m2_room: { status: "unavailable", reason: "fixture_read_only" },
+  create_m2_variant: { status: "unavailable", reason: "fixture_read_only" },
+  create_m2_material: { status: "unavailable", reason: "fixture_read_only" },
+  set_m2_budget: { status: "unavailable", reason: "fixture_read_only" },
+  create_m2_client_handoff: { status: "unavailable", reason: "fixture_read_only" },
   publish_baseline: { status: "unavailable", reason: "fixture_read_only" },
   publish_release: { status: "unavailable", reason: "fixture_read_only" },
   distribute_release: { status: "unavailable", reason: "fixture_read_only" },
@@ -314,6 +329,8 @@ const evidence = [
 const decisions: readonly DecisionView[] = [
   {
     id: "decision-floor-finish",
+    packageId: KORA_ARCHITECTURE_PACKAGE_ID,
+    areaNodeId: "area-kitchen",
     title: fixtureRu.decisions.floorTitle,
     resolution: fixtureRu.decisions.floorResolution,
     revisionId: "decision-floor-finish-r2",
@@ -324,6 +341,8 @@ const decisions: readonly DecisionView[] = [
   },
   {
     id: "decision-egress",
+    packageId: KORA_ARCHITECTURE_PACKAGE_ID,
+    areaNodeId: "area-kitchen",
     title: fixtureRu.decisions.egressTitle,
     resolution: fixtureRu.decisions.egressResolution,
     revisionId: "decision-egress-r1",
@@ -345,6 +364,7 @@ const selections: readonly SelectionView[] = [
     title: fixtureRu.selection.title,
     area: fixtureRu.selection.area,
     packageId: KORA_ARCHITECTURE_PACKAGE_ID,
+    areaNodeId: "area-kitchen",
     revisionNo: 2,
     revisionId: "selection-floor-finish-r2",
     decisionRevisionId: "decision-floor-finish-r2",
@@ -375,6 +395,13 @@ const selections: readonly SelectionView[] = [
     ],
   },
 ];
+
+const approvalPackages: readonly ApprovalPackageView[] = [];
+const m2Rooms: readonly M2RoomView[] = [];
+const m2Variants: readonly M2VariantView[] = [];
+const m2Materials: readonly M2MaterialView[] = [];
+const m2BudgetFrames: readonly M2BudgetFrameView[] = [];
+const m2ClientHandoffs: readonly M2ClientHandoffView[] = [];
 
 const releases: readonly ReleaseSummary[] = [
   koraCurrentRelease,
@@ -600,6 +627,12 @@ function roleScopedWorkspace(role: ProjectCeoRole): ProjectWorkspaceView {
     sources: isCore ? sources : [],
     decisions: isGuest ? [] : decisions,
     selections: isGuest ? [] : selections,
+    approvalPackages: isGuest ? [] : approvalPackages,
+    m2Rooms: isGuest ? [] : m2Rooms,
+    m2Variants: isGuest ? [] : m2Variants,
+    m2Materials: isGuest ? [] : m2Materials,
+    m2BudgetFrames: isGuest ? [] : m2BudgetFrames,
+    m2ClientHandoffs: isGuest ? [] : m2ClientHandoffs,
     baseline: koraBaseline,
     releases: isGuest
       ? releases.filter((release) => release.packageId === actor.packageId && release.status === "current")

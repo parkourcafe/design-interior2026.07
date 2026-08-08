@@ -311,6 +311,101 @@ export class ProjectCeoCommandService {
           idempotencyKey,
         }));
       }
+      if (command.kind === "create_m2_room") {
+        return completed(requestId, await this.product.appendM2WorkspaceRevision({
+          projectId: command.projectId,
+          packageId: command.payload.packageId,
+          entityKind: "room",
+          entityId: command.payload.roomId,
+          revisionId: command.payload.revisionId,
+          expectedRevisionId: command.payload.expectedRevisionId,
+          status: "draft",
+          payload: { name: command.payload.name, areaM2: command.payload.areaM2 },
+          reason: command.payload.reason,
+          expectedStateRevision: scope.stateRevision,
+          idempotencyKey,
+        }));
+      }
+      if (command.kind === "create_m2_variant") {
+        return completed(requestId, await this.product.appendM2WorkspaceRevision({
+          projectId: command.projectId,
+          packageId: command.payload.packageId,
+          entityKind: "variant",
+          entityId: command.payload.variantId,
+          revisionId: command.payload.revisionId,
+          expectedRevisionId: command.payload.expectedRevisionId,
+          status: "draft",
+          payload: {
+            roomId: command.payload.roomId,
+            title: command.payload.title,
+            description: command.payload.description,
+          },
+          reason: command.payload.reason,
+          expectedStateRevision: scope.stateRevision,
+          idempotencyKey,
+        }));
+      }
+      if (command.kind === "create_m2_material") {
+        return completed(requestId, await this.product.appendM2WorkspaceRevision({
+          projectId: command.projectId,
+          packageId: command.payload.packageId,
+          entityKind: "material",
+          entityId: command.payload.materialId,
+          revisionId: command.payload.revisionId,
+          expectedRevisionId: command.payload.expectedRevisionId,
+          status: "draft",
+          payload: {
+            variantId: command.payload.variantId,
+            name: command.payload.name,
+            supplierRef: command.payload.supplierRef,
+            unit: command.payload.unit,
+            unitCostRub: command.payload.unitCostRub,
+            quantity: command.payload.quantity,
+          },
+          reason: command.payload.reason,
+          expectedStateRevision: scope.stateRevision,
+          idempotencyKey,
+        }));
+      }
+      if (command.kind === "set_m2_budget") {
+        return completed(requestId, await this.product.appendM2WorkspaceRevision({
+          projectId: command.projectId,
+          packageId: command.payload.packageId,
+          entityKind: "budget",
+          entityId: command.payload.budgetId,
+          revisionId: command.payload.revisionId,
+          expectedRevisionId: command.payload.expectedRevisionId,
+          status: "draft",
+          payload: {
+            currency: "RUB",
+            minRub: command.payload.minRub,
+            maxRub: command.payload.maxRub,
+            contingencyPct: command.payload.contingencyPct,
+          },
+          reason: command.payload.reason,
+          expectedStateRevision: scope.stateRevision,
+          idempotencyKey,
+        }));
+      }
+      if (command.kind === "create_m2_client_handoff") {
+        return completed(requestId, await this.product.appendM2WorkspaceRevision({
+          projectId: command.projectId,
+          packageId: command.payload.packageId,
+          entityKind: "client_handoff",
+          entityId: command.payload.handoffId,
+          revisionId: command.payload.revisionId,
+          expectedRevisionId: command.payload.expectedRevisionId,
+          status: "submitted",
+          payload: {
+            approvalPackageId: command.payload.approvalPackageId,
+            title: command.payload.title,
+            note: command.payload.note,
+          },
+          reason: command.payload.reason,
+          expectedStateRevision: scope.stateRevision,
+          idempotencyKey,
+        }));
+      }
       if (command.kind === "create_approval_package") {
         return completed(requestId, await this.product.createApprovalPackage({
           projectId: command.projectId,

@@ -16,6 +16,7 @@ const authAuthorizationMigrationPath = resolve(
   "supabase/migrations/20260801120000_projectceo_request_claim_authorization.sql",
 );
 const runnerPath = resolve(repoRoot, "tests/ap1/environment/run-local.zsh");
+const verifyDbPath = resolve(repoRoot, "tests/ap1/environment/verify-db.sql");
 const ledgerPath = resolve(
   repoRoot,
   "tests/ap1/environment/migration-ledger.sha256",
@@ -42,7 +43,11 @@ describe("AP1 disposable Supabase environment contract", () => {
     for (const port of [59620, 59621, 59622, 59623, 59624, 59625, 59626, 59627, 59628, 59629]) {
       expect(config).toContain(String(port));
     }
-    expect(config).not.toMatch(/project_ref|access_token|service_role|supabase\.co/i);
+    // `custom_access_token` is the approved local Auth Hook name, not a
+    // credential. Reject only secret-bearing settings and hosted references.
+    expect(config).not.toMatch(/project_ref|service_role|supabase\.co/i);
+    expect(config).not.toMatch(/^\s*(?:anon|service|access)_key\s*=/im);
+    expect(config).toContain("[auth.hook.custom_access_token]");
   });
 
   it("exposes only the approved public and request-bound API schemas", () => {
@@ -92,6 +97,16 @@ describe("AP1 disposable Supabase environment contract", () => {
     expect(compat).toContain("AP1_AUTH_USERS_POLICY_SCOPE_INVALID");
     expect(compat).not.toContain("create policy projectceo_pi_table_owner_select");
     expect(compat).not.toMatch(/grant authenticated to pi_table_owner/i);
+  });
+
+  it("re-checks the deployed database for managed-auth references and claim readers", () => {
+    const verify = readFileSync(verifyDbPath, "utf8");
+    expect(verify).toContain("AP1_MANAGED_AUTH_REFERENCE_REMAINS");
+    expect(verify).toContain("AP1_REQUEST_CLAIM_READERS_INVALID");
+    // Guard'а миграции 20260801120000 нет для этих двух схем — постоянная
+    // проверка обязана покрывать их, иначе дыра остаётся открытой.
+    expect(verify).toContain("'project_intelligence_api'");
+    expect(verify).toContain("'projectceo_read_api'");
   });
 
   it("rewrites every ProjectCEO auth callsite and fails closed if one remains", () => {

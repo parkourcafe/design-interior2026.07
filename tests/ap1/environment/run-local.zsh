@@ -61,8 +61,10 @@ verify_runtime() {
 }
 
 apply_local_auth_compat() {
+  # Local Supabase's auth schema is owned by supabase_auth_admin; postgres is
+  # required here solely to revoke historical ACLs and model hosted behavior.
   docker_cli exec -i "supabase_db_${project_id}" \
-    psql -X --username supabase_admin --dbname postgres \
+    psql -X --username postgres --dbname postgres \
     < "${repo_root}/tests/ap1/environment/apply-local-auth-compat.sql"
 }
 

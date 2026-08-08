@@ -161,7 +161,7 @@ begin
   join pg_namespace namespace on namespace.oid = procedure.pronamespace
   where namespace.nspname = 'projectceo_m4_api'
     and procedure.prokind = 'f';
-  if v_count <> 10 then
+  if v_count <> 15 then
     raise exception 'DB5_UNEXPECTED_RPC_COUNT:%', v_count;
   end if;
 

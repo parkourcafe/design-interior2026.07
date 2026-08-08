@@ -33,6 +33,10 @@ PRODUCTION_CHANGED=false
 - раздельные human/worker adapter surfaces;
 - server-only token, Storage и ingestion orchestration;
 - DB3 harness с PG16/PG17, RLS, concurrency, rollback и restart replay.
+- Additive hosted-claims compatibility: request `sub` fallback and a versioned
+  Supabase Custom Access Token Hook which emits `email_verified` only for the
+  allowlisted ownership methods (`otp`, `magiclink`, `invite`, `email/signup`)
+  and preserves the claim on token refresh.
 
 Существующие timestamped migrations не изменялись. Production Supabase не
 изменялся.
@@ -211,6 +215,19 @@ Additive hardening migration закрывает результаты интег�
 
 Harness prelude моделирует `auth.jwt()` через `request.jwt.claims`; это только
 локальная disposable test surface и не production auth implementation.
+
+The local AP1 stack additionally enables the versioned custom access-token hook
+through `supabase/config.toml`. A real five-session GoTrue browser run now
+passes invitation acceptance, distribution/ack, change-impact, photo review,
+milestone acceptance, replay, CSRF and isolation checks. The in-app browser also
+opens the authenticated owner workspace and renders Kora Food Hall / 1 800 m²
+with zero console errors. The approved Auth Hook is now enabled in production
+after a read-only baseline snapshot; a real production magic-link JWT carries
+`email_verified=true` with `amr=otp`, and authenticated RLS probes remain scoped.
+The production migration ledger differs from the branch ledger, so historical
+replay remains a separate gate and was not attempted. Mobile viewport capture
+is not claimed because the in-app browser has no viewport control and the host
+headless Chrome launcher is unavailable in this sandbox.
 
 ## 7. DB2 compatibility fix
 

@@ -24,6 +24,8 @@ const ROLE_CAPABILITIES: Readonly<Record<ProjectCeoRole, readonly ProjectCeoCapa
     "upload_photo_evidence",
     "review_milestone",
     "view_audit",
+    "manage_budget",
+    "prepare_client_handoff",
   ],
   architect: [
     "view_project",
@@ -42,6 +44,8 @@ const ROLE_CAPABILITIES: Readonly<Record<ProjectCeoRole, readonly ProjectCeoCapa
     "upload_photo_evidence",
     "review_milestone",
     "view_audit",
+    "manage_budget",
+    "prepare_client_handoff",
   ],
   builder: [
     "view_project",

@@ -3,6 +3,9 @@
 create role anon nologin noinherit nobypassrls;
 create role authenticated nologin noinherit nobypassrls;
 create role service_role nologin noinherit bypassrls;
+-- Supabase Auth executes the custom access-token hook through this managed
+-- role; keep the DB2 prelude faithful to hosted role topology.
+create role supabase_auth_admin nologin noinherit nobypassrls;
 
 create schema auth;
 revoke all on schema auth from public;

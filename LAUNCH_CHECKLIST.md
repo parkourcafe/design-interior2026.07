@@ -18,7 +18,7 @@
 | Код Фазы 4 (Вход Б) не влит раньше времени | ✅ |
 | Отладочный мусор / лишние зависимости | ✅ нет |
 | Открытый редирект в `/auth/callback` | ✅ закрыт (валидация `next`) |
-| **Rate-limit на публичных роутах** (`auth/register`, `client/create`, `intake/submit`) | ✅ реализован (лимит по IP, fail-open). Активируется после применения миграции `0005_rate_limits.sql`. Капча — на будущее. |
+| **Rate-limit на публичных роутах** (`auth/register`, `client/create`, `intake/submit`) | ✅ реализован (лимит по IP, fail-open). Legacy `0005_rate_limits.sql` сохранён только как evidence; production activation проходит через migration-path reconciliation. Капча — на будущее. |
 
 **Вывод аудита:** критичных runtime-проблем нет. Для пилота — можно запускать.
 Для RuStore техническая часть готова, внешние owner-блокеры перечислены в
@@ -49,7 +49,7 @@
 - [ ] До массовой публикации: добавить реквизиты оператора ПДн в `/legal/privacy` и `/legal/terms`.
 
 **По желанию / на потом:**
-- [ ] **Активировать rate-limit:** применить миграцию `supabase/migrations/0005_rate_limits.sql` в Supabase (SQL Editor → вставить → Run). До этого лимит просто неактивен, продукт работает (fail-open).
+- [ ] **Активировать rate-limit:** не применять legacy `0005_rate_limits.sql` вручную. Включение возможно только в рамках отдельного production adoption checklist после schema fingerprint и ordered additive replay.
 - [ ] Доделать **Resend** (надёжная почта): Resend → API key → Supabase → Emails → SMTP (host `smtp.resend.com`, port `587`, user `resend`, пароль = ключ, sender `noreply@arhidom.space`) → Save. Инструкция: `supabase/email-templates/README.md`. Для пилота не обязательно (вход по Google/паролю писем не требует).
 
 *Тумблеры «Confirm email» и «Leaked password» в Supabase трогать НЕ нужно — обойдены в коде.*

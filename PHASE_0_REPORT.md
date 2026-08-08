@@ -4,7 +4,10 @@
 
 - **Next.js 14 (App Router) + TypeScript strict + Tailwind + ESLint + Vitest.** Проект собирается, линтуется, типизируется и тестируется (все зелёные).
 - **Два Supabase-клиента:** `lib/supabase/browser.ts` (anon, браузер), `lib/supabase/server.ts` (anon, привязан к cookie сессии, RLS). Плюс `lib/supabase/admin.ts` — service-role, только для публичных server routes.
-- **SQL-миграция полной схемы** `supabase/migrations/0001_init.sql`: `designers · projects · answers · risk_cards · proposals · events`, все чек-констрейнты статусов/enum, индексы, **RLS-политики** (дизайнер видит только свои проекты; публичный доступ — через service role по токену), bucket `client-uploads`.
+- **Историческая legacy-схема** сохранена в baseline evidence; активная цепочка
+  начинается с timestamped `20260716071024_legacy_production_baseline.sql` и
+  последующих additive migrations. Numeric legacy files не являются executable
+  input и сохранены в `docs/product-intelligence/agent-runs/db-wave/legacy-migrations/`.
 - **Auth по magic link:** страница входа `/login`, callback `/auth/callback`, middleware защищает `/dashboard` и обновляет сессию. Layout кабинета дизайнера с шапкой и выходом.
 - **Seed-скрипт** `scripts/seed.ts`: демо-дизайнер `demo@studio.ru` с заполненными `pricing` и `proposal_defaults` (идемпотентно).
 - **Healthcheck** `GET /api/health` — сообщает, какие подсистемы сконфигурированы (без сетевых вызовов).
@@ -23,7 +26,8 @@
 1. `npm install` (уже выполнено).
 2. Проверки: `npm run typecheck` · `npm run lint` · `npm run test` · `npm run build` — всё зелёное.
 3. Заполните `.env.local` реальными значениями Supabase + Yandex Cloud (шаблон — `.env.example`).
-4. Примените миграцию `supabase/migrations/0001_init.sql` к своему проекту Supabase (SQL Editor или Supabase MCP `apply_migration`).
+4. Для disposable-проверки выполните `tests/db2/run.zsh`; production SQL не
+   применяется этим отчётом.
 5. `npm run seed` — создаст демо-дизайнера.
 6. `npm run dev`, откройте `/` → `/login`, войдите magic-link'ом на `demo@studio.ru` → попадёте в `/dashboard`.
 7. `GET /api/health` вернёт `{ status: "ok", env: {...} }`.

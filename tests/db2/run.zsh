@@ -103,6 +103,7 @@ operation_tests=(
   "${repo_root}/tests/db2/30_seed_and_operations.sql"
   "${repo_root}/tests/db2/31_security_and_rollback.sql"
   "${repo_root}/tests/db2/32_p1_security_region_golden.sql"
+  "${repo_root}/tests/db2/33_auth_hook.sql"
 )
 
 for sql in "${operation_tests[@]}"; do
