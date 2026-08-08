@@ -16,6 +16,16 @@ import {
   BrowserLayoutRepositoryError,
 } from "@/lib/layout-studio/adapters/local/browser-layout-repository";
 import { HttpLayoutRepository } from "@/lib/layout-studio/adapters/http/http-layout-repository";
+import {
+  NODE_SNAP_RADIUS_PX,
+  isDegenerate,
+  nextEntityId,
+  segmentLengthMm,
+  snapPoint,
+  wallExistsBetween,
+  type Point,
+  type SnapResult,
+} from "@/lib/layout-studio/application/wall-drawing";
 import type { LayoutRepositoryPort } from "@/lib/layout-studio/application/layout-repository-port";
 import {
   createSvgProjection,
@@ -237,6 +247,13 @@ function OpeningMark({
   );
 }
 
+/**
+ * Режим работы с планом. «Стена» перехватывает клики: в нём щелчок ставит
+ * угол, а не выделяет элемент, иначе одно действие мыши означало бы два
+ * несовместимых намерения.
+ */
+export type PlanTool = "select" | "wall";
+
 function PlanCanvas({
   projection,
   document,
@@ -247,6 +264,9 @@ function PlanCanvas({
   selection,
   onSelect,
   onPan,
+  tool,
+  drawAnchor,
+  onDrawPoint,
 }: {
   readonly projection: SvgProjection;
   readonly document: LayoutDocument;
@@ -257,6 +277,9 @@ function PlanCanvas({
   readonly selection: string | null;
   readonly onSelect: (id: string | null) => void;
   readonly onPan: (pan: PanState) => void;
+  readonly tool: PlanTool;
+  readonly drawAnchor: Point | null;
+  readonly onDrawPoint: (snapped: SnapResult) => void;
 }) {
   const base = projection.viewBox;
   const padding = Math.max(base.width, base.height) * 0.07;
@@ -266,6 +289,44 @@ function PlanCanvas({
   const centerY = base.y + base.height / 2 + panState.yMm;
   const columnIds = new Set(document.columns.map((item) => item.id));
   const nodeById = new Map(document.nodes.map((node) => [node.id, node]));
+
+  // Экранные координаты → миллиметры документа. Матрицу даёт сам SVG, поэтому
+  // зум, панорама и размер окна учитываются без ручной арифметики.
+  const toDocumentPoint = (event: React.MouseEvent<SVGSVGElement>): Point | null => {
+    const svg = event.currentTarget;
+    const matrix = svg.getScreenCTM();
+    if (!matrix) return null;
+    const point = svg.createSVGPoint();
+    point.x = event.clientX;
+    point.y = event.clientY;
+    const local = point.matrixTransform(matrix.inverse());
+    return { xMm: local.x, yMm: local.y };
+  };
+
+  // Радиус захвата задан в пикселях экрана, а в документ переводится через
+  // текущий масштаб: иначе на мелком зуме «поймать» угол было бы невозможно.
+  const snapRadiusMm = (NODE_SNAP_RADIUS_PX * width) / 1000;
+
+  const handlePlanClick = (event: React.MouseEvent<SVGSVGElement>) => {
+    if (tool !== "wall") {
+      onSelect(null);
+      return;
+    }
+    const raw = toDocumentPoint(event);
+    if (!raw) return;
+    onDrawPoint(snapPoint(document, raw, { anchor: drawAnchor, snapRadiusMm }));
+  };
+
+  const [hover, setHover] = useState<SnapResult | null>(null);
+  const handlePlanMove = (event: React.MouseEvent<SVGSVGElement>) => {
+    if (tool !== "wall") {
+      if (hover) setHover(null);
+      return;
+    }
+    const raw = toDocumentPoint(event);
+    if (!raw) return;
+    setHover(snapPoint(document, raw, { anchor: drawAnchor, snapRadiusMm }));
+  };
 
   const panByKeyboard = (event: React.KeyboardEvent<SVGSVGElement>) => {
     const step = Math.max(width, height) * 0.08;
@@ -290,7 +351,10 @@ function PlanCanvas({
       aria-keyshortcuts="ArrowLeft ArrowRight ArrowUp ArrowDown"
       tabIndex={0}
       onKeyDown={panByKeyboard}
-      onClick={() => onSelect(null)}
+      onClick={handlePlanClick}
+      onMouseMove={handlePlanMove}
+      onMouseLeave={() => setHover(null)}
+      data-tool={tool}
     >
       <defs>
         <pattern id="layout-grid-small" width="100" height="100" patternUnits="userSpaceOnUse">
@@ -409,6 +473,46 @@ function PlanCanvas({
           }}
         />
       ))}
+      {/* Предпросмотр рисования. Рисуется последним, поверх всего: дизайнер
+          должен видеть, куда встанет угол, даже над стеной или мебелью. */}
+      {tool === "wall" && hover ? (
+        <g aria-hidden="true" pointerEvents="none">
+          {drawAnchor ? (
+            <>
+              <line
+                x1={drawAnchor.xMm}
+                y1={drawAnchor.yMm}
+                x2={hover.xMm}
+                y2={hover.yMm}
+                stroke="#244E3B"
+                strokeWidth={60}
+                strokeDasharray="200 120"
+                strokeLinecap="round"
+              />
+              <text
+                x={(drawAnchor.xMm + hover.xMm) / 2}
+                y={(drawAnchor.yMm + hover.yMm) / 2 - 120}
+                textAnchor="middle"
+                fill="#244E3B"
+                fontSize={220}
+              >
+                {segmentLengthMm(drawAnchor, hover)} мм
+              </text>
+            </>
+          ) : null}
+          {/* Кружок привязки: заполненный на существующем угле, пустой на
+              сетке. Разница видна боковым зрением и объясняет, почему точка
+              «прыгнула». */}
+          <circle
+            cx={hover.xMm}
+            cy={hover.yMm}
+            r={hover.kind === "node" ? 130 : 90}
+            fill={hover.kind === "node" ? "#244E3B" : "none"}
+            stroke="#244E3B"
+            strokeWidth={40}
+          />
+        </g>
+      ) : null}
     </svg>
   );
 }
@@ -810,6 +914,7 @@ function Inspector({
   onDraft,
   onApply,
   onReset,
+  onDelete,
 }: {
   readonly entity: LayoutEntity | null;
   readonly draft: InspectorDraft;
@@ -817,6 +922,7 @@ function Inspector({
   readonly onDraft: (key: keyof InspectorDraft, value: string) => void;
   readonly onApply: () => void;
   readonly onReset: () => void;
+  readonly onDelete: () => void;
 }) {
   const isColumn = entity ? "baseZMm" in entity : false;
   const isObject = entity ? "zMm" in entity && !isColumn : false;
@@ -861,6 +967,10 @@ function Inspector({
           <div className={styles.inspectorActions}>
             <button type="button" disabled={!editable} onClick={onApply}>{copy.inspector.apply}</button>
             <button type="button" disabled={!editable} onClick={onReset}>{copy.inspector.reset}</button>
+            {/* Удаление отделено от правки: оно доступно и там, где числовых
+                полей нет — например у стены или узла. Заблокированное
+                отсекает сама команда, а не эта кнопка. */}
+            <button type="button" onClick={onDelete}>{copy.delete.action}</button>
           </div>
         </>
       )}
@@ -1016,6 +1126,12 @@ export function LayoutStudioShell({
   const [sessionState, setSessionState] = useState<EditorSessionState>(() => session.getState());
   const [repository, setRepository] = useState<LayoutRepositoryPort | null>(null);
   const [viewMode, setViewMode] = useState<ViewMode>("2d");
+  const [tool, setTool] = useState<PlanTool>("select");
+  // Якорь = последний поставленный угол. Пока он есть, следующий клик достроит
+  // стену; null означает «начинаем новую цепочку».
+  const [drawAnchor, setDrawAnchor] = useState<Point | null>(null);
+  const [drawAnchorNodeId, setDrawAnchorNodeId] = useState<string | null>(null);
+  const [drawStatus, setDrawStatus] = useState<string | null>(null);
   const [zoom, setZoom] = useState(1);
   const [panState, setPanState] = useState<PanState>({ xMm: 0, yMm: 0 });
   const [showClearance, setShowClearance] = useState(true);
@@ -1129,7 +1245,165 @@ export function LayoutStudioShell({
       .catch((error: unknown) => setHistoryStatus(storageErrorMessage(error)));
   }, [repository, revision, session]);
 
+  // Esc завершает цепочку, не выключая инструмент: типичный сценарий —
+  // нарисовал одну стену, начинаешь другую в стороне, а не выходишь из режима.
+  useEffect(() => {
+    if (tool !== "wall") return;
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key !== "Escape") return;
+      setDrawAnchor(null);
+      setDrawAnchorNodeId(null);
+      setDrawStatus(null);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [tool]);
+
   const refresh = () => setSessionState(session.getState());
+
+  /** Общая шапка команды: одна и та же для инспектора и для рисования. */
+  const commandEnvelope = (reasonCode: string, suffix: string) => {
+    const sequence = `${Date.now()}-${document.stateRevision}-${suffix}`;
+    return {
+      commandId: `command.local.${sequence}`,
+      idempotencyKey: `layout-studio:${sequence}`,
+      documentId: document.documentId,
+      expectedStateRevision: document.stateRevision,
+      reasonCode,
+      reason: copy.versions.userReason,
+    };
+  };
+
+  const stopDrawing = () => {
+    setDrawAnchor(null);
+    setDrawAnchorNodeId(null);
+    setDrawStatus(null);
+  };
+
+  /**
+   * Один клик по плану в режиме «стена».
+   *
+   * Первый клик только запоминает угол. Второй и дальше — достраивают стену от
+   * предыдущего и сразу становятся новым якорем, поэтому контур рисуется
+   * цепочкой кликов, а не парами.
+   *
+   * Узел создаётся ТОЛЬКО если привязка не попала в существующий: иначе каждый
+   * щелчок по углу плодил бы дубликаты в одной точке, и контур выглядел бы
+   * замкнутым, не будучи им.
+   */
+  const handleDrawPoint = (snapped: SnapResult) => {
+    const workingDocument = session.getState().document;
+
+    let anchorNodeId = drawAnchorNodeId;
+    let targetNodeId = snapped.nodeId ?? null;
+
+    if (!drawAnchor) {
+      if (!targetNodeId) {
+        const nodeId = nextEntityId(workingDocument, "node");
+        const result = session.dispatch({
+          ...commandEnvelope("WALL_DRAWING", "node"),
+          type: "ADD_NODE",
+          payload: { nodeId, xMm: snapped.xMm, yMm: snapped.yMm },
+        });
+        if (!result.ok) {
+          setDrawStatus(result.issues[0]?.message ?? copy.draw.failed);
+          refresh();
+          return;
+        }
+        targetNodeId = nodeId;
+      }
+      setDrawAnchor({ xMm: snapped.xMm, yMm: snapped.yMm });
+      setDrawAnchorNodeId(targetNodeId);
+      setDrawStatus(null);
+      refresh();
+      return;
+    }
+
+    if (isDegenerate(drawAnchor, snapped)) {
+      setDrawStatus(copy.draw.tooShort);
+      return;
+    }
+
+    if (!targetNodeId) {
+      const nodeId = nextEntityId(session.getState().document, "node");
+      const result = session.dispatch({
+        ...commandEnvelope("WALL_DRAWING", "node"),
+        type: "ADD_NODE",
+        payload: { nodeId, xMm: snapped.xMm, yMm: snapped.yMm },
+      });
+      if (!result.ok) {
+        setDrawStatus(result.issues[0]?.message ?? copy.draw.failed);
+        refresh();
+        return;
+      }
+      targetNodeId = nodeId;
+    }
+
+    if (anchorNodeId && wallExistsBetween(session.getState().document, anchorNodeId, targetNodeId)) {
+      // Не ошибка: дизайнер обвёл уже существующую сторону. Просто переносим
+      // якорь дальше, чтобы цепочка не прерывалась.
+      setDrawAnchor({ xMm: snapped.xMm, yMm: snapped.yMm });
+      setDrawAnchorNodeId(targetNodeId);
+      setDrawStatus(copy.draw.duplicate);
+      refresh();
+      return;
+    }
+
+    const current = session.getState().document;
+    const wallResult = session.dispatch({
+      ...commandEnvelope("WALL_DRAWING", "wall"),
+      type: "ADD_WALL",
+      payload: {
+        wallId: nextEntityId(current, "wall"),
+        startNodeId: anchorNodeId!,
+        endNodeId: targetNodeId,
+        thicknessMm: 100,
+        heightMm: current.floor.clearHeightMm,
+      },
+    });
+    if (!wallResult.ok) {
+      setDrawStatus(wallResult.issues[0]?.message ?? copy.draw.failed);
+      refresh();
+      return;
+    }
+
+    anchorNodeId = targetNodeId;
+    setDrawAnchor({ xMm: snapped.xMm, yMm: snapped.yMm });
+    setDrawAnchorNodeId(targetNodeId);
+    setDrawStatus(null);
+    refresh();
+  };
+
+  /** Удаление выбранного элемента. Каскад — только после подтверждения. */
+  const deleteSelected = (cascade: boolean) => {
+    if (!selectedEntity) return;
+    const result = session.dispatch({
+      ...commandEnvelope("DELETE_ENTITY", "delete"),
+      type: "DELETE_ENTITY",
+      payload: { entityId: selectedEntity.id, cascade },
+    });
+    if (!result.ok) {
+      const issue = result.issues[0];
+      if (issue?.code === "ENTITY_HAS_DEPENDENTS" && !cascade) {
+        if (window.confirm(copy.delete.confirmCascade)) {
+          deleteSelected(true);
+          return;
+        }
+        setCommandIssues(result.issues);
+        refresh();
+        return;
+      }
+      setCommandIssues(result.issues);
+      setInspectorError(
+        issue?.code === "ENTITY_LOCKED" ? copy.delete.locked : issue?.message ?? copy.delete.failed,
+      );
+      refresh();
+      return;
+    }
+    setCommandIssues([]);
+    session.select(null);
+    refresh();
+  };
   const fitToView = () => {
     setZoom(1);
     setPanState({ xMm: 0, yMm: 0 });
@@ -1404,6 +1678,28 @@ export function LayoutStudioShell({
 
       <nav className={styles.toolbar} aria-label={copy.toolbar.viewMode}>
         <div className={styles.segmented}>
+          <button
+            type="button"
+            aria-pressed={tool === "select"}
+            onClick={() => {
+              setTool("select");
+              stopDrawing();
+            }}
+          >
+            {copy.draw.toolSelect}
+          </button>
+          <button
+            type="button"
+            aria-pressed={tool === "wall"}
+            // Рисование живёт только на плане: в 3D щёлкать по стенам нечем.
+            disabled={viewMode !== "2d"}
+            onClick={() => {
+              setTool((current) => (current === "wall" ? "select" : "wall"));
+              stopDrawing();
+            }}
+          >
+            {copy.draw.toolWall}
+          </button>
           <button type="button" aria-pressed={viewMode === "2d"} onClick={() => setViewMode("2d")}>{copy.toolbar.twoD}</button>
           <button type="button" aria-pressed={viewMode === "3d"} onClick={() => setViewMode("3d")}>{copy.toolbar.threeD}</button>
         </div>
@@ -1442,6 +1738,11 @@ export function LayoutStudioShell({
               <span>{sessionState.selection ? `${copy.canvas.selected}: ${entityLabel(selectedEntity ?? { id: sessionState.selection })}` : copy.canvas.selectHint}</span>
             </div>
             <span aria-label={copy.common.scale}>1:{Math.round(100 / zoom)}</span>
+            {tool === "wall" && viewMode === "2d" ? (
+              <span role="status">
+                {drawStatus ?? (drawAnchor ? copy.draw.hint : copy.draw.hintFirst)}
+              </span>
+            ) : null}
           </div>
           <div className={styles.canvasFrame}>
             {viewMode === "2d" ? (
@@ -1455,6 +1756,9 @@ export function LayoutStudioShell({
                 selection={sessionState.selection}
                 onSelect={select}
                 onPan={setPanState}
+                tool={tool}
+                drawAnchor={drawAnchor}
+                onDrawPoint={handleDrawPoint}
               />
             ) : (
               <SceneCanvas document={document} layers={layers} selection={sessionState.selection} onSelect={select} />
@@ -1470,6 +1774,7 @@ export function LayoutStudioShell({
             onDraft={(key, value) => setDraft((current) => ({ ...current, [key]: value }))}
             onApply={applyInspector}
             onReset={() => setDraft(draftForEntity(selectedEntity))}
+            onDelete={() => deleteSelected(false)}
           />
           <ValidationPanel issues={allIssues} />
           <HistoryPanel
