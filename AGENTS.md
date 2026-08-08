@@ -69,15 +69,24 @@ contracts до отдельно принятой безопасной мигра
 ## Что не строить сейчас
 
 - US/multi-region runtime или отдельную американскую кодовую базу;
-- native CAD/BIM, DWG editor или собственный 3D/render engine;
+- паритет с CAD/BIM: слои, размерные цепи, узлы, чтение и запись DWG/IFC и прочих
+  обменных форматов САПР (собственный редактор планировок с 2D/3D и вводом
+  геометрии мышью **разрешён** решением ADR-0006 — геометрия является способом
+  ввода проектного решения, а не продуктом);
 - полный ERP, бухгалтерию, склад, payroll, marketplace или универсальный task/calendar;
 - юридически значимую собственную ЭП без выбранного провайдера и legal review;
 - широкий AI Model Router, безлимитный AI или credits billing до provider benchmark,
   unit economics, privacy/legal gate и отдельного принятого execution spec.
 
-M2 Design Workspace и расширенный платный M4 из Charter являются целевым состоянием.
-Их широкий build не начинается раньше authenticated pilot и выбора первого платящего
-wedge. До этого разрешены только узкие совместимые contracts и concierge fallback.
+**M2 Design Workspace открыт решением ADR-0006 от 08.08.2026.** Его
+Decisions/Selections/Approvals реализованы (PR #66), редактор планировок
+внедряется отдельно и выключен флагом `ARCHIDOM_LAYOUT_STUDIO_ENABLED`.
+Это НЕ снимает требование провести через те же contracts минимум один внешний
+реальный пакет до заморозки широкого M2–M4: цикл 7 остаётся открытым.
+
+Расширенный платный M4 из Charter остаётся целевым состоянием. Его широкий build
+не начинается раньше authenticated pilot и выбора первого платящего wedge. До
+этого разрешены только узкие совместимые contracts и concierge fallback.
 
 ## Definition of Done
 
