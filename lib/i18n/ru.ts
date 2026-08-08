@@ -1772,7 +1772,11 @@ export const ru = {
       checkpointCreated: "Контрольная точка создана",
       checkpointRestored: "Контрольная точка восстановлена как новая ревизия черновика",
       restore: "Восстановить",
-      versionCreated: "Неизменяемая версия создана",
+      versionCreated: "Версия зафиксирована — изменить её больше нельзя",
+      // §8.2 позиционирования: «подписано» говорит по-человечески, хеш — в
+      // деталях для проверяющих, не в лицо пользователю.
+      versionFixed: (id: string, date: string) => `Версия ${id} · зафиксирована ${date}`,
+      versionDetails: "Подпись для проверяющих",
       draftLoaded: "Черновик загружен с сервера",
       draftSaved: "Черновик сохранён на сервере",
       storageUnavailable: "Хранилище пока недоступно",
@@ -1861,6 +1865,7 @@ export const ru = {
       svg: "SVG",
       png: "PNG",
       glb: "GLB",
+      dxf: "DXF",
       print: "Печатная сводка",
       download: (format: string) => `Экспорт ${format}`,
       glbDescriptorNote: "GLB собирается из проверенного описания сцены — без обращений наружу.",

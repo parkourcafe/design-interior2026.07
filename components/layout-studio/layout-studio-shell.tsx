@@ -1198,6 +1198,19 @@ function formatRub(amount: number): string {
   return amount.toLocaleString("ru-RU");
 }
 
+/** «08.08.2026, 14:32» — дата фиксации версии по-человечески (§8.2). */
+function formatVersionDate(createdAt: string): string {
+  const parsed = new Date(createdAt);
+  if (Number.isNaN(parsed.getTime())) return createdAt;
+  return parsed.toLocaleString("ru-RU", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
+
 /**
  * «Во что обошлось» (§8.1): материалы варианта с ценами и влияние на бюджет.
  *
@@ -1466,7 +1479,15 @@ function HistoryPanel({
         <div>
           <b>{copy.history.versionsLabel}</b>
           {versions.length === 0 ? <p>{copy.history.noVersions}</p> : versions.map((item) => (
-            <span key={item.id}>{item.id}</span>
+            <span key={item.id}>
+              {copy.history.versionFixed(item.id, formatVersionDate(item.createdAt))}
+              {item.semanticHash && (
+                <details>
+                  <summary>{copy.history.versionDetails}</summary>
+                  <code>{item.semanticHash}</code>
+                </details>
+              )}
+            </span>
           ))}
         </div>
       </div>
@@ -1500,13 +1521,14 @@ function HistoryPanel({
 function ExportPanel({
   onExport,
 }: {
-  readonly onExport: (format: "json" | "svg" | "png" | "glb" | "print") => void;
+  readonly onExport: (format: "json" | "svg" | "png" | "glb" | "print" | "dxf") => void;
 }) {
   const controls = [
     ["json", copy.export.json],
     ["svg", copy.export.svg],
     ["png", copy.export.png],
     ["glb", copy.export.glb],
+    ["dxf", copy.export.dxf],
     ["print", copy.export.print],
   ] as const;
   return (
@@ -1991,7 +2013,7 @@ export function LayoutStudioShell({
     setDiffSummary(diff);
   };
 
-  const exportArtifact = async (format: "json" | "svg" | "png" | "glb" | "print") => {
+  const exportArtifact = async (format: "json" | "svg" | "png" | "glb" | "print" | "dxf") => {
     try {
       if (!repository || !latestPublished?.semanticHash) {
         setHistoryStatus(copy.export.publishRequired);
@@ -2011,7 +2033,10 @@ export function LayoutStudioShell({
         );
       };
 
-      if (format === "json" || format === "svg" || format === "glb" || format === "print") {
+      if (
+        format === "json" || format === "svg" || format === "glb" ||
+        format === "print" || format === "dxf"
+      ) {
         const exported = await new LayoutExportService({
           repository,
           generatorVersion: "archidom-layout-studio-preview/0.1",

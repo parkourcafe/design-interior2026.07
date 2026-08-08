@@ -1,3 +1,4 @@
+import { exportLayoutToDxf } from "@/lib/layout-studio/adapters/dxf/dxf-export";
 import {
   createSvgProjection,
   serializeSvgProjection,
@@ -48,7 +49,7 @@ export interface LayoutVersionReader {
   loadVersion(versionId: string): Promise<ExportableLayoutVersion | null>;
 }
 
-export type LayoutExportFormat = "json" | "svg" | "glb" | "print";
+export type LayoutExportFormat = "json" | "svg" | "glb" | "print" | "dxf";
 
 export type LayoutExportArtifact = string | Uint8Array<ArrayBuffer>;
 
@@ -181,12 +182,14 @@ function buildSchedule(document: LayoutDocument): PrintScheduleRow[] {
 
 const FORMAT_DETAILS: Record<
   LayoutExportFormat,
-  { extension: "json" | "svg" | "glb" | "html"; mimeType: string }
+  { extension: "json" | "svg" | "glb" | "html" | "dxf"; mimeType: string }
 > = {
   json: { extension: "json", mimeType: "application/json" },
   svg: { extension: "svg", mimeType: "image/svg+xml" },
   glb: { extension: "glb", mimeType: "model/gltf-binary" },
   print: { extension: "html", mimeType: "text/html" },
+  // MIME DXF не стандартизован; image/vnd.dxf — самый распространённый вариант.
+  dxf: { extension: "dxf", mimeType: "image/vnd.dxf" },
 };
 
 export class LayoutExportService {
@@ -198,7 +201,7 @@ export class LayoutExportService {
 
   async exportVersion(
     versionId: string,
-    format: "json" | "svg" | "print",
+    format: "json" | "svg" | "print" | "dxf",
   ): Promise<LayoutExportResult<string>>;
   async exportVersion(
     versionId: string,
@@ -286,6 +289,12 @@ export class LayoutExportService {
           semanticHash: version.semanticHash,
           warnings,
           schedule: buildSchedule(version.content),
+        });
+        break;
+      case "dxf":
+        artifact = exportLayoutToDxf(version.content, derived, {
+          versionId: version.versionId,
+          semanticHash: version.semanticHash,
         });
         break;
     }
