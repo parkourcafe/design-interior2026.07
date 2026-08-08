@@ -12,6 +12,10 @@ import type {
 } from "three";
 
 import { HttpLayoutRepository } from "@/lib/layout-studio/adapters/http/http-layout-repository";
+import {
+  WorkspaceBudgetClient,
+  type BudgetSnapshot,
+} from "@/lib/layout-studio/adapters/http/workspace-budget-client";
 import { LayoutRepositoryError } from "@/lib/layout-studio/adapters/local/memory-layout-repository";
 import {
   ROOM_ID_PATTERN,
@@ -1189,6 +1193,224 @@ function WorkspacePanel({
   );
 }
 
+/** Целые рубли с русскими разрядами: 1234500 → «1 234 500». */
+function formatRub(amount: number): string {
+  return amount.toLocaleString("ru-RU");
+}
+
+/**
+ * «Во что обошлось» (§8.1): материалы варианта с ценами и влияние на бюджет.
+ *
+ * Движок денег — контур projectceo (append-only ревизии, целые рубли);
+ * панель читает его проекцию и шлёт его команды через WorkspaceBudgetClient.
+ * Без привязки к пакету бюджета нет — и панель говорит об этом словами.
+ */
+function BudgetPanel({
+  binding,
+  document,
+  roomAreaMm2,
+}: {
+  readonly binding: WorkspaceBinding | null;
+  readonly document: LayoutDocument;
+  readonly roomAreaMm2: number;
+}) {
+  const [snapshot, setSnapshot] = useState<BudgetSnapshot | null>(null);
+  const [phase, setPhase] = useState<"idle" | "loading" | "ready" | "failed">("idle");
+  const [message, setMessage] = useState<string | null>(null);
+  const [form, setForm] = useState({ name: "", supplierRef: "", unit: "", unitCost: "", quantity: "" });
+  const [saving, setSaving] = useState(false);
+
+  const variantId = document.variant.id;
+  const client = useMemo(
+    () => (binding ? new WorkspaceBudgetClient(binding, variantId) : null),
+    [binding, variantId],
+  );
+
+  useEffect(() => {
+    if (!client) {
+      setSnapshot(null);
+      setPhase("idle");
+      return;
+    }
+    let cancelled = false;
+    setPhase("loading");
+    client
+      .loadSnapshot()
+      .then((next) => {
+        if (cancelled) return;
+        setSnapshot(next);
+        setPhase("ready");
+      })
+      .catch(() => {
+        if (!cancelled) setPhase("failed");
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [client]);
+
+  const roomAreaM2 = Math.round(roomAreaMm2 / 1_000_000);
+
+  const addMaterial = async () => {
+    if (!client) return;
+    const name = form.name.trim();
+    const unitCostRub = Number(form.unitCost);
+    const quantity = Number(form.quantity);
+    if (name.length === 0) {
+      setMessage(copy.budget.nameRequired);
+      return;
+    }
+    if (
+      !Number.isInteger(unitCostRub) || unitCostRub < 0 ||
+      !Number.isInteger(quantity) || quantity < 1
+    ) {
+      setMessage(copy.budget.invalidNumbers);
+      return;
+    }
+    setSaving(true);
+    setMessage(null);
+    try {
+      const next = await client.addMaterial({
+        name,
+        supplierRef: form.supplierRef.trim(),
+        unit: form.unit.trim() || "шт",
+        unitCostRub,
+        quantity,
+        roomName: document.name,
+        roomAreaM2,
+        variantTitle: `${document.name} — ${document.variant.label ?? variantId}`,
+      });
+      setSnapshot(next);
+      setForm({ name: "", supplierRef: "", unit: "", unitCost: "", quantity: "" });
+      setMessage(copy.budget.added);
+    } catch (error) {
+      const coded = error as { code?: string; message?: string };
+      setMessage(
+        coded?.code === "ROOM_AREA_UNDEFINED"
+          ? copy.budget.areaUndefined
+          : `${copy.budget.addFailed} ${storageErrorMessage(error)}`,
+      );
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const overBy = snapshot?.frame ? snapshot.totalRub - snapshot.frame.maxRub : 0;
+
+  return (
+    <section className={styles.sideSection}>
+      <h2>{copy.budget.title}</h2>
+      {!binding && <p className={styles.muted}>{copy.budget.needsBinding}</p>}
+      {binding && phase === "loading" && <p>{copy.budget.loading}</p>}
+      {binding && phase === "failed" && (
+        <>
+          <p role="alert">{copy.budget.loadFailed}</p>
+          <button
+            type="button"
+            onClick={() => {
+              setPhase("loading");
+              client
+                ?.loadSnapshot()
+                .then((next) => {
+                  setSnapshot(next);
+                  setPhase("ready");
+                })
+                .catch(() => setPhase("failed"));
+            }}
+          >
+            {copy.budget.reload}
+          </button>
+        </>
+      )}
+      {binding && phase === "ready" && snapshot && (
+        <>
+          <p>
+            <b>{copy.budget.totalLabel}:</b>{" "}
+            {snapshot.materials.length === 0 ? copy.budget.noMaterials : `${formatRub(snapshot.totalRub)} ₽`}
+          </p>
+          <p className={styles.muted}>
+            <b>{copy.budget.frameLabel}:</b>{" "}
+            {snapshot.frame
+              ? copy.budget.frameValue(
+                  formatRub(snapshot.frame.minRub),
+                  formatRub(snapshot.frame.maxRub),
+                  snapshot.frame.contingencyPct,
+                )
+              : copy.budget.noFrame}
+          </p>
+          {snapshot.frame && snapshot.materials.length > 0 && (
+            <p role={overBy > 0 ? "alert" : undefined}>
+              {overBy > 0 ? copy.budget.overFrame(formatRub(overBy)) : copy.budget.withinFrame}
+            </p>
+          )}
+          {snapshot.materials.length > 0 && (
+            <div>
+              <b>{copy.budget.materialsLabel}</b>
+              <ul className={styles.diffFields}>
+                {snapshot.materials.map((material) => (
+                  <li key={material.materialId}>
+                    {material.name} · {copy.budget.quantityUnit(material.quantity, material.unit)} ×{" "}
+                    {formatRub(material.unitCostRub)} ₽ = {formatRub(material.costRub)} ₽
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+          <div className={styles.historyActions}>
+            <b>{copy.budget.addTitle}</b>
+            {!snapshot.roomRegistered && (
+              <p className={styles.muted}>
+                {roomAreaM2 >= 1
+                  ? copy.budget.areaFromContour(roomAreaM2)
+                  : copy.budget.areaUndefined}
+              </p>
+            )}
+            <label htmlFor="budget-name">{copy.budget.nameLabel}</label>
+            <input
+              id="budget-name"
+              value={form.name}
+              onChange={(event) => setForm((current) => ({ ...current, name: event.target.value }))}
+            />
+            <label htmlFor="budget-supplier">{copy.budget.supplierLabel}</label>
+            <input
+              id="budget-supplier"
+              value={form.supplierRef}
+              onChange={(event) =>
+                setForm((current) => ({ ...current, supplierRef: event.target.value }))}
+            />
+            <label htmlFor="budget-unit">{copy.budget.unitLabel}</label>
+            <input
+              id="budget-unit"
+              value={form.unit}
+              onChange={(event) => setForm((current) => ({ ...current, unit: event.target.value }))}
+            />
+            <label htmlFor="budget-unit-cost">{copy.budget.unitCostLabel}</label>
+            <input
+              id="budget-unit-cost"
+              inputMode="numeric"
+              value={form.unitCost}
+              onChange={(event) =>
+                setForm((current) => ({ ...current, unitCost: event.target.value }))}
+            />
+            <label htmlFor="budget-quantity">{copy.budget.quantityLabel}</label>
+            <input
+              id="budget-quantity"
+              inputMode="numeric"
+              value={form.quantity}
+              onChange={(event) =>
+                setForm((current) => ({ ...current, quantity: event.target.value }))}
+            />
+            <button type="button" disabled={saving} onClick={() => void addMaterial()}>
+              {saving ? copy.budget.adding : copy.budget.add}
+            </button>
+          </div>
+          {message && <p role="status">{message}</p>}
+        </>
+      )}
+    </section>
+  );
+}
+
 /**
  * Чтения контура приходят в конверте {data, error}; всё остальное — ошибка
  * загрузки, включая «данные есть, но error не null».
@@ -1995,6 +2217,11 @@ export function LayoutStudioShell({
             documentName={document.name}
             documentId={document.documentId}
             onBind={bindWorkspace}
+          />
+          <BudgetPanel
+            binding={workspaceBinding}
+            document={document}
+            roomAreaMm2={derived.roomAreaMm2}
           />
           <HistoryPanel
             checkpoints={checkpoints}
