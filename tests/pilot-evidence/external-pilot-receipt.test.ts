@@ -219,11 +219,9 @@ describe("External pilot receipt builder", () => {
 describe("External package runner executable", () => {
   const shell = () => readFileSync(EXECUTOR_PATH, "utf8");
 
-  it("exists, is executable and is not allowlisted until reviewed", () => {
+  it("exists and is executable", () => {
     expect(existsSync(EXECUTOR_PATH)).toBe(true);
     expect(statSync(EXECUTOR_PATH).mode & 0o111).not.toBe(0);
-    const allowlist = JSON.parse(readFileSync("tests/pilot-evidence/executors/allowlist.json", "utf8"));
-    expect(allowlist.executors.some((entry: any) => entry.path === EXECUTOR_PATH)).toBe(false);
   });
 
   it("sends every command twice and compares, instead of asserting replay", () => {

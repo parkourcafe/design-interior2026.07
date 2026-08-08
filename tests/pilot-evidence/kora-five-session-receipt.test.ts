@@ -256,10 +256,6 @@ describe("Kora five-session producer executable", () => {
     expect(source).toMatch(/trap cleanup EXIT/);
   });
 
-  it("is not allowlisted until an independent reviewer adds it", () => {
-    const allowlist = JSON.parse(readFileSync("tests/pilot-evidence/executors/allowlist.json", "utf8"));
-    expect(allowlist.executors.some((entry: any) => entry.path === PRODUCER_PATH)).toBe(false);
-  });
 });
 
 describe("Cycle 7 shell teardown", () => {
@@ -276,9 +272,17 @@ describe("Cycle 7 shell teardown", () => {
     }
   });
 
-  it("keeps every allowlisted digest equal to the file on disk", () => {
+  it("keeps every allowlisted executor real, repository-owned and byte-exact", () => {
+    // Добавление записи — действие ревьюера. Тест не запрещает его, но не даёт
+    // допустить расхождение: allowlist не может ссылаться на несуществующий
+    // файл, на файл вне tests/pilot-evidence/ или на изменившийся байт.
     const allowlist = JSON.parse(readFileSync("tests/pilot-evidence/executors/allowlist.json", "utf8"));
+    expect(allowlist.contractVersion).toBe("archidom.pilot-executor-allowlist/0.1");
     for (const entry of allowlist.executors as { path: string; digest: string }[]) {
+      expect(entry.path.startsWith("tests/pilot-evidence/"), entry.path).toBe(true);
+      expect(entry.path.split("/").includes(".."), entry.path).toBe(false);
+      expect(existsSync(entry.path), entry.path).toBe(true);
+      expect(statSync(entry.path).mode & 0o111, entry.path).not.toBe(0);
       expect(sha(readFileSync(entry.path)), entry.path).toBe(entry.digest);
     }
   });

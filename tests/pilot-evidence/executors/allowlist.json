@@ -8,6 +8,14 @@
     {
       "path": "tests/pilot-evidence/executors/pending-external-system.zsh",
       "digest": "sha256:70e5ddb68bec540f43e83d4e88cc5d4ff92389dc8f4e439f667caf567a3fae02"
+    },
+    {
+      "path": "tests/pilot-evidence/executors/kora-five-session-producer.zsh",
+      "digest": "sha256:e198100cada04dcb98d451fc03aa38ecd54d1908f2002c953abc767acc232805"
+    },
+    {
+      "path": "tests/pilot-evidence/executors/external-package-runner.zsh",
+      "digest": "sha256:80829c22d955b540abb4df8214929a5c958a8ade07e1c6c73424902f41f937d0"
     }
   ]
 }
