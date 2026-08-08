@@ -163,12 +163,14 @@ describe("Layout Studio delivery/UI slice", () => {
     expect(violations).toEqual([]);
   });
 
-  it("does not add or rewrite Supabase migrations for the local-only experiment", () => {
-    // Снимок миграций основной ветки на момент переноса модуля. Смысл проверки —
-    // не «список именно такой», а «Layout Studio не добавил и не переписал
-    // ни одной миграции»: модуль работает целиком в браузере. Обновлять этот
-    // список можно только вместе с миграцией, добавленной ДРУГИМ модулем.
-    const expectedBaseline = [
+  // До 08.08.2026 модуль работал целиком в браузере, и здесь стояла проверка
+  // «Layout Studio не добавляет миграций вообще». С появлением серверного
+  // хранения она устарела: миграция есть. Инвариант, который реально важен и
+  // который эту проверку заменяет, — миграция АДДИТИВНА: ни один существующий
+  // файл не удалён и не переименован. Именно это делало опасной ветку-источник
+  // codex/archidom-layout-studio-m2, которая удаляла 0001_init…0006_team.
+  it("adds migrations only additively: no pre-existing migration disappears", () => {
+    const preExisting = [
       "0001_init.sql",
       "0002_client_briefs.sql",
       "0003_custom_questions.sql",
@@ -194,6 +196,41 @@ describe("Layout Studio delivery/UI slice", () => {
       .map((entry) => basename(entry.name))
       .sort();
 
-    expect(actual).toEqual(expectedBaseline);
+    for (const name of preExisting) {
+      expect(actual, `миграция ${name} исчезла — историю схемы переписывать нельзя`)
+        .toContain(name);
+    }
+
+    // Единственная миграция, которую добавляет сам Layout Studio. Любая другая
+    // новая — чужая, и тогда обновляется список preExisting, а не этот.
+    const added = actual.filter((name) => !preExisting.includes(name));
+    expect(added).toEqual(["20260808050000_layout_studio_documents.sql"]);
+  });
+
+  it("keeps the layout migration on the hardened RLS pattern", () => {
+    // 0008_platform_security_hardening отозвал public.is_studio_member(uuid,uuid)
+    // у роли authenticated: функция была доступна через публичный Data API.
+    // Правильный помощник — private.is_studio_member(owner). Проверка ловит
+    // возврат к дореформенному шаблону, скопированному из 0006_team.
+    const raw = readFileSync(
+      join(repoRoot, "supabase/migrations/20260808050000_layout_studio_documents.sql"),
+      "utf8",
+    );
+    // Сверяем исполняемый SQL, а не комментарии: комментарий вправе объяснять,
+    // почему дореформенный помощник здесь НЕ используется.
+    const sql = raw.replace(/--[^\n]*/g, "");
+
+    expect(sql).not.toMatch(/public\.is_studio_member\s*\(/);
+    expect(sql).toMatch(/private\.is_studio_member\s*\(/);
+
+    for (const table of ["layout_documents", "layout_checkpoints", "layout_versions"]) {
+      expect(sql, `${table}: RLS не включён`)
+        .toContain(`alter table public.${table} enable row level security`);
+      expect(sql, `${table}: политика не ограничена ролью authenticated`)
+        .toMatch(new RegExp(`on public\\.${table}\\s+for all to authenticated`));
+    }
+
+    // Опубликованная версия неизменяема на уровне БД, а не только приложения.
+    expect(sql).toMatch(/before update or delete on public\.layout_versions/);
   });
 });
