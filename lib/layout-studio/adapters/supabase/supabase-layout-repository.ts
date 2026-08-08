@@ -5,6 +5,7 @@ import {
   type LayoutDocument,
   type LayoutDocumentDiff,
 } from "@/lib/layout-studio/domain";
+import type { LayoutRepositoryPort } from "@/lib/layout-studio/application/layout-repository-port";
 import {
   LayoutRepositoryError,
   type CheckpointInput,
@@ -99,7 +100,7 @@ function toCheckpoint(row: CheckpointRow): LayoutCheckpoint {
   };
 }
 
-export class SupabaseLayoutRepository {
+export class SupabaseLayoutRepository implements LayoutRepositoryPort {
   constructor(private readonly client: LayoutSupabaseClient) {}
 
   /**
@@ -156,17 +157,69 @@ export class SupabaseLayoutRepository {
     }
   }
 
-  async saveDraft(document: LayoutDocument, parentVersionId: string | null): Promise<void> {
+  /**
+   * Сохранить черновик с защитой от потери чужих правок.
+   *
+   * Условие «ревизия в базе = ожидаемая» проверяется НЕ отдельным запросом, а
+   * фильтром самого UPDATE. Иначе между чтением и записью помещается правка из
+   * другой вкладки, и она молча пропадает. Пустой результат = кто-то успел
+   * раньше.
+   */
+  async saveDraft(document: LayoutDocument, expectedRevision: number | null): Promise<void> {
     const row = await this.requireDocument(document.documentId);
-    const { error } = await this.client
+    const patch = { draft: document, updated_at: new Date().toISOString() };
+
+    if (expectedRevision === null) {
+      const { error } = await this.client
+        .from("layout_documents")
+        .update(patch)
+        .eq("id", row.id);
+      if (error) throw new LayoutRepositoryError("STORAGE_UNAVAILABLE", error.message);
+      return;
+    }
+
+    const { data, error } = await this.client
       .from("layout_documents")
-      .update({
-        draft: document,
-        parent_version_id: parentVersionId,
-        updated_at: new Date().toISOString(),
-      })
-      .eq("id", row.id);
+      .update(patch)
+      .eq("id", row.id)
+      // ->> отдаёт текст, поэтому сравнение со строкой.
+      .eq("draft->>stateRevision", String(expectedRevision))
+      .select("id");
     if (error) throw new LayoutRepositoryError("STORAGE_UNAVAILABLE", error.message);
+    if (!data || (data as unknown[]).length === 0) {
+      throw new LayoutRepositoryError(
+        "STATE_STALE",
+        "Черновик основан на устаревшей ревизии документа",
+      );
+    }
+  }
+
+  /**
+   * Вернуть черновик к состоянию чекпойнта. Ревизия растёт, а не откатывается:
+   * восстановление — это ещё одна правка, иначе защита от устаревшей ревизии
+   * начала бы конфликтовать сама с собой.
+   */
+  async restoreCheckpoint(
+    checkpointId: string,
+    expectedRevision: number,
+  ): Promise<LayoutDocument> {
+    const checkpoint = await this.loadCheckpoint(checkpointId);
+    if (!checkpoint) {
+      throw new LayoutRepositoryError("CHECKPOINT_NOT_FOUND", "Checkpoint не найден");
+    }
+
+    const current = await this.loadDraft(checkpoint.documentId);
+    if (!current || current.stateRevision !== expectedRevision) {
+      throw new LayoutRepositoryError(
+        "STATE_STALE",
+        "Восстановление основано на устаревшей ревизии документа",
+      );
+    }
+
+    const restored = structuredClone(checkpoint.document);
+    restored.stateRevision = current.stateRevision + 1;
+    await this.saveDraft(restored, expectedRevision);
+    return restored;
   }
 
   async loadDraft(documentId: string): Promise<LayoutDocument | null> {
@@ -290,6 +343,15 @@ export class SupabaseLayoutRepository {
       }
       throw new LayoutRepositoryError("STORAGE_UNAVAILABLE", error.message);
     }
+
+    // Черновик теперь происходит от только что опубликованной версии. Пишется
+    // здесь, а не в saveDraft: saveDraft вызывается на каждую правку, и
+    // происхождение там неоткуда взять.
+    await this.client
+      .from("layout_documents")
+      .update({ parent_version_id: input.versionId })
+      .eq("id", row.id);
+
     return toVersion(data as VersionRow);
   }
 

@@ -67,7 +67,18 @@ class FakePostgrest {
 
       _matched() {
         return rows.filter((row) =>
-          query._filters.every(([column, value]) => row[column] === value),
+          query._filters.every(([column, value]) => {
+            // PostgREST-фильтр по полю внутри jsonb: draft->>stateRevision.
+            // Именно на нём держится защита от потери чужих правок, поэтому
+            // подделка обязана его понимать, а не игнорировать.
+            const jsonPath = /^(\w+)->>(\w+)$/.exec(column);
+            if (jsonPath) {
+              const [, field, key] = jsonPath as unknown as [string, string, string];
+              const container = row[field] as Record<string, unknown> | undefined;
+              return String(container?.[key]) === value;
+            }
+            return row[column] === value;
+          }),
         );
       },
 
@@ -93,7 +104,9 @@ class FakePostgrest {
         }
         const target = query._matched();
         target.forEach((row) => Object.assign(row, pending.payload));
-        return { data: target[0] ?? null, error: null };
+        // UPDATE возвращает НАБОР задетых строк: пустой набор — это и есть
+        // сигнал «условие не совпало, кто-то успел раньше».
+        return { data: target, error: null };
       },
 
       async maybeSingle() {
@@ -157,6 +170,63 @@ describe("SupabaseLayoutRepository: контракт совпадает с ло�
 
     const loaded = await repository.loadDraft(BASE.documentId);
     expect(loaded?.stateRevision).toBe(BASE.stateRevision + 1);
+  });
+
+  it("не даёт затереть чужую правку устаревшей ревизией", async () => {
+    // Вкладка А и вкладка Б открыли одну планировку на ревизии N.
+    const fromTabA = { ...structuredClone(BASE), stateRevision: BASE.stateRevision + 1 };
+    await repository.saveDraft(fromTabA, BASE.stateRevision);
+
+    // Вкладка Б всё ещё думает, что в базе ревизия N, и пишет поверх.
+    const fromTabB = { ...structuredClone(BASE), stateRevision: BASE.stateRevision + 1 };
+    await expect(repository.saveDraft(fromTabB, BASE.stateRevision)).rejects.toMatchObject({
+      code: "STATE_STALE",
+    });
+
+    // Правка вкладки А на месте — она не была затёрта молча.
+    const loaded = await repository.loadDraft(BASE.documentId);
+    expect(loaded?.stateRevision).toBe(BASE.stateRevision + 1);
+  });
+
+  it("сохраняет без проверки, когда ревизия не заявлена", async () => {
+    const edited = { ...structuredClone(BASE), stateRevision: BASE.stateRevision + 7 };
+    await expect(repository.saveDraft(edited, null)).resolves.toBeUndefined();
+    expect((await repository.loadDraft(BASE.documentId))?.stateRevision).toBe(
+      BASE.stateRevision + 7,
+    );
+  });
+
+  it("восстанавливает чекпойнт вперёд по ревизии, а не назад", async () => {
+    await repository.createCheckpoint(BASE, {
+      checkpointId: "checkpoint.restore",
+      reasonCode: "OWNER_CHECKPOINT",
+      reason: "Снимок",
+      createdAt: "2026-08-08T10:00:00.000Z",
+    });
+    const edited = { ...structuredClone(BASE), stateRevision: BASE.stateRevision + 1 };
+    await repository.saveDraft(edited, BASE.stateRevision);
+
+    const restored = await repository.restoreCheckpoint(
+      "checkpoint.restore",
+      BASE.stateRevision + 1,
+    );
+
+    // Содержимое — как в снимке, а ревизия выросла: восстановление это правка,
+    // а не путешествие во времени.
+    expect(restored.stateRevision).toBe(BASE.stateRevision + 2);
+    expect(restored.walls.length).toBe(BASE.walls.length);
+  });
+
+  it("отклоняет восстановление на устаревшей ревизии", async () => {
+    await repository.createCheckpoint(BASE, {
+      checkpointId: "checkpoint.stale",
+      reasonCode: "OWNER_CHECKPOINT",
+      reason: "Снимок",
+      createdAt: "2026-08-08T10:00:00.000Z",
+    });
+    await expect(
+      repository.restoreCheckpoint("checkpoint.stale", BASE.stateRevision + 99),
+    ).rejects.toMatchObject({ code: "STATE_STALE" });
   });
 
   it("не выдаёт черновик несуществующей планировки", async () => {

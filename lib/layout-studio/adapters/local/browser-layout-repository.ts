@@ -12,6 +12,7 @@ import {
   type LayoutVersion,
   type VersionPublicationInput,
 } from "@/lib/layout-studio/adapters/local/memory-layout-repository";
+import type { LayoutRepositoryPort } from "@/lib/layout-studio/application/layout-repository-port";
 
 export interface BrowserStorage {
   readonly length: number;
@@ -59,7 +60,7 @@ function isQuotaExceeded(error: unknown): boolean {
   );
 }
 
-export class BrowserLayoutRepository {
+export class BrowserLayoutRepository implements LayoutRepositoryPort {
   private readonly storage: BrowserStorage;
   private readonly keyPrefix: string;
   private readonly pendingVersionIds = new Set<string>();
