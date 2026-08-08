@@ -1,0 +1,664 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://archidom.example/schemas/layout-document-v0.1.schema.json",
+  "title": "ArchiDom Layout Document v0.1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "contractVersion",
+    "documentId",
+    "projectId",
+    "name",
+    "canonicalUnits",
+    "stateRevision",
+    "floor",
+    "variant",
+    "nodes",
+    "walls",
+    "openings",
+    "columns",
+    "objects",
+    "clearanceZones",
+    "materials",
+    "materialAssignments",
+    "lights",
+    "metadata"
+  ],
+  "properties": {
+    "contractVersion": {
+      "const": "archidom.layout-document/0.1"
+    },
+    "documentId": {
+      "$ref": "#/$defs/stableId"
+    },
+    "projectId": {
+      "$ref": "#/$defs/stableId"
+    },
+    "name": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 160
+    },
+    "canonicalUnits": {
+      "const": "mm"
+    },
+    "stateRevision": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "floor": {
+      "$ref": "#/$defs/floor"
+    },
+    "variant": {
+      "$ref": "#/$defs/variant"
+    },
+    "nodes": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/node"
+      }
+    },
+    "walls": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/wall"
+      }
+    },
+    "openings": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/opening"
+      }
+    },
+    "columns": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/column"
+      }
+    },
+    "objects": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/placedObject"
+      }
+    },
+    "clearanceZones": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/clearanceZone"
+      }
+    },
+    "materials": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/material"
+      }
+    },
+    "materialAssignments": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/materialAssignment"
+      }
+    },
+    "lights": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/light"
+      }
+    },
+    "metadata": {
+      "$ref": "#/$defs/metadata"
+    }
+  },
+  "$defs": {
+    "stableId": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9._-]{2,127}$"
+    },
+    "positiveMm": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 1000000
+    },
+    "coordinateMm": {
+      "type": "integer",
+      "minimum": -1000000,
+      "maximum": 1000000
+    },
+    "rotation": {
+      "enum": [
+        0,
+        90,
+        180,
+        270
+      ]
+    },
+    "color": {
+      "type": "string",
+      "pattern": "^#[0-9A-Fa-f]{6}$"
+    },
+    "point": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "xMm",
+        "yMm"
+      ],
+      "properties": {
+        "xMm": {
+          "$ref": "#/$defs/coordinateMm"
+        },
+        "yMm": {
+          "$ref": "#/$defs/coordinateMm"
+        }
+      }
+    },
+    "floor": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "label",
+        "elevationMm",
+        "clearHeightMm"
+      ],
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/stableId"
+        },
+        "label": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 120
+        },
+        "elevationMm": {
+          "$ref": "#/$defs/coordinateMm"
+        },
+        "clearHeightMm": {
+          "$ref": "#/$defs/positiveMm"
+        }
+      }
+    },
+    "variant": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "label",
+        "status"
+      ],
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/stableId"
+        },
+        "label": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 120
+        },
+        "status": {
+          "enum": [
+            "draft",
+            "review",
+            "approved"
+          ]
+        }
+      }
+    },
+    "node": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "xMm",
+        "yMm",
+        "locked"
+      ],
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/stableId"
+        },
+        "xMm": {
+          "$ref": "#/$defs/coordinateMm"
+        },
+        "yMm": {
+          "$ref": "#/$defs/coordinateMm"
+        },
+        "locked": {
+          "type": "boolean"
+        }
+      }
+    },
+    "wall": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "startNodeId",
+        "endNodeId",
+        "thicknessMm",
+        "heightMm",
+        "kind",
+        "locked",
+        "label"
+      ],
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/stableId"
+        },
+        "startNodeId": {
+          "$ref": "#/$defs/stableId"
+        },
+        "endNodeId": {
+          "$ref": "#/$defs/stableId"
+        },
+        "thicknessMm": {
+          "$ref": "#/$defs/positiveMm"
+        },
+        "heightMm": {
+          "$ref": "#/$defs/positiveMm"
+        },
+        "kind": {
+          "enum": [
+            "existing",
+            "partition"
+          ]
+        },
+        "locked": {
+          "type": "boolean"
+        },
+        "label": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 120
+        }
+      }
+    },
+    "opening": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "parentWallId",
+        "kind",
+        "offsetMm",
+        "widthMm",
+        "heightMm",
+        "sillMm",
+        "locked",
+        "label"
+      ],
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/stableId"
+        },
+        "parentWallId": {
+          "$ref": "#/$defs/stableId"
+        },
+        "kind": {
+          "enum": [
+            "door",
+            "free_opening",
+            "window"
+          ]
+        },
+        "offsetMm": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "widthMm": {
+          "$ref": "#/$defs/positiveMm"
+        },
+        "heightMm": {
+          "$ref": "#/$defs/positiveMm"
+        },
+        "sillMm": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "handing": {
+          "enum": [
+            "left",
+            "right",
+            "double",
+            "none"
+          ]
+        },
+        "locked": {
+          "type": "boolean"
+        },
+        "label": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 120
+        }
+      }
+    },
+    "column": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "xMm",
+        "yMm",
+        "widthMm",
+        "depthMm",
+        "baseZMm",
+        "heightMm",
+        "rotationDeg",
+        "locked",
+        "label"
+      ],
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/stableId"
+        },
+        "xMm": {
+          "$ref": "#/$defs/coordinateMm"
+        },
+        "yMm": {
+          "$ref": "#/$defs/coordinateMm"
+        },
+        "widthMm": {
+          "$ref": "#/$defs/positiveMm"
+        },
+        "depthMm": {
+          "$ref": "#/$defs/positiveMm"
+        },
+        "baseZMm": {
+          "$ref": "#/$defs/coordinateMm"
+        },
+        "heightMm": {
+          "$ref": "#/$defs/positiveMm"
+        },
+        "rotationDeg": {
+          "$ref": "#/$defs/rotation"
+        },
+        "locked": {
+          "type": "boolean"
+        },
+        "label": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 120
+        }
+      }
+    },
+    "placedObject": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "kind",
+        "xMm",
+        "yMm",
+        "zMm",
+        "widthMm",
+        "depthMm",
+        "heightMm",
+        "rotationDeg",
+        "locked",
+        "label"
+      ],
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/stableId"
+        },
+        "kind": {
+          "enum": [
+            "counter",
+            "sink",
+            "equipment",
+            "decor",
+            "service"
+          ]
+        },
+        "catalogKey": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 160
+        },
+        "xMm": {
+          "$ref": "#/$defs/coordinateMm"
+        },
+        "yMm": {
+          "$ref": "#/$defs/coordinateMm"
+        },
+        "zMm": {
+          "$ref": "#/$defs/coordinateMm"
+        },
+        "widthMm": {
+          "$ref": "#/$defs/positiveMm"
+        },
+        "depthMm": {
+          "$ref": "#/$defs/positiveMm"
+        },
+        "heightMm": {
+          "$ref": "#/$defs/positiveMm"
+        },
+        "rotationDeg": {
+          "$ref": "#/$defs/rotation"
+        },
+        "locked": {
+          "type": "boolean"
+        },
+        "label": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 160
+        },
+        "notes": {
+          "type": "string",
+          "maxLength": 1000
+        }
+      }
+    },
+    "clearanceZone": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "label",
+        "polygon",
+        "severity",
+        "relatedObjectIds"
+      ],
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/stableId"
+        },
+        "label": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 160
+        },
+        "polygon": {
+          "type": "array",
+          "minItems": 3,
+          "items": {
+            "$ref": "#/$defs/point"
+          }
+        },
+        "severity": {
+          "enum": [
+            "info",
+            "warning",
+            "blocking"
+          ]
+        },
+        "relatedObjectIds": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/stableId"
+          }
+        }
+      }
+    },
+    "material": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "labelRu",
+        "baseColor",
+        "roughness",
+        "metalness",
+        "emissive",
+        "emissiveIntensity",
+        "provenance"
+      ],
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/stableId"
+        },
+        "labelRu": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 160
+        },
+        "baseColor": {
+          "$ref": "#/$defs/color"
+        },
+        "roughness": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        },
+        "metalness": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        },
+        "emissive": {
+          "$ref": "#/$defs/color"
+        },
+        "emissiveIntensity": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 100
+        },
+        "textureRef": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 500
+        },
+        "provenance": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 500
+        }
+      }
+    },
+    "materialAssignment": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "targetId",
+        "surfaceRole",
+        "materialId"
+      ],
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/stableId"
+        },
+        "targetId": {
+          "$ref": "#/$defs/stableId"
+        },
+        "surfaceRole": {
+          "enum": [
+            "all",
+            "front",
+            "back",
+            "side",
+            "top",
+            "floor",
+            "ceiling",
+            "interior",
+            "exterior"
+          ]
+        },
+        "materialId": {
+          "$ref": "#/$defs/stableId"
+        }
+      }
+    },
+    "light": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "kind",
+        "xMm",
+        "yMm",
+        "zMm",
+        "color",
+        "intensity",
+        "label"
+      ],
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/stableId"
+        },
+        "kind": {
+          "enum": [
+            "ambient",
+            "directional",
+            "point",
+            "linear_proxy"
+          ]
+        },
+        "xMm": {
+          "$ref": "#/$defs/coordinateMm"
+        },
+        "yMm": {
+          "$ref": "#/$defs/coordinateMm"
+        },
+        "zMm": {
+          "$ref": "#/$defs/coordinateMm"
+        },
+        "color": {
+          "$ref": "#/$defs/color"
+        },
+        "intensity": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 100000
+        },
+        "targetId": {
+          "$ref": "#/$defs/stableId"
+        },
+        "label": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 160
+        }
+      }
+    },
+    "metadata": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "sourceRefs",
+        "warnings"
+      ],
+      "properties": {
+        "sourceRefs": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 500
+          }
+        },
+        "warnings": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "maxLength": 500
+          }
+        }
+      }
+    }
+  }
+}

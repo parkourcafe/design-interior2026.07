@@ -32,7 +32,11 @@ export async function proxy(request: NextRequest) {
   // cookie приходит от браузера и может быть подделана.
   const { data, error } = await supabase.auth.getClaims();
 
-  if ((!data?.claims || error) && request.nextUrl.pathname.startsWith("/dashboard")) {
+  const protectedRoute =
+    request.nextUrl.pathname.startsWith("/dashboard") ||
+    request.nextUrl.pathname.startsWith("/app/layout-studio");
+
+  if ((!data?.claims || error) && protectedRoute) {
     const url = request.nextUrl.clone();
     url.pathname = "/login";
     url.search = "";
@@ -46,6 +50,6 @@ export async function proxy(request: NextRequest) {
 }
 
 export const config = {
-  // Только кабинет дизайнера. Публичные маршруты (/i, /p, /api) не трогаем.
-  matcher: ["/dashboard/:path*"],
+  // Только приватные рабочие пространства. Публичные маршруты (/i, /p, /api) не трогаем.
+  matcher: ["/dashboard/:path*", "/app/layout-studio/:path*"],
 };

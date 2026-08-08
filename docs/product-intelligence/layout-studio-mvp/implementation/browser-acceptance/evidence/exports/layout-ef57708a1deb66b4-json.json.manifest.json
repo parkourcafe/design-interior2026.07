@@ -1,0 +1,21 @@
+{
+  "contractVersion": "archidom.layout-export/0.1",
+  "artifactId": "layout-ef57708a1deb66b4-json",
+  "format": "json",
+  "filename": "layout-ef57708a1deb66b4-json.json",
+  "mimeType": "application/json",
+  "byteLength": 4802,
+  "documentId": "layout.kora.liquid-station",
+  "versionId": "V1",
+  "semanticHash": "ef57708a1deb66b47454901eb9b5af83460bddb19986e116d926f3f455833a11",
+  "artifactChecksum": "26ad022571ffc68c972eb9d5c9580b7ed622f2734b9b7a070dab3dfe75def5d5",
+  "generatedAt": "2026-08-08T01:03:05.734Z",
+  "generatorVersion": "archidom-layout-studio-preview/0.1",
+  "warnings": [
+    "PARTIAL_OWNER_LOCK",
+    "DOOR_HEIGHT_AND_SWING_NOT_SITE_VERIFIED",
+    "COLUMN_ABSOLUTE_AXIS_NOT_SITE_VERIFIED",
+    "EQUIPMENT_SET_OUT_PENDING"
+  ],
+  "disclaimer": "Sidecar manifest относится только к синтетической preview-версии и не является evidence KORA."
+}

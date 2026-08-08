@@ -1,0 +1,348 @@
+{
+  "contractVersion": "archidom.layout-document/0.1",
+  "documentId": "document.synthetic-liquid-station",
+  "projectId": "project.synthetic-layout-demo",
+  "name": "Синтетическая Liquid Station",
+  "canonicalUnits": "mm",
+  "stateRevision": 0,
+  "floor": {
+    "id": "floor.synthetic-liquid-station.main",
+    "label": "Синтетический этаж",
+    "elevationMm": 0,
+    "clearHeightMm": 3000
+  },
+  "variant": {
+    "id": "variant.synthetic-liquid-station.main",
+    "label": "Синтетический вариант",
+    "status": "draft"
+  },
+  "nodes": [
+    {
+      "id": "node.synthetic-liquid-station.nw",
+      "xMm": 0,
+      "yMm": 0,
+      "locked": true
+    },
+    {
+      "id": "node.synthetic-liquid-station.ne",
+      "xMm": 7200,
+      "yMm": 0,
+      "locked": true
+    },
+    {
+      "id": "node.synthetic-liquid-station.se",
+      "xMm": 7200,
+      "yMm": 4600,
+      "locked": true
+    },
+    {
+      "id": "node.synthetic-liquid-station.sw",
+      "xMm": 0,
+      "yMm": 4600,
+      "locked": true
+    }
+  ],
+  "walls": [
+    {
+      "id": "wall.synthetic-liquid-station.north",
+      "startNodeId": "node.synthetic-liquid-station.nw",
+      "endNodeId": "node.synthetic-liquid-station.ne",
+      "thicknessMm": 200,
+      "heightMm": 3000,
+      "kind": "existing",
+      "locked": true,
+      "label": "Северная стена"
+    },
+    {
+      "id": "wall.synthetic-liquid-station.east",
+      "startNodeId": "node.synthetic-liquid-station.ne",
+      "endNodeId": "node.synthetic-liquid-station.se",
+      "thicknessMm": 200,
+      "heightMm": 3000,
+      "kind": "existing",
+      "locked": true,
+      "label": "Восточная стена"
+    },
+    {
+      "id": "wall.synthetic-liquid-station.south",
+      "startNodeId": "node.synthetic-liquid-station.se",
+      "endNodeId": "node.synthetic-liquid-station.sw",
+      "thicknessMm": 200,
+      "heightMm": 3000,
+      "kind": "existing",
+      "locked": true,
+      "label": "Южная стена"
+    },
+    {
+      "id": "wall.synthetic-liquid-station.west",
+      "startNodeId": "node.synthetic-liquid-station.sw",
+      "endNodeId": "node.synthetic-liquid-station.nw",
+      "thicknessMm": 200,
+      "heightMm": 3000,
+      "kind": "existing",
+      "locked": true,
+      "label": "Западная стена"
+    }
+  ],
+  "openings": [
+    {
+      "id": "opening.synthetic-liquid-station.entry-door",
+      "parentWallId": "wall.synthetic-liquid-station.south",
+      "kind": "door",
+      "offsetMm": 650,
+      "widthMm": 1000,
+      "heightMm": 2200,
+      "sillMm": 0,
+      "handing": "left",
+      "locked": true,
+      "label": "Входная дверь"
+    },
+    {
+      "id": "opening.synthetic-liquid-station.service-door",
+      "parentWallId": "wall.synthetic-liquid-station.east",
+      "kind": "door",
+      "offsetMm": 2750,
+      "widthMm": 900,
+      "heightMm": 2100,
+      "sillMm": 0,
+      "handing": "right",
+      "locked": true,
+      "label": "Служебная дверь"
+    }
+  ],
+  "columns": [
+    {
+      "id": "column.synthetic-liquid-station.structural",
+      "xMm": 3350,
+      "yMm": 2050,
+      "widthMm": 250,
+      "depthMm": 250,
+      "baseZMm": 0,
+      "heightMm": 3000,
+      "rotationDeg": 0,
+      "locked": true,
+      "label": "Отдельная колонна 250 × 250"
+    }
+  ],
+  "objects": [
+    {
+      "id": "object.synthetic-liquid-station.front-counter",
+      "kind": "equipment",
+      "xMm": 1200,
+      "yMm": 3150,
+      "zMm": 0,
+      "widthMm": 4300,
+      "depthMm": 700,
+      "heightMm": 1100,
+      "rotationDeg": 0,
+      "locked": false,
+      "label": "Фронтальная стойка"
+    },
+    {
+      "id": "object.synthetic-liquid-station.central-double-sink",
+      "kind": "equipment",
+      "xMm": 2825,
+      "yMm": 1900,
+      "zMm": 0,
+      "widthMm": 1200,
+      "depthMm": 700,
+      "heightMm": 900,
+      "rotationDeg": 0,
+      "locked": false,
+      "label": "Центральная двойная мойка"
+    },
+    {
+      "id": "object.synthetic-liquid-station.rear-coffee-machine",
+      "kind": "equipment",
+      "xMm": 850,
+      "yMm": 450,
+      "zMm": 900,
+      "widthMm": 900,
+      "depthMm": 600,
+      "heightMm": 650,
+      "rotationDeg": 0,
+      "locked": false,
+      "label": "Кофемашина"
+    },
+    {
+      "id": "object.synthetic-liquid-station.rear-refrigerator",
+      "kind": "equipment",
+      "xMm": 1900,
+      "yMm": 450,
+      "zMm": 0,
+      "widthMm": 700,
+      "depthMm": 700,
+      "heightMm": 900,
+      "rotationDeg": 0,
+      "locked": false,
+      "label": "Холодильный модуль"
+    },
+    {
+      "id": "object.synthetic-liquid-station.rear-freezer",
+      "kind": "equipment",
+      "xMm": 2750,
+      "yMm": 450,
+      "zMm": 0,
+      "widthMm": 700,
+      "depthMm": 700,
+      "heightMm": 900,
+      "rotationDeg": 0,
+      "locked": false,
+      "label": "Морозильный модуль"
+    },
+    {
+      "id": "object.synthetic-liquid-station.rear-worktable",
+      "kind": "equipment",
+      "xMm": 3600,
+      "yMm": 450,
+      "zMm": 0,
+      "widthMm": 1400,
+      "depthMm": 700,
+      "heightMm": 900,
+      "rotationDeg": 0,
+      "locked": false,
+      "label": "Рабочий стол"
+    },
+    {
+      "id": "object.synthetic-liquid-station.tall-fridge-left",
+      "kind": "equipment",
+      "xMm": 5350,
+      "yMm": 450,
+      "zMm": 0,
+      "widthMm": 700,
+      "depthMm": 750,
+      "heightMm": 2100,
+      "rotationDeg": 0,
+      "locked": false,
+      "label": "Высокий холодильный шкаф 1"
+    },
+    {
+      "id": "object.synthetic-liquid-station.tall-fridge-right",
+      "kind": "equipment",
+      "xMm": 6200,
+      "yMm": 450,
+      "zMm": 0,
+      "widthMm": 700,
+      "depthMm": 750,
+      "heightMm": 2100,
+      "rotationDeg": 0,
+      "locked": false,
+      "label": "Высокий холодильный шкаф 2"
+    }
+  ],
+  "clearanceZones": [],
+  "materials": [
+    {
+      "id": "material.synthetic-liquid-station.matte-concrete",
+      "labelRu": "Матовый бетон",
+      "baseColor": "#8A8A82",
+      "roughness": 0.9,
+      "metalness": 0,
+      "emissive": "#000000",
+      "emissiveIntensity": 0,
+      "provenance": "synthetic-test-fixture"
+    },
+    {
+      "id": "material.synthetic-liquid-station.stainless-steel",
+      "labelRu": "Нержавеющая сталь",
+      "baseColor": "#B8BDC0",
+      "roughness": 0.35,
+      "metalness": 0.9,
+      "emissive": "#000000",
+      "emissiveIntensity": 0,
+      "provenance": "synthetic-test-fixture"
+    },
+    {
+      "id": "material.synthetic-liquid-station.dark-warm-metal",
+      "labelRu": "Тёмный тёплый металл",
+      "baseColor": "#3B302B",
+      "roughness": 0.6,
+      "metalness": 0.75,
+      "emissive": "#000000",
+      "emissiveIntensity": 0,
+      "provenance": "synthetic-test-fixture"
+    },
+    {
+      "id": "material.synthetic-liquid-station.copper-patina",
+      "labelRu": "Медная патина",
+      "baseColor": "#9A5D3C",
+      "roughness": 0.7,
+      "metalness": 0.55,
+      "emissive": "#000000",
+      "emissiveIntensity": 0,
+      "provenance": "synthetic-test-fixture"
+    },
+    {
+      "id": "material.synthetic-liquid-station.decorative-tile",
+      "labelRu": "Декоративная плитка",
+      "baseColor": "#7C5C45",
+      "roughness": 0.75,
+      "metalness": 0,
+      "emissive": "#000000",
+      "emissiveIntensity": 0,
+      "provenance": "synthetic-test-fixture"
+    }
+  ],
+  "materialAssignments": [
+    {
+      "id": "assignment.synthetic-liquid-station.walls",
+      "targetId": "wall.synthetic-liquid-station.north",
+      "surfaceRole": "all",
+      "materialId": "material.synthetic-liquid-station.matte-concrete"
+    },
+    {
+      "id": "assignment.synthetic-liquid-station.counter",
+      "targetId": "object.synthetic-liquid-station.front-counter",
+      "surfaceRole": "all",
+      "materialId": "material.synthetic-liquid-station.copper-patina"
+    },
+    {
+      "id": "assignment.synthetic-liquid-station.sink",
+      "targetId": "object.synthetic-liquid-station.central-double-sink",
+      "surfaceRole": "all",
+      "materialId": "material.synthetic-liquid-station.stainless-steel"
+    },
+    {
+      "id": "assignment.synthetic-liquid-station.equipment",
+      "targetId": "object.synthetic-liquid-station.rear-coffee-machine",
+      "surfaceRole": "all",
+      "materialId": "material.synthetic-liquid-station.dark-warm-metal"
+    },
+    {
+      "id": "assignment.synthetic-liquid-station.tile",
+      "targetId": "wall.synthetic-liquid-station.south",
+      "surfaceRole": "all",
+      "materialId": "material.synthetic-liquid-station.decorative-tile"
+    }
+  ],
+  "lights": [
+    {
+      "id": "light.synthetic-liquid-station.neutral-task",
+      "kind": "point",
+      "xMm": 3500,
+      "yMm": 1500,
+      "zMm": 2500,
+      "color": "#FFFDF5",
+      "intensity": 1200,
+      "label": "Нейтральный рабочий свет"
+    },
+    {
+      "id": "light.synthetic-liquid-station.warm-decorative",
+      "kind": "point",
+      "xMm": 3500,
+      "yMm": 3400,
+      "zMm": 2350,
+      "color": "#FFB15A",
+      "intensity": 650,
+      "label": "Тёплый декоративный свет"
+    }
+  ],
+  "metadata": {
+    "sourceRefs": [
+      "synthetic:liquid-station-v0.1"
+    ],
+    "warnings": [
+      "Синтетический fixture для тестов; не является evidence KORA или строительной документацией."
+    ]
+  }
+}
