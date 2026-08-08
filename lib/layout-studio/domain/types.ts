@@ -215,6 +215,94 @@ export type LayoutCommand = LayoutCommandBase &
           materialId: string;
         };
       }
+    // ── Создание и удаление ─────────────────────────────────────
+    // До 08.08.2026 движок умел только менять существующее, поэтому
+    // планировку нельзя было ни нарисовать, ни разобрать. Команды ниже
+    // закрывают этот пробел. Целостность ссылок они сами не стерегут: любая
+    // команда, оставившая документ невалидным, откатывается целиком общей
+    // проверкой в конце applyLayoutCommand — один страж вместо десяти.
+    | {
+        type: "ADD_NODE";
+        payload: {
+          nodeId: string;
+          xMm: number;
+          yMm: number;
+        };
+      }
+    | {
+        type: "ADD_WALL";
+        payload: {
+          wallId: string;
+          startNodeId: string;
+          endNodeId: string;
+          thicknessMm: number;
+          heightMm: number;
+          kind?: "existing" | "partition";
+          label?: string;
+        };
+      }
+    | {
+        type: "ADD_OPENING";
+        payload: {
+          openingId: string;
+          parentWallId: string;
+          kind: "door" | "free_opening" | "window";
+          offsetMm: number;
+          widthMm: number;
+          heightMm: number;
+          sillMm: number;
+          handing?: "left" | "right" | "double" | "none";
+          label?: string;
+        };
+      }
+    | {
+        type: "ADD_COLUMN";
+        payload: {
+          columnId: string;
+          xMm: number;
+          yMm: number;
+          widthMm: number;
+          depthMm: number;
+          baseZMm: number;
+          heightMm: number;
+          rotationDeg?: 0 | 90 | 180 | 270;
+          label?: string;
+        };
+      }
+    | {
+        type: "ADD_OBJECT";
+        payload: {
+          objectId: string;
+          kind: "counter" | "sink" | "equipment" | "decor" | "service";
+          xMm: number;
+          yMm: number;
+          zMm: number;
+          widthMm: number;
+          depthMm: number;
+          heightMm: number;
+          rotationDeg?: 0 | 90 | 180 | 270;
+          catalogKey?: string;
+          label?: string;
+        };
+      }
+    | {
+        type: "DELETE_ENTITY";
+        payload: {
+          /**
+           * Один вход на все виды сущностей вместо пяти почти одинаковых
+           * команд: правила удаления (не заблокировано, ничего не осиротело)
+           * общие, а расходится только массив, из которого убирают.
+           */
+          entityId: string;
+          /**
+           * Удалить вместе с зависимыми: стену — с её проёмами, узел — со
+           * стенами, которые на него опираются. Без флага такое удаление
+           * отклоняется, чтобы «убрал стену» не значило втихую «и три окна
+           * заодно».
+           */
+          cascade?: boolean;
+        };
+      }
   );
 
 export interface LayoutValidationResult {
