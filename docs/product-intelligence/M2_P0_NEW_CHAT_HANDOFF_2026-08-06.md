@@ -283,14 +283,19 @@ fac3e4e test(m2): add fail-closed external pilot gate
 
 ## 6. Что не сделано
 
-Cycle 7 и полный M2 P0 не завершены. Блокеров четыре, а не один:
+Cycle 7 и полный M2 P0 не завершены. Состояние блокеров на 08.08.2026:
 
-1. **Внешний реальный пакет** — не предоставлен (см. §7).
-2. **Внешний executor** — единственный allowlisted (`pending-external-system.zsh`)
-   честно отдаёт exit 75 без receipt. Нужен реальный, с доступом к disposable
-   окружению, после RED/GREEN/REFACTOR и независимого review.
-3. **Kora producer не в allowlist** — скрипт написан и покрыт тестами, но
-   раннер отклонит его до добавления записи ревьюером (§8).
+1. **Внешний реальный пакет** — не предоставлен (см. §7). Единственный блокер,
+   который нельзя закрыть кодом.
+2. ~~Внешний executor~~ — **написан**:
+   `tests/pilot-evidence/executors/external-package-runner.zsh` плюс
+   тестируемый builder `external-pilot-receipt.ts` (15 тестов, включая проход
+   через реальный финализатор до PASS). Отправляет каждую команду дважды и
+   сравнивает дайджесты — replay доказывается, а не заявляется. Маппинг
+   манифеста в payload'ы generic, но на реальном пакете не исполнялся ни разу:
+   первый настоящий прогон — часть ревью, а не регрессия.
+3. **Оба executor'а не в allowlist** — producer и runner написаны и покрыты
+   тестами, но раннер отклонит их до добавления записей ревьюером (§8).
 4. **Среда прогона** — Cycle 7 привязан к рабочей станции владельца:
    `tests/ap1/e2e/run-five-sessions.zsh` требует
    `DOCKER_HOST=unix://$HOME/.colima/archidom-ap1/docker.sock` и отвергает любой
@@ -354,11 +359,20 @@ shasum -a 256 tests/pilot-evidence/executors/kora-five-session-producer.zsh \
 }
 ```
 
-Затем, после создания reviewed и git-tracked external executor:
+Вторая запись — для external runner, digest считается так же:
+
+```bash
+shasum -a 256 tests/pilot-evidence/executors/external-package-runner.zsh \
+  | awk '{print "sha256:"$1}'
+```
+
+Затем сам прогон. Раннеру нужны переменные disposable-окружения
+(`EXTERNAL_RUN_ORIGIN`, `EXTERNAL_RUN_DB_CONTAINER`, `EXTERNAL_RUN_COOKIE_DIR`),
+и он отвергает не-loopback origin:
 
 ```bash
 ARCHIDOM_EXTERNAL_PILOT_MANIFEST=/absolute/private/path/external-manifest.json \
-ARCHIDOM_EXTERNAL_PILOT_EXECUTOR=/absolute/repo/path/tests/pilot-evidence/executors/<executor>.zsh \
+ARCHIDOM_EXTERNAL_PILOT_EXECUTOR=/absolute/repo/path/tests/pilot-evidence/executors/external-package-runner.zsh \
 ARCHIDOM_EXTERNAL_PILOT_EXECUTOR_SHA256=sha256:<reviewed-digest> \
 ARCHIDOM_KORA_FIVE_SESSION_PRODUCER=/absolute/repo/path/tests/pilot-evidence/executors/kora-five-session-producer.zsh \
 ARCHIDOM_KORA_FIVE_SESSION_PRODUCER_SHA256=sha256:<digest из команды выше> \
