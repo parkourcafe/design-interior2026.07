@@ -31,7 +31,7 @@ Acceptance: provenance, ai_calls, versioning, self_approval marker, RLS, resume/
 
 ## WF-M2-001 · Passport to Design Freeze
 
-**Статус:** CATALOG_ONLY / NOT AUTHORIZED FOR SPRINT 1
+**Статус:** AUTHORIZED BY A4 (подписан 08.08.2026)
 
 Passport → concepts → three variants → material/budget impact → client approval → Design Freeze.
 
