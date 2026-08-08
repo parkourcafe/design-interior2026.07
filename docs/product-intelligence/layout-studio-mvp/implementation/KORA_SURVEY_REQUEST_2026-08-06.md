@@ -38,12 +38,18 @@ drift, and fails if a hold below stops being declared.
 
 ## Still required
 
-### 1. Clear room height — closes `LS-AT-012`
-Currently `floor.clearHeightMm = 3000` and the column height is `3000`, both
-carrying the warning `CLEAR_HEIGHT_ASSUMED_3000`.
+### 1. Clear room height — ✅ CLOSED 2026-08-07
 
-Measure: finished-floor to finished-ceiling clear height, and the same for the
-lowest structural or service obstruction if it differs. Give both, in mm.
+Owner confirmation: *«высота у нас ровно 3 м»*. The fixture already carried
+`floor.clearHeightMm = 3000` and column height `3000`; what changed is provenance,
+not the number. `CLEAR_HEIGHT_ASSUMED_3000` is removed, a
+`owner-lock://selena/2026-08-07-clear-height` source ref is added, and
+`kora-survey-holds.test.ts` now asserts the value **and** the absence of the
+warning, so it cannot silently regress. `LS-AT-012` → `AUTOMATED_PASS`.
+
+Still not captured, and only worth chasing if it exists: the height of the lowest
+structural or service obstruction inside Tenant 12, if anything hangs below
+3000 mm. The confirmation covers clear height, not soffits.
 
 ### 2. Door height, frame and swing — closes `LS-AT-013`
 Currently `heightMm = 2100`, `sillMm = 0`, `handing = "double"`, warning

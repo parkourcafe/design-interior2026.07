@@ -114,11 +114,15 @@ against a real session in a real browser, distinct from `AUTOMATED_PASS`.
   LS-AT-044 (camera reset measured, above).
 - **Also upgraded to `BROWSER_PASS`** because the run covered them directly:
   LS-AT-010, 021, 023, 030, 031, 032, 034, 035, 045, 046, 060, 061, 062, 080, 086.
-- **Unchanged `EXTERNAL_HOLD`:** LS-AT-002, 012, 013, 014, 015 (P0) and 091, 092 (P1).
+- **Unchanged `EXTERNAL_HOLD`:** LS-AT-002, 013, 014, 015 (P0) and 091, 092 (P1).
+- **Closed 2026-08-07:** LS-AT-012 → `AUTOMATED_PASS`. The owner confirmed the
+  clear height is exactly 3 m, so `CLEAR_HEIGHT_ASSUMED_3000` was removed and the
+  value gained an owner-lock source ref. That changed the KORA semantic hash to
+  `ef57708a…`, so the browser evidence was regenerated (run `r15`, 49/49).
 
 ## 5. What remains external — the only blocker
 
-`LS-AT-002`, `012`, `013`, `014`, `015` need physical measurements of the KORA
+`LS-AT-002`, `013`, `014`, `015` need physical measurements of the KORA
 site. They cannot be closed from any code environment, and no assumption was
 promoted to a measured value. The exact inputs required are itemised in
 `KORA_SURVEY_REQUEST_2026-08-06.md`.

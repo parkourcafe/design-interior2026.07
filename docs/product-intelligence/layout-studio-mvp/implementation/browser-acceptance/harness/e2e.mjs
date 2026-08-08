@@ -188,7 +188,6 @@ const main = async () => {
     areaText.includes("24.30"), { areaText, header });
 
   // 2D geometry presence
-  const plan = page.locator("svg[aria-label='План 2D']");
   const svgCounts = await page.evaluate(() => {
     const svg = document.querySelector("svg[aria-label='План 2D']");
     if (!svg) return null;
@@ -464,7 +463,7 @@ const main = async () => {
   const missingRows = scheduleIds.filter((id) => !printText.includes(`<td>${id}</td>`));
   record("LS-AT-074", "print artifact carries the element schedule, hash and warnings",
     printText.includes("Ведомость элементов") && missingRows.length === 0 &&
-    /[0-9a-f]{64}/.test(printText) && printText.includes("CLEAR_HEIGHT_ASSUMED_3000"),
+    /[0-9a-f]{64}/.test(printText) && printText.includes("EQUIPMENT_SET_OUT_PENDING"),
     { file: printFile, missingRows, scheduleRows: (printText.match(/<tr><td>/g) ?? []).length });
 
   const glbFile = fs.readdirSync(DL).find((f) => f.endsWith(".glb"));

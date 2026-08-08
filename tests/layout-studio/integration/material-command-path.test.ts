@@ -18,7 +18,7 @@ const KORA = koraFixture as unknown as LayoutDocument;
 describe("LS-AT-054: canonical material assignment", () => {
   it("changes an assignment only through the ASSIGN_MATERIAL command", () => {
     const target = KORA.materialAssignments[0];
-    expect(target).toBeDefined();
+    if (!target) throw new Error("KORA fixture must define at least one material assignment");
 
     const result = applyLayoutCommand(KORA, {
       commandId: "command.test.assign",

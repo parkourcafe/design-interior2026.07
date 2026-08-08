@@ -15,20 +15,23 @@ const KORA = koraFixture as unknown as LayoutDocument;
  */
 const OPEN_SURVEY_ITEMS = [
   { row: "LS-AT-002", warning: "PARTIAL_OWNER_LOCK", input: "owner lock covers intent only" },
-  { row: "LS-AT-012", warning: "CLEAR_HEIGHT_ASSUMED_3000", input: "clear room height" },
   { row: "LS-AT-013", warning: "DOOR_HEIGHT_AND_SWING_NOT_SITE_VERIFIED", input: "door height, frame and swing" },
   { row: "LS-AT-002", warning: "COLUMN_ABSOLUTE_AXIS_NOT_SITE_VERIFIED", input: "column absolute axis" },
   { row: "LS-AT-014/015", warning: "EQUIPMENT_SET_OUT_PENDING", input: "rear equipment and central sink set-out" },
 ] as const;
 
-/** Owner-confirmed geometry (2026-08-04). These are facts, not assumptions. */
+/** Owner-confirmed geometry. These are facts, not assumptions. */
 const OWNER_CONFIRMED = {
+  // Locked 2026-08-04.
   contourMm: { widthMm: 8100, depthMm: 3000 },
   columnSectionMm: 250,
   doorWidthMm: 1200,
   leftOpeningMm: 1500,
   counterHeightMm: 1100,
   worktopHeightMm: 900,
+  // Confirmed 2026-08-07: "высота у нас ровно 3 м". Closes LS-AT-012; the value
+  // was already 3000 but carried CLEAR_HEIGHT_ASSUMED_3000 until this lock.
+  clearHeightMm: 3000,
 };
 
 describe("LS-AT-002/012-015: KORA survey holds stay declared", () => {
@@ -79,6 +82,13 @@ describe("LS-AT-002/012-015: KORA survey holds stay declared", () => {
     // 1500 open / 1500 wall on a 3000 mm side.
     expect(leftOpening?.offsetMm).toBe(0);
     expect(leftOpening?.widthMm).toBe(1500);
+  });
+
+  it("carries the owner-confirmed clear height without an assumption warning", () => {
+    expect(KORA.floor.clearHeightMm).toBe(OWNER_CONFIRMED.clearHeightMm);
+    expect(KORA.columns.at(0)?.heightMm).toBe(OWNER_CONFIRMED.clearHeightMm);
+    expect(KORA.metadata.warnings).not.toContain("CLEAR_HEIGHT_ASSUMED_3000");
+    expect(KORA.metadata.sourceRefs).toContain("owner-lock://selena/2026-08-07-clear-height");
   });
 
   it("still validates against the frozen schema while holds are open", () => {

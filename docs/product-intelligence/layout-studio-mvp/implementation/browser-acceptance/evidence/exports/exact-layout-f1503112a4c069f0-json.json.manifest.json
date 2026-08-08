@@ -9,7 +9,7 @@
   "versionId": "V1",
   "semanticHash": "f1503112a4c069f066c17186c47f54dc9475d6a3e0eb0521f6ada0b44d1e460a",
   "artifactChecksum": "501841c0fdab48bfafc90e2f886e02522177c659ef4ad9a0415631aa7228d03e",
-  "generatedAt": "2026-08-06T12:56:23.053Z",
+  "generatedAt": "2026-08-08T01:04:04.329Z",
   "generatorVersion": "archidom-layout-studio-preview/0.1",
   "warnings": [
     "Синтетический fixture для тестов; не является evidence KORA или строительной документацией."

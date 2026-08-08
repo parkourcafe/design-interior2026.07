@@ -1,6 +1,6 @@
 {
-  "runId": "r13",
-  "startedAt": "2026-08-06T12:54:08.186Z",
+  "runId": "r15",
+  "startedAt": "2026-08-08T01:01:42.735Z",
   "screenshots": [
     {
       "name": "01-unauth-redirect-login",
@@ -30,51 +30,50 @@
     {
       "name": "05b-kora-3d-camera-orbited",
       "file": "screenshots/05b-kora-3d-camera-orbited.png",
-      "sha256": "1ce1f8f552dc675cbbd3cb90f38550d894ff1901d36a9fbbcbf7c00124ec72ce"
+      "sha256": "232e0753758422005e1390b63f0b2e6cdd185d3ec274b7f7a9c93a597b6a7f98"
     },
     {
       "name": "05c-kora-3d-camera-reset",
       "file": "screenshots/05c-kora-3d-camera-reset.png",
-      "sha256": "85de8fd1a71f975c377f8d88d5db798feb92b0651ea1d66d6e73b5680c1ff4e3"
+      "sha256": "cf0507d8cdf015159698ddfc4eea8a3f8cb4e74ac707587744ae7f6f0b128306"
     },
     {
       "name": "07-kora-published-version",
       "file": "screenshots/07-kora-published-version.png",
-      "sha256": "6892b664834ea077419e7e9a5771b1386359aae60d8fe51f05f15952f5da68a5"
+      "sha256": "c955d762488aa8a9ce5a1ec5c767e8c3e2d5f36fe54c7257e988f54c3c30a460"
     },
     {
       "name": "08-kora-after-reload",
       "file": "screenshots/08-kora-after-reload.png",
-      "sha256": "ec62aefdaaf82085b356e082055ceccba098cb2a767feb003a099b7055ec78fe"
+      "sha256": "1527db790d4ac26aefe0cb8ca458e5ca3e213c45b5e5d729042d7cd10ec49a00"
     },
     {
       "name": "09-synthetic-3d-after-edit",
       "file": "screenshots/09-synthetic-3d-after-edit.png",
-      "sha256": "509839ff5ce989f783aa711571e9af9a8ca5fae625b103cd63ef62f968378c65"
+      "sha256": "9b2afc3095bfda0b75eb6d0523cfe6e80067bbc50817ef108cb630564c1bf5f1"
     }
   ],
   "artifacts": [
     {
       "format": "JSON",
-      "artifact": "layout-12a989ef19237987-json.json",
-      "artifactBytes": 4784,
-      "artifactSha256": "a21b8014b9a9da3661361f8eff59b6f2e09fcdd775b9b9d85bf8a8a5d83ea618",
+      "artifact": "layout-ef57708a1deb66b4-json.json",
+      "artifactBytes": 4802,
+      "artifactSha256": "26ad022571ffc68c972eb9d5c9580b7ed622f2734b9b7a070dab3dfe75def5d5",
       "manifest": {
         "contractVersion": "archidom.layout-export/0.1",
-        "artifactId": "layout-12a989ef19237987-json",
+        "artifactId": "layout-ef57708a1deb66b4-json",
         "format": "json",
-        "filename": "layout-12a989ef19237987-json.json",
+        "filename": "layout-ef57708a1deb66b4-json.json",
         "mimeType": "application/json",
-        "byteLength": 4784,
+        "byteLength": 4802,
         "documentId": "layout.kora.liquid-station",
         "versionId": "V1",
-        "semanticHash": "12a989ef19237987f1c4cf64e491fe0393f4baad1af10c79436828ce220b4267",
-        "artifactChecksum": "a21b8014b9a9da3661361f8eff59b6f2e09fcdd775b9b9d85bf8a8a5d83ea618",
-        "generatedAt": "2026-08-06T12:55:25.057Z",
+        "semanticHash": "ef57708a1deb66b47454901eb9b5af83460bddb19986e116d926f3f455833a11",
+        "artifactChecksum": "26ad022571ffc68c972eb9d5c9580b7ed622f2734b9b7a070dab3dfe75def5d5",
+        "generatedAt": "2026-08-08T01:03:05.734Z",
         "generatorVersion": "archidom-layout-studio-preview/0.1",
         "warnings": [
           "PARTIAL_OWNER_LOCK",
-          "CLEAR_HEIGHT_ASSUMED_3000",
           "DOOR_HEIGHT_AND_SWING_NOT_SITE_VERIFIED",
           "COLUMN_ABSOLUTE_AXIS_NOT_SITE_VERIFIED",
           "EQUIPMENT_SET_OUT_PENDING"
@@ -84,25 +83,24 @@
     },
     {
       "format": "SVG",
-      "artifact": "layout-12a989ef19237987-svg.svg",
+      "artifact": "layout-ef57708a1deb66b4-svg.svg",
       "artifactBytes": 1890,
       "artifactSha256": "b4ce0e5f70a3777f26fd55100bf767bb5012bbf2ce8ee06b610c9fe6cd00c198",
       "manifest": {
         "contractVersion": "archidom.layout-export/0.1",
-        "artifactId": "layout-12a989ef19237987-svg",
+        "artifactId": "layout-ef57708a1deb66b4-svg",
         "format": "svg",
-        "filename": "layout-12a989ef19237987-svg.svg",
+        "filename": "layout-ef57708a1deb66b4-svg.svg",
         "mimeType": "image/svg+xml",
         "byteLength": 1890,
         "documentId": "layout.kora.liquid-station",
         "versionId": "V1",
-        "semanticHash": "12a989ef19237987f1c4cf64e491fe0393f4baad1af10c79436828ce220b4267",
+        "semanticHash": "ef57708a1deb66b47454901eb9b5af83460bddb19986e116d926f3f455833a11",
         "artifactChecksum": "b4ce0e5f70a3777f26fd55100bf767bb5012bbf2ce8ee06b610c9fe6cd00c198",
-        "generatedAt": "2026-08-06T12:55:27.588Z",
+        "generatedAt": "2026-08-08T01:03:08.284Z",
         "generatorVersion": "archidom-layout-studio-preview/0.1",
         "warnings": [
           "PARTIAL_OWNER_LOCK",
-          "CLEAR_HEIGHT_ASSUMED_3000",
           "DOOR_HEIGHT_AND_SWING_NOT_SITE_VERIFIED",
           "COLUMN_ABSOLUTE_AXIS_NOT_SITE_VERIFIED",
           "EQUIPMENT_SET_OUT_PENDING"
@@ -112,25 +110,24 @@
     },
     {
       "format": "PNG",
-      "artifact": "layout-12a989ef19237987-png.png",
+      "artifact": "layout-ef57708a1deb66b4-png.png",
       "artifactBytes": 32864,
       "artifactSha256": "ebb5e8b48d784ac6707e62d8e250646ebe05ad2c35e039e3e96f4a0a663262bf",
       "manifest": {
         "contractVersion": "archidom.layout-export/0.1",
-        "artifactId": "layout-12a989ef19237987-png",
+        "artifactId": "layout-ef57708a1deb66b4-png",
         "format": "png",
-        "filename": "layout-12a989ef19237987-png.png",
+        "filename": "layout-ef57708a1deb66b4-png.png",
         "mimeType": "image/png",
         "byteLength": 32864,
         "documentId": "layout.kora.liquid-station",
         "versionId": "V1",
-        "semanticHash": "12a989ef19237987f1c4cf64e491fe0393f4baad1af10c79436828ce220b4267",
+        "semanticHash": "ef57708a1deb66b47454901eb9b5af83460bddb19986e116d926f3f455833a11",
         "artifactChecksum": "ebb5e8b48d784ac6707e62d8e250646ebe05ad2c35e039e3e96f4a0a663262bf",
-        "generatedAt": "2026-08-06T12:55:30.386Z",
+        "generatedAt": "2026-08-08T01:03:11.169Z",
         "generatorVersion": "archidom-layout-studio-preview/0.1",
         "warnings": [
           "PARTIAL_OWNER_LOCK",
-          "CLEAR_HEIGHT_ASSUMED_3000",
           "DOOR_HEIGHT_AND_SWING_NOT_SITE_VERIFIED",
           "COLUMN_ABSOLUTE_AXIS_NOT_SITE_VERIFIED",
           "EQUIPMENT_SET_OUT_PENDING"
@@ -140,25 +137,24 @@
     },
     {
       "format": "GLB",
-      "artifact": "layout-12a989ef19237987-glb.glb",
+      "artifact": "layout-ef57708a1deb66b4-glb.glb",
       "artifactBytes": 3236,
-      "artifactSha256": "0a4aa37da053cb0f787f5e787ae0569361383725360fcfb0a6bf1fb42353ae77",
+      "artifactSha256": "eae0956df5f49bc7cc4bf270aa835ae758a9c26eb445baa7687e8711636eb99f",
       "manifest": {
         "contractVersion": "archidom.layout-export/0.1",
-        "artifactId": "layout-12a989ef19237987-glb",
+        "artifactId": "layout-ef57708a1deb66b4-glb",
         "format": "glb",
-        "filename": "layout-12a989ef19237987-glb.glb",
+        "filename": "layout-ef57708a1deb66b4-glb.glb",
         "mimeType": "model/gltf-binary",
         "byteLength": 3236,
         "documentId": "layout.kora.liquid-station",
         "versionId": "V1",
-        "semanticHash": "12a989ef19237987f1c4cf64e491fe0393f4baad1af10c79436828ce220b4267",
-        "artifactChecksum": "0a4aa37da053cb0f787f5e787ae0569361383725360fcfb0a6bf1fb42353ae77",
-        "generatedAt": "2026-08-06T12:55:32.659Z",
+        "semanticHash": "ef57708a1deb66b47454901eb9b5af83460bddb19986e116d926f3f455833a11",
+        "artifactChecksum": "eae0956df5f49bc7cc4bf270aa835ae758a9c26eb445baa7687e8711636eb99f",
+        "generatedAt": "2026-08-08T01:03:13.368Z",
         "generatorVersion": "archidom-layout-studio-preview/0.1",
         "warnings": [
           "PARTIAL_OWNER_LOCK",
-          "CLEAR_HEIGHT_ASSUMED_3000",
           "DOOR_HEIGHT_AND_SWING_NOT_SITE_VERIFIED",
           "COLUMN_ABSOLUTE_AXIS_NOT_SITE_VERIFIED",
           "EQUIPMENT_SET_OUT_PENDING"
@@ -168,25 +164,24 @@
     },
     {
       "format": "Печатная сводка",
-      "artifact": "layout-12a989ef19237987-print.html",
-      "artifactBytes": 3336,
-      "artifactSha256": "5509d6acc971c02d44c7ffb5f68715901574f6cdc0dd2b377c0cabf931fd18df",
+      "artifact": "layout-ef57708a1deb66b4-print.html",
+      "artifactBytes": 3302,
+      "artifactSha256": "33b07353f4baf9ff5cd4c40212b8a8d2d01f8ed452fb2ab396d6caf4b8876e4c",
       "manifest": {
         "contractVersion": "archidom.layout-export/0.1",
-        "artifactId": "layout-12a989ef19237987-print",
+        "artifactId": "layout-ef57708a1deb66b4-print",
         "format": "print",
-        "filename": "layout-12a989ef19237987-print.html",
+        "filename": "layout-ef57708a1deb66b4-print.html",
         "mimeType": "text/html",
-        "byteLength": 3336,
+        "byteLength": 3302,
         "documentId": "layout.kora.liquid-station",
         "versionId": "V1",
-        "semanticHash": "12a989ef19237987f1c4cf64e491fe0393f4baad1af10c79436828ce220b4267",
-        "artifactChecksum": "5509d6acc971c02d44c7ffb5f68715901574f6cdc0dd2b377c0cabf931fd18df",
-        "generatedAt": "2026-08-06T12:55:35.188Z",
+        "semanticHash": "ef57708a1deb66b47454901eb9b5af83460bddb19986e116d926f3f455833a11",
+        "artifactChecksum": "33b07353f4baf9ff5cd4c40212b8a8d2d01f8ed452fb2ab396d6caf4b8876e4c",
+        "generatedAt": "2026-08-08T01:03:15.915Z",
         "generatorVersion": "archidom-layout-studio-preview/0.1",
         "warnings": [
           "PARTIAL_OWNER_LOCK",
-          "CLEAR_HEIGHT_ASSUMED_3000",
           "DOOR_HEIGHT_AND_SWING_NOT_SITE_VERIFIED",
           "COLUMN_ABSOLUTE_AXIS_NOT_SITE_VERIFIED",
           "EQUIPMENT_SET_OUT_PENDING"
@@ -334,12 +329,12 @@
     "cameraViewportBox": "1020x667",
     "cameraReset": {
       "orbitDelta": {
-        "meanAbsDiff": 5.928,
-        "changedPixelPct": 6.072
+        "meanAbsDiff": 6.123,
+        "changedPixelPct": 6.256
       },
       "resetDelta": {
-        "meanAbsDiff": 0.849,
-        "changedPixelPct": 1.114
+        "meanAbsDiff": 1.069,
+        "changedPixelPct": 1.266
       },
       "canvasAfter": {
         "w": 1020,
@@ -352,7 +347,7 @@
       "Версия контракта": "archidom.layout-document/0.1",
       "Ревизия состояния": "0",
       "Последняя опубликованная версия": "V1",
-      "Semantic hash": "12a989ef19237987f1c4cf64e491fe0393f4baad1af10c79436828ce220b4267",
+      "Semantic hash": "ef57708a1deb66b47454901eb9b5af83460bddb19986e116d926f3f455833a11",
       "Результат проверки": "Замечаний нет"
     },
     "editableEntities": [
@@ -422,7 +417,7 @@
         "versionId": "V1",
         "semanticHash": "f1503112a4c069f066c17186c47f54dc9475d6a3e0eb0521f6ada0b44d1e460a",
         "artifactChecksum": "501841c0fdab48bfafc90e2f886e02522177c659ef4ad9a0415631aa7228d03e",
-        "generatedAt": "2026-08-06T12:56:23.053Z",
+        "generatedAt": "2026-08-08T01:04:04.329Z",
         "generatorVersion": "archidom-layout-studio-preview/0.1",
         "warnings": [
           "Синтетический fixture для тестов; не является evidence KORA или строительной документацией."
@@ -432,7 +427,7 @@
     },
     "performance": {
       "cdp": {
-        "Timestamp": 4792.215362,
+        "Timestamp": 778.966479,
         "AudioHandlers": 0,
         "AudioWorkletProcessors": 0,
         "Documents": 1,
@@ -456,28 +451,28 @@
         "RecalcStyleCount": 0,
         "LayoutDuration": 0,
         "RecalcStyleDuration": 0,
-        "DevToolsCommandDuration": 1.7e-05,
+        "DevToolsCommandDuration": 2.6e-05,
         "ScriptDuration": 0,
         "V8CompileDuration": 0,
-        "TaskDuration": 2.1e-05,
-        "TaskOtherDuration": 4e-06,
-        "ThreadTime": 0.000104,
-        "ProcessTime": 4.43,
-        "JSHeapUsedSize": 13017604,
+        "TaskDuration": 3.3e-05,
+        "TaskOtherDuration": 7e-06,
+        "ThreadTime": 0.000166,
+        "ProcessTime": 4.87,
+        "JSHeapUsedSize": 13444648,
         "JSHeapTotalSize": 17530880,
-        "FirstMeaningfulPaint": 4772.349963,
-        "DomContentLoaded": 4771.896611,
-        "NavigationStart": 4758.873323
+        "FirstMeaningfulPaint": 758.865398,
+        "DomContentLoaded": 758.377184,
+        "NavigationStart": 745.406144
       },
       "jsMemory": {
-        "usedJSHeapSize": 15523043,
-        "totalJSHeapSize": 20034075,
+        "usedJSHeapSize": 15950159,
+        "totalJSHeapSize": 20034147,
         "jsHeapSizeLimit": 4294705152
       },
       "frameTiming": {
-        "p50": 16.700000000186265,
-        "p95": 16.90000000037253,
-        "max": 19.5,
+        "p50": 16.699999999953434,
+        "p95": 16.900000000023283,
+        "max": 17.900000000023283,
         "n": 89
       }
     },
@@ -485,35 +480,35 @@
       "note": "Provisional signal on the owner-intent fixture. LS-AT-091/092 remain EXTERNAL_HOLD until the final set-out.",
       "caveat": "Software WebGL (SwiftShader) in a sandbox with all external hosts blocked; the render-blocking Google Fonts stylesheet fails with ERR_CONNECTION_RESET and inflates navigation timings.",
       "navigationTiming": {
-        "responseEndMs": 75,
-        "domContentLoadedMs": 13078,
+        "responseEndMs": 68,
+        "domContentLoadedMs": 13298,
         "firstContentfulPaintMs": 0,
-        "planReadyMs": 13139
+        "planReadyMs": 13374
       },
       "firstContentfulPaintMs": {
         "n": 3,
-        "min": 12766,
-        "max": 13172,
-        "mean": 13005
+        "min": 12964,
+        "max": 16114,
+        "mean": 14125
       },
       "viewSwitchMs": {
         "n": 3,
-        "min": 1030,
-        "max": 1204,
-        "mean": 1091
+        "min": 1156,
+        "max": 1537,
+        "mean": 1303
       },
       "commandApplyMs": {
         "n": 3,
-        "min": 66,
-        "max": 400,
-        "mean": 187
+        "min": 104,
+        "max": 786,
+        "mean": 332
       }
     },
     "externalBlockedHosts": [
       "fonts.googleapis.com"
     ]
   },
-  "finishedAt": "2026-08-06T12:57:29.624Z",
+  "finishedAt": "2026-08-08T01:05:15.414Z",
   "checks": [
     {
       "id": "LS-AT-020.a",
@@ -577,7 +572,7 @@
       "ok": true,
       "detail": {
         "status": 200,
-        "snippet": "{\"id\":\"62f6a4fc-1833-41e7-b7e3-83b94a492867\",\"aud\":\"authenticated\",\"role\":\"authenticated\",\"email\":\"layout-studio.qa+r13@archidom.invalid\",\"email_confirmed_at\":\""
+        "snippet": "{\"id\":\"19218bf5-3acf-4a35-9cce-c09836970e37\",\"aud\":\"authenticated\",\"role\":\"authenticated\",\"email\":\"layout-studio.qa+r15@archidom.invalid\",\"email_confirmed_at\":\""
       },
       "scope": "auth signup/signin"
     },
@@ -793,8 +788,8 @@
       "name": "orbiting visibly changes the camera framing",
       "ok": true,
       "detail": {
-        "meanAbsDiff": 5.928,
-        "changedPixelPct": 6.072
+        "meanAbsDiff": 6.123,
+        "changedPixelPct": 6.256
       },
       "scope": "LS-AT-044 camera reset"
     },
@@ -804,12 +799,12 @@
       "ok": true,
       "detail": {
         "orbitDelta": {
-          "meanAbsDiff": 5.928,
-          "changedPixelPct": 6.072
+          "meanAbsDiff": 6.123,
+          "changedPixelPct": 6.256
         },
         "resetDelta": {
-          "meanAbsDiff": 0.849,
-          "changedPixelPct": 1.114
+          "meanAbsDiff": 1.069,
+          "changedPixelPct": 1.266
         }
       },
       "scope": "LS-AT-044 camera reset"
@@ -843,7 +838,7 @@
       "id": "LS-AT-061.browser",
       "name": "checkpoint is created and listed",
       "ok": true,
-      "detail": "ВЕРСИИ И CHECKPOINTS\nСоздать checkpoint\nОпубликовать версию\nСравнить крайние версии\n\nЛокальный checkpoint создан\n\nCheckpoints\nCP-MSHIQS33Восстановить\nВерсии\n\nОпубликованных версий пока нет",
+      "detail": "ВЕРСИИ И CHECKPOINTS\nСоздать checkpoint\nОпубликовать версию\nСравнить крайние версии\n\nЛокальный checkpoint создан\n\nCheckpoints\nCP-MSJO6FGDВосстановить\nВерсии\n\nОпубликованных версий пока нет",
       "scope": "LS-AT-06x/07x versions and exports"
     },
     {
@@ -855,7 +850,7 @@
         "Версия контракта": "archidom.layout-document/0.1",
         "Ревизия состояния": "0",
         "Последняя опубликованная версия": "V1",
-        "Semantic hash": "12a989ef19237987f1c4cf64e491fe0393f4baad1af10c79436828ce220b4267",
+        "Semantic hash": "ef57708a1deb66b47454901eb9b5af83460bddb19986e116d926f3f455833a11",
         "Результат проверки": "Замечаний нет"
       },
       "scope": "LS-AT-06x/07x versions and exports"
@@ -865,12 +860,12 @@
       "name": "JSON export downloads with a matching sidecar manifest",
       "ok": true,
       "detail": {
-        "bytes": 4784,
+        "bytes": 4802,
         "versionId": "V1",
-        "semanticHash": "12a989ef19237987f1c4cf64e491fe0393f4baad1af10c79436828ce220b4267",
+        "semanticHash": "ef57708a1deb66b47454901eb9b5af83460bddb19986e116d926f3f455833a11",
         "checksumMatches": true,
         "mimeType": "application/json",
-        "filename": "layout-12a989ef19237987-json.json"
+        "filename": "layout-ef57708a1deb66b4-json.json"
       },
       "scope": "LS-AT-06x/07x versions and exports"
     },
@@ -881,10 +876,10 @@
       "detail": {
         "bytes": 1890,
         "versionId": "V1",
-        "semanticHash": "12a989ef19237987f1c4cf64e491fe0393f4baad1af10c79436828ce220b4267",
+        "semanticHash": "ef57708a1deb66b47454901eb9b5af83460bddb19986e116d926f3f455833a11",
         "checksumMatches": true,
         "mimeType": "image/svg+xml",
-        "filename": "layout-12a989ef19237987-svg.svg"
+        "filename": "layout-ef57708a1deb66b4-svg.svg"
       },
       "scope": "LS-AT-06x/07x versions and exports"
     },
@@ -895,10 +890,10 @@
       "detail": {
         "bytes": 32864,
         "versionId": "V1",
-        "semanticHash": "12a989ef19237987f1c4cf64e491fe0393f4baad1af10c79436828ce220b4267",
+        "semanticHash": "ef57708a1deb66b47454901eb9b5af83460bddb19986e116d926f3f455833a11",
         "checksumMatches": true,
         "mimeType": "image/png",
-        "filename": "layout-12a989ef19237987-png.png"
+        "filename": "layout-ef57708a1deb66b4-png.png"
       },
       "scope": "LS-AT-06x/07x versions and exports"
     },
@@ -909,10 +904,10 @@
       "detail": {
         "bytes": 3236,
         "versionId": "V1",
-        "semanticHash": "12a989ef19237987f1c4cf64e491fe0393f4baad1af10c79436828ce220b4267",
+        "semanticHash": "ef57708a1deb66b47454901eb9b5af83460bddb19986e116d926f3f455833a11",
         "checksumMatches": true,
         "mimeType": "model/gltf-binary",
-        "filename": "layout-12a989ef19237987-glb.glb"
+        "filename": "layout-ef57708a1deb66b4-glb.glb"
       },
       "scope": "LS-AT-06x/07x versions and exports"
     },
@@ -921,12 +916,12 @@
       "name": "Печатная сводка export downloads with a matching sidecar manifest",
       "ok": true,
       "detail": {
-        "bytes": 3336,
+        "bytes": 3302,
         "versionId": "V1",
-        "semanticHash": "12a989ef19237987f1c4cf64e491fe0393f4baad1af10c79436828ce220b4267",
+        "semanticHash": "ef57708a1deb66b47454901eb9b5af83460bddb19986e116d926f3f455833a11",
         "checksumMatches": true,
         "mimeType": "text/html",
-        "filename": "layout-12a989ef19237987-print.html"
+        "filename": "layout-ef57708a1deb66b4-print.html"
       },
       "scope": "LS-AT-06x/07x versions and exports"
     },
@@ -935,11 +930,11 @@
       "name": "each exported format leaves its own sidecar manifest",
       "ok": true,
       "detail": [
-        "layout-12a989ef19237987-glb.glb.manifest.json",
-        "layout-12a989ef19237987-json.json.manifest.json",
-        "layout-12a989ef19237987-png.png.manifest.json",
-        "layout-12a989ef19237987-print.html.manifest.json",
-        "layout-12a989ef19237987-svg.svg.manifest.json"
+        "layout-ef57708a1deb66b4-glb.glb.manifest.json",
+        "layout-ef57708a1deb66b4-json.json.manifest.json",
+        "layout-ef57708a1deb66b4-png.png.manifest.json",
+        "layout-ef57708a1deb66b4-print.html.manifest.json",
+        "layout-ef57708a1deb66b4-svg.svg.manifest.json"
       ],
       "scope": "LS-AT-06x/07x versions and exports"
     },
@@ -948,7 +943,7 @@
       "name": "exported SVG draws every opening as visible geometry",
       "ok": true,
       "detail": {
-        "file": "layout-12a989ef19237987-svg.svg",
+        "file": "layout-ef57708a1deb66b4-svg.svg",
         "openings": [
           "opening.kora.rear-door",
           "opening.kora.left-access"
@@ -965,7 +960,7 @@
       "name": "print artifact carries the element schedule, hash and warnings",
       "ok": true,
       "detail": {
-        "file": "layout-12a989ef19237987-print.html",
+        "file": "layout-ef57708a1deb66b4-print.html",
         "missingRows": [],
         "scheduleRows": 9
       },
@@ -976,7 +971,7 @@
       "name": "GLB export is a valid glTF 2.0 binary container",
       "ok": true,
       "detail": {
-        "file": "layout-12a989ef19237987-glb.glb",
+        "file": "layout-ef57708a1deb66b4-glb.glb",
         "magic": "glTF",
         "version": 2,
         "bytes": 3236
@@ -988,7 +983,7 @@
       "name": "PNG export is produced at the requested raster size",
       "ok": true,
       "detail": {
-        "file": "layout-12a989ef19237987-png.png",
+        "file": "layout-ef57708a1deb66b4-png.png",
         "width": 1600,
         "height": 900,
         "distinctColors": 21,
@@ -1004,13 +999,13 @@
       "name": "checkpoints and published versions survive a full page reload",
       "ok": true,
       "detail": {
-        "history": "ВЕРСИИ И CHECKPOINTS\nСоздать checkpoint\nОпубликовать версию\nСравнить крайние версии\n\nЧерновик сохранён локально\n\nCheckpoints\nCP-MSHIQS33Восстановить\nВерсии\nV1",
+        "history": "ВЕРСИИ И CHECKPOINTS\nСоздать checkpoint\nОпубликовать версию\nСравнить крайние версии\n\nЧерновик сохранён локально\n\nCheckpoints\nCP-MSJO6FGDВосстановить\nВерсии\nV1",
         "footer": {
           "Document ID": "layout.kora.liquid-station",
           "Версия контракта": "archidom.layout-document/0.1",
           "Ревизия состояния": "0",
           "Последняя опубликованная версия": "V1",
-          "Semantic hash": "12a989ef19237987f1c4cf64e491fe0393f4baad1af10c79436828ce220b4267",
+          "Semantic hash": "ef57708a1deb66b47454901eb9b5af83460bddb19986e116d926f3f455833a11",
           "Результат проверки": "Замечаний нет"
         }
       },
@@ -1166,9 +1161,9 @@
       "detail": {
         "jsHeapMB": 15,
         "frameTiming": {
-          "p50": 16.700000000186265,
-          "p95": 16.90000000037253,
-          "max": 19.5,
+          "p50": 16.699999999953434,
+          "p95": 16.900000000023283,
+          "max": 17.900000000023283,
           "n": 89
         }
       },
@@ -1182,28 +1177,28 @@
         "note": "Provisional signal on the owner-intent fixture. LS-AT-091/092 remain EXTERNAL_HOLD until the final set-out.",
         "caveat": "Software WebGL (SwiftShader) in a sandbox with all external hosts blocked; the render-blocking Google Fonts stylesheet fails with ERR_CONNECTION_RESET and inflates navigation timings.",
         "navigationTiming": {
-          "responseEndMs": 75,
-          "domContentLoadedMs": 13078,
+          "responseEndMs": 68,
+          "domContentLoadedMs": 13298,
           "firstContentfulPaintMs": 0,
-          "planReadyMs": 13139
+          "planReadyMs": 13374
         },
         "firstContentfulPaintMs": {
           "n": 3,
-          "min": 12766,
-          "max": 13172,
-          "mean": 13005
+          "min": 12964,
+          "max": 16114,
+          "mean": 14125
         },
         "viewSwitchMs": {
           "n": 3,
-          "min": 1030,
-          "max": 1204,
-          "mean": 1091
+          "min": 1156,
+          "max": 1537,
+          "mean": 1303
         },
         "commandApplyMs": {
           "n": 3,
-          "min": 66,
-          "max": 400,
-          "mean": 187
+          "min": 104,
+          "max": 786,
+          "mean": 332
         }
       },
       "scope": "LS-AT-091/092 provisional benchmark"
@@ -1307,27 +1302,22 @@
     },
     {
       "scope": "auth signup/signin",
-      "url": "http://127.0.0.1:3100/dashboard/setup?_rsc=j79Vj4yH5aoiafxS",
-      "failure": "net::ERR_ABORTED"
-    },
-    {
-      "scope": "auth signup/signin",
       "url": "http://127.0.0.1:3100/dashboard?_rsc=j79Vj4yH5aoiafxS",
       "failure": "net::ERR_ABORTED"
     },
     {
       "scope": "auth signup/signin",
-      "url": "http://127.0.0.1:3100/dashboard/analytics?_rsc=j79Vj4yH5aoiafxS",
-      "failure": "net::ERR_ABORTED"
-    },
-    {
-      "scope": "auth signup/signin",
-      "url": "http://127.0.0.1:3100/dashboard/setup?_rsc=IOe_mmh6jQxP6_Ru",
+      "url": "http://127.0.0.1:3100/dashboard/setup?_rsc=j79Vj4yH5aoiafxS",
       "failure": "net::ERR_ABORTED"
     },
     {
       "scope": "auth signup/signin",
       "url": "http://127.0.0.1:3100/dashboard/analytics?_rsc=IOe_mmh6jQxP6_Ru",
+      "failure": "net::ERR_ABORTED"
+    },
+    {
+      "scope": "auth signup/signin",
+      "url": "http://127.0.0.1:3100/dashboard/setup?_rsc=IOe_mmh6jQxP6_Ru",
       "failure": "net::ERR_ABORTED"
     },
     {

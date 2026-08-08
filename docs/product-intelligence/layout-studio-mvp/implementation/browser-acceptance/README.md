@@ -61,7 +61,7 @@ ARCHIDOM_LAYOUT_STUDIO_ENABLED=true \
 npm run build && npx next start -p 3100 -H 127.0.0.1
 
 # 5. acceptance run
-E2E_OUT=./evidence E2E_RUN_ID=r13 E2E_ANON_KEY=<anon jwt> node harness/e2e.mjs
+E2E_OUT=./evidence E2E_RUN_ID=r15 E2E_ANON_KEY=<anon jwt> node harness/e2e.mjs
 
 # 6. default-off control: restart step 4 with ARCHIDOM_LAYOUT_STUDIO_ENABLED unset
 E2E_OUT=./evidence node harness/flag-off.mjs
@@ -84,9 +84,14 @@ browser preflight fails without it.
 - `evidence/exports/*` — the five artifacts and their sidecar manifests, exactly
   as the browser downloaded them.
 
-## Result of the recorded run (`r13`)
+## Result of the recorded run (`r15`, 2026-08-07)
 
 49 / 49 checks pass. `evidence/e2e-result.json` carries the per-check detail.
+
+Re-run on 2026-08-07 after the owner confirmed the 3 m clear height: removing
+`CLEAR_HEIGHT_ASSUMED_3000` changed the KORA semantic hash to
+`ef57708a1deb66b47454901eb9b5af83460bddb19986e116d926f3f455833a11`, so the whole
+evidence set was regenerated rather than left stale.
 
 ## Environment caveats that the evidence records
 
