@@ -4,6 +4,10 @@ import {
 } from "@/lib/layout-studio/domain";
 import type { LayoutDraftStorePort } from "@/lib/layout-studio/application/layout-repository-port";
 import {
+  parseWorkspaceBinding,
+  type WorkspaceBinding,
+} from "@/lib/layout-studio/application/workspace-binding";
+import {
   LayoutRepositoryError,
   type CheckpointInput,
   type LayoutCheckpoint,
@@ -37,6 +41,10 @@ interface DocumentRow {
   document_id: string;
   title: string;
   draft: unknown;
+  workspace_project_id: string | null;
+  workspace_package_id: string | null;
+  workspace_room_id: string | null;
+  workspace_role: string | null;
 }
 
 interface CheckpointRow {
@@ -73,7 +81,10 @@ export class SupabaseLayoutRepository implements LayoutDraftStorePort {
   private async resolveDocument(documentId: string): Promise<DocumentRow | null> {
     const { data, error } = await this.client
       .from("layout_documents")
-      .select("id, project_id, document_id, title, draft")
+      .select(
+        "id, project_id, document_id, title, draft, " +
+          "workspace_project_id, workspace_package_id, workspace_room_id, workspace_role",
+      )
       .eq("document_id", documentId)
       .maybeSingle();
     if (error) throw new LayoutRepositoryError("STORAGE_UNAVAILABLE", error.message);
@@ -233,5 +244,38 @@ export class SupabaseLayoutRepository implements LayoutDraftStorePort {
       .order("created_at", { ascending: true });
     if (error) throw new LayoutRepositoryError("STORAGE_UNAVAILABLE", error.message);
     return ((data as CheckpointRow[]) ?? []).map(toCheckpoint);
+  }
+
+  /** Привязка к рабочему пространству projectceo; null — не привязана. */
+  async loadWorkspaceBinding(documentId: string): Promise<WorkspaceBinding | null> {
+    const row = await this.requireDocument(documentId);
+    return parseWorkspaceBinding({
+      projectId: row.workspace_project_id,
+      packageId: row.workspace_package_id,
+      roomId: row.workspace_room_id,
+      role: row.workspace_role,
+    });
+  }
+
+  /**
+   * Записать привязку. Валидность формы (uuid, алфавит roomId, словарь ролей)
+   * проверена парсером до вызова и продублирована CHECK-ограничениями
+   * миграции 20260808060000. Принадлежность пользователя пакету здесь НЕ
+   * проверяется намеренно: её проверяет сервер projectceo при каждой
+   * публикации — фальшивая привязка даёт отказ публикации, а не дыру.
+   */
+  async saveWorkspaceBinding(documentId: string, binding: WorkspaceBinding): Promise<void> {
+    const row = await this.requireDocument(documentId);
+    const { error } = await this.client
+      .from("layout_documents")
+      .update({
+        workspace_project_id: binding.projectId,
+        workspace_package_id: binding.packageId,
+        workspace_room_id: binding.roomId,
+        workspace_role: binding.role,
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", row.id);
+    if (error) throw new LayoutRepositoryError("STORAGE_UNAVAILABLE", error.message);
   }
 }

@@ -213,10 +213,13 @@ describe("Layout Studio delivery/UI slice", () => {
         .toContain(name);
     }
 
-    // Единственная миграция, которую добавляет сам Layout Studio. Любая другая
-    // новая — чужая, и тогда обновляется список preExisting, а не этот.
+    // Полный список миграций самого Layout Studio. Любая другая новая —
+    // чужая, и тогда обновляется список preExisting, а не этот.
     const added = actual.filter((name) => !preExisting.includes(name));
-    expect(added).toEqual(["20260808050000_layout_studio_drafts.sql"]);
+    expect(added).toEqual([
+      "20260808050000_layout_studio_drafts.sql",
+      "20260808060000_layout_studio_workspace_binding.sql",
+    ]);
   });
 
   it("keeps the layout migration on this chain's production RLS pattern", () => {

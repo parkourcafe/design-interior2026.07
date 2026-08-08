@@ -5,6 +5,11 @@ import { createClient } from "@/lib/supabase/server";
 import { isLayoutStudioEnabled } from "@/lib/layout-studio/feature-flag";
 import { SupabaseLayoutRepository } from "@/lib/layout-studio/adapters/supabase/supabase-layout-repository";
 import { LayoutRepositoryError } from "@/lib/layout-studio/adapters/local/memory-layout-repository";
+import {
+  parseWorkspaceBinding,
+  ROOM_ID_PATTERN,
+  WORKSPACE_VARIANT_ROLES,
+} from "@/lib/layout-studio/application/workspace-binding";
 import type { LayoutDocument } from "@/lib/layout-studio/domain";
 
 export const dynamic = "force-dynamic";
@@ -50,6 +55,13 @@ const bodySchema = z.discriminatedUnion("action", [
     checkpointId: z.string().min(1),
     expectedRevision: z.number().int(),
   }),
+  z.object({
+    action: z.literal("bindWorkspace"),
+    projectId: z.string().uuid(),
+    packageId: z.string().uuid(),
+    roomId: z.string().regex(ROOM_ID_PATTERN),
+    role: z.enum(WORKSPACE_VARIANT_ROLES),
+  }),
 ]);
 
 /** Доменные ошибки → коды HTTP. Всё неизвестное — 500, а не «наверное 400». */
@@ -92,10 +104,14 @@ export async function GET(
   try {
     const draft = await repository.loadDraft(documentId);
     if (!draft) return NextResponse.json({ error: "not_found" }, { status: 404 });
-    const checkpoints = await repository.listCheckpoints(documentId);
+    const [checkpoints, binding] = await Promise.all([
+      repository.listCheckpoints(documentId),
+      repository.loadWorkspaceBinding(documentId),
+    ]);
     // versions: подписанные версии живут в хранилище projectceo_product и
-    // читаются его собственным роутом; здесь их принципиально нет.
-    return NextResponse.json({ draft, versions: [], checkpoints });
+    // читаются его собственным роутом; здесь их принципиально нет. binding
+    // говорит редактору, куда публиковать (и публиковать ли вообще).
+    return NextResponse.json({ draft, versions: [], checkpoints, binding });
   } catch (error) {
     return failure(error);
   }
@@ -148,6 +164,21 @@ export async function POST(
           body.expectedRevision,
         );
         return NextResponse.json({ document });
+      }
+      case "bindWorkspace": {
+        // Повторный разбор той же формы, что и у CHECK-ограничений миграции:
+        // zod выше проверил типы, парсер — паттерны uuid/roomId и словарь
+        // ролей. Принадлежность пользователя пакету проверяет сервер
+        // projectceo при публикации, здесь её проверить нечем и не нужно.
+        const binding = parseWorkspaceBinding({
+          projectId: body.projectId,
+          packageId: body.packageId,
+          roomId: body.roomId,
+          role: body.role,
+        });
+        if (!binding) return NextResponse.json({ error: "bad_request" }, { status: 400 });
+        await repository.saveWorkspaceBinding(documentId, binding);
+        return NextResponse.json({ ok: true, binding });
       }
     }
   } catch (error) {

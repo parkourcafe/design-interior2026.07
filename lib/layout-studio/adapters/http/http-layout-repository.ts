@@ -10,36 +10,52 @@ import {
   type LayoutVersion,
   type VersionPublicationInput,
 } from "@/lib/layout-studio/adapters/local/memory-layout-repository";
+import { AuthenticatedLayoutRepository } from "@/lib/layout-studio/adapters/http/authenticated-layout-repository";
 import type { LayoutRepositoryPort } from "@/lib/layout-studio/application/layout-repository-port";
+import {
+  parseWorkspaceBinding,
+  prepareForPublication,
+  type WorkspaceBinding,
+} from "@/lib/layout-studio/application/workspace-binding";
 
 /**
- * Хранилище редактора, которое ходит на сервер.
+ * Хранилище редактора, которое ходит на сервер. Это фасад над двумя мирами:
  *
- * Работает в браузере и потому НИЧЕГО не решает само: ни схему, ни хеш, ни
- * права. Всё это считает серверный роут — здесь только перенос данных и
- * обратный перевод HTTP-кодов в доменные ошибки, чтобы редактор реагировал
- * одинаково независимо от того, где лежит документ.
+ * - Черновики и чекпойнты — рабочее состояние. Живут в таблицах студии за RLS,
+ *   через /api/layout-studio. Здесь хранилище ничего не решает само: схему,
+ *   права и ревизии проверяет серверный роут.
+ * - Опубликованные версии — подписанная истина объединённого контура. Живут в
+ *   хранилище projectceo_product и публикуются его command API
+ *   (publish_m2_layout_version). Этот путь открывается ТОЛЬКО когда планировка
+ *   привязана к рабочему пространству (пакет projectceo): привязку возвращает
+ *   тот же серверный роут, а публикацией занимается AuthenticatedLayoutRepository
+ *   — клиент, написанный командой контура под их собственный контракт.
  *
- * Версии и чекпойнты загружаются один раз при открытии и дальше держатся в
- * памяти: их список меняется только действиями самого редактора, а лишний
- * круг по сети на каждое обращение сделал бы интерфейс дёрганым.
+ * Без привязки публикация честно отвечает VERSION_STORE_NOT_CONNECTED, а
+ * список версий пуст — редактор показывает это словами, а не делает вид.
  *
- * Публикация версий из этого хранилища пока недоступна — и об этом оно
- * говорит прямо, а не делает вид, что опубликовало. Подписанные версии в
- * объединённом контуре живут в хранилище projectceo_product и публикуются
- * его command API с контекстом рабочего пространства (пакет, комната,
- * вариант). Подключение редактора к этому контексту — следующий шаг M2;
- * до него publishVersion возвращает код VERSION_STORE_NOT_CONNECTED,
- * который редактор показывает человеку словами.
+ * Версии и чекпойнты загружаются при открытии и дальше держатся в памяти: их
+ * список меняется только действиями самого редактора, а лишний круг по сети на
+ * каждое обращение сделал бы интерфейс дёрганым.
  */
 export class HttpLayoutRepository implements LayoutRepositoryPort {
   private versionCache: LayoutVersion[] = [];
   private checkpointCache: LayoutCheckpoint[] = [];
-  private hydrated = false;
+  private binding: WorkspaceBinding | null = null;
+  private published: AuthenticatedLayoutRepository | null = null;
+  // Один общий hydrate на все параллельные вызовы: редактор запрашивает
+  // черновик, версии и чекпойнты одновременно, и без единственного полёта
+  // они бы наперегонки открывали документ тремя GET-ами.
+  private hydration: Promise<{
+    draft: LayoutDocument | null;
+    versions: LayoutVersion[];
+    checkpoints: LayoutCheckpoint[];
+  }> | null = null;
 
   constructor(
     private readonly documentId: string,
-    private readonly fetchImpl: typeof fetch = fetch,
+    private readonly fetchImpl: typeof fetch = (input, init) => fetch(input, init),
+    private readonly randomUUID: () => string = () => crypto.randomUUID(),
   ) {}
 
   private get endpoint(): string {
@@ -76,25 +92,87 @@ export class HttpLayoutRepository implements LayoutRepositoryPort {
     });
   }
 
-  /** Один запрос на открытие: черновик, версии и чекпойнты сразу. */
+  /** Один запрос на открытие: черновик, привязка, версии и чекпойнты сразу. */
   async hydrate(): Promise<{
+    draft: LayoutDocument | null;
+    versions: LayoutVersion[];
+    checkpoints: LayoutCheckpoint[];
+  }> {
+    this.hydration ??= this.hydrateOnce();
+    return this.hydration;
+  }
+
+  private async hydrateOnce(): Promise<{
     draft: LayoutDocument | null;
     versions: LayoutVersion[];
     checkpoints: LayoutCheckpoint[];
   }> {
     const payload = await this.request<{
       draft: LayoutDocument;
-      versions: LayoutVersion[];
       checkpoints: LayoutCheckpoint[];
+      binding?: unknown;
     }>();
-    this.versionCache = payload.versions ?? [];
     this.checkpointCache = payload.checkpoints ?? [];
-    this.hydrated = true;
-    return { draft: payload.draft, versions: this.versionCache, checkpoints: this.checkpointCache };
+    this.connectPublishedStore(parseWorkspaceBinding(payload.binding), payload.draft);
+    this.versionCache = this.published
+      ? await this.published.listVersions(this.documentId)
+      : [];
+    return {
+      draft: payload.draft,
+      versions: this.versionCache,
+      checkpoints: this.checkpointCache,
+    };
+  }
+
+  /**
+   * Собрать клиент опубликованных версий под привязку.
+   *
+   * variantId контекста — из самого документа: вариант живёт в содержимом и
+   * стабилен с создания, а не выбирается при публикации. Клиент контура сам
+   * сверит его с документом ещё раз (assertDocumentScope).
+   */
+  private connectPublishedStore(
+    binding: WorkspaceBinding | null,
+    draft: LayoutDocument | null,
+  ): void {
+    this.binding = binding;
+    const variantId = draft?.variant?.id;
+    this.published = binding && variantId
+      ? new AuthenticatedLayoutRepository({
+          fetch: this.fetchImpl,
+          randomUUID: this.randomUUID,
+          context: {
+            projectId: binding.projectId,
+            packageId: binding.packageId,
+            roomId: binding.roomId,
+            variantId,
+            role: binding.role,
+          },
+        })
+      : null;
   }
 
   private async ensureHydrated(): Promise<void> {
-    if (!this.hydrated) await this.hydrate();
+    await this.hydrate();
+  }
+
+  /** Привязка, с которой хранилище работает сейчас; null — не привязано. */
+  workspaceBinding(): WorkspaceBinding | null {
+    return this.binding ? { ...this.binding } : null;
+  }
+
+  /**
+   * Привязать планировку к рабочему пространству и сразу подключить хранилище
+   * версий. Список версий перечитывается: в выбранном пакете уже могли жить
+   * публикации этой комнаты.
+   */
+  async bindWorkspace(binding: WorkspaceBinding, draft: LayoutDocument): Promise<LayoutVersion[]> {
+    await this.post<{ ok: true }>({ action: "bindWorkspace", ...binding });
+    this.connectPublishedStore(binding, draft);
+    this.versionCache = this.published
+      ? await this.published.listVersions(this.documentId)
+      : [];
+    return [...this.versionCache];
   }
 
   async saveDraft(document: LayoutDocument, expectedRevision: number | null): Promise<void> {
@@ -147,13 +225,23 @@ export class HttpLayoutRepository implements LayoutRepositoryPort {
   }
 
   async publishVersion(
-    _document: LayoutDocument,
-    _input: VersionPublicationInput,
+    document: LayoutDocument,
+    input: VersionPublicationInput,
   ): Promise<LayoutVersion> {
-    throw new LayoutRepositoryError(
-      "VERSION_STORE_NOT_CONNECTED",
-      "Публикация версий подключается через рабочее пространство M2 — следующий шаг. Черновик и чекпойнты уже сохраняются на сервере.",
-    );
+    await this.ensureHydrated();
+    if (!this.published || !this.binding) {
+      throw new LayoutRepositoryError(
+        "VERSION_STORE_NOT_CONNECTED",
+        "Планировка не привязана к рабочему пространству. Выберите пакет проекта — и публикация откроется.",
+      );
+    }
+    // Черновик несёт studio-идентификатор проекта и живой статус варианта;
+    // команда публикации требует projectceo-проект и статус published. Копию
+    // готовит одна чистая функция, черновик остаётся нетронутым.
+    const publication = prepareForPublication(document, this.binding);
+    const version = await this.published.publishVersion(publication, input);
+    this.versionCache = [...this.versionCache, version];
+    return version;
   }
 
   async loadVersion(versionId: string): Promise<LayoutVersion | null> {

@@ -14,6 +14,13 @@ import type {
 import { HttpLayoutRepository } from "@/lib/layout-studio/adapters/http/http-layout-repository";
 import { LayoutRepositoryError } from "@/lib/layout-studio/adapters/local/memory-layout-repository";
 import {
+  ROOM_ID_PATTERN,
+  WORKSPACE_VARIANT_ROLES,
+  mintRoomId,
+  type WorkspaceBinding,
+  type WorkspaceVariantRole,
+} from "@/lib/layout-studio/application/workspace-binding";
+import {
   NODE_SNAP_RADIUS_PX,
   isDegenerate,
   nextEntityId,
@@ -105,11 +112,22 @@ function cloneDocument(document: LayoutDocument): LayoutDocument {
 }
 
 function storageErrorMessage(error: unknown): string {
-  // У доменных ошибок хранилища сообщение уже человеческое — например,
-  // «публикация подключается через рабочее пространство M2». Показываем его,
-  // а не общее «не удалось сохранить», которое звучало бы как поломка.
-  if (error instanceof LayoutRepositoryError && error.message) {
-    return error.message;
+  // Проверка по форме, а не instanceof: ошибок хранилища ДВА класса с одним
+  // именем — наш (memory-layout-repository) и клиента контура публикации
+  // (authenticated-layout-repository). instanceof одного из них молча терял
+  // бы ошибки другого, и словарь переводов не срабатывал бы.
+  const shaped = error as { code?: unknown; message?: unknown } | null;
+  const code = typeof shaped?.code === "string" ? shaped.code : null;
+  if (code) {
+    // Клиент контура публикации бросает ошибки с кодом вместо человеческого
+    // текста (FORBIDDEN, STALE_STATE, …) — их переводит словарь.
+    const translated = copy.storageErrors[code];
+    if (translated) return translated;
+    // У остальных доменных ошибок сообщение уже человеческое — например,
+    // «планировка не привязана к рабочему пространству». Показываем его,
+    // а не общее «не удалось сохранить», которое звучало бы как поломка.
+    const message = typeof shaped?.message === "string" ? shaped.message : null;
+    if (message && message !== code) return message;
   }
   return copy.history.storageError;
 }
@@ -1003,6 +1021,188 @@ function ValidationPanel({ issues }: { readonly issues: LayoutIssue[] }) {
   );
 }
 
+/** Строка выбора пакета: проект контура + его активные пакеты. */
+interface WorkspacePackageOption {
+  readonly projectId: string;
+  readonly projectName: string;
+  readonly packageId: string;
+  readonly packageName: string;
+}
+
+/**
+ * Привязка планировки к рабочему пространству объединённого контура.
+ *
+ * Публикация версий живёт в мире projectceo (организация → проект → пакет),
+ * а планировка — в мире студии; мост между ними — эта привязка. Пока её нет,
+ * панель говорит об этом словами, а кнопка публикации отвечает отказом — оба
+ * сообщения честные, ничего не «висит молча».
+ *
+ * Список пакетов приходит из portfolio-чтения контура; организации отсюда не
+ * создаются — пустое портфолио означает разговор с владельцем организации,
+ * а не самообслуживание.
+ */
+function WorkspacePanel({
+  binding,
+  documentName,
+  documentId,
+  onBind,
+}: {
+  readonly binding: WorkspaceBinding | null;
+  readonly documentName: string;
+  readonly documentId: string;
+  readonly onBind: (binding: WorkspaceBinding) => Promise<void>;
+}) {
+  const [open, setOpen] = useState(false);
+  const [phase, setPhase] = useState<"idle" | "loading" | "ready" | "failed" | "empty">("idle");
+  const [options, setOptions] = useState<WorkspacePackageOption[]>([]);
+  const [selectedPackage, setSelectedPackage] = useState<string>("");
+  const [roomId, setRoomId] = useState<string>("");
+  const [role, setRole] = useState<WorkspaceVariantRole>("preferred");
+  const [message, setMessage] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
+
+  const loadWorkspaces = async () => {
+    setOpen(true);
+    setPhase("loading");
+    setMessage(null);
+    setRoomId((current) => current || mintRoomId(documentName, documentId));
+    try {
+      const portfolio = await fetchEnvelope<{
+        projects: ReadonlyArray<{ id: string; name: string }>;
+      }>("/api/projectceo/portfolio");
+      if (portfolio.projects.length === 0) {
+        setPhase("empty");
+        return;
+      }
+      const optionLists = await Promise.all(portfolio.projects.map(async (project) => {
+        const workspace = await fetchEnvelope<{
+          packages: ReadonlyArray<{ id: string; name: string; status: string }>;
+        }>(`/api/projectceo/projects/${encodeURIComponent(project.id)}`);
+        return workspace.packages
+          .filter((item) => item.status === "active")
+          .map((item) => ({
+            projectId: project.id,
+            projectName: project.name,
+            packageId: item.id,
+            packageName: item.name,
+          }));
+      }));
+      const flattened = optionLists.flat();
+      setOptions(flattened);
+      setSelectedPackage(flattened[0]?.packageId ?? "");
+      setPhase(flattened.length === 0 ? "empty" : "ready");
+    } catch {
+      setPhase("failed");
+    }
+  };
+
+  const save = async () => {
+    const option = options.find((item) => item.packageId === selectedPackage);
+    if (!option) return;
+    if (!ROOM_ID_PATTERN.test(roomId)) {
+      setMessage(copy.workspace.roomInvalid);
+      return;
+    }
+    setSaving(true);
+    setMessage(null);
+    try {
+      await onBind({
+        projectId: option.projectId,
+        packageId: option.packageId,
+        roomId,
+        role,
+      });
+      setOpen(false);
+    } catch (error) {
+      setMessage(`${copy.workspace.saveFailed} ${storageErrorMessage(error)}`);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <section className={styles.sideSection}>
+      <h2>{copy.workspace.title}</h2>
+      {binding ? (
+        <p className={styles.muted}>
+          {copy.workspace.bound(
+            binding.roomId,
+            copy.workspace.roleNames[binding.role] ?? binding.role,
+          )}
+        </p>
+      ) : (
+        <>
+          <p className={styles.muted}>{copy.workspace.notBound}</p>
+          {!open && (
+            <button type="button" onClick={() => void loadWorkspaces()}>
+              {copy.workspace.connect}
+            </button>
+          )}
+          {open && phase === "loading" && <p>{copy.workspace.loading}</p>}
+          {open && phase === "failed" && <p role="alert">{copy.workspace.loadFailed}</p>}
+          {open && phase === "empty" && <p>{copy.workspace.emptyPortfolio}</p>}
+          {open && phase === "ready" && (
+            <div className={styles.historyActions}>
+              <label htmlFor="workspace-package">{copy.workspace.packageLabel}</label>
+              <select
+                id="workspace-package"
+                value={selectedPackage}
+                onChange={(event) => setSelectedPackage(event.target.value)}
+              >
+                {options.map((option) => (
+                  <option key={option.packageId} value={option.packageId}>
+                    {option.projectName} · {option.packageName}
+                  </option>
+                ))}
+              </select>
+              <label htmlFor="workspace-room">{copy.workspace.roomLabel}</label>
+              <input
+                id="workspace-room"
+                value={roomId}
+                onChange={(event) => setRoomId(event.target.value)}
+              />
+              <p className={styles.muted}>{copy.workspace.roomHint}</p>
+              <label htmlFor="workspace-role">{copy.workspace.roleLabel}</label>
+              <select
+                id="workspace-role"
+                value={role}
+                onChange={(event) => setRole(event.target.value as WorkspaceVariantRole)}
+              >
+                {WORKSPACE_VARIANT_ROLES.map((value) => (
+                  <option key={value} value={value}>
+                    {copy.workspace.roleNames[value] ?? value}
+                  </option>
+                ))}
+              </select>
+              <button type="button" disabled={saving || !selectedPackage} onClick={() => void save()}>
+                {copy.workspace.save}
+              </button>
+              <button type="button" disabled={saving} onClick={() => setOpen(false)}>
+                {copy.workspace.cancel}
+              </button>
+            </div>
+          )}
+          {message && <p role="alert">{message}</p>}
+        </>
+      )}
+    </section>
+  );
+}
+
+/**
+ * Чтения контура приходят в конверте {data, error}; всё остальное — ошибка
+ * загрузки, включая «данные есть, но error не null».
+ */
+async function fetchEnvelope<T>(url: string): Promise<T> {
+  const response = await fetch(url, { credentials: "same-origin", cache: "no-store" });
+  if (!response.ok) throw new Error(`HTTP ${response.status}`);
+  const body = (await response.json()) as { data?: T | null; error?: unknown | null };
+  if (!body || body.error !== null || body.data === null || body.data === undefined) {
+    throw new Error("envelope_error");
+  }
+  return body.data;
+}
+
 function HistoryPanel({
   checkpoints,
   versions,
@@ -1142,6 +1342,10 @@ export function LayoutStudioShell({
   const [versions, setVersions] = useState<LocalSnapshot[]>([]);
   const [historyStatus, setHistoryStatus] = useState<string | null>(null);
   const [diffSummary, setDiffSummary] = useState<LayoutDocumentDiff | null>(null);
+  // Привязка к рабочему пространству контура. Держится отдельно от repository,
+  // потому что операции привязки есть только у HTTP-фасада, а не у порта.
+  const [workspaceBinding, setWorkspaceBinding] = useState<WorkspaceBinding | null>(null);
+  const httpRepositoryRef = useRef<HttpLayoutRepository | null>(null);
   const revision = sessionState.document.stateRevision;
 
   const document = sessionState.document;
@@ -1171,9 +1375,7 @@ export function LayoutStudioShell({
 
     const hydrate = async () => {
       try {
-        const nextRepository: LayoutRepositoryPort = new HttpLayoutRepository(
-          initialDocument.documentId,
-        );
+        const nextRepository = new HttpLayoutRepository(initialDocument.documentId);
         const [draftDocument, persistedVersions, persistedCheckpoints] = await Promise.all([
           nextRepository.loadDraft(initialDocument.documentId),
           nextRepository.listVersions(initialDocument.documentId),
@@ -1201,6 +1403,8 @@ export function LayoutStudioShell({
           createdAt: checkpoint.createdAt,
           document: cloneDocument(checkpoint.document),
         })));
+        httpRepositoryRef.current = nextRepository;
+        setWorkspaceBinding(nextRepository.workspaceBinding());
         setRepository(nextRepository);
         setLoadState("ready");
       } catch (error) {
@@ -1518,6 +1722,29 @@ export function LayoutStudioShell({
       setHistoryStatus(storageErrorMessage(error));
     }
   };
+  const bindWorkspace = async (binding: WorkspaceBinding) => {
+    const httpRepository = httpRepositoryRef.current;
+    if (!httpRepository) {
+      setHistoryStatus(copy.history.storageUnavailable);
+      throw new LayoutRepositoryError("STORAGE_UNAVAILABLE", copy.history.storageUnavailable);
+    }
+    // Список версий перечитывается при привязке: в выбранном пакете уже могли
+    // жить публикации этой комнаты, и редактор обязан продолжить их цепочку,
+    // а не начать вторую с V1.
+    const persistedVersions = await httpRepository.bindWorkspace(
+      binding,
+      session.getState().document,
+    );
+    setWorkspaceBinding(httpRepository.workspaceBinding());
+    setVersions(persistedVersions.map((version) => ({
+      id: version.versionId,
+      createdAt: version.createdAt,
+      document: cloneDocument(version.content),
+      semanticHash: version.semanticHash,
+    })));
+    setHistoryStatus(copy.workspace.saved);
+  };
+
   const restoreCheckpoint = async (checkpointId: string) => {
     if (!repository) {
       setHistoryStatus(copy.history.storageUnavailable);
@@ -1763,6 +1990,12 @@ export function LayoutStudioShell({
             onDelete={() => deleteSelected(false)}
           />
           <ValidationPanel issues={allIssues} />
+          <WorkspacePanel
+            binding={workspaceBinding}
+            documentName={document.name}
+            documentId={document.documentId}
+            onBind={bindWorkspace}
+          />
           <HistoryPanel
             checkpoints={checkpoints}
             versions={versions}
