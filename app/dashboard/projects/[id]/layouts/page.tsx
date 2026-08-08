@@ -4,6 +4,7 @@ import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { ru } from "@/lib/i18n/ru";
 import { isLayoutStudioEnabled } from "@/lib/layout-studio/feature-flag";
+import CreateLayoutForm from "./create-layout-form";
 
 export const dynamic = "force-dynamic";
 
@@ -83,6 +84,8 @@ export default async function ProjectLayoutsPage({
           ))}
         </ul>
       )}
+
+      <CreateLayoutForm projectId={id} />
     </main>
   );
 }
