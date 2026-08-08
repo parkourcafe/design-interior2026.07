@@ -1,6 +1,6 @@
 id,priority,implementation_status,verification_status,note
 LS-AT-001,P0,IMPLEMENTED,AUTOMATED_PASS,simple fixture and frozen schema
-LS-AT-002,P0,PARTIAL,EXTERNAL_HOLD,owner intent locked and holds enforced by kora-survey-holds.test.ts; column absolute axis needs site tie-in (KORA_SURVEY_REQUEST_2026-08-06)
+LS-AT-002,P0,PARTIAL,EXTERNAL_HOLD,owner confirmed 2026-08-07 that 8100x3000 and the 250 column govern and A01-312 does not supersede; only the column centre tie-in stays open (fixture 3835/1125 vs drawing 4065/1405 for the same physical column)
 LS-AT-003,P0,IMPLEMENTED,AUTOMATED_PASS,AJV integer contract
 LS-AT-004,P0,IMPLEMENTED,AUTOMATED_PASS,duplicate ID semantic validation
 LS-AT-005,P0,IMPLEMENTED,AUTOMATED_PASS,missing node validation

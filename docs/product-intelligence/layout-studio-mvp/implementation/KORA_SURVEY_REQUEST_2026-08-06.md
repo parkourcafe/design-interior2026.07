@@ -194,7 +194,32 @@ Every geometric value differs. This is not a rounding question and it is not the
 45 mm artefact reported yesterday from the 1:200 sheet — that reading is now
 superseded by the 1:30 chain of 8090.
 
-### The question only the owner can answer
+### RESOLVED 2026-08-07 by the owner: the owner lock governs
+
+Owner decision: **8100 × 3000 and the 250 column are correct.** `A01-312` does not
+supersede the fixture. Nothing in the fixture changes — those values were already
+there — so the semantic hash and the `r15` browser evidence stay valid.
+
+Consequences, recorded so this is not re-litigated:
+
+- `A01-312` is **reference, not authority**, for the Liquid Station. Its 8090 ×
+  2615 / 230 column describe Tenant 12 as drawn; the fixture describes the station
+  as the owner intends it. Both stay on file; only the fixture drives the module.
+- **The remaining rows can no longer be closed from the existing construction
+  set.** The earlier mapping of "which registered source closes which row" assumed
+  the drawings were authoritative for this unit. They are not. `LS-AT-013`, `014`
+  and `015` now need owner input or a new design drawing of the station — the door,
+  equipment and sink drawn on `A01-312` are not the ones being specified.
+
+**One factual conflict survives the decision and still needs an answer.** A
+structural column is existing fabric: it cannot be one thing as-built and another
+by intent. The fixture puts its centre at X = 3835, Y = 1125; `A01-312` puts it at
+X = 4065, Y = 1405 — 230 mm and 280 mm apart. Either the two datasets measure from
+different origins, or one of them is wrong about where the column physically
+stands. That is exactly `LS-AT-002`, and it is now the narrowest open question in
+the whole set: **the column centre, measured from two named finished wall faces.**
+
+### Superseded question (kept for the record)
 
 The fixture's variant is literally `variant.kora.owner-intent`, status `review`,
 sourced from an owner lock rather than a drawing. So there are two readings, and
