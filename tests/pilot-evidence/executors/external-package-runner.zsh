@@ -204,7 +204,12 @@ send_command owner submit_m2_client_review \
   "${submit_command_id}"
 
 review_command_id=$(cat /proc/sys/kernel/random/uuid)
-review_payload=$(jq -nc '{decision:"approved",reason:"Согласовано клиентом внешнего пакета"}')
+# Причина согласования попадает в аудит и остаётся там навсегда. По умолчанию
+# она прямо говорит, что решение принял оператор проверки, а не заказчик, —
+# доказательство не должно выглядеть как настоящее клиентское согласование.
+# Осмысленную причину можно передать через EXTERNAL_RUN_REVIEW_REASON.
+review_reason=${EXTERNAL_RUN_REVIEW_REASON:-"Проверочный прогон цикла 7: решение принято оператором проверки, не заказчиком"}
+review_payload=$(jq -nc --arg reason "${review_reason}" '{decision:"approved",reason:$reason}')
 send_command client review_m2_client_submission \
   "$(command_payload review_m2_client_submission "${review_command_id}" "${review_payload}")" \
   "${review_command_id}"
