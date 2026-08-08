@@ -8,12 +8,16 @@ import koraFixture from "@/fixtures/layout-studio/kora-liquid-station.v0.1.json"
 const KORA = koraFixture as unknown as LayoutDocument;
 
 /**
- * Acceptance rows LS-AT-002 and LS-AT-012..015 stay EXTERNAL_HOLD until a real
- * KORA survey lands. These tests keep the hold honest: the fixture must keep
- * declaring every unresolved input, and every artifact must carry the warning
- * forward. They fail if an assumption is ever quietly promoted to a fact.
+ * LS-AT-002/013/014/015 are ACCEPTED_DECLARED, not verified: the owner scoped the
+ * KORA fixture to preview fidelity on 2026-08-07 rather than survey fidelity. The
+ * acceptance therefore rests entirely on the fixture continuing to declare what it
+ * does not know, and on that declaration reaching every artifact a reader could
+ * see. These tests are what makes the acceptance honest — they fail if a
+ * declaration is dropped, or if an assumption is quietly promoted to a fact.
+ *
+ * Reopening any row means deleting its warning here and supplying the measurement.
  */
-const OPEN_SURVEY_ITEMS = [
+const DECLARED_LIMITS = [
   { row: "LS-AT-002", warning: "PARTIAL_OWNER_LOCK", input: "owner lock covers intent only" },
   { row: "LS-AT-013", warning: "DOOR_HEIGHT_AND_SWING_NOT_SITE_VERIFIED", input: "door height, frame and swing" },
   { row: "LS-AT-002", warning: "COLUMN_ABSOLUTE_AXIS_NOT_SITE_VERIFIED", input: "column absolute axis" },
@@ -34,15 +38,15 @@ const OWNER_CONFIRMED = {
   clearHeightMm: 3000,
 };
 
-describe("LS-AT-002/012-015: KORA survey holds stay declared", () => {
-  it("declares a warning for every unresolved survey input", () => {
-    for (const item of OPEN_SURVEY_ITEMS) {
+describe("LS-AT-002/013-015: accepted-declared limits stay declared", () => {
+  it("declares a warning for every input accepted without measurement", () => {
+    for (const item of DECLARED_LIMITS) {
       expect(KORA.metadata.warnings, `${item.row} — ${item.input}`).toContain(item.warning);
     }
   });
 
   it("does not carry warnings for inputs that are not actually open", () => {
-    const declared = new Set(OPEN_SURVEY_ITEMS.map((item) => item.warning));
+    const declared = new Set(DECLARED_LIMITS.map((item) => item.warning));
     for (const warning of KORA.metadata.warnings) {
       expect(declared, `undocumented warning ${warning}`).toContain(warning);
     }
@@ -97,7 +101,7 @@ describe("LS-AT-002/012-015: KORA survey holds stay declared", () => {
     expect(result.valid).toBe(true);
   });
 
-  it("propagates every hold warning into a published version and its artifacts", async () => {
+  it("propagates every declaration into a published version and its artifacts", async () => {
     const repository = new MemoryLayoutRepository();
     const version = await repository.publishVersion(KORA, {
       versionId: "version.kora.holds",
@@ -120,7 +124,7 @@ describe("LS-AT-002/012-015: KORA survey holds stay declared", () => {
     }
 
     const print = await service.exportVersion(version.versionId, "print");
-    for (const item of OPEN_SURVEY_ITEMS) {
+    for (const item of DECLARED_LIMITS) {
       expect(print.artifact as string, `print must show ${item.warning}`).toContain(item.warning);
     }
   });

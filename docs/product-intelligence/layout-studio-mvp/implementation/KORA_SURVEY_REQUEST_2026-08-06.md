@@ -1,9 +1,48 @@
-# KORA Liquid Station — survey inputs still required
+# KORA Liquid Station — survey inputs (request CLOSED 2026-08-07)
 
 Date: 2026-08-06 (updated 2026-08-07)
 Branch: `codex/archidom-layout-studio-m2`
-Blocks: `LS-AT-002`, `LS-AT-012`, `LS-AT-013`, `LS-AT-014`, `LS-AT-015` (P0) and
-`LS-AT-091`, `LS-AT-092` (P1).
+Status: **closed — no further measurements are being requested.**
+Was blocking: `LS-AT-002`, `LS-AT-012`, `LS-AT-013`, `LS-AT-014`, `LS-AT-015` (P0)
+and `LS-AT-091`, `LS-AT-092` (P1).
+
+## Decision 2026-08-07: the fixture is accepted at preview fidelity
+
+The owner asked why survey data was still being chased. The question was right and
+the answer is that it was not needed. This module is default-off
+(`ARCHIDOM_LAYOUT_STUDIO_ENABLED=false`), it renders an owner-intent variant whose
+status is literally `review`, and every artifact it produces declares in-band what
+it does not know. Demanding site-verified set-out from it was applying a
+construction-documentation bar to a preview.
+
+So `LS-AT-002`, `013`, `014`, `015` move from `EXTERNAL_HOLD` to
+**`ACCEPTED_DECLARED`**: accepted as they stand, with their limits declared rather
+than resolved. `LS-AT-012` closed earlier on an owner lock and is unaffected.
+
+What acceptance does **not** mean:
+
+- No assumption was promoted to a measured value. Nothing in the fixture changed
+  when the status changed — the semantic hash is still
+  `ef57708a1deb66b47454901eb9b5af83460bddb19986e116d926f3f455833a11` and the `r15`
+  browser evidence stays valid.
+- The declarations are load-bearing and enforced.
+  `tests/layout-studio/domain/kora-survey-holds.test.ts` fails if
+  `PARTIAL_OWNER_LOCK`, `DOOR_HEIGHT_AND_SWING_NOT_SITE_VERIFIED`,
+  `COLUMN_ABSOLUTE_AXIS_NOT_SITE_VERIFIED` or `EQUIPMENT_SET_OUT_PENDING` stops
+  appearing in the fixture, in a published version, or in an exported artifact.
+  `EQUIPMENT_SET_OUT_PENDING` in particular is what stops an empty unit reading as
+  a complete one.
+- Nothing here becomes a construction input. The rule at the foot of this document
+  still holds without exception.
+
+Everything below is kept as the record of what was asked for and why, and as the
+specification for reopening. **Sections 1–6 are no longer a request.** They are the
+list of what a future survey would have to supply, if the module is ever taken past
+preview. Reopening a row means supplying its measurement and deleting its warning
+from the fixture and from `kora-survey-holds.test.ts` in the same commit.
+
+`LS-AT-091`/`092` stay `EXTERNAL_HOLD` and are unaffected by this decision: they
+need target hardware with a real GPU, not measurements.
 
 ## Venue naming
 
@@ -17,9 +56,10 @@ When requesting drawings, address them to the **ODE** drawing series — that is
 name the drawing team uses today. `AGENTS.md` still says "Kora Food Hall около
 1 800 м²"; aligning that wording is a separate governance edit, not made here.
 
-These rows are `EXTERNAL_HOLD`. They cannot be closed from the repository or from
-any automated environment: they need physical measurements. Nothing below is
-inferred, and no assumption in the fixture has been promoted to a measured value.
+These rows were `EXTERNAL_HOLD` and are now `ACCEPTED_DECLARED` (see the decision
+above). They still cannot be *verified* from the repository or from any automated
+environment — that part has not changed. Nothing below is inferred, and no
+assumption in the fixture has been promoted to a measured value.
 
 ## Already locked by the owner (2026-08-04) — do not re-measure
 
@@ -36,7 +76,7 @@ inferred, and no assumption in the fixture has been promoted to a measured value
 `tests/layout-studio/domain/kora-survey-holds.test.ts` fails if any of these
 drift, and fails if a hold below stops being declared.
 
-## Still required
+## What a reopening would require (not a live request)
 
 ### 1. Clear room height — ✅ CLOSED 2026-08-07
 
@@ -315,7 +355,7 @@ Zero of five. A 1:200 plan is not a set-out for a 250 mm column or a 1200 mm doo
 and reading one proportionally is what the policy at the end of this document
 forbids.
 
-### What is still needed, now named precisely
+### What would be needed, named precisely (superseded 2026-08-07 — no longer asked for)
 
 **The fit-out sheet for TENANT 12 at 1:50 or 1:25** — an enlarged tenant plan with
 its own section. In this project's numbering that lives under `VIII Details` as an
@@ -323,9 +363,9 @@ its own section. In this project's numbering that lives under `VIII Details` as 
 Area` are for their scopes. It should carry the unit contour, the column tie-in,
 the door, the counter and work surface, the central sink and the rear equipment.
 
-One sentence of confirmation would also help and costs nothing: **is the "Liquid
-Station" Tenant 12?** If it is something else, name it and the search narrows
-immediately.
+*(Answered 2026-08-07: yes, the Liquid Station is Tenant 12. The original question
+is left in place below because the reasoning that followed from it is still the
+record.)*
 
 Failing the fit-out sheet, in order of usefulness:
 
@@ -337,18 +377,42 @@ Failing the fit-out sheet, in order of usefulness:
 4. `Разрез_здания.png` — for clear height (LS-AT-012).
 5. The drawing-list XLSX inside `DWG - Restaurant Second Floor.rar`.
 
-### Fastest path
+### Fastest path (WITHDRAWN 2026-08-07)
 
-Send the five `local` files first — they are on the machine right now:
+The list below asked for five `local` files. It is withdrawn: two of them were
+supplied and reviewed (`AD06 - Service Area`, `A05 - Doors & Windows Rev 2`) and
+neither dimensions the Liquid Station, and the rows are now `ACCEPTED_DECLARED`.
+Kept for the record only.
 
-1. `Kora Food Hall - 2nd Floor - AD06 - Service Area.pdf`
+1. `Kora Food Hall - 2nd Floor - AD06 - Service Area.pdf` — supplied, closes nothing
 2. `План_2-го_этажа_1-100.pdf`
 3. `План_2-го_этажа_структурный.png`
-4. `Kora Food Hall - 2nd Floor - A05 - Doors & Windows Rev 2.pdf`
+4. `Kora Food Hall - 2nd Floor - A05 - Doors & Windows Rev 2.pdf` — supplied, closes nothing
 5. `Разрез_здания.png`
 
-If the Liquid Station is dimensioned on those sheets, all five rows close with no
-site visit and no new survey.
+### Final batch reviewed 2026-08-07 — the drawing set is exhausted for this unit
+
+The owner supplied a further four sheets and offered the full construction folder.
+All four are `KORA — 2nd FLOOR` packages (`AD03 Railing`, `A05 Doors & Windows
+Rev 2`, `AD02 Signage`, `2nd Floor 3D Exterior`) and none contains a single
+`TENANT` reference. Tenant 12 is on the **1st** floor, so no second-floor sheet can
+close a Tenant 12 row, whatever the folder contains.
+
+The four 1st-floor packages were then re-sent and re-checked against the earlier
+review (`AD01 Planter Box` 2 pp, `Tenants Layout` 14 pp, `A01 Layout & Seating`
+3 pp, `A05 AC Room / Canopy / Door & Window Rev 1.1` 17 pp — same files, same
+content). One targeted re-check was worth doing, because a doors-and-windows
+package is the one thing that could have closed `LS-AT-013` outright: the 1st-floor
+`A05` package is the `A02-101…205` building-envelope series and contains **no
+`TENANT` reference at all**, so it carries no Tenant 12 door schedule and no door
+height. `LS-AT-013` genuinely cannot be closed from the issued set.
+
+Combined with the earlier reviews — 13 tenant sheets at 1:200/1:30, the façade
+package, the service-area package, the MEP schematic — the conclusion is that the
+issued set documents the shell, the façade and the tenant envelope, and does not
+contain a fit-out sheet for the Liquid Station. That sheet does not appear to exist
+yet rather than being mislaid. Chasing it further was the wrong use of the owner's
+time, which is what prompted the decision at the top of this document.
 
 ## Alternative delivery: the same drawing package, for the Liquid Station
 

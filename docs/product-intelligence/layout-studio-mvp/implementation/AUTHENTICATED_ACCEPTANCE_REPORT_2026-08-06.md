@@ -6,8 +6,13 @@ Base commit at start: `d56ca6c`
 PR: https://github.com/parkourcafe/design-interior2026.07/pull/67 (stays **draft**)
 
 This report closes the `AUTH_BROWSER_HOLD` class from
-`NEW_CHAT_HANDOFF_2026-08-06.md`, closes the two `UNVERIFIED` rows, and records
-what remains genuinely external.
+`NEW_CHAT_HANDOFF_2026-08-06.md`, closes the two `UNVERIFIED` rows, records the
+four P0 rows the owner accepted at preview fidelity on 2026-08-07, and records what
+remains genuinely external.
+
+**Headline: P0 is 63 rows with 0 open — 59 verified, 4 accepted with declared
+limits.** The distinction is kept everywhere in this document and is not collapsed
+into "100 % PASS"; see section 8.
 
 ## 1. How the authenticated hold was cleared
 
@@ -46,8 +51,8 @@ plus a separate default-off control (`evidence/flag-off-result.json`).
 |---|---|
 | `npm run lint` | PASS — 0 errors, 10 inherited warnings |
 | `npm run typecheck` | PASS |
-| `npm run test` | PASS — 75 files / 434 tests (was 70 / 408) |
-| Layout Studio suite | PASS — 19 files / 106 tests (was 14 / 80) |
+| `npm run test` | PASS — 75 files / 435 tests (was 70 / 408) |
+| Layout Studio suite | PASS — 19 files / 107 tests (was 14 / 80) |
 | `npm run build` | PASS — Next.js 16.3.0 |
 | `npm audit` | PASS — 0 vulnerabilities |
 | `git diff --check` | PASS |
@@ -114,29 +119,59 @@ against a real session in a real browser, distinct from `AUTOMATED_PASS`.
   LS-AT-044 (camera reset measured, above).
 - **Also upgraded to `BROWSER_PASS`** because the run covered them directly:
   LS-AT-010, 021, 023, 030, 031, 032, 034, 035, 045, 046, 060, 061, 062, 080, 086.
-- **Unchanged `EXTERNAL_HOLD`:** LS-AT-002, 013, 014, 015 (P0) and 091, 092 (P1).
 - **Closed 2026-08-07:** LS-AT-012 → `AUTOMATED_PASS`. The owner confirmed the
   clear height is exactly 3 m, so `CLEAR_HEIGHT_ASSUMED_3000` was removed and the
   value gained an owner-lock source ref. That changed the KORA semantic hash to
   `ef57708a…`, so the browser evidence was regenerated (run `r15`, 49/49).
+- **`EXTERNAL_HOLD` → `ACCEPTED_DECLARED` 2026-08-07:** LS-AT-002, 013, 014, 015
+  (P0), on the owner's scope decision — section 5.
+- **Unchanged `EXTERNAL_HOLD`:** LS-AT-091, 092 (P1) — target hardware, not
+  measurements.
 
-## 5. What remains external — the only blocker
+## 5. The four P0 rows accepted with declared limits
 
-`LS-AT-002`, `013`, `014`, `015` need physical measurements of the KORA
-site. They cannot be closed from any code environment, and no assumption was
-promoted to a measured value. The exact inputs required are itemised in
-`KORA_SURVEY_REQUEST_2026-08-06.md`.
+`LS-AT-002`, `013`, `014`, `015` were `EXTERNAL_HOLD` pending physical measurement
+of the KORA site. On 2026-08-07 the owner scoped the fixture to **preview
+fidelity**, and the rows are now `ACCEPTED_DECLARED`.
 
-The hold is now enforced rather than merely noted:
+That is a scope decision, and it is the right one. The module is default-off, the
+fixture's variant is literally `variant.kora.owner-intent` with status `review`,
+and the drawing set was exhausted without producing a Tenant 12 fit-out sheet — the
+1st-floor `A05` doors-and-windows package, the last plausible source for the door
+row, turned out to be the `A02-1xx` building-envelope series with no `TENANT`
+reference at all. Holding a preview to construction-documentation fidelity was
+costing the owner time for no gain in what the module actually does.
+
+**What acceptance rests on.** Not on the measurements existing, but on the fixture
+continuing to say what it does not know:
+
+| Row | Declared warning | What is not verified |
+|---|---|---|
+| LS-AT-002 | `PARTIAL_OWNER_LOCK`, `COLUMN_ABSOLUTE_AXIS_NOT_SITE_VERIFIED` | column centre is derived from the owner's "door on the column axis", not a site tie-in |
+| LS-AT-013 | `DOOR_HEIGHT_AND_SWING_NOT_SITE_VERIFIED` | 2100 height, frame, structural-vs-clear width |
+| LS-AT-014 | `EQUIPMENT_SET_OUT_PENDING` | fixture carries no rear equipment |
+| LS-AT-015 | `EQUIPMENT_SET_OUT_PENDING` | fixture carries no central sink |
+
+LS-AT-014/015 deserve the plainest possible statement: **the fixture is empty where
+those rows describe content.** The warning is what stops an empty unit being read
+as a complete one, so the declaration is not decoration — it is the acceptance.
+
+The declarations are enforced, not merely noted.
 `tests/layout-studio/domain/kora-survey-holds.test.ts` fails if the fixture stops
-declaring a hold warning, if a warning appears that is not on the documented list,
-if owner-confirmed geometry drifts, or if a warning stops propagating into a
-published version and its artifacts.
+declaring one of them, if a warning appears that is not on the documented list, if
+owner-confirmed geometry drifts, or if a warning stops propagating into a published
+version and each of its artifacts (JSON, SVG, GLB, print).
 
-`LS-AT-091`/`092` depend on the same set-out. A provisional browser signal was
-recorded (`metrics.provisionalBenchmark`) but is explicitly **not** acceptance: it
-was taken on software WebGL against the owner-intent fixture, and the scene will
-change once equipment lands.
+Nothing in the fixture changed when the status changed: the semantic hash is still
+`ef57708a…` and the `r15` browser evidence stands. No assumption was promoted to a
+measured value, then or now. Reopening a row means supplying its measurement and
+deleting its warning from the fixture and the test in the same commit; the field
+list survives in `KORA_SURVEY_REQUEST_2026-08-06.md`.
+
+`LS-AT-091`/`092` stay `EXTERNAL_HOLD` and are untouched by this decision. They
+need target hardware with a real GPU. A provisional browser signal was recorded
+(`metrics.provisionalBenchmark`) but is explicitly **not** acceptance: it was taken
+on software WebGL.
 
 ## 6. Environment caveats recorded with the evidence
 
@@ -167,13 +202,23 @@ has not been extended.
 
 ## 8. Verdict
 
-**NO-GO for production merge.** Not because of a code gate — every code, test,
-build, export, browser and dependency gate is green — but because:
+**P0 status: 63 rows, 0 open — 59 verified, 4 accepted with declared limits.**
 
-1. five P0 rows remain `EXTERNAL_HOLD` pending real KORA measurements;
-2. no sealed independent security scan exists for this commit;
-3. the handoff requires a repeat independent audit and a separate merge decision
-   by the owner (Selena).
+This is deliberately not written as "100 % P0 PASS". Fifty-nine rows were verified,
+automatically or in a real browser against a real session. Four were accepted by
+the owner with their limits declared and enforced, which is a scope decision rather
+than a verification. Both are legitimate ways to close a row; conflating them would
+misrepresent LS-AT-014 and 015, where the fixture is genuinely empty.
+
+P1: 10 rows, 8 verified, 2 open (`LS-AT-091`, `092` — target hardware).
+
+**Still NO-GO for production merge.** Not because of a code gate — every code,
+test, build, export, browser and dependency gate is green — but because:
+
+1. no sealed independent security scan exists for this commit;
+2. the handoff requires a repeat independent audit and a separate merge decision
+   by the owner (Selena);
+3. PR #67 has a pre-existing conflict against its base branch, untouched here.
 
 The module stays default-off (`ARCHIDOM_LAYOUT_STUDIO_ENABLED=false`), the PR
 stays draft, no migration was added or altered, and no production system was
