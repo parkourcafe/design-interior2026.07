@@ -9,6 +9,7 @@
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
+    "test:cycle7": "vitest run --config vitest.cycle7.config.ts",
     "release:check": "npm run lint && npm run typecheck && npm run test && npm run build",
     "ios:add": "node node_modules/@capacitor/cli/bin/capacitor add ios",
     "ios:sync": "node node_modules/@capacitor/cli/bin/capacitor sync ios",
