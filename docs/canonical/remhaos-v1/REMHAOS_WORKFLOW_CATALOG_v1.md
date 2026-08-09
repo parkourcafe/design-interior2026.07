@@ -37,7 +37,8 @@ Passport → concepts → three variants → material/budget impact → client a
 
 ## WF-M3-001 · Design Intent to Documentation Release
 
-**Статус:** CATALOG_ONLY / NOT AUTHORIZED
+**Статус:** AUTHORIZED BY A5 (подписан 09.08.2026) — в объёме P0 по
+`MASTER_EXECUTION_PLAN` §M3
 
 Approved decisions → drawing set → QA/conflicts → specifications → issue package → release authorization.
 
