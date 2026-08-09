@@ -102,11 +102,17 @@ export class SupabaseLayoutRepository implements LayoutDraftStorePort {
   /**
    * Создаёт планировку и привязывает её к проекту. Метода нет в локальном
    * хранилище: там документ приходит из фикстуры и владельца не имеет.
+   *
+   * Привязка к рабочему пространству (если передана) вставляется той же
+   * строкой: копия варианта либо появляется целиком — с пакетом, комнатой и
+   * ролью, — либо не появляется вовсе. Двух записей и «наполовину привязанных»
+   * копий здесь нет намеренно.
    */
   async createDocument(
     projectId: string,
     document: LayoutDocument,
     title: string,
+    binding?: WorkspaceBinding,
   ): Promise<void> {
     const validation = validateLayoutDocument(document);
     if (!validation.valid) {
@@ -120,6 +126,14 @@ export class SupabaseLayoutRepository implements LayoutDraftStorePort {
       document_id: document.documentId,
       title,
       draft: document,
+      ...(binding
+        ? {
+            workspace_project_id: binding.projectId,
+            workspace_package_id: binding.packageId,
+            workspace_room_id: binding.roomId,
+            workspace_role: binding.role,
+          }
+        : {}),
     });
     if (error) {
       if (error.code === PG_UNIQUE_VIOLATION) {

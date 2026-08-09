@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 
+import ForkVariantForm from "./fork-variant-form";
 import { LayoutStudioShell } from "@/components/layout-studio/layout-studio-shell";
 import { createClient } from "@/lib/supabase/server";
 import { ru } from "@/lib/i18n/ru";
@@ -49,6 +50,7 @@ export default async function ProjectLayoutEditorPage({
         <span className="text-neutral-600">{row.title || copy.untitled}</span>
         <span className="text-neutral-400">·</span>
         <span className="text-neutral-500">{copy.serverStorage}</span>
+        <ForkVariantForm projectId={id} documentId={documentId} />
       </div>
       <LayoutStudioShell initialDocument={row.draft} />
     </>
