@@ -21,11 +21,22 @@ const BINDING = {
   role: "preferred",
 } as const;
 
+// Строки — в настоящей форме append-only чтения контура: идентификаторы
+// плоско, содержимое сущности — во вложенном payload (выучено живым прогоном).
+interface RevisionRowFixture {
+  id: string;
+  packageId: string;
+  revisionId: string;
+  revisionNo: number;
+  createdAt: string;
+  payload: Record<string, unknown>;
+}
+
 interface BudgetWorld {
-  rooms: Array<{ id: string; packageId: string; revisionId: string }>;
-  variants: Array<{ id: string; packageId: string; revisionId: string }>;
-  materials: Array<Record<string, unknown>>;
-  frames: Array<Record<string, unknown>>;
+  rooms: RevisionRowFixture[];
+  variants: RevisionRowFixture[];
+  materials: RevisionRowFixture[];
+  frames: RevisionRowFixture[];
   commands: Array<{ kind: string; payload: Record<string, unknown> }>;
 }
 
@@ -40,17 +51,18 @@ function makeFetch(world: BudgetWorld): typeof fetch {
   return async (input, init) => {
     const url = typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
 
-    if (url === `/api/projectceo/projects/${PROJECT_UUID}`) {
+    if (url.startsWith("/api/layout-studio/")) {
+      const body = JSON.parse(String(init?.body)) as { action?: string };
+      if (body.action !== "workspaceRead") {
+        throw new Error(`Неожиданное действие роута планировки: ${body.action}`);
+      }
+      // Роут планировки серверно зовёт authenticated-read RPC контура по
+      // привязке; мок отвечает той же формой, что и роут.
       return json({
-        contractVersion: "projectceo-ui/0.1",
-        requestId: "read-1",
-        data: {
-          m2Rooms: world.rooms,
-          m2Variants: world.variants,
-          m2Materials: world.materials,
-          m2BudgetFrames: world.frames,
-        },
-        error: null,
+        m2Rooms: world.rooms,
+        m2Variants: world.variants,
+        m2Materials: world.materials,
+        m2BudgetFrames: world.frames,
       });
     }
 
@@ -73,6 +85,9 @@ function makeFetch(world: BudgetWorld): typeof fetch {
           id: String(body.payload.roomId),
           packageId: String(body.payload.packageId),
           revisionId: String(body.payload.revisionId),
+          revisionNo: 1,
+          createdAt: "2026-08-08T11:00:00.000Z",
+          payload: { name: body.payload.name, areaM2: body.payload.areaM2 },
         });
       }
       if (body.kind === "create_m2_variant") {
@@ -80,20 +95,26 @@ function makeFetch(world: BudgetWorld): typeof fetch {
           id: String(body.payload.variantId),
           packageId: String(body.payload.packageId),
           revisionId: String(body.payload.revisionId),
+          revisionNo: 1,
+          createdAt: "2026-08-08T11:01:00.000Z",
+          payload: { roomId: body.payload.roomId, title: body.payload.title },
         });
       }
       if (body.kind === "create_m2_material") {
         world.materials.push({
           id: String(body.payload.materialId),
-          variantId: String(body.payload.variantId),
           packageId: String(body.payload.packageId),
+          revisionId: String(body.payload.revisionId),
           revisionNo: 1,
-          name: String(body.payload.name),
-          supplierRef: String(body.payload.supplierRef),
-          unit: String(body.payload.unit),
-          unitCostRub: Number(body.payload.unitCostRub),
-          quantity: Number(body.payload.quantity),
           createdAt: `2026-08-08T12:00:0${world.materials.length}.000Z`,
+          payload: {
+            variantId: body.payload.variantId,
+            name: body.payload.name,
+            supplierRef: body.payload.supplierRef,
+            unit: body.payload.unit,
+            unitCostRub: body.payload.unitCostRub,
+            quantity: body.payload.quantity,
+          },
         });
       }
 
@@ -121,7 +142,7 @@ function uuidSequence(): () => string {
 }
 
 function makeClient(world: BudgetWorld): WorkspaceBudgetClient {
-  return new WorkspaceBudgetClient(BINDING, VARIANT_ID, makeFetch(world), uuidSequence());
+  return new WorkspaceBudgetClient(BINDING, VARIANT_ID, "document.simple-room", makeFetch(world), uuidSequence());
 }
 
 const MATERIAL = {
@@ -182,20 +203,14 @@ describe("WorkspaceBudgetClient: «во что обошлось» через д�
   it("рамка пакета читается, и сравнение с итогом — дело интерфейса, не клиента", async () => {
     const world: BudgetWorld = { rooms: [], variants: [], materials: [], frames: [], commands: [] };
     world.frames.push({
-      packageId: PACKAGE_UUID,
-      revisionNo: 1,
-      minRub: 500_000,
-      maxRub: 900_000,
-      contingencyPct: 10,
+      id: "budget-1", packageId: PACKAGE_UUID, revisionId: "r1", revisionNo: 1,
       createdAt: "2026-08-08T10:00:00.000Z",
+      payload: { currency: "RUB", minRub: 500_000, maxRub: 900_000, contingencyPct: 10 },
     });
     world.frames.push({
-      packageId: PACKAGE_UUID,
-      revisionNo: 2,
-      minRub: 600_000,
-      maxRub: 1_000_000,
-      contingencyPct: 10,
+      id: "budget-1", packageId: PACKAGE_UUID, revisionId: "r2", revisionNo: 2,
       createdAt: "2026-08-08T11:00:00.000Z",
+      payload: { currency: "RUB", minRub: 600_000, maxRub: 1_000_000, contingencyPct: 10 },
     });
 
     const snapshot = await makeClient(world).loadSnapshot();

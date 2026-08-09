@@ -1073,25 +1073,49 @@ function WorkspacePanel({
     try {
       const portfolio = await fetchEnvelope<{
         projects: ReadonlyArray<{ id: string; name: string }>;
+        actor: { projectId?: string; packageId?: string | null };
       }>("/api/projectceo/portfolio");
       if (portfolio.projects.length === 0) {
         setPhase("empty");
         return;
       }
       const optionLists = await Promise.all(portfolio.projects.map(async (project) => {
-        const workspace = await fetchEnvelope<{
-          packages: ReadonlyArray<{ id: string; name: string; status: string }>;
-        }>(`/api/projectceo/projects/${encodeURIComponent(project.id)}`);
-        return workspace.packages
-          .filter((item) => item.status === "active")
-          .map((item) => ({
-            projectId: project.id,
-            projectName: project.name,
-            packageId: item.id,
-            packageName: item.name,
-          }));
+        // Пакетный актёр (модель контура для публикующих) не имеет права на
+        // проектное чтение — 403 здесь не ошибка панели, а форма доступа.
+        // Такой проект просто не даёт списка, пакет возьмём из портфолио ниже.
+        try {
+          const workspace = await fetchEnvelope<{
+            packages: ReadonlyArray<{ id: string; name: string; status: string }>;
+          }>(`/api/projectceo/projects/${encodeURIComponent(project.id)}`);
+          return workspace.packages
+            .filter((item) => item.status === "active")
+            .map((item) => ({
+              projectId: project.id,
+              projectName: project.name,
+              packageId: item.id,
+              packageName: item.name,
+            }));
+        } catch {
+          return [];
+        }
       }));
       const flattened = optionLists.flat();
+      // Фолбэк пакетного актёра: его собственный пакет объявлен в портфолио.
+      const actorPackage = portfolio.actor?.packageId;
+      const actorProject = portfolio.actor?.projectId;
+      if (
+        flattened.length === 0 && typeof actorPackage === "string" && actorPackage &&
+        typeof actorProject === "string" && actorProject
+      ) {
+        flattened.push({
+          projectId: actorProject,
+          projectName:
+            portfolio.projects.find((project) => project.id === actorProject)?.name ??
+            actorProject,
+          packageId: actorPackage,
+          packageName: copy.workspace.membershipPackage,
+        });
+      }
       setOptions(flattened);
       setSelectedPackage(flattened[0]?.packageId ?? "");
       setPhase(flattened.length === 0 ? "empty" : "ready");
@@ -1198,6 +1222,16 @@ function formatRub(amount: number): string {
   return amount.toLocaleString("ru-RU");
 }
 
+/** Человеческий ярлык версии: «layout.…@2» → «V2», прочие id — как есть. */
+function versionLabel(versionId: string): string {
+  const at = versionId.lastIndexOf("@");
+  if (at > 0) {
+    const sequence = versionId.slice(at + 1);
+    if (/^\d+$/.test(sequence)) return `V${sequence}`;
+  }
+  return versionId;
+}
+
 /** «08.08.2026, 14:32» — дата фиксации версии по-человечески (§8.2). */
 function formatVersionDate(createdAt: string): string {
   const parsed = new Date(createdAt);
@@ -1234,9 +1268,10 @@ function BudgetPanel({
   const [saving, setSaving] = useState(false);
 
   const variantId = document.variant.id;
+  const documentId = document.documentId;
   const client = useMemo(
-    () => (binding ? new WorkspaceBudgetClient(binding, variantId) : null),
-    [binding, variantId],
+    () => (binding ? new WorkspaceBudgetClient(binding, variantId, documentId) : null),
+    [binding, variantId, documentId],
   );
 
   useEffect(() => {
@@ -1339,7 +1374,11 @@ function BudgetPanel({
         <>
           <p>
             <b>{copy.budget.totalLabel}:</b>{" "}
-            {snapshot.materials.length === 0 ? copy.budget.noMaterials : `${formatRub(snapshot.totalRub)} ₽`}
+            {snapshot.materials.length === 0
+              ? copy.budget.noMaterials
+              : snapshot.hiddenPriceCount > 0
+                ? copy.budget.totalPartiallyHidden(formatRub(snapshot.totalRub), snapshot.hiddenPriceCount)
+                : `${formatRub(snapshot.totalRub)} ₽`}
           </p>
           <p className={styles.muted}>
             <b>{copy.budget.frameLabel}:</b>{" "}
@@ -1362,8 +1401,10 @@ function BudgetPanel({
               <ul className={styles.diffFields}>
                 {snapshot.materials.map((material) => (
                   <li key={material.materialId}>
-                    {material.name} · {copy.budget.quantityUnit(material.quantity, material.unit)} ×{" "}
-                    {formatRub(material.unitCostRub)} ₽ = {formatRub(material.costRub)} ₽
+                    {material.name} · {copy.budget.quantityUnit(material.quantity, material.unit)}
+                    {material.unitCostRub === null || material.costRub === null
+                      ? ` · ${copy.budget.priceHidden}`
+                      : ` × ${formatRub(material.unitCostRub)} ₽ = ${formatRub(material.costRub)} ₽`}
                   </li>
                 ))}
               </ul>
@@ -1480,7 +1521,7 @@ function HistoryPanel({
           <b>{copy.history.versionsLabel}</b>
           {versions.length === 0 ? <p>{copy.history.noVersions}</p> : versions.map((item) => (
             <span key={item.id}>
-              {copy.history.versionFixed(item.id, formatVersionDate(item.createdAt))}
+              {copy.history.versionFixed(versionLabel(item.id), formatVersionDate(item.createdAt))}
               {item.semanticHash && (
                 <details>
                   <summary>{copy.history.versionDetails}</summary>
@@ -1653,6 +1694,9 @@ export function LayoutStudioShell({
         setLoadState("ready");
       } catch (error) {
         if (!cancelled) {
+          // Причина уходит в консоль браузера: пользователю — слова, а тому,
+          // кто отлаживает стенд, — настоящая ошибка.
+          console.error("layout-studio: hydrate failed", error);
           setHistoryStatus(storageErrorMessage(error));
           setLoadState("error");
         }
@@ -1944,7 +1988,11 @@ export function LayoutStudioShell({
       return;
     }
     const parent = versions.at(-1);
-    const id = `V${versions.length + 1}`;
+    // versionId уникален на ВЕСЬ пакет хранилища, не на документ (урок живого
+    // прогона: «V1» второго документа отклоняется как повтор). Документный
+    // префикс делает столкновение невозможным; человеку показывается только
+    // номер после @ (см. versionLabel).
+    const id = `${document.documentId}@${versions.length + 1}`;
     try {
       // Контракт публикации объединённого контура: versionId, родитель, причина.
       // Автора и время проставляет хранилище, предупреждения несёт сам документ
@@ -2271,7 +2319,7 @@ export function LayoutStudioShell({
           <div><dt>{copy.print.stateRevision}</dt><dd>{document.stateRevision}</dd></div>
           <div>
             <dt>{copy.print.publishedVersion}</dt>
-            <dd>{latestPublished?.id ?? copy.print.noPublishedVersion}</dd>
+            <dd>{latestPublished ? versionLabel(latestPublished.id) : copy.print.noPublishedVersion}</dd>
           </div>
           <div>
             <dt>{copy.print.semanticHash}</dt>

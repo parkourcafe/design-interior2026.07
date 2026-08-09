@@ -1,0 +1,137 @@
+{
+  "steps": [
+    {
+      "id": "login.designer",
+      "scope": "1-login",
+      "ok": true,
+      "detail": "http://127.0.0.1:3000/dashboard"
+    },
+    {
+      "id": "layouts.page",
+      "scope": "2-create",
+      "ok": true
+    },
+    {
+      "id": "create.editor-opens",
+      "scope": "2-create",
+      "ok": true,
+      "detail": "http://127.0.0.1:3000/dashboard/projects/d0000000-0000-4000-8000-000000000001/layouts/layout.3ed4cea9-14e4-4ed2-b1d4-7f269a10aa52"
+    },
+    {
+      "id": "create.area",
+      "scope": "2-create",
+      "ok": true
+    },
+    {
+      "id": "draw.wall-revision",
+      "scope": "3-draw",
+      "ok": true,
+      "detail": {
+        "revBefore": 0,
+        "revAfterDraw": 1
+      }
+    },
+    {
+      "id": "undo.redo",
+      "scope": "4-undo-redo",
+      "ok": true,
+      "detail": {
+        "revUndo": 0,
+        "revRedo": 1
+      }
+    },
+    {
+      "id": "bind.options",
+      "scope": "5-bind",
+      "ok": true,
+      "detail": [
+        "Демо Клиент · Пакет по вашему членству"
+      ]
+    },
+    {
+      "id": "bind.room-minted",
+      "scope": "5-bind",
+      "ok": true,
+      "detail": "kuhnya-gostinaya"
+    },
+    {
+      "id": "bind.saved",
+      "scope": "5-bind",
+      "ok": true
+    },
+    {
+      "id": "budget.panel-alive",
+      "scope": "6-budget",
+      "ok": true,
+      "detail": "ВО ЧТО ОБОШЛОСЬ\n\nИтог варианта: Материалов с ценами пока нет — итог варианта не посчитать.\n\nРамка бюджета пакета: Рамка "
+    },
+    {
+      "id": "budget.material-live",
+      "scope": "6-budget",
+      "ok": true,
+      "detail": "ВО ЧТО ОБОШЛОСЬ\n\nИтог варианта: 0 ₽ по видимым ценам · ещё 1 с ценой, скрытой правами доступа\n\nРамка бюджета пакета: Рам"
+    },
+    {
+      "id": "budget.redaction-honest",
+      "scope": "6-budget",
+      "ok": true,
+      "detail": "цены скрыты v_financial-правилом контура для пакетного актёра — показ честный"
+    },
+    {
+      "id": "publish.human-words",
+      "scope": "7-publish",
+      "ok": true,
+      "detail": "ВЕРСИИ И КОНТРОЛЬНЫЕ ТОЧКИ\nСоздать контрольную точку\nОпубликовать версию\nСравнить крайние версии\n\nВерсия зафиксирована — изменить её больше нельзя\n\nКонтрольные точки\n\nКонтрольных точек пока нет\n\nВерси"
+    },
+    {
+      "id": "dxf.downloads",
+      "scope": "8-dxf",
+      "ok": true,
+      "detail": [
+        "layout-4b9338961d9142e9-dxf.dxf",
+        "layout-4b9338961d9142e9-dxf.dxf.manifest.json"
+      ]
+    },
+    {
+      "id": "dxf.r12",
+      "scope": "8-dxf",
+      "ok": true,
+      "detail": {
+        "bytes": 1940
+      }
+    },
+    {
+      "id": "fork.new-editor",
+      "scope": "9-fork",
+      "ok": true,
+      "detail": "http://127.0.0.1:3000/dashboard/projects/d0000000-0000-4000-8000-000000000001/layouts/layout.29386192-240b-4f44-988e-1b3211987ea5"
+    },
+    {
+      "id": "fork.binding-copied",
+      "scope": "9-fork",
+      "ok": true,
+      "detail": "РАБОЧЕЕ ПРОСТРАНСТВО\n\nКомната kuhnya-gostinaya · вариант Экономичный (value engineered)"
+    },
+    {
+      "id": "fork.published",
+      "scope": "9-fork",
+      "ok": true
+    },
+    {
+      "id": "client.login",
+      "scope": "10-client",
+      "ok": true,
+      "detail": "http://127.0.0.1:3000/dashboard"
+    },
+    {
+      "id": "client.layouts-read",
+      "scope": "10-client",
+      "ok": true,
+      "detail": {
+        "status": 200,
+        "rows": 7
+      }
+    }
+  ],
+  "finishedAt": "2026-08-09T12:57:20.593Z"
+}

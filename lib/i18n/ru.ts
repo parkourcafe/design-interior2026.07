@@ -1809,6 +1809,7 @@ export const ru = {
       projectLabel: "Проект контура",
       packageLabel: "Пакет работ",
       noActivePackages: "В выбранном проекте нет активных пакетов.",
+      membershipPackage: "Пакет по вашему членству",
       roomLabel: "Идентификатор комнаты",
       roomHint: "Первая публикация с этим идентификатором создаст комнату в пакете. Латиница, цифры и . _ : @ -, от 3 символов.",
       roomInvalid: "Идентификатор комнаты не подходит под алфавит.",
@@ -1832,6 +1833,9 @@ export const ru = {
       reload: "Обновить",
       totalLabel: "Итог варианта",
       noMaterials: "Материалов с ценами пока нет — итог варианта не посчитать.",
+      priceHidden: "цена скрыта правами доступа",
+      totalPartiallyHidden: (visible: string, hidden: number) =>
+        `${visible} ₽ по видимым ценам · ещё ${hidden} с ценой, скрытой правами доступа`,
       frameLabel: "Рамка бюджета пакета",
       noFrame: "Рамка бюджета пакета не задана.",
       frameValue: (min: string, max: string, contingency: number) =>

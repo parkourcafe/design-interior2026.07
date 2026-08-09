@@ -114,9 +114,20 @@ export class HttpLayoutRepository implements LayoutRepositoryPort {
     }>();
     this.checkpointCache = payload.checkpoints ?? [];
     this.connectPublishedStore(parseWorkspaceBinding(payload.binding), payload.draft);
-    this.versionCache = this.published
-      ? await this.published.listVersions(this.documentId)
-      : [];
+    // Отказ хранилища опубликованных версий НЕ роняет редактор: черновик и
+    // чекпойнты живут в другом мире и по-прежнему доступны. Урок живого
+    // прогона: 403 на чтении пакета превращал открытие планировки в «ошибку
+    // загрузки черновика», хотя черновик загрузился. Деградируем честно —
+    // список версий пуст, причина в консоли, публикация скажет об ошибке
+    // сама, когда её попросят.
+    this.versionCache = [];
+    if (this.published) {
+      try {
+        this.versionCache = await this.published.listVersions(this.documentId);
+      } catch (error) {
+        console.error("layout-studio: чтение опубликованных версий недоступно", error);
+      }
+    }
     return {
       draft: payload.draft,
       versions: this.versionCache,
@@ -169,9 +180,16 @@ export class HttpLayoutRepository implements LayoutRepositoryPort {
   async bindWorkspace(binding: WorkspaceBinding, draft: LayoutDocument): Promise<LayoutVersion[]> {
     await this.post<{ ok: true }>({ action: "bindWorkspace", ...binding });
     this.connectPublishedStore(binding, draft);
-    this.versionCache = this.published
-      ? await this.published.listVersions(this.documentId)
-      : [];
+    // Привязка записана — это свершившийся факт. Недоступность чтения версий
+    // после неё — деградация, а не откат: политика та же, что в hydrate.
+    this.versionCache = [];
+    if (this.published) {
+      try {
+        this.versionCache = await this.published.listVersions(this.documentId);
+      } catch (error) {
+        console.error("layout-studio: чтение опубликованных версий недоступно", error);
+      }
+    }
     return [...this.versionCache];
   }
 

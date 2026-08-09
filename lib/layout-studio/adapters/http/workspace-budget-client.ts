@@ -23,9 +23,14 @@ export interface WorkspaceMaterial {
   readonly name: string;
   readonly supplierRef: string;
   readonly unit: string;
-  readonly unitCostRub: number;
+  /**
+   * null — цена скрыта чтением контура: финансовые поля видны только
+   * проектным ролям (v_financial в read-проекции). Ноль и «скрыто» — разные
+   * истины, и путать их нельзя.
+   */
+  readonly unitCostRub: number | null;
   readonly quantity: number;
-  readonly costRub: number;
+  readonly costRub: number | null;
 }
 
 export interface WorkspaceBudgetFrame {
@@ -39,8 +44,10 @@ export interface BudgetSnapshot {
   readonly frame: WorkspaceBudgetFrame | null;
   /** Материалы ЭТОГО варианта, в порядке появления. */
   readonly materials: readonly WorkspaceMaterial[];
-  /** Σ unitCostRub × quantity. Integer-рубли, без копеек — по инварианту. */
+  /** Σ по видимым ценам. Integer-рубли, без копеек — по инварианту. */
   readonly totalRub: number;
+  /** Сколько позиций с ценой, скрытой правами чтения. */
+  readonly hiddenPriceCount: number;
   /** Комната уже зарегистрирована в бюджетном мире? */
   readonly roomRegistered: boolean;
   readonly variantRegistered: boolean;
@@ -70,29 +77,37 @@ export class WorkspaceBudgetError extends Error {
   }
 }
 
+/**
+ * Строка append-only ревизии, как её отдаёт чтение контура: идентификаторы и
+ * служебные поля — плоско, содержимое сущности — во вложенном payload.
+ * Форма выучена живым прогоном: придуманный тестом плоский вариант молча
+ * отфильтровывал все настоящие строки.
+ */
+interface RevisionRow {
+  id: string;
+  packageId: string;
+  revisionId: string;
+  revisionNo: number;
+  createdAt: string;
+  payload: Record<string, unknown>;
+}
+
+function asRevisionRows(value: unknown): RevisionRow[] {
+  if (!Array.isArray(value)) return [];
+  return value.filter(
+    (row): row is RevisionRow =>
+      typeof row === "object" && row !== null &&
+      typeof (row as { id?: unknown }).id === "string" &&
+      typeof (row as { payload?: unknown }).payload === "object" &&
+      (row as { payload: unknown }).payload !== null,
+  );
+}
+
 interface WorkspaceReadRows {
-  rooms: ReadonlyArray<{ id: string; packageId: string; revisionId: string }>;
-  variants: ReadonlyArray<{ id: string; packageId: string; revisionId: string }>;
-  materials: ReadonlyArray<{
-    id: string;
-    variantId: string;
-    packageId: string;
-    revisionNo: number;
-    name: string;
-    supplierRef: string;
-    unit: string;
-    unitCostRub: number;
-    quantity: number;
-    createdAt: string;
-  }>;
-  frames: ReadonlyArray<{
-    packageId: string;
-    revisionNo: number;
-    minRub: number;
-    maxRub: number;
-    contingencyPct: number;
-    createdAt: string;
-  }>;
+  rooms: RevisionRow[];
+  variants: RevisionRow[];
+  materials: RevisionRow[];
+  frames: RevisionRow[];
 }
 
 export class WorkspaceBudgetClient {
@@ -100,6 +115,8 @@ export class WorkspaceBudgetClient {
     private readonly binding: WorkspaceBinding,
     /** id варианта из самого документа — тот же, что у публикаций версий. */
     private readonly variantId: string,
+    /** id документа: чтение бюджета идёт через роут планировки по привязке. */
+    private readonly documentId: string,
     private readonly fetchImpl: typeof fetch = (input, init) => fetch(input, init),
     private readonly randomUUID: () => string = () => crypto.randomUUID(),
   ) {}
@@ -152,7 +169,8 @@ export class WorkspaceBudgetClient {
     }
 
     const existing = rows.materials.filter(
-      (material) => material.variantId === variantId && material.packageId === packageId,
+      (material) =>
+        material.payload.variantId === variantId && material.packageId === packageId,
     );
     await this.command("create_m2_material", {
       packageId,
@@ -172,11 +190,20 @@ export class WorkspaceBudgetClient {
   }
 
   private async readWorkspace(): Promise<WorkspaceReadRows> {
+    // Чтение — через роут планировки (action workspaceRead): он серверно
+    // зовёт authenticated-read RPC контура по привязке документа. Прямой
+    // поход в проектный UI-роут контура здесь не годится: пакетный актёр
+    // (модель контура для публикующих) не имеет на него права.
     let response: Response;
     try {
       response = await this.fetchImpl(
-        `/api/projectceo/projects/${encodeURIComponent(this.binding.projectId)}`,
-        { method: "GET", credentials: "same-origin", cache: "no-store" },
+        `/api/layout-studio/${encodeURIComponent(this.documentId)}`,
+        {
+          method: "POST",
+          credentials: "same-origin",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ action: "workspaceRead" }),
+        },
       );
     } catch {
       throw new WorkspaceBudgetError("REQUEST_FAILED", "Нет связи с сервером контура");
@@ -188,43 +215,51 @@ export class WorkspaceBudgetClient {
       );
     }
     const body = (await response.json().catch(() => null)) as {
-      data?: {
-        m2Rooms?: unknown;
-        m2Variants?: unknown;
-        m2Materials?: unknown;
-        m2BudgetFrames?: unknown;
-      } | null;
-      error?: unknown;
+      m2Rooms?: unknown;
+      m2Variants?: unknown;
+      m2Materials?: unknown;
+      m2BudgetFrames?: unknown;
     } | null;
-    if (!body || body.error !== null || !body.data) {
+    if (!body) {
       throw new WorkspaceBudgetError("MALFORMED_RESPONSE", "Чтение пришло в неожиданной форме");
     }
-    const asArray = (value: unknown): unknown[] => (Array.isArray(value) ? value : []);
     return {
-      rooms: asArray(body.data.m2Rooms) as WorkspaceReadRows["rooms"],
-      variants: asArray(body.data.m2Variants) as WorkspaceReadRows["variants"],
-      materials: asArray(body.data.m2Materials) as WorkspaceReadRows["materials"],
-      frames: asArray(body.data.m2BudgetFrames) as WorkspaceReadRows["frames"],
+      rooms: asRevisionRows(body.m2Rooms),
+      variants: asRevisionRows(body.m2Variants),
+      materials: asRevisionRows(body.m2Materials),
+      frames: asRevisionRows(body.m2BudgetFrames),
     };
   }
 
   private snapshotFrom(rows: WorkspaceReadRows): BudgetSnapshot {
     const { packageId, roomId } = this.binding;
     const variantId = this.variantId;
+    const int = (value: unknown): number =>
+      typeof value === "number" && Number.isSafeInteger(value) ? value : 0;
+    const text = (value: unknown): string => (typeof value === "string" ? value : "");
 
     const materials = rows.materials
-      .filter((material) => material.variantId === variantId && material.packageId === packageId)
+      .filter(
+        (material) =>
+          material.payload.variantId === variantId && material.packageId === packageId,
+      )
       .slice()
       .sort((left, right) => left.createdAt.localeCompare(right.createdAt))
-      .map((material) => ({
-        materialId: material.id,
-        name: material.name,
-        supplierRef: material.supplierRef,
-        unit: material.unit,
-        unitCostRub: material.unitCostRub,
-        quantity: material.quantity,
-        costRub: material.unitCostRub * material.quantity,
-      }));
+      .map((material) => {
+        const rawCost = material.payload.unitCostRub;
+        const priceVisible = typeof rawCost === "number" && Number.isSafeInteger(rawCost);
+        const unitCostRub = priceVisible ? (rawCost as number) : null;
+        const quantity = int(material.payload.quantity);
+        return {
+          materialId: material.id,
+          name: text(material.payload.name),
+          supplierRef: text(material.payload.supplierRef),
+          unit: text(material.payload.unit),
+          unitCostRub,
+          quantity,
+          costRub: unitCostRub === null ? null : unitCostRub * quantity,
+        };
+      });
 
     // Рамка пакета: последняя по цепочке ревизий. Несколько рамок на пакет —
     // берём самую свежую запись: append-only мир, «текущая» = последняя.
@@ -240,13 +275,14 @@ export class WorkspaceBudgetClient {
     return {
       frame: frame
         ? {
-            minRub: frame.minRub,
-            maxRub: frame.maxRub,
-            contingencyPct: frame.contingencyPct,
+            minRub: int(frame.payload.minRub),
+            maxRub: int(frame.payload.maxRub),
+            contingencyPct: int(frame.payload.contingencyPct),
           }
         : null,
       materials,
-      totalRub: materials.reduce((sum, material) => sum + material.costRub, 0),
+      totalRub: materials.reduce((sum, material) => sum + (material.costRub ?? 0), 0),
+      hiddenPriceCount: materials.filter((material) => material.costRub === null).length,
       roomRegistered: rows.rooms.some(
         (room) => room.id === roomId && room.packageId === packageId,
       ),

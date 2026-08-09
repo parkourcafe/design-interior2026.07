@@ -62,6 +62,7 @@ const bodySchema = z.discriminatedUnion("action", [
     roomId: z.string().regex(ROOM_ID_PATTERN),
     role: z.enum(WORKSPACE_VARIANT_ROLES),
   }),
+  z.object({ action: z.literal("workspaceRead") }),
 ]);
 
 /** Доменные ошибки → коды HTTP. Всё неизвестное — 500, а не «наверное 400». */
@@ -164,6 +165,42 @@ export async function POST(
           body.expectedRevision,
         );
         return NextResponse.json({ document });
+      }
+      case "workspaceRead": {
+        // Бюджетный мир пакета для редактора: комнаты, варианты, материалы и
+        // рамка. Читается их собственным authenticated-read RPC от имени
+        // пользователя (SECURITY DEFINER проверяет членство сам; service role
+        // здесь не появляется). Отдельное действие нужно из-за модели доступа
+        // контура: пакетный актёр не имеет права на проектное UI-чтение, а
+        // редактор знает свой пакет из привязки — по ней и читаем.
+        const binding = await repository.loadWorkspaceBinding(documentId);
+        if (!binding) return NextResponse.json({ error: "NOT_BOUND" }, { status: 409 });
+        const supabase = await createClient();
+        const { data, error } = await supabase
+          .schema("projectceo_read_api")
+          .rpc("get_project_workspace_read_v6", {
+            project_id: binding.projectId,
+            package_id: binding.packageId,
+          });
+        if (error) return NextResponse.json({ error: "WORKSPACE_READ_FAILED" }, { status: 502 });
+        const envelope = data as {
+          error?: unknown;
+          data?: {
+            m2Rooms?: unknown;
+            m2Variants?: unknown;
+            m2Materials?: unknown;
+            m2BudgetFrames?: unknown;
+          } | null;
+        } | null;
+        if (!envelope || envelope.error || !envelope.data) {
+          return NextResponse.json({ error: "WORKSPACE_READ_FAILED" }, { status: 502 });
+        }
+        return NextResponse.json({
+          m2Rooms: envelope.data.m2Rooms ?? [],
+          m2Variants: envelope.data.m2Variants ?? [],
+          m2Materials: envelope.data.m2Materials ?? [],
+          m2BudgetFrames: envelope.data.m2BudgetFrames ?? [],
+        });
       }
       case "bindWorkspace": {
         // Повторный разбор той же формы, что и у CHECK-ограничений миграции:

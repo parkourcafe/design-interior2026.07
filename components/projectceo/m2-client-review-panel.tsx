@@ -23,8 +23,6 @@ export function M2ClientReviewPanel({ view }: { readonly view: ProjectWorkspaceV
   const [reason, setReason] = useState("");
   const [pending, setPending] = useState(false);
   if (view.actor.role !== "client" || !view.actor.packageId) return null;
-  // Захват в const: сужение view.actor.packageId не переживает замыкание .map.
-  const actorPackageId = view.actor.packageId;
   const reviewedSubmissionIds = new Set(view.m2ClientReviews.map((review) => review.submissionId));
   const submission = view.m2ClientReviewSubmissions
     .filter((item) => item.packageId === view.actor.packageId
@@ -53,7 +51,7 @@ export function M2ClientReviewPanel({ view }: { readonly view: ProjectWorkspaceV
       {selectedSubmission.variants.map((variant) => <label key={variant.variantId} className="rounded-xl border border-line p-4">
         <span className="flex gap-2"><input type="radio" name="m2-variant" value={variant.variantId} checked={chosenVariantId === variant.variantId} onChange={() => setChosenVariantId(variant.variantId)} />{roleLabel[variant.role]}</span>
         {/* §8.4: клиент выбирает по чертежу, а не по номеру ревизии. */}
-        <LayoutPlanThumbnail projectId={view.project.id} packageId={actorPackageId} layoutRevisionId={variant.layoutRevisionId} />
+        <LayoutPlanThumbnail projectId={view.project.id} layoutRevisionId={variant.layoutRevisionId} />
         <span className="mt-3 block text-xs">{ru.projectCeo.workspace.decisions.layoutVersion}: {variant.layoutVersionId}</span>
         <span className="block text-xs">{ru.projectCeo.workspace.decisions.layoutRevision}: {variant.layoutRevisionId}</span>
         <span className="mt-2 block text-xs font-medium">{ru.projectCeo.workspace.decisions.clientSelections}</span>

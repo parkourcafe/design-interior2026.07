@@ -29,12 +29,15 @@ const copy = ru.layoutStudio.thumbnail;
 // собой, а не ходят за одним и тем же трижды.
 const projectionCache = new Map<string, Promise<unknown>>();
 
-async function fetchRows(projectId: string, packageId: string): Promise<unknown> {
-  const key = `${projectId}:${packageId}`;
+// Без packageId: клиент согласования — проектный актёр, и чтение с параметром
+// пакета его scope отвергает. Проектное чтение отдаёт версии всех пакетов;
+// нужная строка выбирается по layoutRevisionId.
+async function fetchRows(projectId: string): Promise<unknown> {
+  const key = projectId;
   let pending = projectionCache.get(key);
   if (!pending) {
     pending = fetch(
-      `/api/projectceo/projects/${encodeURIComponent(projectId)}/layouts?packageId=${encodeURIComponent(packageId)}`,
+      `/api/projectceo/projects/${encodeURIComponent(projectId)}/layouts`,
       { credentials: "same-origin", cache: "no-store" },
     )
       .then(async (response) => {
@@ -56,11 +59,9 @@ async function fetchRows(projectId: string, packageId: string): Promise<unknown>
 
 export function LayoutPlanThumbnail({
   projectId,
-  packageId,
   layoutRevisionId,
 }: {
   readonly projectId: string;
-  readonly packageId: string;
   readonly layoutRevisionId: string;
 }) {
   const [state, setState] = useState<
@@ -69,7 +70,7 @@ export function LayoutPlanThumbnail({
 
   useEffect(() => {
     let cancelled = false;
-    fetchRows(projectId, packageId)
+    fetchRows(projectId)
       .then((rows) => {
         if (cancelled) return;
         const svg = pickLayoutPlanSvg(rows, layoutRevisionId);
@@ -81,7 +82,7 @@ export function LayoutPlanThumbnail({
     return () => {
       cancelled = true;
     };
-  }, [projectId, packageId, layoutRevisionId]);
+  }, [projectId, layoutRevisionId]);
 
   if (state.phase === "loading") {
     return <span className="block text-xs text-muted">{copy.loading}</span>;
@@ -90,6 +91,10 @@ export function LayoutPlanThumbnail({
     return <span className="block text-xs text-muted">{copy.unavailable}</span>;
   }
   return (
+    // Обычный <img> сознательно: источник — data-URI, собранный из подписанной
+    // версии; next/image здесь дал бы лишний прогон оптимизатора по данным,
+    // которые и так локальны и уже минимальны.
+    // eslint-disable-next-line @next/next/no-img-element
     <img
       src={state.uri}
       alt={copy.alt}
