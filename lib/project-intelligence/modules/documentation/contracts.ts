@@ -71,3 +71,36 @@ export interface AttachSheetSpecificationsInput {
   readonly specificationRevisionIds: readonly string[];
   readonly revision: RevisionIdentity;
 }
+
+/**
+ * Виды неполноты пакета.
+ *
+ * Каждый выводится из данных, а не из представлений о «правильном комплекте»:
+ * состав обязательных листов нигде не утверждён, поэтому модуль проверяет
+ * только то, что объективно следует из утверждённого решения M2.
+ */
+export type DocumentationCompletenessCode =
+  /** Комната утверждённого решения не покрыта ни одним листом. */
+  | "ROOM_WITHOUT_SHEET"
+  /** Утверждённый клиентом выбор не отражён ни на одном листе пакета. */
+  | "SPECIFICATION_NOT_COVERED"
+  /** Лист построен из другого утверждения — пакет выражал бы два решения сразу. */
+  | "SHEET_FROM_OTHER_APPROVAL"
+  /** Два листа с одним номером: ссылка на номер перестаёт быть однозначной. */
+  | "DUPLICATE_SHEET_NUMBER";
+
+export interface DocumentationCompletenessFinding {
+  readonly code: DocumentationCompletenessCode;
+  /** Комната, ревизия выбора, идентификатор листа или номер листа. */
+  readonly subject: string;
+}
+
+export interface DocumentationCompletenessReport {
+  readonly complete: boolean;
+  readonly findings: readonly DocumentationCompletenessFinding[];
+}
+
+export interface ReviewPackageCompletenessInput {
+  readonly handoff: DocumentationSheetHandoffInput;
+  readonly sheets: readonly DocumentationSheet[];
+}

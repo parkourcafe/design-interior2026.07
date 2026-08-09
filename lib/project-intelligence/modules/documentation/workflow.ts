@@ -1,9 +1,12 @@
 import { DecisionContractError } from "../decisions";
 import type {
   AttachSheetSpecificationsInput,
+  DocumentationCompletenessFinding,
+  DocumentationCompletenessReport,
   DocumentationSheet,
   DocumentationSheetHandoffInput,
   RegisterDocumentationSheetInput,
+  ReviewPackageCompletenessInput,
 } from "./contracts";
 
 const SEMANTIC_HASH = /^sha256:[0-9a-f]{64}$/;
@@ -193,4 +196,60 @@ export function attachSheetSpecifications(
       ...input.specificationRevisionIds,
     ],
   });
+}
+
+/**
+ * Считает комплектность пакета по утверждённому решению M2.
+ *
+ * Функция ничего не утверждает и не выпускает — она только называет, чего
+ * не хватает; решение принимает человек (`AGENTS.md`: AI не утверждает и не
+ * выпускает автоматически). Состав обязательных листов нигде не зафиксирован,
+ * поэтому проверяется лишь то, что объективно следует из handoff: покрыта ли
+ * комната, отражён ли каждый утверждённый выбор, из одного ли утверждения
+ * собран пакет и однозначны ли номера листов.
+ *
+ * Порядок находок детерминирован: отчёт сравнивают с прошлым прогоном.
+ */
+export function reviewPackageCompleteness(
+  input: ReviewPackageCompletenessInput,
+): DocumentationCompletenessReport {
+  const findings: DocumentationCompletenessFinding[] = [];
+  const ownSheets = input.sheets.filter(
+    (sheet) => sheet.origin.approvedM2CommitRevisionId
+      === input.handoff.approvedM2CommitRevisionId,
+  );
+
+  if (!ownSheets.some((sheet) => sheet.roomId === input.handoff.roomId)) {
+    findings.push({ code: "ROOM_WITHOUT_SHEET", subject: input.handoff.roomId });
+  }
+
+  const covered = new Set(
+    ownSheets.flatMap((sheet) => [...sheet.specificationRevisionIds]),
+  );
+  for (const revisionId of input.handoff.selectionRevisionIds) {
+    if (!covered.has(revisionId)) {
+      findings.push({ code: "SPECIFICATION_NOT_COVERED", subject: revisionId });
+    }
+  }
+
+  for (const sheet of input.sheets) {
+    if (
+      sheet.origin.approvedM2CommitRevisionId
+      !== input.handoff.approvedM2CommitRevisionId
+    ) {
+      findings.push({ code: "SHEET_FROM_OTHER_APPROVAL", subject: sheet.sheetId });
+    }
+  }
+
+  const seenNumbers = new Set<string>();
+  const reportedNumbers = new Set<string>();
+  for (const sheet of input.sheets) {
+    if (seenNumbers.has(sheet.sheetNumber) && !reportedNumbers.has(sheet.sheetNumber)) {
+      findings.push({ code: "DUPLICATE_SHEET_NUMBER", subject: sheet.sheetNumber });
+      reportedNumbers.add(sheet.sheetNumber);
+    }
+    seenNumbers.add(sheet.sheetNumber);
+  }
+
+  return immutable({ complete: findings.length === 0, findings });
 }
