@@ -2,7 +2,18 @@ import { createHash, randomUUID } from "node:crypto";
 
 import { expect, test, type APIRequestContext, type Browser } from "@playwright/test";
 
-import { ap5Env, readHandoff, storageStatePath, type Ap5RoleKey } from "./ap5-env";
+import { projectCeoCommandSchema } from "../../lib/project-intelligence/delivery/projectceo/command-contract";
+
+import {
+  ap5Env,
+  readHandoff,
+  storageStatePath,
+  AP5_DECISION_NODE_ID,
+  AP5_DECISION_REVISION_ID,
+  AP5_SOURCE_NAME,
+  AP5_SOURCE_REVISION_ID,
+  type Ap5RoleKey,
+} from "./ap5-env";
 
 const env = ap5Env();
 // Ленивое чтение: сборка списка тестов не должна зависеть от того,
@@ -12,13 +23,6 @@ function handoff() {
   cached ??= readHandoff();
   return cached;
 }
-
-const AP5_SOURCE_NAME = "ap5-floor-1-zone-a-architectural";
-const AP5_SOURCE_REVISION_ID = "ap5-source-revision-1";
-// Шаг 6 одобряет ровно ту ревизию, которую создал шаг 5, поэтому значение
-// общее для цепочки, а не локальное для одного теста.
-const AP5_DECISION_NODE_ID = "ap5-decision-floor-1";
-const AP5_DECISION_REVISION_ID = "ap5-decision-revision-1";
 
 // Цепочка идёт одним состоянием проекта: каждый шаг опирается на предыдущий.
 test.describe.configure({ mode: "serial" });
@@ -47,15 +51,28 @@ async function command(
   kind: string,
   payload: Record<string, unknown>,
 ): Promise<CommandResult> {
+  const envelope = {
+    contractVersion: "projectceo-command/0.1",
+    kind,
+    projectId: handoff().projectId,
+    commandId: randomUUID(),
+    payload,
+  };
+  // Маршрут отклоняет несоответствие контракту как 400 validation_failed —
+  // ровно тем же кодом, что и отказ RPC на живом стеке. В прогоне 156 это
+  // стоило сессии: артефакт показывал 400 и не мог сказать, чей это отказ.
+  // Здесь дефект харнесса называет себя сам и не выдаёт себя за отказ сервера.
+  const contract = projectCeoCommandSchema.safeParse(envelope);
+  if (!contract.success) {
+    throw new Error(
+      `AP5: payload команды ${kind} нарушает контракт (дефект харнесса, не сервера): `
+      + JSON.stringify(contract.error.issues),
+    );
+  }
+
   const response = await request.post("/api/projectceo/commands", {
     headers: { Origin: env.appUrl, "Content-Type": "application/json" },
-    data: {
-      contractVersion: "projectceo-command/0.1",
-      kind,
-      projectId: handoff().projectId,
-      commandId: randomUUID(),
-      payload,
-    },
+    data: envelope,
   });
   return { status: response.status(), body: await response.json() };
 }
