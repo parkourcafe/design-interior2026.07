@@ -11,6 +11,7 @@ import {
   WORKSPACE_VARIANT_ROLES,
 } from "@/lib/layout-studio/application/workspace-binding";
 import type { LayoutDocument } from "@/lib/layout-studio/domain";
+import { validateFrozenLayoutSchema } from "@/lib/layout-studio/domain";
 
 export const dynamic = "force-dynamic";
 
@@ -31,9 +32,11 @@ export const dynamic = "force-dynamic";
  * даёт 404.
  */
 
-// Документ не разбирается по полям: его структуру проверяет замороженная схема
-// внутри хранилища, и дублировать её здесь значило бы завести второй источник
-// истины.
+// Документ не разбирается по полям zod-ом: его структуру проверяет
+// замороженная схема реестра версий — ровно та же, что при создании и
+// публикации. Черновик, который не читается схемой, не сохраняется: иначе
+// страница редактора падала бы при каждом открытии, пока строку не поправят
+// руками в базе.
 const documentSchema = z.object({ documentId: z.string().min(1) }).passthrough();
 
 const bodySchema = z.discriminatedUnion("action", [
@@ -45,7 +48,8 @@ const bodySchema = z.discriminatedUnion("action", [
   z.object({
     action: z.literal("createCheckpoint"),
     document: documentSchema,
-    checkpointId: z.string().min(1),
+    // Идентификатор чекпойнта минтится здесь, на сервере: клиентский id на
+    // глобальном первичном ключе — это коллизии между вкладками и студиями.
     reasonCode: z.string().min(1),
     reason: z.string(),
     createdAt: z.string().min(1),
@@ -137,6 +141,15 @@ export async function POST(
   if ("document" in body && body.document.documentId !== documentId) {
     return NextResponse.json({ error: "DOCUMENT_MISMATCH" }, { status: 400 });
   }
+  if ("document" in body) {
+    const schemaCheck = validateFrozenLayoutSchema(body.document);
+    if (!schemaCheck.valid) {
+      return NextResponse.json(
+        { error: "DOCUMENT_SCHEMA_INVALID", issues: schemaCheck.issues },
+        { status: 422 },
+      );
+    }
+  }
 
   try {
     switch (body.action) {
@@ -151,7 +164,7 @@ export async function POST(
         const checkpoint = await repository.createCheckpoint(
           body.document as unknown as LayoutDocument,
           {
-            checkpointId: body.checkpointId,
+            checkpointId: globalThis.crypto.randomUUID(),
             reasonCode: body.reasonCode,
             reason: body.reason,
             createdAt: body.createdAt,
@@ -160,6 +173,16 @@ export async function POST(
         return NextResponse.json({ checkpoint });
       }
       case "restoreCheckpoint": {
+        // Планировка адресуется URL-ом — в том числе при восстановлении:
+        // чекпойнт чужого документа не должен молча переписать его черновик
+        // через endpoint этого.
+        const checkpoint = await repository.loadCheckpoint(body.checkpointId);
+        if (!checkpoint) {
+          return NextResponse.json({ error: "CHECKPOINT_NOT_FOUND" }, { status: 404 });
+        }
+        if (checkpoint.documentId !== documentId) {
+          return NextResponse.json({ error: "DOCUMENT_MISMATCH" }, { status: 400 });
+        }
         const document = await repository.restoreCheckpoint(
           body.checkpointId,
           body.expectedRevision,

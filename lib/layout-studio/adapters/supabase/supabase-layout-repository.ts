@@ -221,7 +221,8 @@ export class SupabaseLayoutRepository implements LayoutDraftStorePort {
     const { data, error } = await this.client
       .from("layout_checkpoints")
       .insert({
-        checkpoint_id: input.checkpointId,
+        // Слой хранилища требует уже отчеканенный сервером id.
+        checkpoint_id: input.checkpointId ?? globalThis.crypto.randomUUID(),
         layout_document_id: row.id,
         document_id: document.documentId,
         content: document,

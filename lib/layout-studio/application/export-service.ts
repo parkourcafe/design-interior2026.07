@@ -91,8 +91,11 @@ export interface LayoutExportServiceOptions {
   now?: () => string;
 }
 
+// Абсолютный путь — это минимум два сегмента через «/»: «стеллаж /медиа» в
+// подписи дизайнера — обычный текст, а не утечка файловой системы, и он не
+// должен блокировать экспорт опубликованной версии навсегда.
 const PRIVATE_REFERENCE =
-  /(?:^|[\s"'=(])\/(?!\/)[^\s"'<>]+|[A-Za-z]:\\|file:\/\/|https?:\/\/(?:localhost|127\.0\.0\.1)(?=[:/]|$)|[\w.+-]+@[\w.-]+\.[A-Za-z]{2,}|auth[_-]?token|signed[_-]?url|localStorage/i;
+  /(?:^|[\s"'=(])\/(?!\/)[^\s"'<>/]+\/[^\s"'<>]+|[A-Za-z]:\\|file:\/\/|https?:\/\/(?:localhost|127\.0\.0\.1)(?=[:/]|$)|[\w.+-]+@[\w.-]+\.[A-Za-z]{2,}|auth[_-]?token|signed[_-]?url|localStorage/i;
 
 function artifactBytes(value: LayoutExportArtifact): Uint8Array<ArrayBuffer> {
   return typeof value === "string" ? new TextEncoder().encode(value) : value;

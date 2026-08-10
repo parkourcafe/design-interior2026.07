@@ -238,12 +238,23 @@ function deleteEntity(
     }
   }
 
-  // Назначения материалов и зоны прохода ссылаются на удалённое — они
-  // вычищаются вместе, иначе документ не пройдёт валидацию и вся команда
-  // откатится, хотя дизайнер сделал осмысленное действие.
+  // Всё, что ссылается на удалённое, вычищается вместе — иначе документ не
+  // пройдёт валидацию и вся команда откатится, хотя дизайнер сделал
+  // осмысленное действие. Это касается назначений материалов, света,
+  // наведённого на удалённый объект (светильники не удаляются никакой
+  // командой, и объект под таким светом стал бы неудаляемым навсегда), и
+  // ссылок зон прохода на связанные объекты.
   document.materialAssignments = document.materialAssignments.filter(
     (assignment) => !doomed.has(assignment.targetId),
   );
+  document.lights = document.lights.filter(
+    (light) => light.targetId === undefined || !doomed.has(light.targetId),
+  );
+  for (const zone of document.clearanceZones) {
+    if (Array.isArray(zone.relatedObjectIds)) {
+      zone.relatedObjectIds = zone.relatedObjectIds.filter((id) => !doomed.has(id));
+    }
+  }
 
   return { ok: true };
 }

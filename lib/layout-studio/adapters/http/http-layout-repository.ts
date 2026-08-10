@@ -211,10 +211,13 @@ export class HttpLayoutRepository implements LayoutRepositoryPort {
     document: LayoutDocument,
     input: CheckpointInput,
   ): Promise<LayoutCheckpoint> {
+    // id чеканит сервер: клиентский на глобальном ключе — коллизии.
     const { checkpoint } = await this.post<{ checkpoint: LayoutCheckpoint }>({
       action: "createCheckpoint",
       document,
-      ...input,
+      reasonCode: input.reasonCode,
+      reason: input.reason,
+      createdAt: input.createdAt,
     });
     this.checkpointCache = [...this.checkpointCache, checkpoint];
     return checkpoint;

@@ -28,13 +28,20 @@ export interface DraftRecord {
 }
 
 export interface CheckpointInput {
-  checkpointId: string;
+  /**
+   * Идентификатор минтится сервером (uuid): клиентский id на глобальном
+   * первичном ключе означал бы коллизии между вкладками и студиями и
+   * возможность занимать чужие идентификаторы. Локальное хранилище минтит
+   * само, когда id не передан.
+   */
+  checkpointId?: string;
   reasonCode: string;
   reason: string;
   createdAt: string;
 }
 
 export interface LayoutCheckpoint extends CheckpointInput {
+  checkpointId: string;
   documentId: string;
   document: LayoutDocument;
 }
@@ -108,11 +115,13 @@ export class MemoryLayoutRepository implements LayoutRepository, LayoutRepositor
     document: LayoutDocument,
     input: CheckpointInput,
   ): Promise<LayoutCheckpoint> {
-    if (this.checkpoints.has(input.checkpointId)) {
+    const checkpointId = input.checkpointId ?? globalThis.crypto.randomUUID();
+    if (this.checkpoints.has(checkpointId)) {
       throw new LayoutRepositoryError("CHECKPOINT_IMMUTABLE", "Checkpoint уже существует");
     }
     const checkpoint: LayoutCheckpoint = {
       ...clone(input),
+      checkpointId,
       documentId: document.documentId,
       document: clone(document),
     };

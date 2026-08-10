@@ -402,6 +402,29 @@ function PlanCanvas({
         fill="url(#layout-grid)"
       />
       {showClearance && document.clearanceZones.map((zone) => {
+        // Контракт 0.2 описывает зону полигоном; 0.1 — прямоугольником.
+        // Рендерятся обе формы: старый опубликованный документ обязан
+        // показывать свои зоны так же, как их видел его автор.
+        const polygon = (zone as { polygon?: unknown }).polygon;
+        if (Array.isArray(polygon) && polygon.length >= 3) {
+          const points = polygon
+            .map((point) => (
+              typeof (point as { xMm?: unknown }).xMm === "number"
+              && typeof (point as { yMm?: unknown }).yMm === "number"
+                ? `${(point as { xMm: number }).xMm},${flipYMm((point as { yMm: number }).yMm)}`
+                : null
+            ))
+            .filter((value): value is string => value !== null);
+          if (points.length < 3) return null;
+          return (
+            <polygon
+              key={zone.id}
+              points={points.join(" ")}
+              className={styles.clearanceZone}
+              aria-label={typeof zone.label === "string" ? zone.label : copy.layers.clearance}
+            />
+          );
+        }
         const xMm = finiteEntityNumber(zone, "xMm");
         const yMm = finiteEntityNumber(zone, "yMm");
         const widthMm = finiteEntityNumber(zone, "widthMm");
@@ -955,7 +978,10 @@ function Inspector({
   readonly onDelete: () => void;
 }) {
   const isColumn = entity ? "baseZMm" in entity : false;
-  const isObject = entity ? "zMm" in entity && !isColumn : false;
+  // У света тоже есть zMm — но он не объект: команд правки и удаления света
+  // в контуре нет, и инспектор не должен предлагать то, что не исполнится.
+  const isLight = entity ? "intensity" in entity : false;
+  const isObject = entity ? "zMm" in entity && !isColumn && !isLight : false;
   const editable = Boolean(entity && (isObject || isColumn) && entity.locked !== true);
   const fields: Array<{ key: keyof InspectorDraft; label: string; enabled: boolean }> = [
     { key: "xMm", label: copy.inspector.x, enabled: editable },
@@ -979,6 +1005,7 @@ function Inspector({
             <div><dt>{copy.inspector.identifier}</dt><dd>{entity.id}</dd></div>
           </dl>
           {entity.locked === true && <p className={styles.locked}>{copy.inspector.locked}</p>}
+          {isLight && <p className={styles.muted}>{copy.inspector.lightReadOnly}</p>}
           <div className={styles.fieldGrid}>
             {fields.map((field) => (
               <label key={field.key}>
@@ -1000,7 +1027,7 @@ function Inspector({
             {/* Удаление отделено от правки: оно доступно и там, где числовых
                 полей нет — например у стены или узла. Заблокированное
                 отсекает сама команда, а не эта кнопка. */}
-            <button type="button" onClick={onDelete}>{copy.delete.action}</button>
+            <button type="button" disabled={isLight} onClick={onDelete}>{copy.delete.action}</button>
           </div>
         </>
       )}
@@ -1611,6 +1638,8 @@ export function LayoutStudioShell({
 }) {
   const [session, setSession] = useState(() => new EditorSession(initialDocument));
   const lastSavedRevisionRef = useRef<number | null>(null);
+  const saveChainRef = useRef<Promise<void>>(Promise.resolve());
+  const savePendingRef = useRef(false);
   const [sessionState, setSessionState] = useState<EditorSessionState>(() => session.getState());
   const [repository, setRepository] = useState<LayoutRepositoryPort | null>(null);
   const [viewMode, setViewMode] = useState<ViewMode>("2d");
@@ -1720,17 +1749,38 @@ export function LayoutStudioShell({
     };
   }, [initialDocument.documentId]);
 
+  // Автосейв сериализован: параллельные запросы одного и того же клиента
+  // устраивали бы гонку с самим собой (второй уносил бы устаревшую
+  // expectedRevision и падал STATE_STALE на собственных правках). Очередь
+  // схлопывает промежуточные состояния — сохраняется всегда свежий документ.
   useEffect(() => {
     if (!repository) return;
-    const currentDocument = session.getState().document;
-    const expectedRevision = lastSavedRevisionRef.current;
-    void repository
-      .saveDraft(currentDocument, expectedRevision)
-      .then(() => {
+    if (savePendingRef.current) return;
+    savePendingRef.current = true;
+    saveChainRef.current = saveChainRef.current.then(async () => {
+      savePendingRef.current = false;
+      const currentDocument = session.getState().document;
+      if (currentDocument.stateRevision === lastSavedRevisionRef.current) return;
+      try {
+        await repository.saveDraft(currentDocument, lastSavedRevisionRef.current);
         lastSavedRevisionRef.current = currentDocument.stateRevision;
         setHistoryStatus(copy.history.draftSaved);
-      })
-      .catch((error: unknown) => setHistoryStatus(storageErrorMessage(error)));
+      } catch (error: unknown) {
+        if (error instanceof LayoutRepositoryError && error.code === "STATE_STALE") {
+          // Запись могла состояться, а ответ — потеряться. Сервер знает правду:
+          // если там ровно наша ревизия, это подтверждение, а не конфликт.
+          const server = await repository
+            .loadDraft(currentDocument.documentId)
+            .catch(() => null);
+          if (server && server.stateRevision === currentDocument.stateRevision) {
+            lastSavedRevisionRef.current = server.stateRevision;
+            setHistoryStatus(copy.history.draftSaved);
+            return;
+          }
+        }
+        setHistoryStatus(storageErrorMessage(error));
+      }
+    });
   }, [repository, revision, session]);
 
   // Esc завершает цепочку, не выключая инструмент: типичный сценарий —
@@ -1975,10 +2025,9 @@ export function LayoutStudioShell({
       return;
     }
     const createdAt = new Date().toISOString();
-    const id = `CP-${Date.now().toString(36).toUpperCase()}`;
     try {
+      // Идентификатор чекпойнта чеканит сервер — двум вкладкам нечего делить.
       const checkpoint = await repository.createCheckpoint(document, {
-        checkpointId: id,
         reasonCode: "LOCAL_CHECKPOINT",
         reason: copy.versions.userReason,
         createdAt,
