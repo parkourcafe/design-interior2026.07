@@ -112,6 +112,13 @@ jobs:
             echo "SUPABASE_DB_URL=${DB_URL}"
           } >> "${GITHUB_ENV}"
 
+      # Локальная схема auth принадлежит supabase_auth_admin и раздаёт pi_*
+      # ролям права, которых на managed Supabase у них нет. Локальный раннер
+      # AP1 отзывает их сразу после старта стека (run-local.zsh, start_stack), и
+      # без этого шага гейт проверял бы среду, непохожую на боевую.
+      - name: Model hosted auth ACLs
+        run: psql "${SUPABASE_DB_URL}" -X --set ON_ERROR_STOP=1 -f tests/ap1/environment/apply-local-auth-compat.sql
+
       # Та же проверка состояния базы, что и в AP1: managed-auth ссылок не
       # осталось, request-claim helpers на месте, приватные гранты закрыты.
       - name: Verify database state
