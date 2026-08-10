@@ -6,6 +6,8 @@ import { supportEmail } from "@/lib/env";
 const email = supportEmail();
 
 export const metadata: Metadata = {
+  alternates: { canonical: "/support" },
+  openGraph: { url: "/support" },
   title: `Поддержка — ${ru.app.name}`,
   description: "Помощь пользователям RemHaOS и управление данными аккаунта.",
 };

@@ -11,6 +11,8 @@ import { MEDIA } from "@/components/landing/media";
 const d = ru.landing.demo;
 
 export const metadata: Metadata = {
+  alternates: { canonical: "/demo" },
+  openGraph: { url: "/demo" },
   title: `${d.loopTitle} — ${ru.app.name}`,
   description: d.loopSub,
 };

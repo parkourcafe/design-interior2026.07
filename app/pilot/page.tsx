@@ -11,6 +11,8 @@ const p = ru.landing.pagePilot;
 const L = ru.landing;
 
 export const metadata: Metadata = {
+  alternates: { canonical: "/pilot" },
+  openGraph: { url: "/pilot" },
   title: `${p.title} — ${ru.app.name}`,
   description: p.sub,
 };

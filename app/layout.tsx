@@ -10,14 +10,13 @@ export const metadata: Metadata = {
   metadataBase: new URL(appUrl()),
   title: `${ru.app.name} — ${ru.app.tagline}`,
   description: ru.app.heroSub,
-  // Canonical обязателен: старый домен arhidom.space сейчас отдаёт тот же
-  // контент с кодом 200 (редирект на remhaos.com пока не настроен), поэтому
-  // без canonical у поисковых систем нет сигнала, какая версия страницы
-  // основная. metadataBase выше разворачивает "/" в абсолютный URL.
-  alternates: { canonical: "/" },
+  // Canonical и og:url задаёт КАЖДАЯ страница отдельно, а не корневой layout:
+  // метаданные наследуются вниз по сегментам, поэтому canonical="/" здесь
+  // объявил бы главную канонической для /studios, /support, /legal/* и всех
+  // будущих страниц — то есть сказал бы поиску, что это дубли главной.
+  // Общими остаются только те поля OG, которые верны для любой страницы.
   openGraph: {
     type: "website",
-    url: "/",
     siteName: ru.app.name,
     title: `${ru.app.name} — ${ru.app.tagline}`,
     description: ru.app.heroSub,

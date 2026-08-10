@@ -12,6 +12,8 @@ const p = ru.landing.pageStudios;
 const L = ru.landing;
 
 export const metadata: Metadata = {
+  alternates: { canonical: "/studios" },
+  openGraph: { url: "/studios" },
   title: `${L.nav.studios} — ${ru.app.name}`,
   description: p.sub,
 };

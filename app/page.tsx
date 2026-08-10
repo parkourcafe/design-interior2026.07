@@ -10,6 +10,16 @@ import { Cine, Parallax } from "@/components/landing/cinema";
 import { delay } from "@/components/landing/delay";
 import { MEDIA } from "@/components/landing/media";
 
+import type { Metadata } from "next";
+
+// Canonical нужен потому, что старый домен arhidom.space отдаёт тот же контент
+// с кодом 200: без него у поиска нет сигнала, какая версия основная.
+// metadataBase в корневом layout разворачивает "/" в абсолютный URL.
+export const metadata: Metadata = {
+  alternates: { canonical: "/" },
+  openGraph: { url: "/" },
+};
+
 const L = ru.landing;
 
 // ── Утилиты секций ───────────────────────────────────────────

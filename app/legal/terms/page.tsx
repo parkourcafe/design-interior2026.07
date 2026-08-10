@@ -7,6 +7,8 @@ import LandingFooter from "@/components/landing/footer";
 const l = ru.landing.legal;
 
 export const metadata: Metadata = {
+  alternates: { canonical: "/legal/terms" },
+  openGraph: { url: "/legal/terms" },
   title: `${l.termsTitle} — ${ru.app.name}`,
   description: l.pilotBanner,
 };
