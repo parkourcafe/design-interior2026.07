@@ -10,8 +10,8 @@ import {
 } from "@/lib/layout-studio/domain/schema-registry";
 import { validateLayoutDocument } from "@/lib/layout-studio/domain";
 import type { LayoutDocument } from "@/lib/layout-studio/domain";
-import simpleRoom from "@/fixtures/layout-studio/simple-room.v0.1.json";
-import kora from "@/fixtures/layout-studio/kora-liquid-station.v0.1.json";
+import simpleRoom from "@/fixtures/layout-studio/simple-room.v0.2.json";
+import kora from "@/fixtures/layout-studio/kora-liquid-station.v0.2.json";
 
 const SIMPLE = simpleRoom as unknown as LayoutDocument;
 
@@ -51,11 +51,13 @@ describe("Реестр версий модели документа", () => {
 });
 
 describe("Проверка идёт против версии, объявленной документом", () => {
-  it("принимает существующие фикстуры", () => {
+  it("принимает существующие фикстуры — каждую по её версии", () => {
+    // Фикстуры редактора несут форму 0.2 (linear_proxy, полигональные зоны,
+    // catalogKey); их 0.1-предшественники остаются валидными под 0.1.
     for (const fixture of [simpleRoom, kora]) {
       const result = validateAgainstDeclaredSchema(fixture);
       expect(result.valid, JSON.stringify(result.issues)).toBe(true);
-      expect(result.version).toBe("archidom.layout-document/0.1");
+      expect(result.version).toBe("archidom.layout-document/0.2");
     }
   });
 

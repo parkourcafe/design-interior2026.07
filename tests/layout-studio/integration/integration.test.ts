@@ -202,6 +202,10 @@ describe("Layout Studio delivery/UI slice", () => {
       "20260802080000_projectceo_m2_layout_versions.sql",
       "20260802090000_projectceo_m2_client_review_m3_handoff.sql",
       "20260803010000_projectceo_source_materializations_fk_index.sql",
+      // Модуль 3 «Документация» — влит в main PR #72 и для этой ветки является
+      // ровно таким же pre-existing, как остальной контур projectceo.
+      "20260810010000_projectceo_m3_documentation_persistence.sql",
+      "20260810020000_projectceo_m3_documentation_read.sql",
     ];
     const actual = readdirSync(join(repoRoot, "supabase/migrations"), { withFileTypes: true })
       .filter((entry) => entry.isFile())
@@ -219,6 +223,9 @@ describe("Layout Studio delivery/UI slice", () => {
     expect(added).toEqual([
       "20260808050000_layout_studio_drafts.sql",
       "20260808060000_layout_studio_workspace_binding.sql",
+      // Контракт документа 0.2: валидатор публикации принимает обе версии,
+      // каждую по её правилам (см. миграцию и db4/36).
+      "20260810030000_projectceo_m2_layout_document_v02.sql",
     ]);
   });
 

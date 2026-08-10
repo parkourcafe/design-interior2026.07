@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, it } from "vitest";
 import { LayoutRepositoryError } from "@/lib/layout-studio/adapters/local/memory-layout-repository";
 import { SupabaseLayoutRepository } from "@/lib/layout-studio/adapters/supabase/supabase-layout-repository";
 import type { LayoutDocument } from "@/lib/layout-studio/domain";
-import fixture from "@/fixtures/layout-studio/simple-room.v0.1.json";
+import fixture from "@/fixtures/layout-studio/simple-room.v0.2.json";
 
 const BASE = fixture as unknown as LayoutDocument;
 

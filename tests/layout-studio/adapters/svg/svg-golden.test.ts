@@ -8,8 +8,8 @@ import {
   serializeSvgProjection,
 } from "@/lib/layout-studio/adapters/svg/svg-projection";
 import { deriveLayout, type LayoutDocument } from "@/lib/layout-studio/domain";
-import koraFixture from "@/fixtures/layout-studio/kora-liquid-station.v0.1.json";
-import simpleFixture from "@/fixtures/layout-studio/simple-room.v0.1.json";
+import koraFixture from "@/fixtures/layout-studio/kora-liquid-station.v0.2.json";
+import simpleFixture from "@/fixtures/layout-studio/simple-room.v0.2.json";
 
 const GOLDEN_DIR = path.join(process.cwd(), "tests/layout-studio/adapters/svg/golden");
 

@@ -22,6 +22,7 @@ const ROOT_FIELDS = [
   "metadata",
 ] as const;
 
+// Формы сущностей версии 0.2 — сегодняшний контракт редактора.
 const ENTITY_SHAPES = {
   nodes: {
     required: ["id", "xMm", "yMm", "locked"],
@@ -111,6 +112,33 @@ const ENTITY_SHAPES = {
     optional: ["targetId"],
   },
 } as const;
+
+/**
+ * Формы 0.1 — ровно то, что принимает валидатор публикации в Postgres
+ * (миграция 20260802080000). Документ 0.1 обязан открываться вечно, поэтому
+ * его форма проверяется правилами его времени, а не сегодняшними.
+ */
+type EntityShapeTable = Readonly<Record<keyof typeof ENTITY_SHAPES, {
+  readonly required: readonly string[];
+  readonly optional: readonly string[];
+}>>;
+
+const ENTITY_SHAPES_V01: EntityShapeTable = {
+  ...ENTITY_SHAPES,
+  walls: { required: ["id", "startNodeId", "endNodeId", "thicknessMm", "heightMm", "kind", "locked"], optional: ["label"] },
+  openings: { required: ["id", "parentWallId", "kind", "offsetMm", "widthMm", "heightMm", "sillMm", "locked"], optional: ["handing", "label"] },
+  columns: { required: ["id", "xMm", "yMm", "widthMm", "depthMm", "baseZMm", "heightMm", "rotationDeg", "locked"], optional: ["label"] },
+  objects: { required: ["id", "kind", "xMm", "yMm", "zMm", "widthMm", "depthMm", "heightMm", "rotationDeg", "locked"], optional: ["label"] },
+  clearanceZones: { required: ["id"], optional: ["depthMm", "heightMm", "kind", "label", "locked", "rotationDeg", "targetId", "widthMm", "xMm", "yMm", "zMm"] },
+  lights: { required: ["id", "kind", "xMm", "yMm", "zMm", "color", "intensity", "label"], optional: ["targetId", "groundColor", "distanceMm", "decay"] },
+} as const;
+
+const LIGHT_KINDS_BY_VERSION: Readonly<Record<string, ReadonlySet<string>>> = {
+  "archidom.layout-document/0.1": new Set(["ambient", "directional", "hemisphere", "point"]),
+  "archidom.layout-document/0.2": new Set(["ambient", "directional", "point", "linear_proxy"]),
+};
+
+const SUPPORTED_CONTRACT_VERSIONS = new Set(Object.keys(LIGHT_KINDS_BY_VERSION));
 
 const HEX_COLOR = /^#[0-9a-f]{6}$/i;
 
@@ -272,6 +300,9 @@ function validateEntityFields(
 }
 
 function validateShape(document: Record<string, unknown>, issues: LayoutIssue[]): void {
+  const shapes: EntityShapeTable = document.contractVersion === "archidom.layout-document/0.1"
+    ? ENTITY_SHAPES_V01
+    : ENTITY_SHAPES;
   validateExactKeys(document, "document", ROOT_FIELDS, [], issues);
 
   for (const key of ["contractVersion", "documentId", "projectId", "name", "canonicalUnits"]) {
@@ -314,7 +345,7 @@ function validateShape(document: Record<string, unknown>, issues: LayoutIssue[])
       shapeIssue(issues, "INVALID_ENTITY_COLLECTION", `Коллекция ${collectionName} должна быть массивом`, collectionName);
       continue;
     }
-    const shape = ENTITY_SHAPES[collectionName];
+    const shape = shapes[collectionName];
     collection.forEach((entity, index) => {
       const path = `${collectionName}[${index}]`;
       if (!isRecord(entity)) {
@@ -349,7 +380,7 @@ export function validateLayoutDocument(document: LayoutDocument): LayoutValidati
   // also ensures malformed partial input is rejected without throwing.
   if (issues.length > 0) return { valid: false, issues };
 
-  if (document.contractVersion !== "archidom.layout-document/0.1") {
+  if (!SUPPORTED_CONTRACT_VERSIONS.has(document.contractVersion)) {
     shapeIssue(issues, "INVALID_CONTRACT_VERSION", "Версия контракта документа не поддерживается", "contractVersion");
   }
   if (document.canonicalUnits !== "mm") {
@@ -483,7 +514,8 @@ export function validateLayoutDocument(document: LayoutDocument): LayoutValidati
     }
   }
 
-  const lightKinds = new Set(["ambient", "directional", "point", "linear_proxy"]);
+  const lightKinds = LIGHT_KINDS_BY_VERSION[document.contractVersion]
+    ?? LIGHT_KINDS_BY_VERSION["archidom.layout-document/0.2"]!;
   for (const [index, light] of (Array.isArray(document.lights) ? document.lights : []).entries()) {
     const path = `lights[${index}]`;
     if (!lightKinds.has(light.kind)) {

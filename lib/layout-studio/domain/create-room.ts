@@ -1,3 +1,4 @@
+import { CURRENT_CONTRACT_VERSION } from "./schema-registry";
 import type { LayoutDocument } from "./types";
 
 /**
@@ -128,7 +129,7 @@ export function createRoomDocument(spec: RoomSpec): LayoutDocument {
   };
 
   return {
-    contractVersion: "archidom.layout-document/0.1",
+    contractVersion: CURRENT_CONTRACT_VERSION,
     documentId: spec.documentId,
     projectId: `project.${spec.projectUuid.toLowerCase()}`,
     name: spec.name.trim(),

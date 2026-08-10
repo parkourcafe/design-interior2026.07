@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://archidom.example/schemas/layout-document-v0.1.schema.json",
-  "title": "ArchiDom Layout Document v0.1",
+  "$id": "https://archidom.example/schemas/layout-document-v0.2.schema.json",
+  "title": "ArchiDom Layout Document v0.2",
   "type": "object",
   "additionalProperties": false,
   "required": [
@@ -26,7 +26,7 @@
   ],
   "properties": {
     "contractVersion": {
-      "const": "archidom.layout-document/0.1"
+      "const": "archidom.layout-document/0.2"
     },
     "documentId": {
       "$ref": "#/$defs/stableId"
@@ -238,7 +238,8 @@
         "thicknessMm",
         "heightMm",
         "kind",
-        "locked"
+        "locked",
+        "label"
       ],
       "properties": {
         "id": {
@@ -283,7 +284,8 @@
         "widthMm",
         "heightMm",
         "sillMm",
-        "locked"
+        "locked",
+        "label"
       ],
       "properties": {
         "id": {
@@ -343,7 +345,8 @@
         "baseZMm",
         "heightMm",
         "rotationDeg",
-        "locked"
+        "locked",
+        "label"
       ],
       "properties": {
         "id": {
@@ -393,7 +396,8 @@
         "depthMm",
         "heightMm",
         "rotationDeg",
-        "locked"
+        "locked",
+        "label"
       ],
       "properties": {
         "id": {
@@ -408,6 +412,11 @@
             "service"
           ]
         },
+        "catalogKey": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 160
+        },
         "xMm": {
           "$ref": "#/$defs/coordinateMm"
         },
@@ -436,6 +445,10 @@
           "type": "string",
           "minLength": 1,
           "maxLength": 160
+        },
+        "notes": {
+          "type": "string",
+          "maxLength": 1000
         }
       }
     },
@@ -443,48 +456,40 @@
       "type": "object",
       "additionalProperties": false,
       "required": [
-        "id"
+        "id",
+        "label",
+        "polygon",
+        "severity",
+        "relatedObjectIds"
       ],
       "properties": {
         "id": {
           "$ref": "#/$defs/stableId"
-        },
-        "kind": {
-          "type": "string",
-          "minLength": 1,
-          "maxLength": 160
         },
         "label": {
           "type": "string",
           "minLength": 1,
           "maxLength": 160
         },
-        "locked": {
-          "type": "boolean"
+        "polygon": {
+          "type": "array",
+          "minItems": 3,
+          "items": {
+            "$ref": "#/$defs/point"
+          }
         },
-        "targetId": {
-          "$ref": "#/$defs/stableId"
+        "severity": {
+          "enum": [
+            "info",
+            "warning",
+            "blocking"
+          ]
         },
-        "xMm": {
-          "$ref": "#/$defs/coordinateMm"
-        },
-        "yMm": {
-          "$ref": "#/$defs/coordinateMm"
-        },
-        "zMm": {
-          "$ref": "#/$defs/coordinateMm"
-        },
-        "widthMm": {
-          "$ref": "#/$defs/positiveMm"
-        },
-        "depthMm": {
-          "$ref": "#/$defs/positiveMm"
-        },
-        "heightMm": {
-          "$ref": "#/$defs/positiveMm"
-        },
-        "rotationDeg": {
-          "$ref": "#/$defs/rotation"
+        "relatedObjectIds": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/stableId"
+          }
         }
       }
     },
@@ -598,8 +603,8 @@
           "enum": [
             "ambient",
             "directional",
-            "hemisphere",
-            "point"
+            "point",
+            "linear_proxy"
           ]
         },
         "xMm": {

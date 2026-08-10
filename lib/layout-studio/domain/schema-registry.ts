@@ -1,6 +1,7 @@
 import Ajv2020, { type ErrorObject, type ValidateFunction } from "ajv/dist/2020";
 
 import schemaV01 from "./layout-document-v0.1.schema.json";
+import schemaV02 from "./layout-document-v0.2.schema.json";
 import type { LayoutIssue } from "./types";
 
 /**
@@ -23,8 +24,16 @@ import type { LayoutIssue } from "./types";
  * открыться. Тест schema-registry.test.ts падает при попытке удалить.
  */
 
-/** Версия, в которой создаются новые документы. */
-export const CURRENT_CONTRACT_VERSION = "archidom.layout-document/0.1";
+/**
+ * Версия, в которой создаются новые документы.
+ *
+ * 0.2 отделила форму редактора от формы 0.1, замороженной валидатором
+ * публикации в Postgres: linear_proxy-свет, catalogKey/notes у объектов,
+ * полигональные зоны прохода и обязательные label — это 0.2. Документы 0.1
+ * (включая опубликованные со старым hemisphere-светом и прямоугольными
+ * зонами) продолжают проверяться своей схемой и открываться вечно.
+ */
+export const CURRENT_CONTRACT_VERSION = "archidom.layout-document/0.2";
 
 /**
  * Все версии, которые когда-либо публиковались. Только добавление.
@@ -34,11 +43,13 @@ export const CURRENT_CONTRACT_VERSION = "archidom.layout-document/0.1";
  */
 const SCHEMAS: Readonly<Record<string, object>> = {
   "archidom.layout-document/0.1": schemaV01,
+  "archidom.layout-document/0.2": schemaV02,
 };
 
 /** Порядок версий от старой к новой. Нужен миграциям черновиков. */
 export const CONTRACT_VERSION_ORDER: readonly string[] = [
   "archidom.layout-document/0.1",
+  "archidom.layout-document/0.2",
 ];
 
 export function isKnownContractVersion(version: unknown): version is string {

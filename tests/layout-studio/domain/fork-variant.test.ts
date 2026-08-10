@@ -9,7 +9,7 @@ import {
   semanticHash,
   validateLayoutDocument,
 } from "@/lib/layout-studio/domain";
-import koraFixture from "@/fixtures/layout-studio/kora-liquid-station.v0.1.json";
+import koraFixture from "@/fixtures/layout-studio/kora-liquid-station.v0.2.json";
 import type { LayoutDocument } from "@/lib/layout-studio/domain";
 
 import { makeSimpleRoom } from "../application/layout-test-fixture";

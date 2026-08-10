@@ -4,7 +4,7 @@ import { exportLayoutToDxf, asciiLabel } from "@/lib/layout-studio/adapters/dxf/
 import { LayoutExportService } from "@/lib/layout-studio/application/export-service";
 import { MemoryLayoutRepository } from "@/lib/layout-studio/adapters/local/memory-layout-repository";
 import { deriveLayout, type LayoutDocument } from "@/lib/layout-studio/domain";
-import koraFixture from "@/fixtures/layout-studio/kora-liquid-station.v0.1.json";
+import koraFixture from "@/fixtures/layout-studio/kora-liquid-station.v0.2.json";
 
 import { makeSimpleRoom } from "../../application/layout-test-fixture";
 

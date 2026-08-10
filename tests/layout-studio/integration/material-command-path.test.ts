@@ -5,7 +5,7 @@ import { describe, expect, it } from "vitest";
 
 import { applyLayoutCommand, type LayoutDocument } from "@/lib/layout-studio/domain";
 import { compileMaterialDescriptors } from "@/lib/layout-studio/adapters/three/material-compiler";
-import koraFixture from "@/fixtures/layout-studio/kora-liquid-station.v0.1.json";
+import koraFixture from "@/fixtures/layout-studio/kora-liquid-station.v0.2.json";
 
 const repoRoot = process.cwd();
 const KORA = koraFixture as unknown as LayoutDocument;
