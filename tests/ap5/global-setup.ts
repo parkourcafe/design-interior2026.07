@@ -161,7 +161,9 @@ async function createInvitation(
       },
     });
     const body = await response.json();
-    const invitationUrl = body?.data?.invitationUrl;
+    // Конверт команды — {status, operation, replay, stateRevision, result},
+    // без `data`: `data` есть у читающих маршрутов, у командного нет.
+    const invitationUrl = body?.result?.invitationUrl;
     if (!response.ok() || typeof invitationUrl !== "string") {
       throw new Error(
         `AP5: create_invitation для ${targetRole} отказал: `

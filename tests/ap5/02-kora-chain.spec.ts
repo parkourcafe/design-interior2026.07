@@ -28,7 +28,9 @@ type CommandResult = {
   readonly status: number;
   readonly body: {
     readonly status?: string;
-    readonly data?: Record<string, unknown>;
+    // Именно `result`, а не `data`: у командного конверта поля `data` нет,
+    // оно есть только у читающих маршрутов.
+    readonly result?: Record<string, unknown>;
     readonly error?: { readonly code?: string };
   };
 };
