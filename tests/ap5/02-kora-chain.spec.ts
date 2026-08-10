@@ -121,35 +121,32 @@ test.describe("AP5 — цепочка Kora на живом стеке", () => {
   });
 
   /**
-   * НЕ ПРОХОДИТ на живом стеке, и это находка, а не пропуск.
+   * Звено закрыто — и закрыто честно, что и проверяется.
    *
-   * Источник, заведённый из браузера, попадает в инвентарь, но не в граф
-   * утверждений: узлы графа создаёт воркерный `ingest_source_graph`. При этом
-   * `review_source` уходит в `project_intelligence_api.review_claim` с
-   * `inventory.source_revision_id`, которого в графе нет, и RPC падает
-   * неконтролируемой ошибкой — команда отвечает 500 `internal_error`.
-   *
-   * Отдельно неприятно, что действие при этом ПРЕДЛАГАЕТСЯ: в проекции
-   * `pendingSourceRevisionId` не пуст (live-read-port.ts:1011), значит в
-   * рабочем пространстве кнопка ревью показывается доступной и по нажатию
-   * даёт 500. Либо affordance не должен появляться до воркерного ingest, либо
-   * команда обязана отвечать контролируемым отказом. Решение — за владельцем.
+   * Решение по источнику пишет `project_intelligence_api.review_claim`, а эта
+   * схема намеренно не отдана Data API (`supabase/config.toml`;
+   * `verify-runtime.mjs` требует от неё 406). Раньше поверхность действие
+   * предлагала, вызов не находился PostgREST, и наружу выходил 500 — ровно это
+   * гейт и поймал в прогоне 09:42. Теперь и affordance, и команда говорят
+   * «недоступно», а 500 у пользователя больше нет.
    */
-  test.fixme("4. ревью источника подтверждает ровно ту ревизию", async ({ browser }) => {
+  test("4. ревью источника закрыто до тонкой RPC и не обещает лишнего", async ({ browser }) => {
     const architect = await requestAs(browser, "designer");
-    const source = (await workspace(architect)).sources.at(0);
+    const view = await workspace(architect);
+    const source = view.sources.at(0);
     expect(source?.reviewTargetRevisionId).toBeTruthy();
+
+    expect(view.operations.review_source?.status).toBe("unavailable");
+    expect(view.operations.review_source?.reason).toBe("read_contract_pending");
 
     const result = await command(architect, "review_source", {
       targetRevisionId: source!.reviewTargetRevisionId,
       expectedRevisionId: source!.reviewTargetRevisionId,
       decision: "confirmed",
     });
-    expect(result.status, JSON.stringify(result.body.error)).toBe(200);
-
-    const reviewed = (await workspace(architect)).sources
-      .find((candidate) => candidate.id === source!.id);
-    expect(reviewed?.reviewStatus).toBe("confirmed");
+    // Контролируемый отказ, а не 500: 409 operation_unavailable.
+    expect(result.status, JSON.stringify(result.body.error)).toBe(409);
+    expect(result.body.error?.code).toBe("operation_unavailable");
   });
 
   test("5. решение человеческого происхождения", async ({ browser }) => {
