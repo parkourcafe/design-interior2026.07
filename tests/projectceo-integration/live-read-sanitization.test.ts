@@ -29,7 +29,7 @@ function fakeClient(
       if (schemaName === "projectceo_api" && functionName === "list_projects") {
         return { data: foundation(projectEntries), error: null };
       }
-      if (schemaName === "projectceo_read_api" && functionName === "get_project_workspace_read_v6") {
+      if (schemaName === "projectceo_read_api" && functionName === "get_project_workspace_read_v7") {
         return { data: {
           contractVersion: "project-ceo-authenticated-read/0.1",
           requestId: "db:authenticated-read",
@@ -400,6 +400,101 @@ describe("ProjectCEO live DTO sanitizer", () => {
     }
   });
 
+  // Листы, которые нельзя прочитать, для пользователя не существуют. Раздел
+  // документации собирается из проекции, а комплектность считает код модуля.
+  it("builds the documentation section from the projection and names what is missing", async () => {
+    const previous = process.env.REMHAOS_DOCUMENTATION_ENABLED;
+    process.env.REMHAOS_DOCUMENTATION_ENABLED = "true";
+    const hash = `sha256:${"d".repeat(64)}`;
+    const projection = {
+      m3DocumentationSheets: [{
+        sheetId: "sheet-a101",
+        packageId,
+        roomId: "living-room",
+        sheetNumber: "A-101",
+        title: "План расстановки",
+        revisionId: "sheet-r2",
+        revisionNo: 2,
+        specificationRevisionIds: ["selection-a@1"],
+        reason: "Привязка утверждённого выбора",
+        createdByUserId: "66666666-6666-4666-8666-666666666666",
+        origin: {
+          handoffId: "handoff-1",
+          handoffRevisionId: "handoff-r1",
+          handoffContractVersion: "archidom.m2-to-m3-handoff/0.1",
+          approvedM2CommitRevisionId: "commit-r1",
+          designIntentRevisionId: "intent-r1",
+          layoutDocumentId: "layout-1",
+          layoutVersionId: "layout-1@1",
+          layoutRevisionId: "layout-r1",
+          semanticHash: hash,
+        },
+        createdAt: "2026-08-10T00:00:00Z",
+      }],
+      m3DocumentationHandoffs: [{
+        handoffId: "handoff-1",
+        revisionId: "handoff-r1",
+        contractVersion: "archidom.m2-to-m3-handoff/0.1",
+        packageId,
+        roomId: "living-room",
+        approvedM2CommitRevisionId: "commit-r1",
+        designIntentRevisionId: "intent-r1",
+        layout: {
+          documentId: "layout-1",
+          versionId: "layout-1@1",
+          revisionId: "layout-r1",
+          semanticHash: hash,
+        },
+        // Второй утверждённый выбор ни на одном листе не отражён.
+        selectionRevisionIds: ["selection-a@1", "selection-b@1"],
+      }],
+    };
+    try {
+      const result = await new ProjectCeoLiveReadPort(
+        fakeClient(projection, [{ ...defaultProjectEntries[0], role: "architect" }]),
+        { userId: "66666666-6666-4666-8666-666666666666", displayName: "Architect" },
+      ).getProjectWorkspace({ projectId, requestId: "documentation-section" });
+
+      expect(result.data?.documentation?.sheets).toEqual([{
+        sheetId: "sheet-a101",
+        sheetNumber: "A-101",
+        title: "План расстановки",
+        roomId: "living-room",
+        revisionNo: 2,
+        specificationRevisionIds: ["selection-a@1"],
+        layoutSemanticHash: hash,
+        approvedM2CommitRevisionId: "commit-r1",
+      }]);
+      expect(result.data?.documentation?.completeness).toEqual([{
+        handoffId: "handoff-1",
+        packageId,
+        roomId: "living-room",
+        complete: false,
+        findings: [{ code: "SPECIFICATION_NOT_COVERED", subject: "selection-b@1" }],
+      }]);
+    } finally {
+      if (previous === undefined) delete process.env.REMHAOS_DOCUMENTATION_ENABLED;
+      else process.env.REMHAOS_DOCUMENTATION_ENABLED = previous;
+    }
+  });
+
+  // Роль, которой проекция листов не отдаёт, не получает и пустого раздела:
+  // «нет доступа» и «пусто» — разные утверждения.
+  it("has no documentation section when the projection carries no M3 keys", async () => {
+    const previous = process.env.REMHAOS_DOCUMENTATION_ENABLED;
+    process.env.REMHAOS_DOCUMENTATION_ENABLED = "true";
+    try {
+      const result = await new ProjectCeoLiveReadPort(
+        fakeClient({}, [{ ...defaultProjectEntries[0], role: "architect" }]),
+        { userId: "66666666-6666-4666-8666-666666666666", displayName: "Architect" },
+      ).getProjectWorkspace({ projectId, requestId: "documentation-absent" });
+      expect(result.data?.documentation).toBeNull();
+    } finally {
+      if (previous === undefined) delete process.env.REMHAOS_DOCUMENTATION_ENABLED;
+      else process.env.REMHAOS_DOCUMENTATION_ENABLED = previous;
+    }
+  });
+
   // Выключенный модуль 3 закрывает поверхность всем, включая архитектора.
   it("hides source intake entirely while the documentation module is disabled", async () => {
     const previous = process.env.REMHAOS_DOCUMENTATION_ENABLED;
@@ -492,7 +587,7 @@ describe("ProjectCEO live DTO sanitizer", () => {
 
   it("fails closed when a required downstream read returns an error envelope", async () => {
     for (const functionName of [
-      "get_project_workspace_read_v6",
+      "get_project_workspace_read_v7",
       "list_project_access",
       "get_audit_timeline",
     ]) {

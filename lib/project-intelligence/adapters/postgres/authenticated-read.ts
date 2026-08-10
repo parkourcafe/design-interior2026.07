@@ -203,6 +203,58 @@ export interface AuthenticatedReadM2M3Handoff {
   readonly budget: AuthenticatedReadM2ApprovedCommitPayload["budget"]; readonly createdAt: string;
 }
 
+/**
+ * Лист пакета документации M3 в проекции v7: последняя ревизия листа и её
+ * происхождение. Поле необязательно — проекции более ранних контрактов его не
+ * несут, и код обязан переживать это, а не падать.
+ */
+export interface AuthenticatedReadDocumentationSheet {
+  readonly sheetId: string;
+  readonly packageId: string;
+  readonly roomId: string;
+  readonly sheetNumber: string;
+  readonly title: string;
+  readonly revisionId: string;
+  readonly revisionNo: number;
+  readonly specificationRevisionIds: readonly string[];
+  readonly reason: string;
+  readonly createdByUserId: string;
+  readonly origin: {
+    readonly handoffId: string;
+    readonly handoffRevisionId: string;
+    readonly handoffContractVersion: string;
+    readonly approvedM2CommitRevisionId: string;
+    readonly designIntentRevisionId: string;
+    readonly layoutDocumentId: string;
+    readonly layoutVersionId: string;
+    readonly layoutRevisionId: string;
+    readonly semanticHash: string;
+  };
+  readonly createdAt: string;
+}
+
+/**
+ * Вход модуля документации в его собственной форме — то же утверждённое
+ * решение M2, что несёт m2M3Handoffs, но с комнатой и design intent, без
+ * которых проверку комплектности не на чем запускать.
+ */
+export interface AuthenticatedReadDocumentationHandoff {
+  readonly handoffId: string;
+  readonly revisionId: string;
+  readonly contractVersion: string;
+  readonly packageId: string;
+  readonly roomId: string;
+  readonly approvedM2CommitRevisionId: string;
+  readonly designIntentRevisionId: string;
+  readonly layout: {
+    readonly documentId: string;
+    readonly versionId: string;
+    readonly revisionId: string;
+    readonly semanticHash: string;
+  };
+  readonly selectionRevisionIds: readonly string[];
+}
+
 export interface AuthenticatedProjectReadProjection {
   readonly approvalPackages: readonly Readonly<Record<string, unknown>>[];
   readonly m2Rooms?: readonly Readonly<Record<string, unknown>>[];
@@ -215,6 +267,8 @@ export interface AuthenticatedProjectReadProjection {
   readonly m2ClientReviewSubmissions: readonly AuthenticatedReadM2ClientReviewSubmission[];
   readonly m2ClientReviews: readonly Readonly<Record<string, unknown>>[];
   readonly m2M3Handoffs: readonly AuthenticatedReadM2M3Handoff[];
+  readonly m3DocumentationSheets?: readonly AuthenticatedReadDocumentationSheet[];
+  readonly m3DocumentationHandoffs?: readonly AuthenticatedReadDocumentationHandoff[];
   readonly decisions: readonly AuthenticatedReadDecision[];
   readonly distributionSummary: readonly AuthenticatedReadDistributionSummary[];
   readonly executionPackages: readonly ExecutionDeliveryEnvelope[];
@@ -704,7 +758,7 @@ export class ProjectCeoAuthenticatedReadPostgresAdapter {
       await callRpc(
         this.client,
         "projectceo_read_api",
-        "get_project_workspace_read_v6",
+        "get_project_workspace_read_v7",
         {
           project_id: input.projectId,
           package_id: input.packageId,

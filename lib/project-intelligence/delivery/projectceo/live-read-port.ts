@@ -44,6 +44,7 @@ import {
   type ProjectWorkspaceView,
   type ReleaseSummary,
   type SelectionView,
+  type DocumentationView,
   type SourceRegistryItem,
   type UiEnvelope,
   type UiError,
@@ -51,6 +52,7 @@ import {
 import type { ProjectCeoUiReadPort } from "@/components/projectceo/port";
 import { capabilitiesForRole, can } from "@/components/projectceo/role-policy";
 import { ru } from "@/lib/i18n/ru";
+import { reviewPackageCompleteness } from "../../modules/documentation";
 import { isDocumentationModuleEnabled } from "./documentation-flag";
 import type { ProjectCeoVerifiedIdentity } from "./request-context";
 
@@ -860,6 +862,94 @@ function unavailable(reason: Exclude<ProjectCeoOperationState, { readonly status
   return { status: "unavailable", reason };
 }
 
+/**
+ * Раздел документации: прочитанные листы и комплектность по каждому
+ * утверждённому решению M2.
+ *
+ * Комплектность считает код модуля на реальных данных, а не отдельная
+ * реализация в слое доставки: иначе интерфейс однажды начал бы называть
+ * неполноту по своим правилам, а модуль — по своим. Раздел равен null, когда
+ * поверхности нет вовсе: модуль выключен либо роль не получает листов.
+ */
+function documentationView(input: {
+  readonly delivery: AuthenticatedProjectReadProjection;
+  readonly enabled: boolean;
+}): DocumentationView | null {
+  if (!input.enabled) return null;
+  const sheets = input.delivery.m3DocumentationSheets;
+  const handoffs = input.delivery.m3DocumentationHandoffs;
+  // Проекция не отдала ключей вовсе — значит эта роль их не получает.
+  if (sheets === undefined || handoffs === undefined) return null;
+
+  const domainSheets = sheets.map((sheet) => ({
+    sheetId: sheet.sheetId,
+    // Проекция не повторяет идентификатор проекта в каждой строке: он один на
+    // весь ответ и в проверке комплектности не участвует.
+    projectId: "",
+    packageId: sheet.packageId,
+    roomId: sheet.roomId,
+    sheetNumber: sheet.sheetNumber,
+    title: sheet.title,
+    revision: {
+      revisionId: sheet.revisionId,
+      revisionNo: sheet.revisionNo,
+      createdAt: sheet.createdAt,
+      createdBy: { actorId: sheet.createdByUserId, actorType: "human" as const },
+      reason: sheet.reason,
+    },
+    origin: {
+      handoffContractVersion: sheet.origin.handoffContractVersion,
+      approvedM2CommitRevisionId: sheet.origin.approvedM2CommitRevisionId,
+      designIntentRevisionId: sheet.origin.designIntentRevisionId,
+      layoutDocumentId: sheet.origin.layoutDocumentId,
+      layoutVersionId: sheet.origin.layoutVersionId,
+      layoutRevisionId: sheet.origin.layoutRevisionId,
+      semanticHash: sheet.origin.semanticHash,
+    },
+    specificationRevisionIds: sheet.specificationRevisionIds,
+  }));
+
+  return {
+    sheets: sheets.map((sheet) => ({
+      sheetId: sheet.sheetId,
+      sheetNumber: sheet.sheetNumber,
+      title: sheet.title,
+      roomId: sheet.roomId,
+      revisionNo: sheet.revisionNo,
+      specificationRevisionIds: sheet.specificationRevisionIds,
+      layoutSemanticHash: sheet.origin.semanticHash,
+      approvedM2CommitRevisionId: sheet.origin.approvedM2CommitRevisionId,
+    })),
+    completeness: handoffs.map((handoff) => {
+      // Пакет оценивается целиком: лист из другого утверждения — это находка,
+      // а не строка, которую следует отфильтровать до проверки.
+      const report = reviewPackageCompleteness({
+        handoff: {
+          contractVersion: handoff.contractVersion,
+          projectId: "",
+          packageId: handoff.packageId,
+          roomId: handoff.roomId,
+          approvedM2CommitRevisionId: handoff.approvedM2CommitRevisionId,
+          designIntentRevisionId: handoff.designIntentRevisionId,
+          layout: handoff.layout,
+          selectionRevisionIds: handoff.selectionRevisionIds,
+        },
+        sheets: domainSheets.filter((sheet) => sheet.packageId === handoff.packageId),
+      });
+      return {
+        handoffId: handoff.handoffId,
+        packageId: handoff.packageId,
+        roomId: handoff.roomId,
+        complete: report.complete,
+        findings: report.findings.map((finding) => ({
+          code: finding.code,
+          subject: finding.subject,
+        })),
+      };
+    }),
+  };
+}
+
 function operationStates(input: {
   readonly role: ProjectCeoRole;
   readonly delivery: AuthenticatedProjectReadProjection;
@@ -1269,6 +1359,10 @@ export class ProjectCeoLiveReadPort implements ProjectCeoUiReadPort {
         handover: execution.handover,
         history: historyViews(historyEnvelope ? requiredData(historyEnvelope) : null),
         controlledAnalytics: [],
+        documentation: documentationView({
+          delivery,
+          enabled: isDocumentationModuleEnabled(),
+        }),
         operations: operationStates({
           role: actor.role,
           delivery,
