@@ -420,6 +420,45 @@ set role authenticated;
 `_request_*:MISSING` на базе без слоя ProjectCEO; позитивный — регулярка
 находит 19 из 28 функций там, где обращения к `auth` действительно есть.
 
+#### Поправка 10.08.2026 — дефект вернулся, третьего уровня не существовало
+
+Гейт AP5 на живом стеке остановился на `AP1_MANAGED_AUTH_REFERENCE_REMAINS`.
+Пять точек входа, заведённых **после** фикса, снова читали актора через
+`auth.uid()` в теле `SECURITY DEFINER` функции:
+
+| Миграция | Функции |
+|---|---|
+| `20260802090000` | `submit_m2_client_review`, `review_m2_client_submission`, `publish_m2_m3_handoff` |
+| `20260810010000` | `register_documentation_sheet`, `attach_documentation_sheet_specifications` |
+
+Причина, по которой это прошло: **пункта 3 в репозитории не было.** Файл
+`auth-regression.contract.test.ts` упоминался только в этой строке; миграция
+от 02.08 прошла зелёным `npm run test`, а M3 в августе скопировал её образец —
+и зафиксировал его утверждением `expect(sql).toMatch(/auth\.uid/)` в
+собственном контрактном тесте.
+
+Что сделано:
+
+- `20260810040000_projectceo_m2_m3_request_claim_followup.sql` переписывает
+  тела этих пяти функций на `project_intelligence._request_user_id()` тем же
+  способом, что и `20260801120000` — через `pg_get_functiondef`, без правки
+  неизменного текста исходных миграций;
+- охват расширен с семи и девяти схем до **одиннадцати** — добавлены обе схемы
+  M3, которых не было ни в guard'е, ни в `verify-db.sql`;
+- пункт 3 наконец написан: `tests/ap1/environment/auth-regression.contract.test.ts`.
+  Запрет адресный — `auth.uid()` в RLS-политике на `public.*` законен, потому
+  что политика вычисляется от имени вызывающей роли;
+- добавлена проверка `DB4_MANAGED_AUTH_REFERENCE_REMAINS` в
+  `tests/db4/10_schema_security.sql`. Это главное: теперь класс ловится
+  блокирующим гейтом на чистом PostgreSQL, а не только состоянием живого стека
+  после деплоя.
+
+Проверено на живом PostgreSQL 16: все 34 миграции применяются, охраняемых
+функций с managed-auth — ноль, десять сценариев DB3/DB4 зелёные (включая 33,
+34 и 35, где переписанные RPC реально вызываются). Негативный прогон: функция
+с `auth.uid()`, заведённая вручную в `projectceo_m3`, роняет проверку с
+`DB4_MANAGED_AUTH_REFERENCE_REMAINS:projectceo_m3._ap5_regression_probe`.
+
 ---
 
 ## 5. Definition of Done

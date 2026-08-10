@@ -206,6 +206,9 @@ describe("Layout Studio delivery/UI slice", () => {
       // ровно таким же pre-existing, как остальной контур projectceo.
       "20260810010000_projectceo_m3_documentation_persistence.sql",
       "20260810020000_projectceo_m3_documentation_read.sql",
+      // Продолжение auth-фикса 20260801120000: переписывает тела пяти функций
+      // M2/M3 на request-claim. К Layout Studio отношения не имеет.
+      "20260810040000_projectceo_m2_m3_request_claim_followup.sql",
     ];
     const actual = readdirSync(join(repoRoot, "supabase/migrations"), { withFileTypes: true })
       .filter((entry) => entry.isFile())

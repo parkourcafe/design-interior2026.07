@@ -295,6 +295,34 @@ begin
   if v_problem is not null then
     raise exception 'DB4_CYCLE6_RPC_GRANT_BROADENED:%', v_problem;
   end if;
+
+  -- Обращение к managed auth из тела SECURITY DEFINER функции. На managed
+  -- Supabase у pi_table_owner нет USAGE на схему auth, и такая функция падает с
+  -- «permission denied for schema auth» (AP1_RUNBOOK §2b). Раньше это ловилось
+  -- только состоянием живого стека — то есть после деплоя; здесь оно ловится
+  -- на чистом PostgreSQL в блокирующем гейте.
+  select string_agg(format('%s.%s', n.nspname, p.proname), ',' order by n.nspname, p.proname)
+  into v_problem
+  from pg_catalog.pg_proc p
+  join pg_catalog.pg_namespace n on n.oid = p.pronamespace
+  where n.nspname in (
+    'project_intelligence',
+    'project_intelligence_api',
+    'projectceo_foundation',
+    'projectceo_api',
+    'projectceo_product',
+    'projectceo_product_api',
+    'projectceo_read_api',
+    'projectceo_m3',
+    'projectceo_m3_api',
+    'projectceo_m4',
+    'projectceo_m4_api'
+  )
+    and p.prokind = 'f'
+    and pg_get_functiondef(p.oid) ~ 'auth\.(uid\s*\(|jwt\s*\(|users)';
+  if v_problem is not null then
+    raise exception 'DB4_MANAGED_AUTH_REFERENCE_REMAINS:%', v_problem;
+  end if;
 end
 $db4_schema_security$;
 

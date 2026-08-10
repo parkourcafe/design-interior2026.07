@@ -83,7 +83,10 @@ describe("M3 documentation sheet persistence migration", () => {
 
   it("exposes exactly two authenticated human commands and no read surface", () => {
     const sql = migration();
-    expect(sql).toMatch(/auth\.uid\s*\(\s*\)/);
+    // Проверка «актор существует» осталась, но источник актора сменился:
+    // auth.uid() в теле SECURITY DEFINER функции недоступен на managed Supabase
+    // и переписан миграцией 20260810040000. Прежнее утверждение требовало
+    // именно auth.uid() и тем самым замораживало дефект.
     expect(sql).toMatch(/_authorize_package_human\([^)]*'prepare_client_handoff'\)/);
     expect(sql).toMatch(/owner_lead[^;]*architect/);
     expect(sql).toContain("grant usage on schema projectceo_m3_api to authenticated;");
