@@ -610,6 +610,42 @@ export const projectCeoCommandSchema = z.discriminatedUnion("kind", [
       }
     }),
   }).strict(),
+  // M3: регистрация листа. Комната, подпись планировки и утверждённый коммит
+  // в команде отсутствуют намеренно — происхождение выводит сервер из
+  // опубликованного handoff, и параметров для его подмены у RPC просто нет.
+  projectSelector.extend({
+    contractVersion: z.literal(PROJECTCEO_COMMAND_CONTRACT_VERSION),
+    kind: z.literal("register_documentation_sheet"),
+    payload: z.object({
+      packageId: uuid,
+      handoffId: inventoryKey,
+      handoffRevisionId: inventoryKey,
+      sheetId: inventoryKey,
+      sheetNumber: z.string().trim().min(1).max(64),
+      title: z.string().trim().min(1).max(400),
+      revisionId: inventoryKey,
+      specificationRevisionIds: z.array(inventoryKey).max(2000).refine(
+        (ids) => new Set(ids).size === ids.length,
+        "specification_revision_ids_must_be_unique",
+      ),
+      reason: z.string().trim().min(3).max(4000),
+    }).strict(),
+  }).strict(),
+  projectSelector.extend({
+    contractVersion: z.literal(PROJECTCEO_COMMAND_CONTRACT_VERSION),
+    kind: z.literal("attach_documentation_sheet_specifications"),
+    payload: z.object({
+      packageId: uuid,
+      sheetId: inventoryKey,
+      revisionId: inventoryKey,
+      expectedRevisionId: inventoryKey,
+      specificationRevisionIds: z.array(inventoryKey).min(1).max(2000).refine(
+        (ids) => new Set(ids).size === ids.length,
+        "specification_revision_ids_must_be_unique",
+      ),
+      reason: z.string().trim().min(3).max(4000),
+    }).strict(),
+  }).strict(),
   projectSelector.extend({
     contractVersion: z.literal(PROJECTCEO_COMMAND_CONTRACT_VERSION),
     kind: z.enum([

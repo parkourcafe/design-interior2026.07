@@ -5,6 +5,7 @@ export async function callRpc(
   client: PostgresRpcClient,
   schemaName:
     | "projectceo_api"
+    | "projectceo_m3_api"
     | "projectceo_m4_api"
     | "projectceo_read_api"
     | "project_intelligence_api",

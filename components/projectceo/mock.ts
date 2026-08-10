@@ -47,6 +47,8 @@ const fixtureOperations: ProjectCeoOperationStates = {
   revoke_guest_grant: { status: "unavailable", reason: "fixture_read_only" },
   register_source: { status: "unavailable", reason: "fixture_read_only" },
   review_source: { status: "unavailable", reason: "fixture_read_only" },
+  register_documentation_sheet: { status: "unavailable", reason: "fixture_read_only" },
+  attach_documentation_sheet_specifications: { status: "unavailable", reason: "fixture_read_only" },
   review_selection: { status: "unavailable", reason: "fixture_read_only" },
   create_decision: { status: "unavailable", reason: "fixture_read_only" },
   create_selection: { status: "unavailable", reason: "fixture_read_only" },

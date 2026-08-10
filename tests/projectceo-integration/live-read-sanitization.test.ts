@@ -457,9 +457,11 @@ describe("ProjectCEO live DTO sanitizer", () => {
 
       expect(result.data?.documentation?.sheets).toEqual([{
         sheetId: "sheet-a101",
+        packageId,
         sheetNumber: "A-101",
         title: "План расстановки",
         roomId: "living-room",
+        revisionId: "sheet-r2",
         revisionNo: 2,
         specificationRevisionIds: ["selection-a@1"],
         layoutSemanticHash: hash,
@@ -467,11 +469,75 @@ describe("ProjectCEO live DTO sanitizer", () => {
       }]);
       expect(result.data?.documentation?.completeness).toEqual([{
         handoffId: "handoff-1",
+        handoffRevisionId: "handoff-r1",
         packageId,
         roomId: "living-room",
         complete: false,
         findings: [{ code: "SPECIFICATION_NOT_COVERED", subject: "selection-b@1" }],
       }]);
+    } finally {
+      if (previous === undefined) delete process.env.REMHAOS_DOCUMENTATION_ENABLED;
+      else process.env.REMHAOS_DOCUMENTATION_ENABLED = previous;
+    }
+  });
+
+  // Команды листа предлагаются по данным: без опубликованного handoff
+  // регистрировать не от чего, без листа — нечего дополнять.
+  it("offers sheet commands only when their prerequisites exist", async () => {
+    const previous = process.env.REMHAOS_DOCUMENTATION_ENABLED;
+    process.env.REMHAOS_DOCUMENTATION_ENABLED = "true";
+    try {
+      const empty = await new ProjectCeoLiveReadPort(
+        fakeClient({}, [{ ...defaultProjectEntries[0], role: "architect" }]),
+        { userId: "66666666-6666-4666-8666-666666666666", displayName: "Architect" },
+      ).getProjectWorkspace({ projectId, requestId: "sheet-commands-empty" });
+      expect(empty.data?.operations.register_documentation_sheet).toEqual({
+        status: "unavailable",
+        reason: "prerequisite_missing",
+      });
+      expect(empty.data?.operations.attach_documentation_sheet_specifications).toEqual({
+        status: "unavailable",
+        reason: "prerequisite_missing",
+      });
+
+      const ready = await new ProjectCeoLiveReadPort(
+        fakeClient({
+          m3DocumentationHandoffs: [{
+            handoffId: "handoff-1",
+            revisionId: "handoff-r1",
+            contractVersion: "archidom.m2-to-m3-handoff/0.1",
+            packageId,
+            roomId: "living-room",
+            approvedM2CommitRevisionId: "commit-r1",
+            designIntentRevisionId: "intent-r1",
+            layout: {
+              documentId: "layout-1",
+              versionId: "layout-1@1",
+              revisionId: "layout-r1",
+              semanticHash: `sha256:${"d".repeat(64)}`,
+            },
+            selectionRevisionIds: ["selection-a@1"],
+          }],
+          m3DocumentationSheets: [],
+        }, [{ ...defaultProjectEntries[0], role: "architect" }]),
+        { userId: "66666666-6666-4666-8666-666666666666", displayName: "Architect" },
+      ).getProjectWorkspace({ projectId, requestId: "sheet-commands-ready" });
+      expect(ready.data?.operations.register_documentation_sheet).toEqual({ status: "available" });
+      // Листов ещё нет — дополнять нечего.
+      expect(ready.data?.operations.attach_documentation_sheet_specifications).toEqual({
+        status: "unavailable",
+        reason: "prerequisite_missing",
+      });
+
+      // Клиент-утверждающий не готовит документацию.
+      const client = await new ProjectCeoLiveReadPort(
+        fakeClient({}, [{ ...defaultProjectEntries[0], role: "client_approver" }]),
+        { userId: "66666666-6666-4666-8666-666666666666", displayName: "Client" },
+      ).getProjectWorkspace({ projectId, requestId: "sheet-commands-client" });
+      expect(client.data?.operations.register_documentation_sheet).toEqual({
+        status: "unavailable",
+        reason: "capability_missing",
+      });
     } finally {
       if (previous === undefined) delete process.env.REMHAOS_DOCUMENTATION_ENABLED;
       else process.env.REMHAOS_DOCUMENTATION_ENABLED = previous;

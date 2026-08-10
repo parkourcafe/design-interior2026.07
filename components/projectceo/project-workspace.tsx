@@ -1465,6 +1465,178 @@ function HistoryView({ view }: { readonly view: ProjectWorkspaceView }) {
 }
 
 /**
+ * Registering a sheet from an approved M2 decision.
+ *
+ * The form asks for a number and a title only. Room, layout signature and the
+ * approved commit are not asked because they cannot be chosen: the server
+ * derives provenance from the published handoff, and the RPC has no parameters
+ * to override it with.
+ */
+function RegisterSheetForm({
+  view,
+}: {
+  readonly view: ProjectWorkspaceView;
+}) {
+  const documentation = view.documentation;
+  const operation = view.operations.register_documentation_sheet;
+  const handoffs = documentation?.completeness ?? [];
+  const [sheetNumber, setSheetNumber] = useState("");
+  const [title, setTitle] = useState("");
+  const [handoffId, setHandoffId] = useState(handoffs[0]?.handoffId ?? "");
+  const handoff = handoffs.find((item) => item.handoffId === handoffId) ?? handoffs[0] ?? null;
+  const complete = Boolean(sheetNumber.trim() && title.trim() && handoff);
+  // The same declared sheet keeps one identity across retries and remounts —
+  // the register RPC refuses a second sheet id, so a random id would turn an
+  // accidental double press into a stuck form.
+  const sheetId = recordIdFromContent([
+    "m3-sheet", handoff?.handoffId ?? "", sheetNumber,
+  ]);
+  const revisionId = recordIdFromContent([
+    "m3-sheet-r1", handoff?.handoffId ?? "", sheetNumber, title,
+  ]);
+
+  if (operation.status !== "available") {
+    return (
+      <p className="mt-3 text-xs text-muted">
+        {operation.reason === "module_disabled"
+          ? projectCeoRu.workspace.sources.moduleDisabled
+          : operation.reason === "prerequisite_missing"
+            ? projectCeoRu.workspace.documentation.registerSheetNoHandoff
+            : projectCeoRu.workspace.documentation.noRegisterSheet}
+      </p>
+    );
+  }
+
+  return (
+    <div className="mt-4 rounded-xl border border-line/70 p-3">
+      <p className="text-sm font-medium">{projectCeoRu.workspace.documentation.registerSheetTitle}</p>
+      <p className="mt-1 text-xs text-muted">{projectCeoRu.workspace.documentation.registerSheetHint}</p>
+      <div className="mt-3 grid gap-2">
+        <div className="grid grid-cols-[8rem_1fr] gap-2">
+          <label className="text-xs text-muted">
+            {projectCeoRu.workspace.documentation.sheetNumberLabel}
+            <input
+              value={sheetNumber}
+              onChange={(event) => setSheetNumber(event.target.value)}
+              placeholder={projectCeoRu.workspace.documentation.sheetNumberPlaceholder}
+              className="mt-1 w-full rounded-lg border border-line px-2 py-2 text-sm text-ink"
+            />
+          </label>
+          <label className="text-xs text-muted">
+            {projectCeoRu.workspace.documentation.sheetTitleLabel}
+            <input
+              value={title}
+              onChange={(event) => setTitle(event.target.value)}
+              placeholder={projectCeoRu.workspace.documentation.sheetTitlePlaceholder}
+              className="mt-1 w-full rounded-lg border border-line px-2 py-2 text-sm text-ink"
+            />
+          </label>
+        </div>
+        {handoffs.length > 1 && (
+          <label className="text-xs text-muted">
+            {projectCeoRu.workspace.documentation.approvedInput}
+            <select
+              value={handoff?.handoffId ?? ""}
+              onChange={(event) => setHandoffId(event.target.value)}
+              className="mt-1 w-full rounded-lg border border-line px-3 py-2 text-sm text-ink"
+            >
+              {handoffs.map((item) => (
+                <option key={item.handoffId} value={item.handoffId}>{item.roomId}</option>
+              ))}
+            </select>
+          </label>
+        )}
+        <ProjectCeoCommandButton
+          disabled={!complete}
+          command={{
+            contractVersion: PROJECTCEO_COMMAND_CONTRACT_VERSION,
+            kind: "register_documentation_sheet" as const,
+            projectId: view.project.id,
+            payload: {
+              packageId: handoff?.packageId ?? "",
+              handoffId: handoff?.handoffId ?? "",
+              handoffRevisionId: handoff?.handoffRevisionId ?? "",
+              sheetId,
+              sheetNumber: sheetNumber.trim(),
+              title: title.trim(),
+              revisionId,
+              specificationRevisionIds: [],
+              reason: projectCeoRu.workspace.documentation.registerSheetReason(sheetNumber.trim()),
+            },
+          }}
+        >
+          {projectCeoRu.workspace.documentation.registerSheet}
+        </ProjectCeoCommandButton>
+        {!complete && (
+          <p className="text-xs text-muted">{projectCeoRu.workspace.documentation.registerSheetIncomplete}</p>
+        )}
+      </div>
+    </div>
+  );
+}
+
+/**
+ * Reflecting an uncovered approved selection onto a sheet.
+ *
+ * The candidates are exactly the SPECIFICATION_NOT_COVERED findings: the
+ * completeness review names the gap, and this control lets a human close it —
+ * with a new sheet revision that leaves the previous one as issued.
+ */
+function AttachSpecificationControl({
+  view,
+  finding,
+}: {
+  readonly view: ProjectWorkspaceView;
+  readonly finding: { readonly code: string; readonly subject: string };
+}) {
+  const documentation = view.documentation;
+  const operation = view.operations.attach_documentation_sheet_specifications;
+  const sheets = documentation?.sheets ?? [];
+  const [sheetId, setSheetId] = useState(sheets[0]?.sheetId ?? "");
+  if (finding.code !== "SPECIFICATION_NOT_COVERED") return null;
+  if (operation.status !== "available" || sheets.length === 0) return null;
+  const sheet = sheets.find((item) => item.sheetId === sheetId) ?? sheets[0]!;
+  const revisionId = recordIdFromContent([
+    "m3-sheet-attach", sheet.sheetId, sheet.revisionId, finding.subject,
+  ]);
+
+  return (
+    <span className="mt-1 inline-flex items-center gap-2">
+      {sheets.length > 1 && (
+        <select
+          value={sheet.sheetId}
+          onChange={(event) => setSheetId(event.target.value)}
+          className="rounded-lg border border-line px-2 py-1 text-xs text-ink"
+          aria-label={projectCeoRu.workspace.documentation.attachTo(sheet.sheetNumber)}
+        >
+          {sheets.map((item) => (
+            <option key={item.sheetId} value={item.sheetId}>{item.sheetNumber}</option>
+          ))}
+        </select>
+      )}
+      <ProjectCeoCommandButton
+        className="btn-ghost text-xs"
+        command={{
+          contractVersion: PROJECTCEO_COMMAND_CONTRACT_VERSION,
+          kind: "attach_documentation_sheet_specifications" as const,
+          projectId: view.project.id,
+          payload: {
+            packageId: sheet.packageId,
+            sheetId: sheet.sheetId,
+            revisionId,
+            expectedRevisionId: sheet.revisionId,
+            specificationRevisionIds: [finding.subject],
+            reason: projectCeoRu.workspace.documentation.attachReason(sheet.sheetNumber),
+          },
+        }}
+      >
+        {projectCeoRu.workspace.documentation.attachSpecification}
+      </ProjectCeoCommandButton>
+    </span>
+  );
+}
+
+/**
  * The documentation package: its sheets and what it is missing.
  *
  * Completeness arrives already computed by the module's own code — the UI
@@ -1524,6 +1696,7 @@ function DocumentationView({
             </table>
           </div>
         )}
+        <RegisterSheetForm view={view} />
       </section>
 
       <aside className="rounded-2xl border border-line bg-white p-5 shadow-sm">
@@ -1550,6 +1723,7 @@ function DocumentationView({
                       <li key={`${finding.code}:${finding.subject}`}>
                         <p>{projectCeoRu.workspace.documentation.findings[finding.code]}</p>
                         <p className="mt-0.5 font-mono text-xs text-muted">{finding.subject}</p>
+                        <AttachSpecificationControl view={view} finding={finding} />
                       </li>
                     ))}
                   </ul>

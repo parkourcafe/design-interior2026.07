@@ -913,9 +913,11 @@ function documentationView(input: {
   return {
     sheets: sheets.map((sheet) => ({
       sheetId: sheet.sheetId,
+      packageId: sheet.packageId,
       sheetNumber: sheet.sheetNumber,
       title: sheet.title,
       roomId: sheet.roomId,
+      revisionId: sheet.revisionId,
       revisionNo: sheet.revisionNo,
       specificationRevisionIds: sheet.specificationRevisionIds,
       layoutSemanticHash: sheet.origin.semanticHash,
@@ -939,6 +941,7 @@ function documentationView(input: {
       });
       return {
         handoffId: handoff.handoffId,
+        handoffRevisionId: handoff.revisionId,
         packageId: handoff.packageId,
         roomId: handoff.roomId,
         complete: report.complete,
@@ -984,6 +987,10 @@ function operationStates(input: {
   let uploadMilestoneId: string | null = null;
   let undecidedPhotoId: string | null = null;
   let acceptableMilestoneId: string | null = null;
+  const publishedDocumentationHandoff =
+    (input.delivery.m3DocumentationHandoffs?.length ?? 0) > 0;
+  const hasDocumentationSheet =
+    (input.delivery.m3DocumentationSheets?.length ?? 0) > 0;
   const pendingSourceRevisionId = nullableText(
     input.delivery.sources.find((source) => (
       source.reviewStatus === "pending"
@@ -1053,6 +1060,22 @@ function operationStates(input: {
             status: "available",
             commandTargetId: pendingSourceRevisionId,
           } : unavailable("prerequisite_missing")
+        : unavailable("capability_missing"),
+    // Лист регистрируется той же властью, что публикует вход M3 — это
+    // проверит и сервер (prepare_client_handoff + роль owner/architect).
+    // Без опубликованного handoff команду не принять: регистрировать не от
+    // чего, и предлагать её было бы обещанием отказа.
+    register_documentation_sheet: !documentationEnabled
+      ? unavailable("module_disabled")
+      : can(input.role, "prepare_client_handoff")
+        ? publishedDocumentationHandoff ? { status: "available" }
+          : unavailable("prerequisite_missing")
+        : unavailable("capability_missing"),
+    attach_documentation_sheet_specifications: !documentationEnabled
+      ? unavailable("module_disabled")
+      : can(input.role, "prepare_client_handoff")
+        ? hasDocumentationSheet ? { status: "available" }
+          : unavailable("prerequisite_missing")
         : unavailable("capability_missing"),
     create_decision: can(input.role, "revise_decision")
       ? { status: "available" }

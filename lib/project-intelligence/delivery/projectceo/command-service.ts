@@ -3,6 +3,7 @@ import "server-only";
 import {
   Db2HumanPostgresAdapter,
   FoundationPostgresAdapter,
+  ProjectCeoM3HumanPostgresAdapter,
   ProjectCeoAuthenticatedReadPostgresAdapter,
   ProjectBrainHumanPostgresAdapter,
   ProjectCeoM4HumanPostgresAdapter,
@@ -45,6 +46,8 @@ const UNAVAILABLE = new Set<ProjectCeoCommand["kind"]>([
 const DOCUMENTATION_MODULE = new Set<ProjectCeoCommand["kind"]>([
   "register_source",
   "review_source",
+  "register_documentation_sheet",
+  "attach_documentation_sheet_specifications",
 ]);
 
 const MAX_INVITATION_TTL_MS = 30 * 24 * 60 * 60 * 1000;
@@ -156,10 +159,12 @@ export class ProjectCeoCommandService {
   private readonly product: ProjectBrainHumanPostgresAdapter;
   private readonly execution: ProjectCeoM4HumanPostgresAdapter;
   private readonly db2: Db2HumanPostgresAdapter;
+  private readonly m3: ProjectCeoM3HumanPostgresAdapter;
 
   constructor(private readonly dependencies: ProjectCeoCommandDependencies) {
     this.foundation = new FoundationPostgresAdapter(dependencies.client);
     this.db2 = new Db2HumanPostgresAdapter(dependencies.client);
+    this.m3 = new ProjectCeoM3HumanPostgresAdapter(dependencies.client);
     this.read = new ProjectCeoAuthenticatedReadPostgresAdapter(dependencies.client);
     this.product = new ProjectBrainHumanPostgresAdapter(dependencies.client);
     this.execution = new ProjectCeoM4HumanPostgresAdapter(dependencies.client);
@@ -261,6 +266,37 @@ export class ProjectCeoCommandService {
           expectedRevisionId: command.payload.expectedRevisionId,
           approvedCommitId: command.payload.approvedCommitId,
           approvedCommitRevisionId: command.payload.approvedCommitRevisionId,
+          reason: command.payload.reason,
+          expectedStateRevision: scope.stateRevision,
+          idempotencyKey,
+        }));
+      }
+      if (command.kind === "register_documentation_sheet") {
+        // Происхождение листа в команде отсутствует: сервер выведет его из
+        // опубликованного handoff, а подменить его параметрами нельзя — их нет.
+        return completed(requestId, await this.m3.registerDocumentationSheet({
+          projectId: command.projectId,
+          packageId: command.payload.packageId,
+          handoffId: command.payload.handoffId,
+          handoffRevisionId: command.payload.handoffRevisionId,
+          sheetId: command.payload.sheetId,
+          sheetNumber: command.payload.sheetNumber,
+          title: command.payload.title,
+          revisionId: command.payload.revisionId,
+          specificationRevisionIds: command.payload.specificationRevisionIds,
+          reason: command.payload.reason,
+          expectedStateRevision: scope.stateRevision,
+          idempotencyKey,
+        }));
+      }
+      if (command.kind === "attach_documentation_sheet_specifications") {
+        return completed(requestId, await this.m3.attachDocumentationSheetSpecifications({
+          projectId: command.projectId,
+          packageId: command.payload.packageId,
+          sheetId: command.payload.sheetId,
+          revisionId: command.payload.revisionId,
+          expectedRevisionId: command.payload.expectedRevisionId,
+          specificationRevisionIds: command.payload.specificationRevisionIds,
           reason: command.payload.reason,
           expectedStateRevision: scope.stateRevision,
           idempotencyKey,

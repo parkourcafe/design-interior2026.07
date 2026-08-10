@@ -188,6 +188,21 @@ function fakeClient(calls: Call[], readOverrides: Readonly<Record<string, unknow
       semanticHash,
     },
     "projectceo_api.register_source_inventory": { registeredPhysicalRecords: 1 },
+    "projectceo_m3_api.register_documentation_sheet": {
+      sheetId: "m3-sheet-a101",
+      revisionId: "sheet-r1",
+      revisionNo: 1,
+      packageId,
+      roomId: "living-room",
+      specificationRevisionIds: [],
+    },
+    "projectceo_m3_api.attach_documentation_sheet_specifications": {
+      sheetId: "m3-sheet-a101",
+      revisionId: "sheet-r2",
+      revisionNo: 2,
+      packageId,
+      specificationRevisionIds: ["selection-a@1"],
+    },
     "project_intelligence_api.review_claim": {
       reviewId: "review:source-r1",
       targetRevisionId: "source-r1",
@@ -656,11 +671,37 @@ describe("AP1 supported human commands", () => {
 
   // Пока модуль 3 выключен, intake не существует для пользователя: отказ
   // приходит до единого чтения или записи (A5 §4.2.2).
-  it.each(["register_source", "review_source"] as const)(
+  it.each([
+    "register_source",
+    "review_source",
+    "register_documentation_sheet",
+    "attach_documentation_sheet_specifications",
+  ] as const)(
     "keeps %s closed while the documentation module is disabled",
     async (kind) => {
       const calls: Call[] = [];
-      const payload = kind === "register_source"
+      const payload = kind === "register_documentation_sheet"
+        ? {
+            packageId,
+            handoffId: "cycle6-handoff",
+            handoffRevisionId: "handoff-r1",
+            sheetId: "m3-sheet-a101",
+            sheetNumber: "A-101",
+            title: "План расстановки",
+            revisionId: "sheet-r1",
+            specificationRevisionIds: [],
+            reason: "Регистрация листа",
+          }
+        : kind === "attach_documentation_sheet_specifications"
+          ? {
+              packageId,
+              sheetId: "m3-sheet-a101",
+              revisionId: "sheet-r2",
+              expectedRevisionId: "sheet-r1",
+              specificationRevisionIds: ["selection-a@1"],
+              reason: "Привязка выбора",
+            }
+        : kind === "register_source"
         ? {
             packageId,
             physicalRecordId: "cccccccc-cccc-4ccc-8ccc-cccccccccccc",
@@ -722,6 +763,57 @@ describe("AP1 supported human commands", () => {
       availability: "materialized",
       checksum: "b".repeat(64),
     });
+  });
+
+  // Происхождение листа команда не несёт: сервер выведет его из handoff.
+  it("registers a documentation sheet against the published handoff", async () => {
+    const calls: Call[] = [];
+    const result = await service(calls).execute(command("register_documentation_sheet", {
+      packageId,
+      handoffId: "cycle6-handoff",
+      handoffRevisionId: "handoff-r1",
+      sheetId: "m3-sheet-a101",
+      sheetNumber: "A-101",
+      title: "План расстановки",
+      revisionId: "sheet-r1",
+      specificationRevisionIds: [],
+      reason: "Регистрация листа A-101 по согласованному решению M2",
+    }), "register-sheet");
+    expect(result).toMatchObject({ status: "completed", replay: false });
+    const call = calls.find((entry) => entry.name === "projectceo_m3_api.register_documentation_sheet");
+    expect(call?.args).toMatchObject({
+      project_id: projectId,
+      package_id: packageId,
+      handoff_id: "cycle6-handoff",
+      handoff_revision_id: "handoff-r1",
+      sheet_id: "m3-sheet-a101",
+      expected_state_revision: 9,
+    });
+    // Ни комнаты, ни подписи, ни коммита в аргументах нет — их выводит сервер.
+    expect(Object.keys(call?.args ?? {})).not.toEqual(
+      expect.arrayContaining(["room_id", "semantic_hash", "approved_m2_commit_revision_id"]),
+    );
+  });
+
+  it("attaches specifications as a new sheet revision", async () => {
+    const calls: Call[] = [];
+    const result = await service(calls).execute(command("attach_documentation_sheet_specifications", {
+      packageId,
+      sheetId: "m3-sheet-a101",
+      revisionId: "sheet-r2",
+      expectedRevisionId: "sheet-r1",
+      specificationRevisionIds: ["selection-a@1"],
+      reason: "Привязка утверждённого выбора к листу A-101",
+    }), "attach-sheet");
+    expect(result).toMatchObject({ status: "completed", replay: false });
+    expect(calls.find((entry) => entry.name === "projectceo_m3_api.attach_documentation_sheet_specifications")?.args)
+      .toMatchObject({
+        sheet_id: "m3-sheet-a101",
+        revision_id: "sheet-r2",
+        expected_revision_id: "sheet-r1",
+        specification_revision_ids: ["selection-a@1"],
+        expected_state_revision: 9,
+      });
   });
 
   it("reviews only a source revision this human can already see, and only once", async () => {

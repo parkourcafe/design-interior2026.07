@@ -44,8 +44,13 @@ describe("M3 documentation surface", () => {
   it("renders completeness computed by the module, never recomputed in the UI", () => {
     expect(workspace).toContain("documentation.completeness.map");
     expect(workspace).not.toMatch(/reviewPackageCompleteness/);
-    // Ни одного собственного вывода неполноты: коды приходят с сервера.
-    expect(workspace).not.toMatch(/ROOM_WITHOUT_SHEET|SPECIFICATION_NOT_COVERED/);
+    // Собственного вывода неполноты нет: единственное упоминание кода — это
+    // диспетчеризация контрола привязки по серверной находке, не вычисление.
+    expect(workspace).not.toMatch(/ROOM_WITHOUT_SHEET/);
+    // Упоминания кода — комментарий и диспетчеризация контрола привязки по
+    // серверной находке; ни одно из них не вычисляет неполноту заново.
+    expect(workspace).toContain('finding.code !== "SPECIFICATION_NOT_COVERED"');
+    expect(workspace).not.toMatch(/findings\.push|complete:\s*findings/);
   });
 
   it("names every completeness finding in the central dictionary", () => {

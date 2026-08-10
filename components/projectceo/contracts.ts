@@ -16,6 +16,8 @@ export const PROJECTCEO_CAPABILITIES = [
   "manage_access",
   "register_source",
   "review_source",
+  "register_documentation_sheet",
+  "attach_documentation_sheet_specifications",
   "review_claim",
   "create_selection",
   "review_selection",
@@ -487,9 +489,11 @@ export interface AuditEventView {
  */
 export interface DocumentationSheetView {
   readonly sheetId: string;
+  readonly packageId: string;
   readonly sheetNumber: string;
   readonly title: string;
   readonly roomId: string;
+  readonly revisionId: string;
   readonly revisionNo: number;
   readonly specificationRevisionIds: readonly string[];
   readonly layoutSemanticHash: string;
@@ -503,6 +507,7 @@ export interface DocumentationSheetView {
  */
 export interface DocumentationCompletenessView {
   readonly handoffId: string;
+  readonly handoffRevisionId: string;
   readonly packageId: string;
   readonly roomId: string;
   readonly complete: boolean;
@@ -564,6 +569,8 @@ export const PROJECTCEO_OPERATION_NAMES = [
   "revoke_guest_grant",
   "register_source",
   "review_source",
+  "register_documentation_sheet",
+  "attach_documentation_sheet_specifications",
   "review_selection",
   "create_decision",
   "create_selection",
