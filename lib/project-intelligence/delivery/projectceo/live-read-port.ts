@@ -51,6 +51,7 @@ import {
 import type { ProjectCeoUiReadPort } from "@/components/projectceo/port";
 import { capabilitiesForRole, can } from "@/components/projectceo/role-policy";
 import { ru } from "@/lib/i18n/ru";
+import { isDocumentationModuleEnabled } from "./documentation-flag";
 import type { ProjectCeoVerifiedIdentity } from "./request-context";
 
 type UnknownRecord = Readonly<Record<string, unknown>>;
@@ -863,7 +864,10 @@ function operationStates(input: {
   readonly role: ProjectCeoRole;
   readonly delivery: AuthenticatedProjectReadProjection;
   readonly m4: readonly ExecutionDeliveryEnvelope[];
+  readonly documentationEnabled?: boolean;
 }): ProjectCeoOperationStates {
+  const documentationEnabled = input.documentationEnabled
+    ?? isDocumentationModuleEnabled();
   const supports = (capability: Parameters<typeof can>[1]): ProjectCeoOperationState => (
     can(input.role, capability) ? { status: "available" } : unavailable("capability_missing")
   );
@@ -889,6 +893,12 @@ function operationStates(input: {
   let uploadMilestoneId: string | null = null;
   let undecidedPhotoId: string | null = null;
   let acceptableMilestoneId: string | null = null;
+  const pendingSourceRevisionId = nullableText(
+    input.delivery.sources.find((source) => (
+      source.reviewStatus === "pending"
+      && source.reviewTargetRevisionId !== null
+    ))?.reviewTargetRevisionId,
+  );
   const photoSourcePackageIds = new Set(
     input.delivery.sources.filter((source) => (
       source.availability === "materialized"
@@ -934,8 +944,25 @@ function operationStates(input: {
       : unavailable("capability_missing"),
     revoke_invitation: supports("manage_access"),
     revoke_guest_grant: supports("manage_access"),
-    register_source: unavailable("read_contract_pending"),
-    review_source: unavailable("read_contract_pending"),
+    // Intake M3 P0. Право на запись инвентаря сервер проверяет тем же
+    // register_source; здесь оно только не предлагается тем, у кого его нет.
+    // Пока модуль 3 выключен, поверхности нет ни у кого (A5 §4.2.2).
+    register_source: !documentationEnabled
+      ? unavailable("module_disabled")
+      : can(input.role, "register_source")
+        ? { status: "available" }
+        : unavailable("capability_missing"),
+    // Решение по источнику пишется через review_claim, и RPC требует именно
+    // capability review_claim — предлагать действие по review_source значило бы
+    // обещать то, чего сервер не разрешит.
+    review_source: !documentationEnabled
+      ? unavailable("module_disabled")
+      : can(input.role, "review_claim") && can(input.role, "review_source")
+        ? pendingSourceRevisionId ? {
+            status: "available",
+            commandTargetId: pendingSourceRevisionId,
+          } : unavailable("prerequisite_missing")
+        : unavailable("capability_missing"),
     create_decision: can(input.role, "revise_decision")
       ? { status: "available" }
       : unavailable("capability_missing"),

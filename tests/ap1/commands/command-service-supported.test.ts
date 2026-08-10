@@ -187,6 +187,12 @@ function fakeClient(calls: Call[], readOverrides: Readonly<Record<string, unknow
       status: "published",
       semanticHash,
     },
+    "projectceo_api.register_source_inventory": { registeredPhysicalRecords: 1 },
+    "project_intelligence_api.review_claim": {
+      reviewId: "review:source-r1",
+      targetRevisionId: "source-r1",
+      decision: "confirmed",
+    },
   };
   const replayTargetByName: Readonly<Record<string, string>> = {
     "projectceo_m4_api.replay_submit_change_request": "projectceo_m4_api.submit_change_request",
@@ -269,11 +275,16 @@ function fakeClient(calls: Call[], readOverrides: Readonly<Record<string, unknow
   };
 }
 
-function service(calls: Call[], readOverrides: Readonly<Record<string, unknown>> = {}) {
+function service(
+  calls: Call[],
+  readOverrides: Readonly<Record<string, unknown>> = {},
+  documentationEnabled = "true",
+) {
   return new ProjectCeoCommandService({
     client: fakeClient(calls, readOverrides),
     tokenSecret: "secret-".repeat(6),
     now: () => new Date("2026-07-18T00:00:00.000Z"),
+    documentationEnabled,
   });
 }
 
@@ -634,8 +645,6 @@ describe("AP1 supported human commands", () => {
   });
 
   it.each([
-    "register_source",
-    "review_source",
     "publish_release",
     "build_handover",
   ] as const)("keeps unsupported %s fail-closed without reads or writes", async (kind) => {
@@ -643,5 +652,144 @@ describe("AP1 supported human commands", () => {
     const result = await service(calls).execute(command(kind, {}), `unavailable-${kind}`);
     expect(result).toMatchObject({ status: "unavailable", error: { code: "operation_unavailable" } });
     expect(calls).toEqual([]);
+  });
+
+  // Пока модуль 3 выключен, intake не существует для пользователя: отказ
+  // приходит до единого чтения или записи (A5 §4.2.2).
+  it.each(["register_source", "review_source"] as const)(
+    "keeps %s closed while the documentation module is disabled",
+    async (kind) => {
+      const calls: Call[] = [];
+      const payload = kind === "register_source"
+        ? {
+            packageId,
+            physicalRecordId: "cccccccc-cccc-4ccc-8ccc-cccccccccccc",
+            sanitizedName: "AR-01_plan.pdf",
+            floorId: "floor-1",
+            zoneId: "zone-1",
+            disciplineId: "AR",
+            availability: "placeholder" as const,
+            documentStatus: "current" as const,
+            sizeBytes: null,
+            checksum: null,
+            sourceRevisionId: null,
+            semanticConflict: false,
+          }
+        : {
+            targetRevisionId: "source-r1",
+            expectedRevisionId: "source-r1",
+            decision: "confirmed" as const,
+          };
+      const result = await service(calls, {}, "false")
+        .execute(command(kind, payload), `disabled-${kind}`);
+      expect(result).toMatchObject({
+        status: "unavailable",
+        error: { code: "operation_unavailable" },
+      });
+      expect(calls).toEqual([]);
+    },
+  );
+
+  // Intake M3 P0. Одна команда — один документ; план импорта собирает сервер,
+  // браузер его не присылает и подменить не может.
+  it("registers one inventory record with a server-derived import plan", async () => {
+    const calls: Call[] = [];
+    const result = await service(calls).execute(command("register_source", {
+      packageId,
+      physicalRecordId: "cccccccc-cccc-4ccc-8ccc-cccccccccccc",
+      sanitizedName: "AR-01_plan.pdf",
+      floorId: "floor-1",
+      zoneId: "zone-1",
+      disciplineId: "AR",
+      availability: "materialized",
+      documentStatus: "current",
+      sizeBytes: 2048,
+      checksum: "b".repeat(64),
+      sourceRevisionId: "source-r1",
+      semanticConflict: false,
+    }), "register-source");
+    expect(result).toMatchObject({ status: "completed", replay: false });
+    const call = calls.find((entry) => entry.name === "projectceo_api.register_source_inventory");
+    expect(call?.args).toMatchObject({
+      project_id: projectId,
+      expected_state_revision: 9,
+      import_plan: { projectId, packageId, origin: "projectceo_command" },
+    });
+    expect((call?.args.records as readonly Record<string, unknown>[])).toHaveLength(1);
+    expect((call?.args.records as readonly Record<string, unknown>[])[0]).toMatchObject({
+      physicalRecordId: "cccccccc-cccc-4ccc-8ccc-cccccccccccc",
+      hierarchy: { projectId, packageId, floorId: "floor-1", zoneId: "zone-1", disciplineId: "AR" },
+      availability: "materialized",
+      checksum: "b".repeat(64),
+    });
+  });
+
+  it("reviews only a source revision this human can already see, and only once", async () => {
+    const pendingSource = {
+      availability: "materialized",
+      checksum: "b".repeat(64),
+      disciplineKey: "AR",
+      documentStatus: "current",
+      floorKey: "floor-1",
+      id: "cccccccc-cccc-4ccc-8ccc-cccccccccccc",
+      kind: "pdf",
+      logicalSourceId: "source-1",
+      mediaType: "application/pdf",
+      packageId,
+      reviewStatus: "pending",
+      reviewTargetRevisionId: "source-r1",
+      sanitizedName: "AR-01_plan.pdf",
+      semanticConflict: false,
+      sizeBytes: 2048,
+      sourceRevisionId: "source-r1",
+      sourceRole: "architecture",
+      zoneKey: "zone-1",
+    };
+    const calls: Call[] = [];
+    const result = await service(calls, { sources: [pendingSource] }).execute(
+      command("review_source", {
+        targetRevisionId: "source-r1",
+        expectedRevisionId: "source-r1",
+        decision: "confirmed",
+      }),
+      "review-source",
+    );
+    expect(result).toMatchObject({ status: "completed", replay: false });
+    expect(calls.find((entry) => entry.name === "project_intelligence_api.review_claim")?.args)
+      .toMatchObject({
+        project_id: projectId,
+        target_revision_id: "source-r1",
+        expected_revision_id: "source-r1",
+        decision: "confirmed",
+        expected_state_revision: 9,
+      });
+
+    // Ревизия вне видимых источников — отказ до сети.
+    const unknownCalls: Call[] = [];
+    const unknown = await service(unknownCalls, { sources: [pendingSource] }).execute(
+      command("review_source", {
+        targetRevisionId: "source-r9",
+        expectedRevisionId: "source-r9",
+        decision: "confirmed",
+      }),
+      "review-source-unknown",
+    );
+    expect(unknown).toMatchObject({ status: "error", error: { code: "not_found" } });
+    expect(unknownCalls.some((entry) => entry.name === "project_intelligence_api.review_claim")).toBe(false);
+
+    // Уже решённая ревизия не пересматривается этой командой.
+    const decidedCalls: Call[] = [];
+    const decided = await service(decidedCalls, {
+      sources: [{ ...pendingSource, reviewStatus: "confirmed" }],
+    }).execute(
+      command("review_source", {
+        targetRevisionId: "source-r1",
+        expectedRevisionId: "source-r1",
+        decision: "rejected",
+      }),
+      "review-source-decided",
+    );
+    expect(decided).toMatchObject({ status: "error", error: { code: "scope_conflict" } });
+    expect(decidedCalls.some((entry) => entry.name === "project_intelligence_api.review_claim")).toBe(false);
   });
 });

@@ -545,6 +545,8 @@ export type ProjectCeoOperationState =
       readonly reason:
         | "capability_missing"
         | "exact_scope_missing"
+        // Поверхность принадлежит модулю, который владелец ещё не включил.
+        | "module_disabled"
         | "prerequisite_missing"
         | "read_contract_pending"
         | "worker_only"

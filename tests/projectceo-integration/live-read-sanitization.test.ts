@@ -331,6 +331,97 @@ describe("ProjectCEO live DTO sanitizer", () => {
     });
   });
 
+  // Intake M3 P0: поверхность открыта, но ровно по тем правам, которые
+  // проверит сервер, и только когда есть что рецензировать.
+  it("offers source intake by capability and source review only for a pending revision", async () => {
+    const previous = process.env.REMHAOS_DOCUMENTATION_ENABLED;
+    process.env.REMHAOS_DOCUMENTATION_ENABLED = "true";
+    try {
+    const pending = {
+      id: "source-pending",
+      sourceRevisionId: "source-pending-r1",
+      reviewTargetRevisionId: "source-pending-r1",
+      packageId,
+      checksum: "c".repeat(64),
+      mediaType: "application/pdf",
+      sourceRole: "document",
+      documentStatus: "current",
+      availability: "materialized",
+      reviewStatus: "pending",
+    };
+
+    const architect = await new ProjectCeoLiveReadPort(
+      fakeClient({ sources: [pending] }, [{ ...defaultProjectEntries[0], role: "architect" }]),
+      { userId: "66666666-6666-4666-8666-666666666666", displayName: "Architect" },
+    ).getProjectWorkspace({ projectId, requestId: "intake-architect" });
+    expect(architect.data?.operations.register_source).toEqual({ status: "available" });
+    expect(architect.data?.operations.review_source).toEqual({
+      status: "available",
+      commandTargetId: "source-pending-r1",
+    });
+
+    // Всё уже отрецензировано — предлагать нечего.
+    const settled = await new ProjectCeoLiveReadPort(
+      fakeClient(
+        { sources: [{ ...pending, reviewStatus: "confirmed" }] },
+        [{ ...defaultProjectEntries[0], role: "architect" }],
+      ),
+      { userId: "66666666-6666-4666-8666-666666666666", displayName: "Architect" },
+    ).getProjectWorkspace({ projectId, requestId: "intake-settled" });
+    expect(settled.data?.operations.review_source).toEqual({
+      status: "unavailable",
+      reason: "prerequisite_missing",
+    });
+
+    // Строитель заводит источники, но решений по ним не принимает:
+    // review_claim у него нет, и обещать действие нельзя.
+    const builder = await new ProjectCeoLiveReadPort(
+      fakeClient({ sources: [pending] }, [{ ...defaultProjectEntries[0], role: "builder" }]),
+      { userId: "66666666-6666-4666-8666-666666666666", displayName: "Builder" },
+    ).getProjectWorkspace({ projectId, requestId: "intake-builder" });
+    expect(builder.data?.operations.register_source).toEqual({ status: "available" });
+    expect(builder.data?.operations.review_source).toEqual({
+      status: "unavailable",
+      reason: "capability_missing",
+    });
+
+    // Клиент не заводит источники вовсе.
+    const client = await new ProjectCeoLiveReadPort(
+      fakeClient({ sources: [pending] }, [{ ...defaultProjectEntries[0], role: "client_approver" }]),
+      { userId: "66666666-6666-4666-8666-666666666666", displayName: "Client" },
+    ).getProjectWorkspace({ projectId, requestId: "intake-client" });
+    expect(client.data?.operations.register_source).toEqual({
+      status: "unavailable",
+      reason: "capability_missing",
+    });
+    } finally {
+      if (previous === undefined) delete process.env.REMHAOS_DOCUMENTATION_ENABLED;
+      else process.env.REMHAOS_DOCUMENTATION_ENABLED = previous;
+    }
+  });
+
+  // Выключенный модуль 3 закрывает поверхность всем, включая архитектора.
+  it("hides source intake entirely while the documentation module is disabled", async () => {
+    const previous = process.env.REMHAOS_DOCUMENTATION_ENABLED;
+    delete process.env.REMHAOS_DOCUMENTATION_ENABLED;
+    try {
+      const result = await new ProjectCeoLiveReadPort(
+        fakeClient({}, [{ ...defaultProjectEntries[0], role: "architect" }]),
+        { userId: "66666666-6666-4666-8666-666666666666", displayName: "Architect" },
+      ).getProjectWorkspace({ projectId, requestId: "intake-disabled" });
+      expect(result.data?.operations.register_source).toEqual({
+        status: "unavailable",
+        reason: "module_disabled",
+      });
+      expect(result.data?.operations.review_source).toEqual({
+        status: "unavailable",
+        reason: "module_disabled",
+      });
+    } finally {
+      if (previous !== undefined) process.env.REMHAOS_DOCUMENTATION_ENABLED = previous;
+    }
+  });
+
   it("keeps an authenticated user with no grants empty and non-authoritative", async () => {
     const result = await new ProjectCeoLiveReadPort(fakeClient({}, []), {
       userId: "66666666-6666-4666-8666-666666666666",

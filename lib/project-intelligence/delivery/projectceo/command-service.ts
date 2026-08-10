@@ -1,6 +1,7 @@
 import "server-only";
 
 import {
+  Db2HumanPostgresAdapter,
   FoundationPostgresAdapter,
   ProjectCeoAuthenticatedReadPostgresAdapter,
   ProjectBrainHumanPostgresAdapter,
@@ -18,6 +19,7 @@ import {
   type ProjectCeoCommand,
   type ProjectCeoCommandResponse,
 } from "./command-contract";
+import { isDocumentationModuleEnabled } from "./documentation-flag";
 
 type UnknownRecord = Readonly<Record<string, unknown>>;
 type CommandErrorCode =
@@ -33,10 +35,16 @@ type CommandErrorCode =
   | "internal_error";
 
 const UNAVAILABLE = new Set<ProjectCeoCommand["kind"]>([
-  "register_source",
-  "review_source",
   "publish_release",
   "build_handover",
+]);
+
+// Intake — поверхность модуля 3, поэтому она закрыта его флагом (A5 §4.2.2).
+// Проверка серверная и стоит до чтений и записей: при выключенном модуле
+// команда не доходит ни до одного RPC.
+const DOCUMENTATION_MODULE = new Set<ProjectCeoCommand["kind"]>([
+  "register_source",
+  "review_source",
 ]);
 
 const MAX_INVITATION_TTL_MS = 30 * 24 * 60 * 60 * 1000;
@@ -132,6 +140,8 @@ export interface ProjectCeoCommandDependencies {
   readonly client: PostgresRpcClient;
   readonly tokenSecret?: string;
   readonly now?: () => Date;
+  /** Значение REMHAOS_DOCUMENTATION_ENABLED; по умолчанию читается из окружения. */
+  readonly documentationEnabled?: string;
 }
 
 /**
@@ -145,9 +155,11 @@ export class ProjectCeoCommandService {
   private readonly read: ProjectCeoAuthenticatedReadPostgresAdapter;
   private readonly product: ProjectBrainHumanPostgresAdapter;
   private readonly execution: ProjectCeoM4HumanPostgresAdapter;
+  private readonly db2: Db2HumanPostgresAdapter;
 
   constructor(private readonly dependencies: ProjectCeoCommandDependencies) {
     this.foundation = new FoundationPostgresAdapter(dependencies.client);
+    this.db2 = new Db2HumanPostgresAdapter(dependencies.client);
     this.read = new ProjectCeoAuthenticatedReadPostgresAdapter(dependencies.client);
     this.product = new ProjectBrainHumanPostgresAdapter(dependencies.client);
     this.execution = new ProjectCeoM4HumanPostgresAdapter(dependencies.client);
@@ -188,6 +200,12 @@ export class ProjectCeoCommandService {
     requestId: string,
   ): Promise<ProjectCeoCommandResponse> {
     if (UNAVAILABLE.has(command.kind)) {
+      return failure(requestId, "unavailable", "operation_unavailable");
+    }
+    if (
+      DOCUMENTATION_MODULE.has(command.kind)
+      && !isDocumentationModuleEnabled(this.dependencies.documentationEnabled)
+    ) {
       return failure(requestId, "unavailable", "operation_unavailable");
     }
     if (
@@ -245,6 +263,66 @@ export class ProjectCeoCommandService {
           approvedCommitRevisionId: command.payload.approvedCommitRevisionId,
           reason: command.payload.reason,
           expectedStateRevision: scope.stateRevision,
+          idempotencyKey,
+        }));
+      }
+      if (command.kind === "register_source") {
+        // Запись инвентаря пишет сервер: план импорта не приходит из браузера,
+        // он выводится из самой команды, а RPC сверяет его projectId со своим.
+        return completed(requestId, await this.foundation.registerSourceInventory({
+          projectId: command.projectId,
+          records: [{
+            physicalRecordId: command.payload.physicalRecordId,
+            sanitizedName: command.payload.sanitizedName,
+            hierarchy: {
+              projectId: command.projectId,
+              packageId: command.payload.packageId,
+              floorId: command.payload.floorId,
+              zoneId: command.payload.zoneId,
+              disciplineId: command.payload.disciplineId,
+            },
+            availability: command.payload.availability,
+            documentStatus: command.payload.documentStatus,
+            sizeBytes: command.payload.sizeBytes,
+            checksum: command.payload.checksum,
+            sourceRevisionId: command.payload.sourceRevisionId,
+            semanticConflict: command.payload.semanticConflict,
+          }],
+          importPlan: {
+            projectId: command.projectId,
+            packageId: command.payload.packageId,
+            origin: "projectceo_command",
+            physicalRecordIds: [command.payload.physicalRecordId],
+          },
+          expectedStateRevision: scope.stateRevision,
+          idempotencyKey,
+        }));
+      }
+      if (command.kind === "review_source") {
+        // Ревизия обязана быть ревизией источника, видимого этому человеку в
+        // его же области доступа. Без этой сверки команда стала бы обобщённым
+        // review_claim по любому идентификатору ревизии проекта — поверхность
+        // шире той, которую открывает M3 P0.
+        const read = await this.read.getProjectWorkspaceRead({
+          projectId: command.projectId,
+          packageId: scope.accessScope === "package" ? scope.packageId ?? null : null,
+        });
+        if (read.error) {
+          throw new ProjectIntelligenceAdapterError(read.error.code, null);
+        }
+        const target = read.data.sources.find((source) => (
+          source.reviewTargetRevisionId === command.payload.targetRevisionId
+        ));
+        if (!target) return failure(requestId, "error", "not_found");
+        if (target.reviewStatus !== "pending") {
+          return failure(requestId, "error", "scope_conflict");
+        }
+        return completed(requestId, await this.db2.reviewClaim({
+          projectId: command.projectId,
+          targetRevisionId: command.payload.targetRevisionId,
+          expectedRevisionId: command.payload.expectedRevisionId,
+          decision: command.payload.decision,
+          expectedStateRevision: read.stateRevision,
           idempotencyKey,
         }));
       }
