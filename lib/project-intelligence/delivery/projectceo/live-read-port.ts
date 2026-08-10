@@ -55,6 +55,7 @@ import { ru } from "@/lib/i18n/ru";
 import { reviewPackageCompleteness } from "../../modules/documentation";
 import { isDocumentationModuleEnabled } from "./documentation-flag";
 import { EXECUTION_MODULE, isExecutionModuleEnabled } from "./execution-flag";
+import { buildBaselineSnapshot } from "../../modules/decisions";
 import type { ProjectCeoVerifiedIdentity } from "./request-context";
 
 type UnknownRecord = Readonly<Record<string, unknown>>;
@@ -1014,6 +1015,28 @@ function operationStates(input: {
       && source.reviewTargetRevisionId !== null
     ))?.reviewTargetRevisionId,
   );
+  // Снапшот состава baseline: то же правило полноты, что применит команда, и
+  // тот же токен, который она потребует назад.
+  let baselineSnapshotToken: string | null = null;
+  try {
+    baselineSnapshotToken = buildBaselineSnapshot({
+      approvalPackages: rows(input.delivery.approvalPackages).map((entry) => ({
+        id: text(entry.id),
+        status: text(entry.status),
+        items: rows(entry.items).map((item) => ({
+          targetKind: text(item.targetKind),
+          revisionId: text(item.revisionId),
+        })),
+      })),
+      packageIds: rows(input.delivery.packages).flatMap((entry) => {
+        const id = nullableText(entry.id);
+        return id ? [id] : [];
+      }),
+      previousBaselineId: nullableText(record(input.delivery.latestBaseline).id),
+    }).token;
+  } catch {
+    baselineSnapshotToken = null;
+  }
   const photoSourcePackageIds = new Set(
     input.delivery.sources.filter((source) => (
       source.availability === "materialized"
@@ -1128,7 +1151,21 @@ function operationStates(input: {
     review_selection: can(input.role, "review_selection")
       ? hasSubmittedApproval ? { status: "available" } : unavailable("prerequisite_missing")
       : unavailable("capability_missing"),
-    publish_baseline: unavailable("read_contract_pending"),
+    // `read_contract_pending` здесь стоял до 10.08.2026 и означал честное «мы
+    // ещё не решили, откуда берётся дескриптор». Решение принято (A′): состав
+    // выводит сервер, клиент возвращает только снапшот-токен, и токен —
+    // `commandTargetId` этого действия.
+    //
+    // Ошибка сборки не роняет чтение и не превращается в обещание: если
+    // замораживать нечего или встретился неизвестный вид ревизии, действие
+    // просто не предлагается. Точную причину человек увидит при попытке
+    // подтверждения — контролируемым отказом, а не пустым экраном.
+    publish_baseline: can(input.role, "publish_baseline")
+      ? baselineSnapshotToken ? {
+          status: "available",
+          commandTargetId: baselineSnapshotToken,
+        } : unavailable("prerequisite_missing")
+      : unavailable("capability_missing"),
     publish_release: can(input.role, "publish_release")
       ? latestBaseline ? { status: "available" } : unavailable("prerequisite_missing")
       : unavailable("capability_missing"),

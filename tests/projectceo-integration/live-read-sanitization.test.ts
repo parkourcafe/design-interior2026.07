@@ -3,6 +3,7 @@ import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 vi.mock("server-only", () => ({}));
 import type { PostgresRpcClient } from "../../lib/project-intelligence/adapters/postgres";
 import { ProjectCeoLiveReadPort } from "../../lib/project-intelligence/delivery/projectceo/live-read-port";
+import { buildBaselineSnapshot } from "../../lib/project-intelligence/modules/decisions";
 
 const organizationId = "11111111-1111-4111-8111-111111111111";
 const projectId = "22222222-2222-4222-8222-222222222222";
@@ -771,5 +772,51 @@ describe("ProjectCEO live DTO sanitizer", () => {
     } finally {
       process.env.REMHAOS_EXECUTION_ENABLED = "true";
     }
+  });
+
+  it("offers baseline publication with the very token the command will demand back", async () => {
+    // Замыкание петли preview → подтверждение. Токен, показанный чтением, и
+    // токен, который потребует команда, обязаны быть одним и тем же значением:
+    // разойдись они — публикация упиралась бы в stale_state на пустом месте.
+    const approvalPackages = [{
+      id: "approval-1",
+      status: "approved",
+      items: [{ targetKind: "decision_revision", revisionId: "decision-r1" }],
+    }];
+    const result = await new ProjectCeoLiveReadPort(fakeClient({
+      approvalPackages,
+      packages: [{ id: packageId, kind: "work_package", name: "Architecture", status: "active" }],
+      latestBaseline: null,
+    }), {
+      userId: "66666666-6666-4666-8666-666666666666",
+      displayName: "Owner",
+    }).getProjectWorkspace({ projectId, requestId: "baseline-preview" });
+
+    const expected = buildBaselineSnapshot({
+      approvalPackages,
+      packageIds: [packageId],
+      previousBaselineId: null,
+    }).token;
+
+    expect(result.data?.operations.publish_baseline).toEqual({
+      status: "available",
+      commandTargetId: expected,
+    });
+  });
+
+  it("does not offer baseline publication when there is nothing approved to freeze", async () => {
+    // Раньше здесь стоял read_contract_pending — «не решили, откуда дескриптор».
+    // Решение принято, и отказ стал предметным: замораживать нечего.
+    const result = await new ProjectCeoLiveReadPort(fakeClient({
+      approvalPackages: [],
+    }), {
+      userId: "66666666-6666-4666-8666-666666666666",
+      displayName: "Owner",
+    }).getProjectWorkspace({ projectId, requestId: "baseline-nothing" });
+
+    expect(result.data?.operations.publish_baseline).toEqual({
+      status: "unavailable",
+      reason: "prerequisite_missing",
+    });
   });
 });
