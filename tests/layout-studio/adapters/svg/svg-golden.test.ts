@@ -20,7 +20,7 @@ function render(document: LayoutDocument): string {
 }
 
 function golden(name: string): string {
-  return readFileSync(path.join(GOLDEN_DIR, `${name}.v0.1.svg`), "utf8").trimEnd();
+  return readFileSync(path.join(GOLDEN_DIR, `${name}.v0.2.svg`), "utf8").trimEnd();
 }
 
 describe("LS-AT-026: SVG golden", () => {

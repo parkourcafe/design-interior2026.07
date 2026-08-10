@@ -130,6 +130,10 @@ const SVG_GREEN = "#244E3B";
 
 export function serializeSvgProjection(projection: SvgProjection): string {
   const { viewBox } = projection;
+  // Проекция несёт документные координаты (Y на север); SVG растёт вниз.
+  // Отражение при сериализации держит север сверху — экран, SVG-файл и DXF
+  // (Y-вверх в CAD) показывают один план, а не зеркала друг друга.
+  const flipY = (yMm: number): number => viewBox.y * 2 + viewBox.height - yMm;
   const versionAttribute = projection.versionId
     ? ` data-version-id="${escapeXml(projection.versionId)}"`
     : "";
@@ -139,7 +143,7 @@ export function serializeSvgProjection(projection: SvgProjection): string {
     .map(
       (wall) =>
         `<polygon data-source-id="${escapeXml(wall.sourceId)}" fill="${SVG_INK}" points="${wall.points
-          .map((point) => `${point.xMm},${point.yMm}`)
+          .map((point) => `${point.xMm},${flipY(point.yMm)}`)
           .join(" ")}"/>`,
     )
     .join("");
@@ -153,12 +157,12 @@ export function serializeSvgProjection(projection: SvgProjection): string {
         )}" data-kind="${escapeXml(opening.kind)}" data-offset-mm="${opening.offsetMm}" data-width-mm="${
           opening.widthMm
         }" data-height-mm="${opening.heightMm}" data-sill-mm="${opening.sillMm}">` +
-        `<line x1="${opening.startPoint.xMm}" y1="${opening.startPoint.yMm}" x2="${
+        `<line x1="${opening.startPoint.xMm}" y1="${flipY(opening.startPoint.yMm)}" x2="${
           opening.endPoint.xMm
-        }" y2="${opening.endPoint.yMm}" stroke="${SVG_PAPER}" stroke-width="140" stroke-linecap="butt"/>` +
-        `<line x1="${opening.startPoint.xMm}" y1="${opening.startPoint.yMm}" x2="${
+        }" y2="${flipY(opening.endPoint.yMm)}" stroke="${SVG_PAPER}" stroke-width="140" stroke-linecap="butt"/>` +
+        `<line x1="${opening.startPoint.xMm}" y1="${flipY(opening.startPoint.yMm)}" x2="${
           opening.endPoint.xMm
-        }" y2="${opening.endPoint.yMm}" stroke="${SVG_GREEN}" stroke-width="40" stroke-linecap="butt"/>` +
+        }" y2="${flipY(opening.endPoint.yMm)}" stroke="${SVG_GREEN}" stroke-width="40" stroke-linecap="butt"/>` +
         `</g>`,
     )
     .join("");
@@ -167,9 +171,9 @@ export function serializeSvgProjection(projection: SvgProjection): string {
       (box) =>
         `<rect data-source-id="${escapeXml(box.sourceId)}" data-kind="${escapeXml(box.kind)}" x="${
           box.xMm - box.widthMm / 2
-        }" y="${box.yMm - box.depthMm / 2}" width="${box.widthMm}" height="${
+        }" y="${flipY(box.yMm) - box.depthMm / 2}" width="${box.widthMm}" height="${
           box.depthMm
-        }" transform="rotate(${box.rotationDeg} ${box.xMm} ${box.yMm})" fill="none" stroke="${SVG_INK}" stroke-width="30"/>`,
+        }" transform="rotate(${-box.rotationDeg} ${box.xMm} ${flipY(box.yMm)})" fill="none" stroke="${SVG_INK}" stroke-width="30"/>`,
     )
     .join("");
 

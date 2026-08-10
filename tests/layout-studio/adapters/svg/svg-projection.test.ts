@@ -35,7 +35,11 @@ describe("LS-020/060: canonical SVG projection", () => {
     const svg = serializeSvgProjection(projection);
     expect(svg).toContain('viewBox="-100 -100 4200 3200"');
     expect(svg).toContain('data-source-id="wall.simple-room.north"');
-    expect(svg).toContain("0,-100 4000,-100 4000,100 0,100");
+    // Документный Y растёт на север (create-room), SVG — вниз: сериализация
+    // отражает координаты, чтобы север был сверху и SVG совпадал с DXF в CAD,
+    // а не был его зеркалом. Стена этой фикстуры на doc y≈0 поэтому рендерится
+    // внизу вьюпорта (большие SVG-y).
+    expect(svg).toContain("0,3100 4000,3100 4000,2900 0,2900");
     expect(svg).not.toMatch(/selected|selection|\/Users\//i);
   });
 });

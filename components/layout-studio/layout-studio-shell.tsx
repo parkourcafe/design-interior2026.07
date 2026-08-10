@@ -234,11 +234,13 @@ function OpeningMark({
   openingId,
   selected,
   onSelect,
+  flipYMm,
 }: {
   readonly document: LayoutDocument;
   readonly openingId: string;
   readonly selected: boolean;
   readonly onSelect: (id: string) => void;
+  readonly flipYMm: (yMm: number) => number;
 }) {
   const opening = document.openings.find((item) => item.id === openingId);
   const wall = document.walls.find((item) => item.id === opening?.parentWallId);
@@ -254,9 +256,9 @@ function OpeningMark({
   return (
     <line
       x1={start.xMm + dx * startRatio}
-      y1={start.yMm + dy * startRatio}
+      y1={flipYMm(start.yMm + dy * startRatio)}
       x2={start.xMm + dx * endRatio}
-      y2={start.yMm + dy * endRatio}
+      y2={flipYMm(start.yMm + dy * endRatio)}
       className={selected ? styles.openingSelected : styles.opening}
       onClick={(event) => {
         event.stopPropagation();
@@ -309,6 +311,13 @@ function PlanCanvas({
   const columnIds = new Set(document.columns.map((item) => item.id));
   const nodeById = new Map(document.nodes.map((node) => [node.id, node]));
 
+  // Документ считает Y на север, SVG растёт вниз. Отражение применяется к
+  // данным (а не transform-группой), чтобы вся экранная арифметика — подписи
+  // «выше линии», смещения в SVG-единицах — осталась в силе, а текст не
+  // отзеркалился. DXF читается CAD Y-вверх: экран, SVG-экспорт и DXF теперь
+  // показывают один и тот же план, а не отражения друг друга.
+  const flipYMm = (yMm: number): number => base.y * 2 + base.height - yMm;
+
   // Экранные координаты → миллиметры документа. Матрицу даёт сам SVG, поэтому
   // зум, панорама и размер окна учитываются без ручной арифметики.
   const toDocumentPoint = (event: React.MouseEvent<SVGSVGElement>): Point | null => {
@@ -319,7 +328,8 @@ function PlanCanvas({
     point.x = event.clientX;
     point.y = event.clientY;
     const local = point.matrixTransform(matrix.inverse());
-    return { xMm: local.x, yMm: local.y };
+    // Обратное отражение: экранная точка → документные координаты.
+    return { xMm: local.x, yMm: flipYMm(local.y) };
   };
 
   // Радиус захвата задан в пикселях экрана, а в документ переводится через
@@ -402,10 +412,10 @@ function PlanCanvas({
           <rect
             key={zone.id}
             x={xMm - widthMm / 2}
-            y={yMm - depthMm / 2}
+            y={flipYMm(yMm) - depthMm / 2}
             width={widthMm}
             height={depthMm}
-            transform={`rotate(${rotationDeg} ${xMm} ${yMm})`}
+            transform={`rotate(${-rotationDeg} ${xMm} ${flipYMm(yMm)})`}
             className={styles.clearanceZone}
             aria-label={typeof zone.label === "string" ? zone.label : copy.layers.clearance}
           />
@@ -414,7 +424,7 @@ function PlanCanvas({
       {layers.walls && projection.walls.map((wall) => (
         <polygon
           key={wall.sourceId}
-          points={wall.points.map((point) => `${point.xMm},${point.yMm}`).join(" ")}
+          points={wall.points.map((point) => `${point.xMm},${flipYMm(point.yMm)}`).join(" ")}
           className={selection === wall.sourceId ? styles.wallSelected : styles.wall}
           onClick={(event) => {
             event.stopPropagation();
@@ -429,6 +439,7 @@ function PlanCanvas({
           openingId={opening.sourceId}
           selected={selection === opening.sourceId}
           onSelect={onSelect}
+          flipYMm={flipYMm}
         />
       ))}
       {projection.boxes.map((box) => {
@@ -438,11 +449,11 @@ function PlanCanvas({
           <rect
             key={box.sourceId}
             x={box.xMm - box.widthMm / 2}
-            y={box.yMm - box.depthMm / 2}
+            y={flipYMm(box.yMm) - box.depthMm / 2}
             width={box.widthMm}
             height={box.depthMm}
             rx={isColumn ? 0 : 40}
-            transform={`rotate(${box.rotationDeg} ${box.xMm} ${box.yMm})`}
+            transform={`rotate(${-box.rotationDeg} ${box.xMm} ${flipYMm(box.yMm)})`}
             className={selection === box.sourceId
               ? styles.boxSelected
               : isColumn ? styles.column : styles.object}
@@ -457,7 +468,7 @@ function PlanCanvas({
         <text
           key={`${object.id}.label`}
           x={object.xMm}
-          y={object.yMm}
+          y={flipYMm(object.yMm)}
           className={styles.objectLabel}
           textAnchor="middle"
           aria-hidden="true"
@@ -472,8 +483,8 @@ function PlanCanvas({
         const dimensionMm = Math.round(Math.hypot(end.xMm - start.xMm, end.yMm - start.yMm));
         return (
           <g key={`${wall.id}.dimension`} className={styles.dimension} aria-hidden="true">
-            <line x1={start.xMm} y1={start.yMm} x2={end.xMm} y2={end.yMm} />
-            <text x={(start.xMm + end.xMm) / 2} y={(start.yMm + end.yMm) / 2 - 70} textAnchor="middle">
+            <line x1={start.xMm} y1={flipYMm(start.yMm)} x2={end.xMm} y2={flipYMm(end.yMm)} />
+            <text x={(start.xMm + end.xMm) / 2} y={(flipYMm(start.yMm) + flipYMm(end.yMm)) / 2 - 70} textAnchor="middle">
               {dimensionMm} мм
             </text>
           </g>
@@ -483,7 +494,7 @@ function PlanCanvas({
         <circle
           key={light.id}
           cx={typeof light.xMm === "number" ? light.xMm : 0}
-          cy={typeof light.yMm === "number" ? light.yMm : 0}
+          cy={flipYMm(typeof light.yMm === "number" ? light.yMm : 0)}
           r={selection === light.id ? 115 : 80}
           className={selection === light.id ? styles.lightSelected : styles.light}
           onClick={(event) => {
@@ -500,9 +511,9 @@ function PlanCanvas({
             <>
               <line
                 x1={drawAnchor.xMm}
-                y1={drawAnchor.yMm}
+                y1={flipYMm(drawAnchor.yMm)}
                 x2={hover.xMm}
-                y2={hover.yMm}
+                y2={flipYMm(hover.yMm)}
                 stroke="#244E3B"
                 strokeWidth={60}
                 strokeDasharray="200 120"
@@ -510,7 +521,7 @@ function PlanCanvas({
               />
               <text
                 x={(drawAnchor.xMm + hover.xMm) / 2}
-                y={(drawAnchor.yMm + hover.yMm) / 2 - 120}
+                y={(flipYMm(drawAnchor.yMm) + flipYMm(hover.yMm)) / 2 - 120}
                 textAnchor="middle"
                 fill="#244E3B"
                 fontSize={220}
@@ -524,7 +535,7 @@ function PlanCanvas({
               «прыгнула». */}
           <circle
             cx={hover.xMm}
-            cy={hover.yMm}
+            cy={flipYMm(hover.yMm)}
             r={hover.kind === "node" ? 130 : 90}
             fill={hover.kind === "node" ? "#244E3B" : "none"}
             stroke="#244E3B"
