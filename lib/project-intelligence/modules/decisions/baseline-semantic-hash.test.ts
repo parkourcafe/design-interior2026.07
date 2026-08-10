@@ -182,3 +182,72 @@ describe("baseline semantic content", () => {
     }))).toThrow(/unknown package/);
   });
 });
+
+/**
+ * Проверка №3 из разбора A′ (`REMHAOS_OPTIONS_BASELINE_DESCRIPTOR_2026-08-10.md`).
+ *
+ * В A′ хеш работает не как граница доверия — её держит RPC, пересобирая объект
+ * сам, — а как **защита от гонки** между preview и подтверждением. Такая защита
+ * стоит ровно столько, сколько составляющих baseline она замечает: элемент, от
+ * которого хеш не меняется, может тихо измениться между показом и публикацией,
+ * и snapshot token этого не поймает.
+ *
+ * Поэтому здесь проверяется чувствительность к КАЖДОМУ элементу, а не к одному
+ * показательному.
+ */
+describe("baseline hash sensitivity — the property that makes it a race guard", () => {
+  const base = computeBaselineSemanticHash(input());
+
+  const mutations: ReadonlyArray<readonly [string, Partial<BaselineSemanticContentInput>]> = [
+    ["graphVersionId", { graphVersionId: "graph-v2" }],
+    ["previousBaselineId", { previousBaselineId: "baseline-v1" }],
+    // packageIds обязаны быть подмножеством packages — хелпер это проверяет,
+    // поэтому пакет добавляется в оба списка сразу.
+    ["packageIds", {
+      packageIds: [PACKAGE_A, PACKAGE_B],
+      packages: [
+        { id: PACKAGE_A, kind: "root", parentPackageId: null, stableKey: "root" },
+        { id: PACKAGE_B, kind: "work_package", parentPackageId: PACKAGE_A, stableKey: "second" },
+      ],
+    }],
+    ["sourceRevisionIds", { sourceRevisionIds: ["source-a"] }],
+    ["requirementRevisionIds", { requirementRevisionIds: ["requirement-r1"] }],
+    ["assumptionRevisionIds", { assumptionRevisionIds: ["assumption-r1"] }],
+    ["decisionRevisionIds", { decisionRevisionIds: ["decision-r1", "decision-r2"] }],
+    ["selectionRevisionIds", { selectionRevisionIds: ["selection-r1", "selection-r2"] }],
+    ["approvalPackageIds", { approvalPackageIds: ["approval-1", "approval-2"] }],
+    ["packages.kind", {
+      packages: [{ id: PACKAGE_A, kind: "work_package", parentPackageId: null, stableKey: "root" }],
+    }],
+    ["packages.parentPackageId", {
+      packages: [{ id: PACKAGE_A, kind: "root", parentPackageId: PACKAGE_B, stableKey: "root" }],
+    }],
+    ["packages.stableKey", {
+      packages: [{ id: PACKAGE_A, kind: "root", parentPackageId: null, stableKey: "renamed" }],
+    }],
+    ["organizationId", { organizationId: PROJECT }],
+    ["projectId", { projectId: ORG }],
+  ];
+
+  for (const [label, override] of mutations) {
+    it(`changes when ${label} changes`, () => {
+      expect(computeBaselineSemanticHash(input(override)), label).not.toBe(base);
+    });
+  }
+
+  it("ignores what the RPC does not hash, so a cosmetic edit is not a false conflict", () => {
+    // Обратная сторона той же монеты: если бы хеш реагировал на поля, которых
+    // RPC не видит, публикация упиралась бы в STATE_STALE от переименования
+    // пакета — отказ, который пользователю нечем объяснить.
+    expect(computeBaselineSemanticHash(input({
+      packages: [{
+        id: PACKAGE_A,
+        kind: "root",
+        parentPackageId: null,
+        stableKey: "root",
+        name: "Переименовали",
+        status: "archived",
+      } as never],
+    }))).toBe(base);
+  });
+});
