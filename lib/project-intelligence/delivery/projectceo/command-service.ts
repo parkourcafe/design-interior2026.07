@@ -21,6 +21,10 @@ import {
 } from "./command-contract";
 import { isDocumentationModuleEnabled } from "./documentation-flag";
 import { EXECUTION_MODULE, isExecutionModuleEnabled } from "./execution-flag";
+import {
+  computeBaselineSemanticHash,
+  confirmBaselineSnapshot,
+} from "../../modules/decisions";
 
 type UnknownRecord = Readonly<Record<string, unknown>>;
 type CommandErrorCode =
@@ -705,10 +709,90 @@ export class ProjectCeoCommandService {
         }));
       }
       if (command.kind === "publish_baseline") {
+        // A′: полная server-owned заморозка. Состав выводится здесь, а клиент
+        // возвращает только токен из preview — публикуем ровно показанное или
+        // отказываем stale_state.
+        const read = await this.read.getProjectWorkspaceRead({
+          projectId: command.projectId,
+          packageId: scope.accessScope === "package" ? scope.packageId ?? null : null,
+        });
+        if (read.error) throw new ProjectIntelligenceAdapterError(read.error.code, null);
+        const packages = rows(read.data.packages).flatMap((entry) => {
+          const id = typeof entry.id === "string" ? entry.id : null;
+          return id ? [{
+            id,
+            kind: String(entry.kind ?? ""),
+            parentPackageId: typeof entry.parentPackageId === "string"
+              ? entry.parentPackageId
+              : null,
+            stableKey: String(entry.stableKey ?? ""),
+          }] : [];
+        });
+        const confirmation = confirmBaselineSnapshot({
+          approvalPackages: rows(read.data.approvalPackages).map((entry) => ({
+            id: String(entry.id ?? ""),
+            status: String(entry.status ?? ""),
+            items: rows(entry.items).map((item) => ({
+              targetKind: String(item.targetKind ?? ""),
+              revisionId: String(item.revisionId ?? ""),
+            })),
+          })),
+          packageIds: packages.map((entry) => entry.id),
+          previousBaselineId: typeof record(read.data.latestBaseline).id === "string"
+            ? record(read.data.latestBaseline).id as string
+            : null,
+        }, command.payload.snapshotToken);
+        if (!confirmation.ok) return failure(requestId, "error", "stale_state");
+
+        // Версия графа — предпосылка baseline, и её ещё нет: она рождается
+        // здесь, через дверь `20260810080000`. Идемпотентность производная от
+        // ключа команды, поэтому повтор запроса не создаёт вторую версию.
+        const version = await this.foundation.publishVersion({
+          projectId: command.projectId,
+          expectedLatestVersionId: typeof record(read.data.latestBaseline).graphVersionId === "string"
+            ? record(read.data.latestBaseline).graphVersionId as string
+            : null,
+          expectedStateRevision: scope.stateRevision,
+          label: `baseline ${new Date(this.dependencies.now?.().getTime() ?? Date.now()).toISOString()}`,
+          selectedRevisions: [],
+          idempotencyKey: `${idempotencyKey}:version`,
+        });
+        const versionId = record(record(version.result).version).id;
+        const graphVersionId = typeof versionId === "string" && versionId.length > 0
+          ? versionId
+          : null;
+        if (!graphVersionId) throw new ProjectIntelligenceAdapterError("internal_error", null);
+
+        const descriptor = {
+          id: `baseline:${command.commandId}`,
+          graphVersionId,
+          previousBaselineId: confirmation.composition.previousBaselineId,
+          packageIds: confirmation.composition.packageIds,
+          sourceRevisionIds: confirmation.composition.sourceRevisionIds,
+          requirementRevisionIds: confirmation.composition.requirementRevisionIds,
+          assumptionRevisionIds: confirmation.composition.assumptionRevisionIds,
+          decisionRevisionIds: confirmation.composition.decisionRevisionIds,
+          selectionRevisionIds: confirmation.composition.selectionRevisionIds,
+          semanticHash: computeBaselineSemanticHash({
+            organizationId: scope.organizationId,
+            projectId: command.projectId,
+            graphVersionId,
+            previousBaselineId: confirmation.composition.previousBaselineId,
+            packageIds: confirmation.composition.packageIds,
+            sourceRevisionIds: confirmation.composition.sourceRevisionIds,
+            requirementRevisionIds: confirmation.composition.requirementRevisionIds,
+            assumptionRevisionIds: confirmation.composition.assumptionRevisionIds,
+            decisionRevisionIds: confirmation.composition.decisionRevisionIds,
+            selectionRevisionIds: confirmation.composition.selectionRevisionIds,
+            approvalPackageIds: confirmation.composition.approvalPackageIds,
+            packages,
+          }),
+          approvalPackageIds: confirmation.composition.approvalPackageIds,
+        };
         return completed(requestId, await this.product.publishProjectBaseline({
           projectId: command.projectId,
-          descriptor: command.payload.descriptor,
-          expectedStateRevision: scope.stateRevision,
+          descriptor,
+          expectedStateRevision: version.stateRevision,
           idempotencyKey,
         }));
       }

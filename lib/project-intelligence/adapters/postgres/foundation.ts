@@ -113,6 +113,34 @@ export class FoundationPostgresAdapter {
     );
   }
 
+  /**
+   * Дверь публикации версии графа (`20260810080000`).
+   *
+   * Версия — предпосылка baseline: `publish_project_baseline` требует строку
+   * `project_intelligence.project_versions`. Сама операция живёт в приватной
+   * `project_intelligence_api`, не отданной Data API, поэтому вызов идёт через
+   * делегирующую функцию в `projectceo_api`. Прав она не добавляет.
+   */
+  async publishVersion(input: {
+    readonly projectId: string;
+    readonly expectedLatestVersionId: string | null;
+    readonly expectedStateRevision: number;
+    readonly label: string;
+    readonly selectedRevisions: readonly unknown[];
+    readonly idempotencyKey: string;
+  }): Promise<CommandMutation<unknown>> {
+    return parseCommandMutation<unknown>(
+      await callRpc(this.client, "projectceo_api", "publish_version", {
+        project_id: input.projectId,
+        expected_latest_version_id: input.expectedLatestVersionId,
+        expected_state_revision: input.expectedStateRevision,
+        label: input.label,
+        selected_revisions: input.selectedRevisions,
+        idempotency_key: input.idempotencyKey,
+      }),
+    );
+  }
+
   async enrollOrganizationProject(input: {
     readonly projectId: string;
     readonly idempotencyKey: string;

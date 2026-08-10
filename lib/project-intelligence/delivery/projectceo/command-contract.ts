@@ -161,19 +161,6 @@ export function sha256Hex(text: string): string {
 }
 
 const m2LayoutContent = z.unknown().refine(prevalidateM2Layout, "layout_content_invalid");
-const baselineDescriptor = z.object({
-  id: claimRevisionId,
-  graphVersionId: claimRevisionId,
-  previousBaselineId: claimRevisionId.nullable(),
-  packageIds: z.array(uuid).max(500),
-  sourceRevisionIds: revisionIdList,
-  requirementRevisionIds: revisionIdList,
-  assumptionRevisionIds: revisionIdList,
-  decisionRevisionIds: revisionIdList,
-  selectionRevisionIds: revisionIdList,
-  approvalPackageIds: revisionIdList,
-  semanticHash: z.string().regex(/^sha256:[0-9a-f]{64}$/i),
-}).strict();
 
 export const projectCeoCommandSchema = z.discriminatedUnion("kind", [
   projectSelector.extend({
@@ -459,7 +446,13 @@ export const projectCeoCommandSchema = z.discriminatedUnion("kind", [
   projectSelector.extend({
     contractVersion: z.literal(PROJECTCEO_COMMAND_CONTRACT_VERSION),
     kind: z.literal("publish_baseline"),
-    payload: z.object({ descriptor: baselineDescriptor }).strict(),
+    // A′: состав выводит сервер, клиент возвращает только снапшот-токен из
+    // preview. Дескриптор с клиента больше не принимается — иначе состав
+    // версии снова стал бы вводом пользователя, а правило полноты можно было
+    // бы обойти, послав неполный список мимо экрана.
+    payload: z.object({
+      snapshotToken: z.string().regex(/^sha256:[0-9a-f]{64}$/i),
+    }).strict(),
   }).strict(),
   projectSelector.extend({
     contractVersion: z.literal(PROJECTCEO_COMMAND_CONTRACT_VERSION),

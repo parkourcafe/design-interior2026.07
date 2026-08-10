@@ -5,6 +5,7 @@ vi.mock("server-only", () => ({}));
 import type { PostgresRpcClient } from "../../../lib/project-intelligence/adapters/postgres";
 import type { ProjectCeoCommand } from "../../../lib/project-intelligence/delivery/projectceo/command-contract";
 import { ProjectCeoCommandService } from "../../../lib/project-intelligence/delivery/projectceo/command-service";
+import { buildBaselineSnapshot } from "../../../lib/project-intelligence/modules/decisions";
 
 const projectId = "11111111-1111-4111-8111-111111111111";
 const organizationId = "22222222-2222-4222-8222-222222222222";
@@ -196,6 +197,7 @@ function fakeClient(calls: Call[], readOverrides: Readonly<Record<string, unknow
       semanticHash,
     },
     "projectceo_api.register_source_inventory": { registeredPhysicalRecords: 1 },
+    "projectceo_api.publish_version": { version: { id: "graph-v3" } },
     "projectceo_m3_api.register_documentation_sheet": {
       sheetId: "m3-sheet-a101",
       revisionId: "sheet-r1",
@@ -686,29 +688,97 @@ describe("AP1 supported human commands", () => {
     expect(foreignCalls.some((call) => call.name === "projectceo_product_api.publish_production_package_version")).toBe(false);
   });
 
-  it("publishes a validated baseline descriptor through the existing product RPC", async () => {
+  it("derives the baseline itself and publishes exactly what the preview showed", async () => {
+    // A′: клиент присылает только снапшот-токен. Состав выводит сервер по
+    // правилу полноты, версию графа создаёт через дверь, хеш считает сам.
+    const approvalPackages = [{
+      id: "approval-1",
+      status: "approved",
+      items: [
+        { targetKind: "decision_revision", revisionId: "decision-r1" },
+        { targetKind: "selection_revision", revisionId: "selection-r1" },
+      ],
+    }];
+    const packages = [{
+      id: packageId,
+      kind: "project_root",
+      parentPackageId: null,
+      stableKey: "root",
+    }];
+    const snapshot = buildBaselineSnapshot({
+      approvalPackages,
+      packageIds: [packageId],
+      previousBaselineId: "baseline-v2",
+    });
+
     const calls: Call[] = [];
-    const descriptor = {
-      id: "baseline-v3",
+    const result = await service(calls, {
+      approvalPackages,
+      packages,
+      latestBaseline: { id: "baseline-v2", graphVersionId: "graph-v2" },
+    }).execute(
+      command("publish_baseline", { snapshotToken: snapshot.token }),
+      "baseline-publish",
+    );
+    expect(result).toMatchObject({ status: "completed", replay: false });
+
+    // Версия графа создаётся раньше baseline и именно через дверь: без неё RPC
+    // ответила бы not_found graphVersion.
+    const version = calls.find((call) => call.name === "projectceo_api.publish_version");
+    expect(version?.args).toMatchObject({
+      project_id: projectId,
+      expected_latest_version_id: "graph-v2",
+    });
+
+    const published = calls.find((call) => (
+      call.name === "projectceo_product_api.publish_project_baseline"
+    ))?.args as { descriptor: Record<string, unknown> } | undefined;
+    expect(published?.descriptor).toMatchObject({
       graphVersionId: "graph-v3",
       previousBaselineId: "baseline-v2",
-      packageIds: [packageId],
-      sourceRevisionIds: ["source-r1"],
-      requirementRevisionIds: [],
-      assumptionRevisionIds: [],
       decisionRevisionIds: ["decision-r1"],
       selectionRevisionIds: ["selection-r1"],
       approvalPackageIds: ["approval-1"],
-      semanticHash,
-    };
-    const result = await service(calls).execute(command("publish_baseline", { descriptor }), "baseline-publish");
-    expect(result).toMatchObject({ status: "completed", replay: false });
-    expect(calls.find((call) => call.name === "projectceo_product_api.publish_project_baseline")?.args)
-      .toMatchObject({
-        project_id: projectId,
-        descriptor,
-        expected_state_revision: 9,
-      });
+      packageIds: [packageId],
+    });
+    expect(String(published?.descriptor.semanticHash)).toMatch(/^sha256:[0-9a-f]{64}$/);
+  });
+
+  it("refuses with stale_state when the state moved after the preview", async () => {
+    // Токен посчитан по одному составу, а читается другой — публиковать не
+    // показанное нельзя, и до RPC дело не доходит.
+    const stale = buildBaselineSnapshot({
+      approvalPackages: [{
+        id: "approval-1",
+        status: "approved",
+        items: [{ targetKind: "decision_revision", revisionId: "decision-r1" }],
+      }],
+      packageIds: [packageId],
+      previousBaselineId: null,
+    });
+
+    const calls: Call[] = [];
+    const result = await service(calls, {
+      approvalPackages: [{
+        id: "approval-1",
+        status: "approved",
+        items: [
+          { targetKind: "decision_revision", revisionId: "decision-r1" },
+          { targetKind: "decision_revision", revisionId: "decision-r2" },
+        ],
+      }],
+      packages: [{ id: packageId, kind: "project_root", parentPackageId: null, stableKey: "root" }],
+      latestBaseline: null,
+    }).execute(
+      command("publish_baseline", { snapshotToken: stale.token }),
+      "baseline-stale",
+    );
+
+    expect(result).toMatchObject({ status: "error", error: { code: "stale_state" } });
+    expect(calls.some((call) => call.name === "projectceo_api.publish_version")).toBe(false);
+    expect(calls.some((call) => (
+      call.name === "projectceo_product_api.publish_project_baseline"
+    ))).toBe(false);
   });
 
   it.each([
