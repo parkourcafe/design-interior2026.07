@@ -79,9 +79,12 @@ jobs:
       AP1_TEST_PASSWORD: ap5-local-only-password
       AP1_CONFIRM_DISPOSABLE: "yes"
       NEXT_PUBLIC_APP_URL: http://127.0.0.1:3100
-      # Модули, которые должна видеть матрица ролей.
-      ARCHIDOM_LAYOUT_STUDIO_ENABLED: "1"
-      REMHAOS_DOCUMENTATION_ENABLED: "1"
+      # Модули, которые должна видеть матрица ролей. Оба флага сравниваются со
+      # строкой "true" буквально (feature-flag.ts, documentation-flag.ts):
+      # "1" читается как «выключено», и команды модуля отвечают
+      # operation_unavailable ещё до RPC.
+      ARCHIDOM_LAYOUT_STUDIO_ENABLED: "true"
+      REMHAOS_DOCUMENTATION_ENABLED: "true"
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
