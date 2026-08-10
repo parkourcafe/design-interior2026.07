@@ -8,6 +8,10 @@ on:
   push:
     branches: ["**"]
   pull_request:
+    # labeled — ради гейта AP5: он включается меткой `ap5`, а в наборе типов по
+    # умолчанию (opened/synchronize/reopened) навешивание метки не событие, и
+    # прогон бы просто не стартовал.
+    types: [opened, synchronize, reopened, labeled]
   workflow_dispatch:
 
 concurrency:
