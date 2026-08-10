@@ -16,8 +16,6 @@ export const PROJECTCEO_CAPABILITIES = [
   "manage_access",
   "register_source",
   "review_source",
-  "register_documentation_sheet",
-  "attach_documentation_sheet_specifications",
   "review_claim",
   "create_selection",
   "review_selection",

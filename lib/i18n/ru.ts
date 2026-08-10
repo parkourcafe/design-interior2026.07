@@ -1377,6 +1377,12 @@ export const ru = {
         registerZone: "Зона",
         registerDiscipline: "Дисциплина",
         registerStatus: "Статус документа",
+        documentStatusOptions: {
+          current: "Действующий",
+          previous: "Предыдущая версия",
+          reference: "Справочный",
+          unknown: "Не определён",
+        },
         registerIncomplete: "Заполните имя, пакет и все три уровня иерархии.",
         noRegisterCapability: "Текущая роль не заводит источники.",
         confirmed: "Подтверждён",

@@ -237,6 +237,78 @@ export class ProjectCeoCommandService {
     }
     try {
       const idempotencyKey = this.idempotencyKey(command);
+      if (
+        command.kind === "register_source"
+        || command.kind === "register_documentation_sheet"
+        || command.kind === "attach_documentation_sheet_specifications"
+      ) {
+        // Этим командам delivery-проекция не нужна: полный context() оплачивал
+        // бы тяжёлое чтение продуктового мозга на каждом клике intake.
+        const scope = await this.scopeOnly(command.projectId);
+      if (command.kind === "register_documentation_sheet") {
+        // Происхождение листа в команде отсутствует: сервер выведет его из
+        // опубликованного handoff, а подменить его параметрами нельзя — их нет.
+        return completed(requestId, await this.m3.registerDocumentationSheet({
+          projectId: command.projectId,
+          packageId: command.payload.packageId,
+          handoffId: command.payload.handoffId,
+          handoffRevisionId: command.payload.handoffRevisionId,
+          sheetId: command.payload.sheetId,
+          sheetNumber: command.payload.sheetNumber,
+          title: command.payload.title,
+          revisionId: command.payload.revisionId,
+          specificationRevisionIds: command.payload.specificationRevisionIds,
+          reason: command.payload.reason,
+          expectedStateRevision: scope.stateRevision,
+          idempotencyKey,
+        }));
+      }
+      if (command.kind === "attach_documentation_sheet_specifications") {
+        return completed(requestId, await this.m3.attachDocumentationSheetSpecifications({
+          projectId: command.projectId,
+          packageId: command.payload.packageId,
+          sheetId: command.payload.sheetId,
+          revisionId: command.payload.revisionId,
+          expectedRevisionId: command.payload.expectedRevisionId,
+          specificationRevisionIds: command.payload.specificationRevisionIds,
+          reason: command.payload.reason,
+          expectedStateRevision: scope.stateRevision,
+          idempotencyKey,
+        }));
+      }
+      if (command.kind === "register_source") {
+        // Запись инвентаря пишет сервер: план импорта не приходит из браузера,
+        // он выводится из самой команды, а RPC сверяет его projectId со своим.
+        return completed(requestId, await this.foundation.registerSourceInventory({
+          projectId: command.projectId,
+          records: [{
+            physicalRecordId: command.payload.physicalRecordId,
+            sanitizedName: command.payload.sanitizedName,
+            hierarchy: {
+              projectId: command.projectId,
+              packageId: command.payload.packageId,
+              floorId: command.payload.floorId,
+              zoneId: command.payload.zoneId,
+              disciplineId: command.payload.disciplineId,
+            },
+            availability: command.payload.availability,
+            documentStatus: command.payload.documentStatus,
+            sizeBytes: command.payload.sizeBytes,
+            checksum: command.payload.checksum,
+            sourceRevisionId: command.payload.sourceRevisionId,
+            semanticConflict: command.payload.semanticConflict,
+          }],
+          importPlan: {
+            projectId: command.projectId,
+            packageId: command.payload.packageId,
+            origin: "projectceo_command",
+            physicalRecordIds: [command.payload.physicalRecordId],
+          },
+          expectedStateRevision: scope.stateRevision,
+          idempotencyKey,
+        }));
+      }
+      }
       if (command.kind === "review_source") {
         // Этой команде продуктовая delivery-проекция не нужна вовсе — только
         // источники из authenticated read. Полный context() стоил бы лишнего
@@ -308,69 +380,6 @@ export class ProjectCeoCommandService {
           approvedCommitId: command.payload.approvedCommitId,
           approvedCommitRevisionId: command.payload.approvedCommitRevisionId,
           reason: command.payload.reason,
-          expectedStateRevision: scope.stateRevision,
-          idempotencyKey,
-        }));
-      }
-      if (command.kind === "register_documentation_sheet") {
-        // Происхождение листа в команде отсутствует: сервер выведет его из
-        // опубликованного handoff, а подменить его параметрами нельзя — их нет.
-        return completed(requestId, await this.m3.registerDocumentationSheet({
-          projectId: command.projectId,
-          packageId: command.payload.packageId,
-          handoffId: command.payload.handoffId,
-          handoffRevisionId: command.payload.handoffRevisionId,
-          sheetId: command.payload.sheetId,
-          sheetNumber: command.payload.sheetNumber,
-          title: command.payload.title,
-          revisionId: command.payload.revisionId,
-          specificationRevisionIds: command.payload.specificationRevisionIds,
-          reason: command.payload.reason,
-          expectedStateRevision: scope.stateRevision,
-          idempotencyKey,
-        }));
-      }
-      if (command.kind === "attach_documentation_sheet_specifications") {
-        return completed(requestId, await this.m3.attachDocumentationSheetSpecifications({
-          projectId: command.projectId,
-          packageId: command.payload.packageId,
-          sheetId: command.payload.sheetId,
-          revisionId: command.payload.revisionId,
-          expectedRevisionId: command.payload.expectedRevisionId,
-          specificationRevisionIds: command.payload.specificationRevisionIds,
-          reason: command.payload.reason,
-          expectedStateRevision: scope.stateRevision,
-          idempotencyKey,
-        }));
-      }
-      if (command.kind === "register_source") {
-        // Запись инвентаря пишет сервер: план импорта не приходит из браузера,
-        // он выводится из самой команды, а RPC сверяет его projectId со своим.
-        return completed(requestId, await this.foundation.registerSourceInventory({
-          projectId: command.projectId,
-          records: [{
-            physicalRecordId: command.payload.physicalRecordId,
-            sanitizedName: command.payload.sanitizedName,
-            hierarchy: {
-              projectId: command.projectId,
-              packageId: command.payload.packageId,
-              floorId: command.payload.floorId,
-              zoneId: command.payload.zoneId,
-              disciplineId: command.payload.disciplineId,
-            },
-            availability: command.payload.availability,
-            documentStatus: command.payload.documentStatus,
-            sizeBytes: command.payload.sizeBytes,
-            checksum: command.payload.checksum,
-            sourceRevisionId: command.payload.sourceRevisionId,
-            semanticConflict: command.payload.semanticConflict,
-          }],
-          importPlan: {
-            projectId: command.projectId,
-            packageId: command.payload.packageId,
-            origin: "projectceo_command",
-            physicalRecordIds: [command.payload.physicalRecordId],
-          },
           expectedStateRevision: scope.stateRevision,
           idempotencyKey,
         }));

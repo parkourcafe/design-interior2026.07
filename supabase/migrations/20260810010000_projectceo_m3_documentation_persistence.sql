@@ -546,6 +546,10 @@ begin
   end if;
   perform projectceo_product._assert_text(sheet_id, 'sheetId', 160);
   perform projectceo_product._assert_text(revision_id, 'revisionId', 160);
+  -- Привязка всегда продолжает существующую ревизию: NULL или пустое значение
+  -- здесь — сломанный запрос (validation_failed), а не устаревшее состояние,
+  -- которое клиенту предложили бы бесполезно ретраить.
+  perform projectceo_product._assert_text(expected_revision_id, 'expectedRevisionId', 160);
   perform projectceo_product._assert_text(reason, 'reason', 4000);
   perform projectceo_foundation._assert_state_revision(expected_state_revision);
   perform projectceo_foundation._assert_idempotency_key(idempotency_key);

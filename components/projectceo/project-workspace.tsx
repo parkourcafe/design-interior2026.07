@@ -461,20 +461,27 @@ function SourceIntakeForm({
   const packages = view.packages.filter((item) => item.status === "active");
   const [name, setName] = useState("");
   const [packageId, setPackageId] = useState(packages[0]?.id ?? "");
+  // The package list has a life of its own (router.refresh after commands):
+  // a selection that is no longer in the list must not silently travel in the
+  // payload.
+  const effectivePackageId = packages.some((item) => item.id === packageId)
+    ? packageId
+    : packages[0]?.id ?? "";
   const [floor, setFloor] = useState("");
   const [zone, setZone] = useState("");
   const [discipline, setDiscipline] = useState("");
   const [documentStatus, setDocumentStatus] = useState<"current" | "previous" | "reference" | "unknown">("current");
 
   const complete = Boolean(
-    name.trim() && packageId && floor.trim() && zone.trim() && discipline.trim(),
+    name.trim() && effectivePackageId && floor.trim() && zone.trim() && discipline.trim(),
   );
   // The record id is derived from the content, so the same declared document
   // keeps the same identity across remounts and repeated presses. A random id
-  // would quietly create a second physical record for the same paper.
-  const physicalRecordId = useMemo(
-    () => recordIdFromContent([name, packageId, floor, zone, discipline, documentStatus]),
-    [name, packageId, floor, zone, discipline, documentStatus],
+  // would quietly create a second physical record for the same paper. The
+  // derivation is pure and cheap, so it runs on render — no memo to fight the
+  // compiler over.
+  const physicalRecordId = recordIdFromContent(
+    [name, effectivePackageId, floor, zone, discipline, documentStatus],
   );
 
   if (operation.status !== "available") {
@@ -504,7 +511,7 @@ function SourceIntakeForm({
         <label className="text-xs text-muted">
           {projectCeoRu.workspace.sources.registerPackage}
           <select
-            value={packageId}
+            value={effectivePackageId}
             onChange={(event) => setPackageId(event.target.value)}
             className="mt-1 w-full rounded-lg border border-line px-3 py-2 text-sm text-ink"
           >
@@ -546,10 +553,11 @@ function SourceIntakeForm({
             onChange={(event) => setDocumentStatus(event.target.value as typeof documentStatus)}
             className="mt-1 w-full rounded-lg border border-line px-3 py-2 text-sm text-ink"
           >
-            <option value="current">current</option>
-            <option value="previous">previous</option>
-            <option value="reference">reference</option>
-            <option value="unknown">unknown</option>
+            {(["current", "previous", "reference", "unknown"] as const).map((status) => (
+              <option key={status} value={status}>
+                {projectCeoRu.workspace.sources.documentStatusOptions[status]}
+              </option>
+            ))}
           </select>
         </label>
         <ProjectCeoCommandButton
@@ -559,7 +567,7 @@ function SourceIntakeForm({
             kind: "register_source" as const,
             projectId: view.project.id,
             payload: {
-              packageId,
+              packageId: effectivePackageId,
               physicalRecordId,
               sanitizedName: name.trim(),
               floorId: floor.trim(),

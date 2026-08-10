@@ -924,8 +924,16 @@ function documentationView(input: {
       approvedM2CommitRevisionId: sheet.origin.approvedM2CommitRevisionId,
     })),
     completeness: handoffs.map((handoff) => {
-      // Пакет оценивается целиком: лист из другого утверждения — это находка,
-      // а не строка, которую следует отфильтровать до проверки.
+      // Отчёту передаются листы его утверждения плюс осиротевшие — те, чей
+      // approved commit не совпадает ни с одним ТЕКУЩИМ handoff пакета. Лист
+      // соседней комнаты (другой текущий handoff того же пакета) — не «чужое
+      // утверждение», а параллельное; вечно клеймить его в каждом отчёте
+      // значило бы сделать complete=true недостижимым в многокомнатном пакете.
+      const currentCommits = new Set(
+        handoffs
+          .filter((item) => item.packageId === handoff.packageId)
+          .map((item) => item.approvedM2CommitRevisionId),
+      );
       const report = reviewPackageCompleteness({
         handoff: {
           contractVersion: handoff.contractVersion,
@@ -937,7 +945,13 @@ function documentationView(input: {
           layout: handoff.layout,
           selectionRevisionIds: handoff.selectionRevisionIds,
         },
-        sheets: domainSheets.filter((sheet) => sheet.packageId === handoff.packageId),
+        sheets: domainSheets.filter((sheet) => (
+          sheet.packageId === handoff.packageId
+          && (
+            sheet.origin.approvedM2CommitRevisionId === handoff.approvedM2CommitRevisionId
+            || !currentCommits.has(sheet.origin.approvedM2CommitRevisionId)
+          )
+        )),
       });
       return {
         handoffId: handoff.handoffId,
