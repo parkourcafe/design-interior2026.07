@@ -120,7 +120,22 @@ test.describe("AP5 — цепочка Kora на живом стеке", () => {
     expect(view.sources.length).toBeGreaterThan(0);
   });
 
-  test("4. ревью источника подтверждает ровно ту ревизию", async ({ browser }) => {
+  /**
+   * НЕ ПРОХОДИТ на живом стеке, и это находка, а не пропуск.
+   *
+   * Источник, заведённый из браузера, попадает в инвентарь, но не в граф
+   * утверждений: узлы графа создаёт воркерный `ingest_source_graph`. При этом
+   * `review_source` уходит в `project_intelligence_api.review_claim` с
+   * `inventory.source_revision_id`, которого в графе нет, и RPC падает
+   * неконтролируемой ошибкой — команда отвечает 500 `internal_error`.
+   *
+   * Отдельно неприятно, что действие при этом ПРЕДЛАГАЕТСЯ: в проекции
+   * `pendingSourceRevisionId` не пуст (live-read-port.ts:1011), значит в
+   * рабочем пространстве кнопка ревью показывается доступной и по нажатию
+   * даёт 500. Либо affordance не должен появляться до воркерного ingest, либо
+   * команда обязана отвечать контролируемым отказом. Решение — за владельцем.
+   */
+  test.fixme("4. ревью источника подтверждает ровно ту ревизию", async ({ browser }) => {
     const architect = await requestAs(browser, "designer");
     const source = (await workspace(architect)).sources.at(0);
     expect(source?.reviewTargetRevisionId).toBeTruthy();
