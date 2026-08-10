@@ -152,7 +152,7 @@ test.describe("AP5 — цепочка Kora на живом стеке", () => {
     expect(reviewed?.reviewStatus).toBe("confirmed");
   });
 
-  test("5. решение и выбор — человеческого происхождения", async ({ browser }) => {
+  test("5. решение человеческого происхождения", async ({ browser }) => {
     const architect = await requestAs(browser, "designer");
     const decisionRevisionId = randomUUID();
 
@@ -166,13 +166,32 @@ test.describe("AP5 — цепочка Kora на живом стеке", () => {
       claimStatus: "human_origin",
       title: "AP5 decision",
       resolution: "AP5 chain decision recorded from an authenticated architect session.",
-      areaNodeId: "ap5-area-floor-1",
+      // Без привязки к площади: узлы `kind='area'` живут в
+      // project_intelligence.graph_nodes и создаются не отсюда, а выдуманный
+      // идентификатор RPC отвергает как AREA_NODE_INVALID (20260717101000:679).
+      areaNodeId: null,
       decisionStatus: "confirmed",
       evidence: [],
       reason: "AP5 authenticated browser chain",
     });
     expect(decision.status, JSON.stringify(decision.body.error)).toBe(200);
 
+    const view = await workspace(architect);
+    expect(view.decisions.some((item) => item.revisionId === decisionRevisionId)).toBe(true);
+  });
+
+  /**
+   * НЕ ПРОХОДИТ на живом стеке — звено требует воркера, как и остальные четыре.
+   *
+   * У решения `areaNodeId` допускает null, а у выбора он обязателен
+   * (`command-contract.ts`) и обязан ссылаться на существующий узел
+   * `kind='area'` в `project_intelligence.graph_nodes`. Такие узлы создаёт
+   * ingest, а не браузерные команды: RPC решения заводит узел только для
+   * собственного `nodeId` (20260717101000:661). Пока графа нет, выбор из
+   * браузера создать нечем — и это ограничение продукта, а не харнесса.
+   */
+  test.fixme("5а. выбор привязан к площади, которой без ingest не существует", async ({ browser }) => {
+    const architect = await requestAs(browser, "designer");
     const selection = await command(architect, "create_selection", {
       packageId: handoff().rootPackageId,
       nodeId: "ap5-selection-floor-1",
@@ -181,16 +200,12 @@ test.describe("AP5 — цепочка Kora на живом стеке", () => {
       claimStatus: "human_origin",
       title: "AP5 selection",
       areaNodeId: "ap5-area-floor-1",
-      decisionRevisionId,
+      decisionRevisionId: "ap5-decision-revision",
       specification: { finish: "AP5 reference finish" },
       evidence: [],
       reason: "AP5 authenticated browser chain",
     });
     expect(selection.status, JSON.stringify(selection.body.error)).toBe(200);
-
-    const view = await workspace(architect);
-    expect(view.decisions.some((item) => item.revisionId === decisionRevisionId)).toBe(true);
-    expect(view.selections.some((item) => item.decisionRevisionId === decisionRevisionId)).toBe(true);
   });
 
   test("6. закрытие передачи остаётся воркерной операцией и честно об этом говорит", async ({ browser }) => {
