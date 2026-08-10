@@ -1,7 +1,9 @@
 import "server-only";
 
 import {
+  Db2HumanPostgresAdapter,
   FoundationPostgresAdapter,
+  ProjectCeoM3HumanPostgresAdapter,
   ProjectCeoAuthenticatedReadPostgresAdapter,
   ProjectBrainHumanPostgresAdapter,
   ProjectCeoM4HumanPostgresAdapter,
@@ -18,6 +20,7 @@ import {
   type ProjectCeoCommand,
   type ProjectCeoCommandResponse,
 } from "./command-contract";
+import { isDocumentationModuleEnabled } from "./documentation-flag";
 
 type UnknownRecord = Readonly<Record<string, unknown>>;
 type CommandErrorCode =
@@ -33,10 +36,18 @@ type CommandErrorCode =
   | "internal_error";
 
 const UNAVAILABLE = new Set<ProjectCeoCommand["kind"]>([
-  "register_source",
-  "review_source",
   "publish_release",
   "build_handover",
+]);
+
+// Intake — поверхность модуля 3, поэтому она закрыта его флагом (A5 §4.2.2).
+// Проверка серверная и стоит до чтений и записей: при выключенном модуле
+// команда не доходит ни до одного RPC.
+const DOCUMENTATION_MODULE = new Set<ProjectCeoCommand["kind"]>([
+  "register_source",
+  "review_source",
+  "register_documentation_sheet",
+  "attach_documentation_sheet_specifications",
 ]);
 
 const MAX_INVITATION_TTL_MS = 30 * 24 * 60 * 60 * 1000;
@@ -132,6 +143,8 @@ export interface ProjectCeoCommandDependencies {
   readonly client: PostgresRpcClient;
   readonly tokenSecret?: string;
   readonly now?: () => Date;
+  /** Значение REMHAOS_DOCUMENTATION_ENABLED; по умолчанию читается из окружения. */
+  readonly documentationEnabled?: string;
 }
 
 /**
@@ -145,9 +158,13 @@ export class ProjectCeoCommandService {
   private readonly read: ProjectCeoAuthenticatedReadPostgresAdapter;
   private readonly product: ProjectBrainHumanPostgresAdapter;
   private readonly execution: ProjectCeoM4HumanPostgresAdapter;
+  private readonly db2: Db2HumanPostgresAdapter;
+  private readonly m3: ProjectCeoM3HumanPostgresAdapter;
 
   constructor(private readonly dependencies: ProjectCeoCommandDependencies) {
     this.foundation = new FoundationPostgresAdapter(dependencies.client);
+    this.db2 = new Db2HumanPostgresAdapter(dependencies.client);
+    this.m3 = new ProjectCeoM3HumanPostgresAdapter(dependencies.client);
     this.read = new ProjectCeoAuthenticatedReadPostgresAdapter(dependencies.client);
     this.product = new ProjectBrainHumanPostgresAdapter(dependencies.client);
     this.execution = new ProjectCeoM4HumanPostgresAdapter(dependencies.client);
@@ -155,6 +172,19 @@ export class ProjectCeoCommandService {
 
   private idempotencyKey(command: ProjectCeoCommand): string {
     return `ui:${command.projectId}:${command.kind}:${command.commandId}`;
+  }
+
+  private async scopeOnly(projectId: string): Promise<ProjectListItem> {
+    const projects = await this.foundation.listProjects();
+    if (projects.error || !projects.data) {
+      throw new ProjectIntelligenceAdapterError(
+        projects.error?.code ?? "internal_error",
+        null,
+      );
+    }
+    const scope = effectiveScope(projects.data, projectId);
+    if (!scope) throw new ProjectIntelligenceAdapterError("not_found", null);
+    return scope;
   }
 
   private async context(projectId: string): Promise<{
@@ -191,6 +221,12 @@ export class ProjectCeoCommandService {
       return failure(requestId, "unavailable", "operation_unavailable");
     }
     if (
+      DOCUMENTATION_MODULE.has(command.kind)
+      && !isDocumentationModuleEnabled(this.dependencies.documentationEnabled)
+    ) {
+      return failure(requestId, "unavailable", "operation_unavailable");
+    }
+    if (
       command.kind === "create_invitation"
       && (
         !this.dependencies.tokenSecret
@@ -200,8 +236,108 @@ export class ProjectCeoCommandService {
       return failure(requestId, "unavailable", "operation_unavailable");
     }
     try {
-      const { scope, delivery } = await this.context(command.projectId);
       const idempotencyKey = this.idempotencyKey(command);
+      if (
+        command.kind === "register_source"
+        || command.kind === "register_documentation_sheet"
+        || command.kind === "attach_documentation_sheet_specifications"
+      ) {
+        // Этим командам delivery-проекция не нужна: полный context() оплачивал
+        // бы тяжёлое чтение продуктового мозга на каждом клике intake.
+        const scope = await this.scopeOnly(command.projectId);
+      if (command.kind === "register_documentation_sheet") {
+        // Происхождение листа в команде отсутствует: сервер выведет его из
+        // опубликованного handoff, а подменить его параметрами нельзя — их нет.
+        return completed(requestId, await this.m3.registerDocumentationSheet({
+          projectId: command.projectId,
+          packageId: command.payload.packageId,
+          handoffId: command.payload.handoffId,
+          handoffRevisionId: command.payload.handoffRevisionId,
+          sheetId: command.payload.sheetId,
+          sheetNumber: command.payload.sheetNumber,
+          title: command.payload.title,
+          revisionId: command.payload.revisionId,
+          specificationRevisionIds: command.payload.specificationRevisionIds,
+          reason: command.payload.reason,
+          expectedStateRevision: scope.stateRevision,
+          idempotencyKey,
+        }));
+      }
+      if (command.kind === "attach_documentation_sheet_specifications") {
+        return completed(requestId, await this.m3.attachDocumentationSheetSpecifications({
+          projectId: command.projectId,
+          packageId: command.payload.packageId,
+          sheetId: command.payload.sheetId,
+          revisionId: command.payload.revisionId,
+          expectedRevisionId: command.payload.expectedRevisionId,
+          specificationRevisionIds: command.payload.specificationRevisionIds,
+          reason: command.payload.reason,
+          expectedStateRevision: scope.stateRevision,
+          idempotencyKey,
+        }));
+      }
+      if (command.kind === "register_source") {
+        // Запись инвентаря пишет сервер: план импорта не приходит из браузера,
+        // он выводится из самой команды, а RPC сверяет его projectId со своим.
+        return completed(requestId, await this.foundation.registerSourceInventory({
+          projectId: command.projectId,
+          records: [{
+            physicalRecordId: command.payload.physicalRecordId,
+            sanitizedName: command.payload.sanitizedName,
+            hierarchy: {
+              projectId: command.projectId,
+              packageId: command.payload.packageId,
+              floorId: command.payload.floorId,
+              zoneId: command.payload.zoneId,
+              disciplineId: command.payload.disciplineId,
+            },
+            availability: command.payload.availability,
+            documentStatus: command.payload.documentStatus,
+            sizeBytes: command.payload.sizeBytes,
+            checksum: command.payload.checksum,
+            sourceRevisionId: command.payload.sourceRevisionId,
+            semanticConflict: command.payload.semanticConflict,
+          }],
+          importPlan: {
+            projectId: command.projectId,
+            packageId: command.payload.packageId,
+            origin: "projectceo_command",
+            physicalRecordIds: [command.payload.physicalRecordId],
+          },
+          expectedStateRevision: scope.stateRevision,
+          idempotencyKey,
+        }));
+      }
+      }
+      if (command.kind === "review_source") {
+        // Этой команде продуктовая delivery-проекция не нужна вовсе — только
+        // источники из authenticated read. Полный context() стоил бы лишнего
+        // тяжёлого чтения на каждом клике ревью.
+        const scope = await this.scopeOnly(command.projectId);
+        const read = await this.read.getProjectWorkspaceRead({
+          projectId: command.projectId,
+          packageId: scope.accessScope === "package" ? scope.packageId ?? null : null,
+        });
+        if (read.error) {
+          throw new ProjectIntelligenceAdapterError(read.error.code, null);
+        }
+        const target = read.data.sources.find((source) => (
+          source.reviewTargetRevisionId === command.payload.targetRevisionId
+        ));
+        if (!target) return failure(requestId, "error", "not_found");
+        if (target.reviewStatus !== "pending") {
+          return failure(requestId, "error", "scope_conflict");
+        }
+        return completed(requestId, await this.db2.reviewClaim({
+          projectId: command.projectId,
+          targetRevisionId: command.payload.targetRevisionId,
+          expectedRevisionId: command.payload.expectedRevisionId,
+          decision: command.payload.decision,
+          expectedStateRevision: read.stateRevision,
+          idempotencyKey,
+        }));
+      }
+      const { scope, delivery } = await this.context(command.projectId);
       if (command.kind === "submit_m2_client_review") {
         return completed(requestId, await this.product.submitM2ClientReview({
           projectId: command.projectId,

@@ -1,0 +1,22 @@
+Area,Feature,Readiness,Evidence level,Evidence,Gap,Sprint 1 action,Priority
+M1,Public brief/intake,PARTIAL,CODE_REPORTED,CLAUDE.md/history,Not runtime proven,Phase 0 + regression,P0
+M1,Passport builder,PARTIAL,CODE_REPORTED,buildPassport stated,No provenance graph,Adapter + project_facts,P0
+M1,Risk engine/review,PARTIAL,CODE_REPORTED,rules+LLM stated,No action/approval contract,Register + gate,P0
+M1,Pricing,PARTIAL,CODE_REPORTED,deterministic stated,No standard version/cost model,Resolver + tests,P0
+M1,Proposal issue,PARTIAL,CODE_REPORTED,versions/token stated,Shared release gate not proven,Approval gate + regression,P0
+Platform,Project facts/provenance,NOT_STARTED,DOC_TARGET,Charter/Architecture,No normalized ledger,Implement,P0
+Platform,Project Graph v1,NOT_STARTED,DOC_TARGET,Entity Catalog,Relations not proven,Relational FKs/contracts,P0
+Platform,Workflow Engine,NOT_STARTED,DOC_TARGET,Workflow Catalog,No persisted state,Implement M1 only,P0
+Platform,Action/Skill Registry,NOT_STARTED,DOC_TARGET,Architecture,Implicit functions,Implement M1 registry,P0
+Platform,Approval Requests,NOT_STARTED,DOC_TARGET,Charter,No reusable gate,Implement + self_approved,P0
+Platform,AI cost instrumentation,NOT_STARTED,DOC_TARGET,Charter/A1,Historical cost unrecoverable,Implement ai_calls,P0
+Platform,Audit/Event contract,PARTIAL,CODE_REPORTED,events stated,No catalog/workflow links,Extend compatibly,P0
+Studio,Studio Memory v0,EARLY_FRAGMENT,CODE_REPORTED,pricing/defaults stated,No versioned standard,Resolver + version refs,P0
+Studio,Design System,PLANNED,DOC_TARGET,Architecture,Not Sprint 1,Backlog,P2
+Integrations,P0 imports,UNKNOWN,DOC_TARGET,Charter ceiling,Repo proof missing,No implementation Sprint 1,P2
+Integrations,PII-heavy connectors,BLOCKED,OWNER_GATE,152-ФЗ open,Not authorized,Do not build,P3
+M2,Design workflow,NOT_PROVEN,DOC_TARGET,Charter/catalog,No code proof,Build per A4,P1
+M3,Documentation workflow,NOT_PROVEN,DOC_TARGET,Charter/catalog,No code proof,Build per A5,P2
+M4,Execution workflow,TARGET_ONLY,DOC_TARGET,Charter/catalog,No implementation,Do not build,P3
+Repository,Reality reconciliation,BLOCKED,UNKNOWN,Branch/commit conflict,No full checkout proof,Mandatory Phase 0,P0
+Public,Truth/claims,BLOCKED,PRODUCTION_REPORTED,Prior SEO audit,Claims may exceed reality,Separate P0 cleanup,P0

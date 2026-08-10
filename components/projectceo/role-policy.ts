@@ -75,6 +75,9 @@ const TAB_CAPABILITY: Readonly<Record<ProjectCeoTab, ProjectCeoCapability>> = {
   overview: "view_project",
   sources: "review_source",
   decisions: "view_project",
+  // Пакет документации готовит студийная сторона — то же право, что открывает
+  // публикацию входа M3 и регистрацию листа на сервере.
+  documentation: "prepare_client_handoff",
   baseline: "view_project",
   releases: "view_project",
   changes: "create_change",
@@ -105,7 +108,10 @@ export function can(
 
 export function visibleTabsForRole(role: ProjectCeoRole): readonly ProjectCeoTab[] {
   if (role === "guest") return ["overview", "releases"];
-  if (role === "builder" || role === "client") return PARTICIPANT_TABS;
+  if (role === "client") return PARTICIPANT_TABS;
+  // Строителю сервер разрешает register_source; без вкладки источников это
+  // право было бы мёртвым аффордансом — команда есть, поверхности нет.
+  if (role === "builder") return ["overview", "sources", ...PARTICIPANT_TABS.slice(1)];
   return (Object.keys(TAB_CAPABILITY) as ProjectCeoTab[]).filter((tab) => (
     can(role, TAB_CAPABILITY[tab])
   ));

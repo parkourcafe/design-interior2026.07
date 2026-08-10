@@ -47,6 +47,8 @@ const fixtureOperations: ProjectCeoOperationStates = {
   revoke_guest_grant: { status: "unavailable", reason: "fixture_read_only" },
   register_source: { status: "unavailable", reason: "fixture_read_only" },
   review_source: { status: "unavailable", reason: "fixture_read_only" },
+  register_documentation_sheet: { status: "unavailable", reason: "fixture_read_only" },
+  attach_documentation_sheet_specifications: { status: "unavailable", reason: "fixture_read_only" },
   review_selection: { status: "unavailable", reason: "fixture_read_only" },
   create_decision: { status: "unavailable", reason: "fixture_read_only" },
   create_selection: { status: "unavailable", reason: "fixture_read_only" },
@@ -297,6 +299,9 @@ function sourceAt(index: number): SourceRegistryItem {
   return {
     id: `source-record-${String(index + 1).padStart(3, "0")}`,
     sourceRevisionId: materialized
+      ? `source-revision-${String(index + 1).padStart(3, "0")}`
+      : null,
+    reviewTargetRevisionId: materialized
       ? `source-revision-${String(index + 1).padStart(3, "0")}`
       : null,
     displayCode: `SRC-${String(index + 1).padStart(3, "0")}`,
@@ -665,6 +670,9 @@ function roleScopedWorkspace(role: ProjectCeoRole): ProjectWorkspaceView {
           archiveHash: null,
         },
     history: isCore ? history : [],
+    // The deterministic Kora fixture stops at M2: it carries no documentation
+    // package, so the section is absent rather than present-and-empty.
+    documentation: null,
     controlledAnalytics: isCore ? analytics : [],
     operations: fixtureOperations,
   };

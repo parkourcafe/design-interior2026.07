@@ -1,6 +1,7 @@
 export * from "./contracts";
 export * from "./authenticated-read";
 export * from "./db2";
+export * from "./documentation";
 export * from "./errors";
 export * from "./execution";
 export * from "./foundation";

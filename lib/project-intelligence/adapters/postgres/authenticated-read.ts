@@ -203,6 +203,58 @@ export interface AuthenticatedReadM2M3Handoff {
   readonly budget: AuthenticatedReadM2ApprovedCommitPayload["budget"]; readonly createdAt: string;
 }
 
+/**
+ * Лист пакета документации M3 в проекции v7: последняя ревизия листа и её
+ * происхождение. Поле необязательно — проекции более ранних контрактов его не
+ * несут, и код обязан переживать это, а не падать.
+ */
+export interface AuthenticatedReadDocumentationSheet {
+  readonly sheetId: string;
+  readonly packageId: string;
+  readonly roomId: string;
+  readonly sheetNumber: string;
+  readonly title: string;
+  readonly revisionId: string;
+  readonly revisionNo: number;
+  readonly specificationRevisionIds: readonly string[];
+  readonly reason: string;
+  readonly createdByUserId: string;
+  readonly origin: {
+    readonly handoffId: string;
+    readonly handoffRevisionId: string;
+    readonly handoffContractVersion: string;
+    readonly approvedM2CommitRevisionId: string;
+    readonly designIntentRevisionId: string;
+    readonly layoutDocumentId: string;
+    readonly layoutVersionId: string;
+    readonly layoutRevisionId: string;
+    readonly semanticHash: string;
+  };
+  readonly createdAt: string;
+}
+
+/**
+ * Вход модуля документации в его собственной форме — то же утверждённое
+ * решение M2, что несёт m2M3Handoffs, но с комнатой и design intent, без
+ * которых проверку комплектности не на чем запускать.
+ */
+export interface AuthenticatedReadDocumentationHandoff {
+  readonly handoffId: string;
+  readonly revisionId: string;
+  readonly contractVersion: string;
+  readonly packageId: string;
+  readonly roomId: string;
+  readonly approvedM2CommitRevisionId: string;
+  readonly designIntentRevisionId: string;
+  readonly layout: {
+    readonly documentId: string;
+    readonly versionId: string;
+    readonly revisionId: string;
+    readonly semanticHash: string;
+  };
+  readonly selectionRevisionIds: readonly string[];
+}
+
 export interface AuthenticatedProjectReadProjection {
   readonly approvalPackages: readonly Readonly<Record<string, unknown>>[];
   readonly m2Rooms?: readonly Readonly<Record<string, unknown>>[];
@@ -215,6 +267,8 @@ export interface AuthenticatedProjectReadProjection {
   readonly m2ClientReviewSubmissions: readonly AuthenticatedReadM2ClientReviewSubmission[];
   readonly m2ClientReviews: readonly Readonly<Record<string, unknown>>[];
   readonly m2M3Handoffs: readonly AuthenticatedReadM2M3Handoff[];
+  readonly m3DocumentationSheets?: readonly AuthenticatedReadDocumentationSheet[];
+  readonly m3DocumentationHandoffs?: readonly AuthenticatedReadDocumentationHandoff[];
   readonly decisions: readonly AuthenticatedReadDecision[];
   readonly distributionSummary: readonly AuthenticatedReadDistributionSummary[];
   readonly executionPackages: readonly ExecutionDeliveryEnvelope[];
@@ -557,6 +611,72 @@ function isM2ClientReview(value: unknown): boolean {
     && isTimestamp(value.createdAt);
 }
 
+function isDocumentationSheetOrigin(value: unknown): boolean {
+  return isRecord(value)
+    && hasExactKeys(value, [
+      "handoffId", "handoffRevisionId", "handoffContractVersion",
+      "approvedM2CommitRevisionId", "designIntentRevisionId",
+      "layoutDocumentId", "layoutVersionId", "layoutRevisionId", "semanticHash",
+    ])
+    && isIdentifier(value.handoffId)
+    && isIdentifier(value.handoffRevisionId)
+    && isIdentifier(value.handoffContractVersion)
+    && isIdentifier(value.approvedM2CommitRevisionId)
+    && isIdentifier(value.designIntentRevisionId)
+    && isIdentifier(value.layoutDocumentId)
+    && isIdentifier(value.layoutVersionId)
+    && isIdentifier(value.layoutRevisionId)
+    && typeof value.semanticHash === "string"
+    && /^sha256:[0-9a-f]{64}$/.test(value.semanticHash);
+}
+
+function isDocumentationSheet(value: unknown): value is AuthenticatedReadDocumentationSheet {
+  return isRecord(value)
+    && hasExactKeys(value, [
+      "sheetId", "packageId", "roomId", "sheetNumber", "title",
+      "revisionId", "revisionNo", "specificationRevisionIds",
+      "reason", "createdByUserId", "origin", "createdAt",
+    ])
+    && isIdentifier(value.sheetId)
+    && isUuid(value.packageId)
+    && isIdentifier(value.roomId)
+    && isIdentifier(value.sheetNumber)
+    && typeof value.title === "string" && value.title.length > 0
+    && isIdentifier(value.revisionId)
+    && isRevisionNumber(value.revisionNo)
+    && Array.isArray(value.specificationRevisionIds)
+    && value.specificationRevisionIds.every(isIdentifier)
+    && typeof value.reason === "string"
+    && isUuid(value.createdByUserId)
+    && isDocumentationSheetOrigin(value.origin)
+    && isTimestamp(value.createdAt);
+}
+
+function isDocumentationHandoff(value: unknown): value is AuthenticatedReadDocumentationHandoff {
+  return isRecord(value)
+    && hasExactKeys(value, [
+      "handoffId", "revisionId", "contractVersion", "packageId", "roomId",
+      "approvedM2CommitRevisionId", "designIntentRevisionId", "layout",
+      "selectionRevisionIds",
+    ])
+    && isIdentifier(value.handoffId)
+    && isIdentifier(value.revisionId)
+    && isIdentifier(value.contractVersion)
+    && isUuid(value.packageId)
+    && isIdentifier(value.roomId)
+    && isIdentifier(value.approvedM2CommitRevisionId)
+    && isIdentifier(value.designIntentRevisionId)
+    && isRecord(value.layout)
+    && hasExactKeys(value.layout, ["documentId", "versionId", "revisionId", "semanticHash"])
+    && isIdentifier(value.layout.documentId)
+    && isIdentifier(value.layout.versionId)
+    && isIdentifier(value.layout.revisionId)
+    && typeof value.layout.semanticHash === "string"
+    && /^sha256:[0-9a-f]{64}$/.test(value.layout.semanticHash)
+    && Array.isArray(value.selectionRevisionIds)
+    && value.selectionRevisionIds.every(isIdentifier);
+}
+
 function isM2M3Handoff(value: unknown): value is AuthenticatedReadM2M3Handoff {
   return isRecord(value)
     && hasExactKeys(value, [
@@ -656,6 +776,15 @@ function parseAuthenticatedProjectRead(value: unknown): AuthenticatedProjectRead
     && data.m2ClientReviews.every(isM2ClientReview);
   const validM2M3Handoffs = Array.isArray(data.m2M3Handoffs)
     && data.m2M3Handoffs.every(isM2M3Handoff);
+  // Ключи v7 необязательны (их нет у ролей без поверхности и в старых
+  // проекциях), но присутствуя — разбираются так же строго, как остальные:
+  // сломанная строка падает на границе адаптера, а не в глубине рендера.
+  const validM3DocumentationSheets = data.m3DocumentationSheets === undefined
+    || (Array.isArray(data.m3DocumentationSheets)
+      && data.m3DocumentationSheets.every(isDocumentationSheet));
+  const validM3DocumentationHandoffs = data.m3DocumentationHandoffs === undefined
+    || (Array.isArray(data.m3DocumentationHandoffs)
+      && data.m3DocumentationHandoffs.every(isDocumentationHandoff));
   const validScope = isUuid(scope.actorUserId)
     && isUuid(scope.organizationId)
     && isUuid(scope.projectId)
@@ -670,6 +799,8 @@ function parseAuthenticatedProjectRead(value: unknown): AuthenticatedProjectRead
     || !validM2ClientReviewSubmissions
     || !validM2ClientReviews
     || !validM2M3Handoffs
+    || !validM3DocumentationSheets
+    || !validM3DocumentationHandoffs
     || !validScope
     || !isRecord(data.extensionStatus)
     || projectMetadata === null
@@ -704,7 +835,7 @@ export class ProjectCeoAuthenticatedReadPostgresAdapter {
       await callRpc(
         this.client,
         "projectceo_read_api",
-        "get_project_workspace_read_v6",
+        "get_project_workspace_read_v7",
         {
           project_id: input.projectId,
           package_id: input.packageId,

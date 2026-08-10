@@ -117,9 +117,21 @@ Decisions/Selections/Approvals реализованы (PR #66), редактор
 Это НЕ снимает требование провести через те же contracts минимум один внешний
 реальный пакет до заморозки широкого M2–M4: цикл 7 остаётся открытым.
 
-Расширенный платный M4 из Charter остаётся целевым состоянием. Его широкий build
-не начинается раньше authenticated pilot и выбора первого платящего wedge. До
-этого разрешены только узкие совместимые contracts и concierge fallback.
+**M3 Documentation Workspace открыт подписанным Addendum A5 от 09.08.2026**
+(`docs/canonical/remhaos-v1/REMHAOS_ADDENDUM_A5_M3_OPENING.md`, DEC-024).
+Объём — только P0 по `MASTER_EXECUTION_PLAN` §M3: intake PDF/JPG/PNG/CSV/XLSX,
+связи room/sheet/specification, ревизии, completeness/conflict review, baseline
+и immutable Released Production Package. Native CAD/BIM authoring в M3 не
+строится; генерация листов из подписанной версии планировки — пост-P0 и требует
+отдельного решения. Вход в модуль — **только** persisted exact handoff
+(`publish_m2_m3_handoff` / `createM2ToM3Handoff`), обходов не строится. Как и в
+случае M2, это НЕ снимает требование внешнего реального пакета: цикл 7 остаётся
+открытым, `npm run test:cycle7` красный намеренно.
+
+Расширенный платный M4 из Charter остаётся целевым состоянием, и **A5 его не
+открывает**. Его широкий build не начинается раньше authenticated pilot и
+выбора первого платящего wedge. До этого разрешены только узкие совместимые
+contracts и concierge fallback.
 
 ## Definition of Done
 

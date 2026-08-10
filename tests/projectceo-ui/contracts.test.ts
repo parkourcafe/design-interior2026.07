@@ -25,10 +25,13 @@ describe("ProjectCEO UI contract", () => {
   });
 
   it("exposes the frozen ProjectCEO navigation", () => {
+    // "documentation" появилась вместе с открытием модуля 3 по A5; список
+    // остаётся замком — расширять его можно только вместе с этой строкой.
     expect(PROJECTCEO_TABS).toEqual([
       "overview",
       "sources",
       "decisions",
+      "documentation",
       "baseline",
       "releases",
       "changes",

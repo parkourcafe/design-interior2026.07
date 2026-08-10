@@ -31,8 +31,13 @@ describe("ProjectCEO role-scoped UI policy", () => {
   });
 
   it("shows participant views without owner-only administration", () => {
+    // Строителю сервер разрешает register_source (капабилити и в UI-политике,
+    // и в серверной карте): без вкладки источников это право было бы мёртвым
+    // аффордансом. Ревью-контролы внутри вкладки строителю недоступны — у него
+    // нет review_claim, и кнопки честно объясняют почему.
     expect(visibleTabsForRole("builder")).toEqual([
       "overview",
+      "sources",
       "decisions",
       "baseline",
       "releases",
