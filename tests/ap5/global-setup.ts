@@ -187,7 +187,25 @@ async function acceptInvitation(role: Ap5RoleKey, invitationUrl: string): Promis
     });
     const page = await context.newPage();
     await page.goto(invitationUrl);
-    await page.locator("main button[type=button]").first().click();
+
+    // Ответ сервера перехватывается до проверки вёрстки. Иначе отказ приёма
+    // выглядит как таймаут ожидания ссылки и не говорит ничего: страница при
+    // ошибке просто остаётся с кнопкой.
+    const [response] = await Promise.all([
+      page.waitForResponse(
+        (candidate) => candidate.url().includes("/api/projectceo/invitations/accept"),
+        { timeout: 30_000 },
+      ),
+      page.locator("main button.btn-primary").first().click(),
+    ]);
+    const body = await response.json();
+    if (body?.status !== "completed") {
+      throw new Error(
+        `AP5: приём приглашения ${role} отказал: `
+        + `${response.status()} ${JSON.stringify(body)}`,
+      );
+    }
+
     // Страница не уходит на другой маршрут: при успехе она подменяет кнопку
     // блоком со ссылкой в рабочее пространство. Ждём именно ссылку — по href,
     // чтобы селектор не зависел от текста.
