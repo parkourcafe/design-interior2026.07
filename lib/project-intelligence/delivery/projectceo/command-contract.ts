@@ -104,7 +104,7 @@ function prevalidateM2Layout(value: unknown): value is Record<string, unknown> {
 // Small browser-safe synchronous SHA-256. The command contract is imported by
 // client components too, so node:crypto would turn this shared boundary into a
 // server-only module.
-function sha256Hex(text: string): string {
+export function sha256Hex(text: string): string {
   const rightRotate = (value: number, amount: number): number =>
     (value >>> amount) | (value << (32 - amount));
   const bytes = Array.from(new TextEncoder().encode(text));

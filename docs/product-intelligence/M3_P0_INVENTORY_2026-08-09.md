@@ -69,3 +69,41 @@
 
 Цикл 7 остаётся открытым и красным: `npm run test:cycle7` не запускался, не
 чинился и зелёным не объявляется.
+
+## Поправка 10.08.2026: baseline/release всё-таки проверены на живой базе
+
+Утверждение раздела выше — «поведение baseline/release на живой базе не
+проверяется» — **неверно**, и это ошибка самой инвентаризации, а не пробел в
+доказательствах. Поиск шёл по именам файлов (`tests/db4/*baseline*`,
+`tests/project-intelligence/modules/package/`), их действительно нет — но
+контракты прогоняются внутри общего сценария продуктового мозга
+`tests/db4/20_product_operations.sql`, где искать по имени было нечего.
+
+Что там проверяется на самом деле (файл, строка, утверждение):
+
+| Контракт | Строка | Что доказывается |
+|---|---|---|
+| `publish_project_baseline` | 511 | baseline до одобрения не публикуется — `DB4_UNAPPROVED_BASELINE_PUBLISHED` |
+| `publish_project_baseline` | 567 | публикация проходит и попадает в леджер |
+| ссылки baseline | — | `DB4_BASELINE_REF_COUNT`, `DB4_WORK_PACKAGE_OUTSIDE_BASELINE` |
+| `publish_production_package_version` | 618, 690, 707 | корневой и рабочий пакеты, отказ вне baseline |
+| `build_release_artifact` | 754, 769, 795 | семантическая дедупликация: вторая сборка того же кортежа возвращает `existing_artifact`, второй строки не создаётся |
+| `distribute_release` / `acknowledge_release` | 812, 860, 881, 899 | `DB4_WRONG_ACK_HASH_ALLOWED`, `DB4_WRONG_ACK_RECIPIENT_ALLOWED` |
+| неизменяемость | 1058–1072 | реальные `update` baseline и `delete` release-артефакта отбиваются: `DB4_BASELINE_MUTABLE`, `DB4_RELEASE_MUTABLE` |
+
+Плюс на том же материале: rollback/replay после перезапуска базы
+(`30_restart_replay.sql`), межарендная изоляция, идемпотентность и конфликт
+дайджеста запроса.
+
+Сценарий не «лежит в репозитории» — он бежит в CI при каждом push, в job
+`database` на `postgres:16-alpine` **и** `postgres:17-alpine`
+(`.github/workflows/ci.yml`). То есть пункты 5 и 6 плана (baseline и immutable
+Released Production Package) подтверждены прогоном на обеих версиях СУБД, а не
+взяты из брифинга.
+
+Что по-прежнему НЕ покрыто и остаётся честной дырой: юнит-тестов доменного
+слоя `lib/project-intelligence/modules/package/` нет — контракты baseline и
+release проверяются только на границе БД. Отдельного сценария на сам пакет
+документации в связке с baseline тоже нет: M3-листы в baseline пока не входят,
+и до решения о том, входят ли они туда вообще, писать такой сценарий было бы
+кодированием невыясненного.

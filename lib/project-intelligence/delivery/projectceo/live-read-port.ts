@@ -228,6 +228,7 @@ function sourceViews(value: unknown): readonly SourceRegistryItem[] {
     return [{
       id,
       sourceRevisionId: nullableText(item.sourceRevisionId),
+      reviewTargetRevisionId: nullableText(item.reviewTargetRevisionId),
       displayCode: `SRC-${String(index + 1).padStart(3, "0")}`,
       packageId,
       floor: text(item.floorKey, copy.common.liveArea),

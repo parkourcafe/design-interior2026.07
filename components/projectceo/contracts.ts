@@ -39,6 +39,7 @@ export const PROJECTCEO_TABS = [
   "overview",
   "sources",
   "decisions",
+  "documentation",
   "baseline",
   "releases",
   "changes",
@@ -175,6 +176,12 @@ export interface ProjectPackageView {
 export interface SourceRegistryItem {
   readonly id: string;
   readonly sourceRevisionId: string | null;
+  /**
+   * Ревизия, по которой человек выносит решение. Отдельно от
+   * `sourceRevisionId`, потому что решение адресуется именно ревизии, и
+   * кнопка ревью не должна догадываться, какое из полей брать.
+   */
+  readonly reviewTargetRevisionId: string | null;
   readonly displayCode: string;
   readonly packageId: string;
   readonly floor: string;

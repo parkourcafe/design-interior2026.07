@@ -299,6 +299,9 @@ function sourceAt(index: number): SourceRegistryItem {
     sourceRevisionId: materialized
       ? `source-revision-${String(index + 1).padStart(3, "0")}`
       : null,
+    reviewTargetRevisionId: materialized
+      ? `source-revision-${String(index + 1).padStart(3, "0")}`
+      : null,
     displayCode: `SRC-${String(index + 1).padStart(3, "0")}`,
     packageId: index % 4 === 0 ? "kora-engineering-release" : KORA_ARCHITECTURE_PACKAGE_ID,
     floor: fixtureRu.source.floors[index % fixtureRu.source.floors.length]!,

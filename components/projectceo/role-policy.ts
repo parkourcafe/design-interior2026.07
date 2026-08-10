@@ -75,6 +75,9 @@ const TAB_CAPABILITY: Readonly<Record<ProjectCeoTab, ProjectCeoCapability>> = {
   overview: "view_project",
   sources: "review_source",
   decisions: "view_project",
+  // Пакет документации готовит студийная сторона — то же право, что открывает
+  // публикацию входа M3 и регистрацию листа на сервере.
+  documentation: "prepare_client_handoff",
   baseline: "view_project",
   releases: "view_project",
   changes: "create_change",
