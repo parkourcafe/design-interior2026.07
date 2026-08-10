@@ -60,17 +60,24 @@ jobs:
   # /projectceo-qa/[role] его не заменяет (AP1_RUNBOOK §5).
   #
   # Не в каждом push: поднимает весь Supabase, идёт ~15 минут. Запускается
-  # вручную (workflow_dispatch) или по метке `ap5` на PR. Пока цепочка Kora
-  # закрыта не полностью (см. AP5_RUNBOOK.md), гейт информационный — его
-  # состояние видно, но прогон он не роняет.
+  # вручную (workflow_dispatch) или по метке `ap5` на PR.
+  #
+  # Гейт блокирующий. Первым прогоном он нашёл реальный дефект (ревью источника
+  # отвечало 500 из-за границы схем), дефект закрыт миграцией
+  # `20260810050000` — держать его информационным дальше значит согласиться,
+  # что следующую такую находку никто не заметит.
+  #
+  # Звенья цепочки, требующие воркерного расчёта, помечены `test.fixme` с
+  # причиной (AP5_RUNBOOK.md, «Чего он не доказывает»): они видны в отчёте как
+  # пропуски и прогон не роняют. Красным job становится только тогда, когда
+  # ломается путь, который сегодня работает.
   ap5:
-    name: AP5 authenticated browser matrix (informational)
+    name: AP5 authenticated browser matrix
     if: >-
       github.event_name == 'workflow_dispatch'
       || contains(github.event.pull_request.labels.*.name, 'ap5')
     runs-on: ubuntu-latest
     timeout-minutes: 45
-    continue-on-error: true
     env:
       # Порт из additional_redirect_urls в supabase/config.toml — Auth не примет
       # возврат на адрес, которого там нет.
