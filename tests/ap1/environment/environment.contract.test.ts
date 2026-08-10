@@ -56,9 +56,15 @@ describe("AP1 disposable Supabase environment contract", () => {
     expect(api).toContain('"projectceo_api"');
     expect(api).toContain('"projectceo_read_api"');
     expect(api).toContain('"projectceo_product_api"');
+    // M3 отдан Data API намеренно: листы документации вызываются приложением
+    // через PostgREST. Приватная projectceo_m3 при этом закрыта — проверка
+    // ниже в том же регулярном отрицании.
+    expect(api).toContain('"projectceo_m3_api"');
     expect(api).toContain('"projectceo_m4_api"');
     expect(api).toContain("auto_expose_new_tables = false");
-    expect(api).not.toMatch(/project_intelligence|projectceo_foundation|projectceo_product"|projectceo_m4"/);
+    expect(api).not.toMatch(
+      /project_intelligence|projectceo_foundation|projectceo_product"|projectceo_m3"|projectceo_m4"/,
+    );
   });
 
   it("enables Auth and Storage without anonymous sign-in or optional mail UI", () => {

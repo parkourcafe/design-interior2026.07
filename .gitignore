@@ -41,6 +41,12 @@ next-env.d.ts
 /supabase/.branches/
 /supabase/.temp/
 
+# AP5 browser matrix: сессии ролей и отчёты прогона — одноразовое состояние
+# одного стенда. Файлы сессий содержат живые access token, коммитить их нельзя.
+/tests/ap5/.state/
+/playwright-report/
+/test-results/
+
 # Android TWA local state, artifacts, and signing material
 /android-twa/.gradle/
 /android-twa/.idea/

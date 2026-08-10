@@ -15,6 +15,10 @@ schemas = [
   "projectceo_api",
   "projectceo_read_api",
   "projectceo_product_api",
+  # Листы документации M3 вызываются через PostgREST
+  # (adapters/postgres/documentation.ts). Без этой строки RPC существуют в базе,
+  # но недостижимы приложением — миграции при этом отчитываются об успехе.
+  "projectceo_m3_api",
   "projectceo_m4_api",
 ]
 extra_search_path = ["public", "extensions"]

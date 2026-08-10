@@ -137,6 +137,10 @@ begin
       'projectceo_product',
       'projectceo_product_api',
       'projectceo_read_api',
+      -- M3 появился после первой редакции этой проверки. Без этих двух строк
+      -- листы документации оставались вне охвата: их RPC живут здесь.
+      'projectceo_m3',
+      'projectceo_m3_api',
       'projectceo_m4',
       'projectceo_m4_api'
     )
