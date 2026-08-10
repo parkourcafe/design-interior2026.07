@@ -485,11 +485,15 @@ function SourceIntakeForm({
   );
 
   if (operation.status !== "available") {
+    // The stated reason must be the real one: "your role cannot" shown to an
+    // owner in the read-only fixture would be a lie about the role.
     return (
       <p className="mt-3 text-xs text-muted">
         {operation.reason === "module_disabled"
           ? projectCeoRu.workspace.sources.moduleDisabled
-          : projectCeoRu.workspace.sources.noRegisterCapability}
+          : operation.reason === "capability_missing"
+            ? projectCeoRu.workspace.sources.noRegisterCapability
+            : projectCeoRu.common.commandUnavailable}
       </p>
     );
   }
