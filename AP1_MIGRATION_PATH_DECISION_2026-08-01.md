@@ -1,6 +1,21 @@
 # AP1 Migration Path Decision — 2026-08-01
 
-Status: PROPOSED — separate decision record; no production change performed
+Status: **DIRECTION ACCEPTED** by the owner on 2026-08-10 ("Всё, все документы
+подписываем", direct confirmation in a working session).
+
+What was accepted is the **path**: historical incremental adoption, never the
+clean-bootstrap baseline against production. What was **not** accepted, and
+cannot be by this record alone, is any production change.
+
+The acceptance gate below is unchanged and still unmet: it requires a separate
+reconciliation PR carrying the snapshot, fingerprint comparison, baseline
+adoption SQL, ordered replay log, post-migration verification and rollback
+evidence. Until that PR exists and is reviewed:
+
+    PLATFORM_FOUNDATION = BLOCKED
+
+and production remains untouched. Accepting the direction shortens no step of
+that gate — it only settles which direction the gate is a gate to.
 
 ## Decision
 

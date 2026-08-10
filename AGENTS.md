@@ -128,10 +128,28 @@ Decisions/Selections/Approvals реализованы (PR #66), редактор
 случае M2, это НЕ снимает требование внешнего реального пакета: цикл 7 остаётся
 открытым, `npm run test:cycle7` красный намеренно.
 
-Расширенный платный M4 из Charter остаётся целевым состоянием, и **A5 его не
-открывает**. Его широкий build не начинается раньше authenticated pilot и
-выбора первого платящего wedge. До этого разрешены только узкие совместимые
-contracts и concierge fallback.
+**M4 Execution Workspace открыт подписанным Addendum A6 от 10.08.2026**
+(`docs/canonical/remhaos-v1/REMHAOS_ADDENDUM_A6_M4_OPENING.md`, DEC-025) —
+**только в объёме инкремента 1**: `distribute_release`, `acknowledge_release`,
+`create_change`. Остальные пять команд модуля — `review_change_impact`,
+`upload_photo_evidence`, `review_photo_evidence`, `accept_milestone`,
+`build_handover` — **закрыты**: их вход рождается в воркерном контуре, которого
+нет, и его построение требует отдельного решения. Вход в модуль — **только**
+подтверждённая выдача Released Production Package, обходов не строится.
+
+Порядок жёсткий: код начинается после гейта 1 (`publish_baseline →
+publish_release` пройдены через браузер отдельными ролевыми сессиями), а
+инкремент доказывается гейтом 2, где `acknowledge_release` подтверждает
+**получатель своей сессией**, а не отправитель. Флаг модуля
+`REMHAOS_EXECUTION_ENABLED` выключен по умолчанию и заведён отдельным
+guardrail-решением (`REMHAOS_GUARDRAIL_DECISION_M4_FLAG.md`), а не аддендумом:
+запрет не должен зависеть от разрешения. Включение флага в рабочем окружении —
+отдельное решение и не раньше снятия `PLATFORM_FOUNDATION = BLOCKED`.
+
+Расширенный платный M4 из Charter (WBS, schedule, split estimate, procurement,
+Change Order) остаётся целевым состоянием и **A6 его не открывает**: не раньше
+wedge validation. ERP, склад и бухгалтерия не входят. Как и в случае M2 и M3,
+это НЕ снимает требование внешнего реального пакета: цикл 7 остаётся открытым.
 
 ## Definition of Done
 
