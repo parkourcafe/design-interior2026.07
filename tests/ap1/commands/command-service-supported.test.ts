@@ -187,6 +187,27 @@ function fakeClient(calls: Call[], readOverrides: Readonly<Record<string, unknow
       status: "published",
       semanticHash,
     },
+    "projectceo_api.register_source_inventory": { registeredPhysicalRecords: 1 },
+    "projectceo_m3_api.register_documentation_sheet": {
+      sheetId: "m3-sheet-a101",
+      revisionId: "sheet-r1",
+      revisionNo: 1,
+      packageId,
+      roomId: "living-room",
+      specificationRevisionIds: [],
+    },
+    "projectceo_m3_api.attach_documentation_sheet_specifications": {
+      sheetId: "m3-sheet-a101",
+      revisionId: "sheet-r2",
+      revisionNo: 2,
+      packageId,
+      specificationRevisionIds: ["selection-a@1"],
+    },
+    "project_intelligence_api.review_claim": {
+      reviewId: "review:source-r1",
+      targetRevisionId: "source-r1",
+      decision: "confirmed",
+    },
   };
   const replayTargetByName: Readonly<Record<string, string>> = {
     "projectceo_m4_api.replay_submit_change_request": "projectceo_m4_api.submit_change_request",
@@ -241,7 +262,7 @@ function fakeClient(calls: Call[], readOverrides: Readonly<Record<string, unknow
             packageMemberships: [],
           }), error: null };
         }
-        if (name === "projectceo_read_api.get_project_workspace_read_v6") {
+        if (name === "projectceo_read_api.get_project_workspace_read_v7") {
           return { data: authenticatedRead(readOverrides), error: null };
         }
         if (name === "projectceo_m4_api.get_execution_delivery") {
@@ -269,11 +290,16 @@ function fakeClient(calls: Call[], readOverrides: Readonly<Record<string, unknow
   };
 }
 
-function service(calls: Call[], readOverrides: Readonly<Record<string, unknown>> = {}) {
+function service(
+  calls: Call[],
+  readOverrides: Readonly<Record<string, unknown>> = {},
+  documentationEnabled = "true",
+) {
   return new ProjectCeoCommandService({
     client: fakeClient(calls, readOverrides),
     tokenSecret: "secret-".repeat(6),
     now: () => new Date("2026-07-18T00:00:00.000Z"),
+    documentationEnabled,
   });
 }
 
@@ -634,8 +660,6 @@ describe("AP1 supported human commands", () => {
   });
 
   it.each([
-    "register_source",
-    "review_source",
     "publish_release",
     "build_handover",
   ] as const)("keeps unsupported %s fail-closed without reads or writes", async (kind) => {
@@ -643,5 +667,221 @@ describe("AP1 supported human commands", () => {
     const result = await service(calls).execute(command(kind, {}), `unavailable-${kind}`);
     expect(result).toMatchObject({ status: "unavailable", error: { code: "operation_unavailable" } });
     expect(calls).toEqual([]);
+  });
+
+  // Пока модуль 3 выключен, intake не существует для пользователя: отказ
+  // приходит до единого чтения или записи (A5 §4.2.2).
+  it.each([
+    "register_source",
+    "review_source",
+    "register_documentation_sheet",
+    "attach_documentation_sheet_specifications",
+  ] as const)(
+    "keeps %s closed while the documentation module is disabled",
+    async (kind) => {
+      const calls: Call[] = [];
+      const payload = kind === "register_documentation_sheet"
+        ? {
+            packageId,
+            handoffId: "cycle6-handoff",
+            handoffRevisionId: "handoff-r1",
+            sheetId: "m3-sheet-a101",
+            sheetNumber: "A-101",
+            title: "План расстановки",
+            revisionId: "sheet-r1",
+            specificationRevisionIds: [],
+            reason: "Регистрация листа",
+          }
+        : kind === "attach_documentation_sheet_specifications"
+          ? {
+              packageId,
+              sheetId: "m3-sheet-a101",
+              revisionId: "sheet-r2",
+              expectedRevisionId: "sheet-r1",
+              specificationRevisionIds: ["selection-a@1"],
+              reason: "Привязка выбора",
+            }
+        : kind === "register_source"
+        ? {
+            packageId,
+            physicalRecordId: "cccccccc-cccc-4ccc-8ccc-cccccccccccc",
+            sanitizedName: "AR-01_plan.pdf",
+            floorId: "floor-1",
+            zoneId: "zone-1",
+            disciplineId: "AR",
+            availability: "placeholder" as const,
+            documentStatus: "current" as const,
+            sizeBytes: null,
+            checksum: null,
+            sourceRevisionId: null,
+            semanticConflict: false,
+          }
+        : {
+            targetRevisionId: "source-r1",
+            expectedRevisionId: "source-r1",
+            decision: "confirmed" as const,
+          };
+      const result = await service(calls, {}, "false")
+        .execute(command(kind, payload), `disabled-${kind}`);
+      expect(result).toMatchObject({
+        status: "unavailable",
+        error: { code: "operation_unavailable" },
+      });
+      expect(calls).toEqual([]);
+    },
+  );
+
+  // Intake M3 P0. Одна команда — один документ; план импорта собирает сервер,
+  // браузер его не присылает и подменить не может.
+  it("registers one inventory record with a server-derived import plan", async () => {
+    const calls: Call[] = [];
+    const result = await service(calls).execute(command("register_source", {
+      packageId,
+      physicalRecordId: "cccccccc-cccc-4ccc-8ccc-cccccccccccc",
+      sanitizedName: "AR-01_plan.pdf",
+      floorId: "floor-1",
+      zoneId: "zone-1",
+      disciplineId: "AR",
+      availability: "materialized",
+      documentStatus: "current",
+      sizeBytes: 2048,
+      checksum: "b".repeat(64),
+      sourceRevisionId: "source-r1",
+      semanticConflict: false,
+    }), "register-source");
+    expect(result).toMatchObject({ status: "completed", replay: false });
+    const call = calls.find((entry) => entry.name === "projectceo_api.register_source_inventory");
+    expect(call?.args).toMatchObject({
+      project_id: projectId,
+      expected_state_revision: 9,
+      import_plan: { projectId, packageId, origin: "projectceo_command" },
+    });
+    expect((call?.args.records as readonly Record<string, unknown>[])).toHaveLength(1);
+    expect((call?.args.records as readonly Record<string, unknown>[])[0]).toMatchObject({
+      physicalRecordId: "cccccccc-cccc-4ccc-8ccc-cccccccccccc",
+      hierarchy: { projectId, packageId, floorId: "floor-1", zoneId: "zone-1", disciplineId: "AR" },
+      availability: "materialized",
+      checksum: "b".repeat(64),
+    });
+  });
+
+  // Происхождение листа команда не несёт: сервер выведет его из handoff.
+  it("registers a documentation sheet against the published handoff", async () => {
+    const calls: Call[] = [];
+    const result = await service(calls).execute(command("register_documentation_sheet", {
+      packageId,
+      handoffId: "cycle6-handoff",
+      handoffRevisionId: "handoff-r1",
+      sheetId: "m3-sheet-a101",
+      sheetNumber: "A-101",
+      title: "План расстановки",
+      revisionId: "sheet-r1",
+      specificationRevisionIds: [],
+      reason: "Регистрация листа A-101 по согласованному решению M2",
+    }), "register-sheet");
+    expect(result).toMatchObject({ status: "completed", replay: false });
+    const call = calls.find((entry) => entry.name === "projectceo_m3_api.register_documentation_sheet");
+    expect(call?.args).toMatchObject({
+      project_id: projectId,
+      package_id: packageId,
+      handoff_id: "cycle6-handoff",
+      handoff_revision_id: "handoff-r1",
+      sheet_id: "m3-sheet-a101",
+      expected_state_revision: 9,
+    });
+    // Ни комнаты, ни подписи, ни коммита в аргументах нет — их выводит сервер.
+    expect(Object.keys(call?.args ?? {})).not.toEqual(
+      expect.arrayContaining(["room_id", "semantic_hash", "approved_m2_commit_revision_id"]),
+    );
+  });
+
+  it("attaches specifications as a new sheet revision", async () => {
+    const calls: Call[] = [];
+    const result = await service(calls).execute(command("attach_documentation_sheet_specifications", {
+      packageId,
+      sheetId: "m3-sheet-a101",
+      revisionId: "sheet-r2",
+      expectedRevisionId: "sheet-r1",
+      specificationRevisionIds: ["selection-a@1"],
+      reason: "Привязка утверждённого выбора к листу A-101",
+    }), "attach-sheet");
+    expect(result).toMatchObject({ status: "completed", replay: false });
+    expect(calls.find((entry) => entry.name === "projectceo_m3_api.attach_documentation_sheet_specifications")?.args)
+      .toMatchObject({
+        sheet_id: "m3-sheet-a101",
+        revision_id: "sheet-r2",
+        expected_revision_id: "sheet-r1",
+        specification_revision_ids: ["selection-a@1"],
+        expected_state_revision: 9,
+      });
+  });
+
+  it("reviews only a source revision this human can already see, and only once", async () => {
+    const pendingSource = {
+      availability: "materialized",
+      checksum: "b".repeat(64),
+      disciplineKey: "AR",
+      documentStatus: "current",
+      floorKey: "floor-1",
+      id: "cccccccc-cccc-4ccc-8ccc-cccccccccccc",
+      kind: "pdf",
+      logicalSourceId: "source-1",
+      mediaType: "application/pdf",
+      packageId,
+      reviewStatus: "pending",
+      reviewTargetRevisionId: "source-r1",
+      sanitizedName: "AR-01_plan.pdf",
+      semanticConflict: false,
+      sizeBytes: 2048,
+      sourceRevisionId: "source-r1",
+      sourceRole: "architecture",
+      zoneKey: "zone-1",
+    };
+    const calls: Call[] = [];
+    const result = await service(calls, { sources: [pendingSource] }).execute(
+      command("review_source", {
+        targetRevisionId: "source-r1",
+        expectedRevisionId: "source-r1",
+        decision: "confirmed",
+      }),
+      "review-source",
+    );
+    expect(result).toMatchObject({ status: "completed", replay: false });
+    expect(calls.find((entry) => entry.name === "project_intelligence_api.review_claim")?.args)
+      .toMatchObject({
+        project_id: projectId,
+        target_revision_id: "source-r1",
+        expected_revision_id: "source-r1",
+        decision: "confirmed",
+        expected_state_revision: 9,
+      });
+
+    // Ревизия вне видимых источников — отказ до сети.
+    const unknownCalls: Call[] = [];
+    const unknown = await service(unknownCalls, { sources: [pendingSource] }).execute(
+      command("review_source", {
+        targetRevisionId: "source-r9",
+        expectedRevisionId: "source-r9",
+        decision: "confirmed",
+      }),
+      "review-source-unknown",
+    );
+    expect(unknown).toMatchObject({ status: "error", error: { code: "not_found" } });
+    expect(unknownCalls.some((entry) => entry.name === "project_intelligence_api.review_claim")).toBe(false);
+
+    // Уже решённая ревизия не пересматривается этой командой.
+    const decidedCalls: Call[] = [];
+    const decided = await service(decidedCalls, {
+      sources: [{ ...pendingSource, reviewStatus: "confirmed" }],
+    }).execute(
+      command("review_source", {
+        targetRevisionId: "source-r1",
+        expectedRevisionId: "source-r1",
+        decision: "rejected",
+      }),
+      "review-source-decided",
+    );
+    expect(decided).toMatchObject({ status: "error", error: { code: "scope_conflict" } });
+    expect(decidedCalls.some((entry) => entry.name === "project_intelligence_api.review_claim")).toBe(false);
   });
 });

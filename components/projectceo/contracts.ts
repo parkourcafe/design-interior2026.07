@@ -39,6 +39,7 @@ export const PROJECTCEO_TABS = [
   "overview",
   "sources",
   "decisions",
+  "documentation",
   "baseline",
   "releases",
   "changes",
@@ -175,6 +176,12 @@ export interface ProjectPackageView {
 export interface SourceRegistryItem {
   readonly id: string;
   readonly sourceRevisionId: string | null;
+  /**
+   * Ревизия, по которой человек выносит решение. Отдельно от
+   * `sourceRevisionId`, потому что решение адресуется именно ревизии, и
+   * кнопка ревью не должна догадываться, какое из полей брать.
+   */
+  readonly reviewTargetRevisionId: string | null;
   readonly displayCode: string;
   readonly packageId: string;
   readonly floor: string;
@@ -473,6 +480,55 @@ export interface AuditEventView {
   readonly controlledDetail: string;
 }
 
+/**
+ * Лист пакета документации в интерфейсе: последняя ревизия и происхождение,
+ * по которому его можно проверить. Подпись планировки показывается как есть —
+ * это и есть доказательство, ради которого лист существует.
+ */
+export interface DocumentationSheetView {
+  readonly sheetId: string;
+  readonly packageId: string;
+  readonly sheetNumber: string;
+  readonly title: string;
+  readonly roomId: string;
+  readonly revisionId: string;
+  readonly revisionNo: number;
+  readonly specificationRevisionIds: readonly string[];
+  readonly layoutSemanticHash: string;
+  readonly approvedM2CommitRevisionId: string;
+}
+
+/**
+ * Комплектность пакета по одному утверждённому решению M2. Считается кодом
+ * модуля (reviewPackageCompleteness) на прочитанных листах: интерфейс называет
+ * нехватку, но ничего не утверждает и не выпускает.
+ */
+export interface DocumentationCompletenessView {
+  readonly handoffId: string;
+  readonly handoffRevisionId: string;
+  readonly packageId: string;
+  readonly roomId: string;
+  readonly complete: boolean;
+  readonly findings: readonly {
+    readonly code:
+      | "ROOM_WITHOUT_SHEET"
+      | "SPECIFICATION_NOT_COVERED"
+      | "SHEET_FROM_OTHER_APPROVAL"
+      | "DUPLICATE_SHEET_NUMBER";
+    readonly subject: string;
+  }[];
+}
+
+/**
+ * Раздел документации рабочего пространства. `null` означает ровно одно:
+ * поверхности нет для этого человека — модуль выключен или роль его не видит.
+ * Пустой раздел (нет листов) — это не то же самое, и он не null.
+ */
+export interface DocumentationView {
+  readonly sheets: readonly DocumentationSheetView[];
+  readonly completeness: readonly DocumentationCompletenessView[];
+}
+
 export interface ProjectWorkspaceView {
   readonly project: ProjectSummary;
   readonly actor: ProjectCeoActor;
@@ -501,6 +557,7 @@ export interface ProjectWorkspaceView {
   readonly handover: HandoverView;
   readonly history: readonly AuditEventView[];
   readonly controlledAnalytics: readonly AnalyticsEvent[];
+  readonly documentation: DocumentationView | null;
   readonly operations: ProjectCeoOperationStates;
 }
 
@@ -510,6 +567,8 @@ export const PROJECTCEO_OPERATION_NAMES = [
   "revoke_guest_grant",
   "register_source",
   "review_source",
+  "register_documentation_sheet",
+  "attach_documentation_sheet_specifications",
   "review_selection",
   "create_decision",
   "create_selection",
@@ -545,6 +604,8 @@ export type ProjectCeoOperationState =
       readonly reason:
         | "capability_missing"
         | "exact_scope_missing"
+        // Поверхность принадлежит модулю, который владелец ещё не включил.
+        | "module_disabled"
         | "prerequisite_missing"
         | "read_contract_pending"
         | "worker_only"

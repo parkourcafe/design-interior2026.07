@@ -44,6 +44,7 @@ import {
   type ProjectWorkspaceView,
   type ReleaseSummary,
   type SelectionView,
+  type DocumentationView,
   type SourceRegistryItem,
   type UiEnvelope,
   type UiError,
@@ -51,6 +52,8 @@ import {
 import type { ProjectCeoUiReadPort } from "@/components/projectceo/port";
 import { capabilitiesForRole, can } from "@/components/projectceo/role-policy";
 import { ru } from "@/lib/i18n/ru";
+import { reviewPackageCompleteness } from "../../modules/documentation";
+import { isDocumentationModuleEnabled } from "./documentation-flag";
 import type { ProjectCeoVerifiedIdentity } from "./request-context";
 
 type UnknownRecord = Readonly<Record<string, unknown>>;
@@ -225,6 +228,7 @@ function sourceViews(value: unknown): readonly SourceRegistryItem[] {
     return [{
       id,
       sourceRevisionId: nullableText(item.sourceRevisionId),
+      reviewTargetRevisionId: nullableText(item.reviewTargetRevisionId),
       displayCode: `SRC-${String(index + 1).padStart(3, "0")}`,
       packageId,
       floor: text(item.floorKey, copy.common.liveArea),
@@ -859,11 +863,119 @@ function unavailable(reason: Exclude<ProjectCeoOperationState, { readonly status
   return { status: "unavailable", reason };
 }
 
+/**
+ * Раздел документации: прочитанные листы и комплектность по каждому
+ * утверждённому решению M2.
+ *
+ * Комплектность считает код модуля на реальных данных, а не отдельная
+ * реализация в слое доставки: иначе интерфейс однажды начал бы называть
+ * неполноту по своим правилам, а модуль — по своим. Раздел равен null, когда
+ * поверхности нет вовсе: модуль выключен либо роль не получает листов.
+ */
+function documentationView(input: {
+  readonly delivery: AuthenticatedProjectReadProjection;
+  readonly enabled: boolean;
+}): DocumentationView | null {
+  if (!input.enabled) return null;
+  const sheets = input.delivery.m3DocumentationSheets;
+  const handoffs = input.delivery.m3DocumentationHandoffs;
+  // Проекция не отдала ключей вовсе — значит эта роль их не получает.
+  if (sheets === undefined || handoffs === undefined) return null;
+
+  const domainSheets = sheets.map((sheet) => ({
+    sheetId: sheet.sheetId,
+    // Проекция не повторяет идентификатор проекта в каждой строке: он один на
+    // весь ответ и в проверке комплектности не участвует.
+    projectId: "",
+    packageId: sheet.packageId,
+    roomId: sheet.roomId,
+    sheetNumber: sheet.sheetNumber,
+    title: sheet.title,
+    revision: {
+      revisionId: sheet.revisionId,
+      revisionNo: sheet.revisionNo,
+      createdAt: sheet.createdAt,
+      createdBy: { actorId: sheet.createdByUserId, actorType: "human" as const },
+      reason: sheet.reason,
+    },
+    origin: {
+      handoffContractVersion: sheet.origin.handoffContractVersion,
+      approvedM2CommitRevisionId: sheet.origin.approvedM2CommitRevisionId,
+      designIntentRevisionId: sheet.origin.designIntentRevisionId,
+      layoutDocumentId: sheet.origin.layoutDocumentId,
+      layoutVersionId: sheet.origin.layoutVersionId,
+      layoutRevisionId: sheet.origin.layoutRevisionId,
+      semanticHash: sheet.origin.semanticHash,
+    },
+    specificationRevisionIds: sheet.specificationRevisionIds,
+  }));
+
+  return {
+    sheets: sheets.map((sheet) => ({
+      sheetId: sheet.sheetId,
+      packageId: sheet.packageId,
+      sheetNumber: sheet.sheetNumber,
+      title: sheet.title,
+      roomId: sheet.roomId,
+      revisionId: sheet.revisionId,
+      revisionNo: sheet.revisionNo,
+      specificationRevisionIds: sheet.specificationRevisionIds,
+      layoutSemanticHash: sheet.origin.semanticHash,
+      approvedM2CommitRevisionId: sheet.origin.approvedM2CommitRevisionId,
+    })),
+    completeness: handoffs.map((handoff) => {
+      // Отчёту передаются листы его утверждения плюс осиротевшие — те, чей
+      // approved commit не совпадает ни с одним ТЕКУЩИМ handoff пакета. Лист
+      // соседней комнаты (другой текущий handoff того же пакета) — не «чужое
+      // утверждение», а параллельное; вечно клеймить его в каждом отчёте
+      // значило бы сделать complete=true недостижимым в многокомнатном пакете.
+      const currentCommits = new Set(
+        handoffs
+          .filter((item) => item.packageId === handoff.packageId)
+          .map((item) => item.approvedM2CommitRevisionId),
+      );
+      const report = reviewPackageCompleteness({
+        handoff: {
+          contractVersion: handoff.contractVersion,
+          projectId: "",
+          packageId: handoff.packageId,
+          roomId: handoff.roomId,
+          approvedM2CommitRevisionId: handoff.approvedM2CommitRevisionId,
+          designIntentRevisionId: handoff.designIntentRevisionId,
+          layout: handoff.layout,
+          selectionRevisionIds: handoff.selectionRevisionIds,
+        },
+        sheets: domainSheets.filter((sheet) => (
+          sheet.packageId === handoff.packageId
+          && (
+            sheet.origin.approvedM2CommitRevisionId === handoff.approvedM2CommitRevisionId
+            || !currentCommits.has(sheet.origin.approvedM2CommitRevisionId)
+          )
+        )),
+      });
+      return {
+        handoffId: handoff.handoffId,
+        handoffRevisionId: handoff.revisionId,
+        packageId: handoff.packageId,
+        roomId: handoff.roomId,
+        complete: report.complete,
+        findings: report.findings.map((finding) => ({
+          code: finding.code,
+          subject: finding.subject,
+        })),
+      };
+    }),
+  };
+}
+
 function operationStates(input: {
   readonly role: ProjectCeoRole;
   readonly delivery: AuthenticatedProjectReadProjection;
   readonly m4: readonly ExecutionDeliveryEnvelope[];
+  readonly documentationEnabled?: boolean;
 }): ProjectCeoOperationStates {
+  const documentationEnabled = input.documentationEnabled
+    ?? isDocumentationModuleEnabled();
   const supports = (capability: Parameters<typeof can>[1]): ProjectCeoOperationState => (
     can(input.role, capability) ? { status: "available" } : unavailable("capability_missing")
   );
@@ -889,6 +1001,16 @@ function operationStates(input: {
   let uploadMilestoneId: string | null = null;
   let undecidedPhotoId: string | null = null;
   let acceptableMilestoneId: string | null = null;
+  const publishedDocumentationHandoff =
+    (input.delivery.m3DocumentationHandoffs?.length ?? 0) > 0;
+  const hasDocumentationSheet =
+    (input.delivery.m3DocumentationSheets?.length ?? 0) > 0;
+  const pendingSourceRevisionId = nullableText(
+    input.delivery.sources.find((source) => (
+      source.reviewStatus === "pending"
+      && source.reviewTargetRevisionId !== null
+    ))?.reviewTargetRevisionId,
+  );
   const photoSourcePackageIds = new Set(
     input.delivery.sources.filter((source) => (
       source.availability === "materialized"
@@ -934,8 +1056,41 @@ function operationStates(input: {
       : unavailable("capability_missing"),
     revoke_invitation: supports("manage_access"),
     revoke_guest_grant: supports("manage_access"),
-    register_source: unavailable("read_contract_pending"),
-    review_source: unavailable("read_contract_pending"),
+    // Intake M3 P0. Право на запись инвентаря сервер проверяет тем же
+    // register_source; здесь оно только не предлагается тем, у кого его нет.
+    // Пока модуль 3 выключен, поверхности нет ни у кого (A5 §4.2.2).
+    register_source: !documentationEnabled
+      ? unavailable("module_disabled")
+      : can(input.role, "register_source")
+        ? { status: "available" }
+        : unavailable("capability_missing"),
+    // Решение по источнику пишется через review_claim, и RPC требует именно
+    // capability review_claim — предлагать действие по review_source значило бы
+    // обещать то, чего сервер не разрешит.
+    review_source: !documentationEnabled
+      ? unavailable("module_disabled")
+      : can(input.role, "review_claim") && can(input.role, "review_source")
+        ? pendingSourceRevisionId ? {
+            status: "available",
+            commandTargetId: pendingSourceRevisionId,
+          } : unavailable("prerequisite_missing")
+        : unavailable("capability_missing"),
+    // Лист регистрируется той же властью, что публикует вход M3 — это
+    // проверит и сервер (prepare_client_handoff + роль owner/architect).
+    // Без опубликованного handoff команду не принять: регистрировать не от
+    // чего, и предлагать её было бы обещанием отказа.
+    register_documentation_sheet: !documentationEnabled
+      ? unavailable("module_disabled")
+      : can(input.role, "prepare_client_handoff")
+        ? publishedDocumentationHandoff ? { status: "available" }
+          : unavailable("prerequisite_missing")
+        : unavailable("capability_missing"),
+    attach_documentation_sheet_specifications: !documentationEnabled
+      ? unavailable("module_disabled")
+      : can(input.role, "prepare_client_handoff")
+        ? hasDocumentationSheet ? { status: "available" }
+          : unavailable("prerequisite_missing")
+        : unavailable("capability_missing"),
     create_decision: can(input.role, "revise_decision")
       ? { status: "available" }
       : unavailable("capability_missing"),
@@ -1242,6 +1397,10 @@ export class ProjectCeoLiveReadPort implements ProjectCeoUiReadPort {
         handover: execution.handover,
         history: historyViews(historyEnvelope ? requiredData(historyEnvelope) : null),
         controlledAnalytics: [],
+        documentation: documentationView({
+          delivery,
+          enabled: isDocumentationModuleEnabled(),
+        }),
         operations: operationStates({
           role: actor.role,
           delivery,

@@ -20,6 +20,7 @@ import { can, visibleTabsForRole } from "./role-policy";
 import { ScenarioPanel, ScenarioSwitcher } from "./state-panel";
 import { ProjectCeoCommandButton, sendProjectCeoCommand } from "./command-client";
 import { PROJECTCEO_COMMAND_CONTRACT_VERSION } from "@/lib/project-intelligence/delivery/projectceo/command-contract";
+import { recordIdFromContent } from "./record-id";
 import { M2WorkflowPanel } from "./m2-workflow-panel";
 import { M2ClientReviewPanel } from "./m2-client-review-panel";
 import { M2M3ApprovedInputCard } from "./m2-m3-approved-input-card";
@@ -443,6 +444,233 @@ function OverviewView({
   );
 }
 
+/**
+ * Intake: a human declares a document that is expected in the package.
+ *
+ * The browser registers a placeholder only — a name and its place in the
+ * hierarchy. Materialisation (file, size, checksum) travels the ingestion
+ * path, so this form never pretends to carry one: the RPC would reject a
+ * placeholder that arrived with those fields anyway.
+ */
+function SourceIntakeForm({
+  view,
+}: {
+  readonly view: ProjectWorkspaceView;
+}) {
+  const operation = view.operations.register_source;
+  const packages = view.packages.filter((item) => item.status === "active");
+  const [name, setName] = useState("");
+  const [packageId, setPackageId] = useState(packages[0]?.id ?? "");
+  // The package list has a life of its own (router.refresh after commands):
+  // a selection that is no longer in the list must not silently travel in the
+  // payload.
+  const effectivePackageId = packages.some((item) => item.id === packageId)
+    ? packageId
+    : packages[0]?.id ?? "";
+  const [floor, setFloor] = useState("");
+  const [zone, setZone] = useState("");
+  const [discipline, setDiscipline] = useState("");
+  const [documentStatus, setDocumentStatus] = useState<"current" | "previous" | "reference" | "unknown">("current");
+
+  const complete = Boolean(
+    name.trim() && effectivePackageId && floor.trim() && zone.trim() && discipline.trim(),
+  );
+  // The record id is derived from the content, so the same declared document
+  // keeps the same identity across remounts and repeated presses. A random id
+  // would quietly create a second physical record for the same paper. The
+  // derivation is pure and cheap, so it runs on render — no memo to fight the
+  // compiler over.
+  const physicalRecordId = recordIdFromContent(
+    [name, effectivePackageId, floor, zone, discipline, documentStatus],
+  );
+
+  if (operation.status !== "available") {
+    // The stated reason must be the real one: "your role cannot" shown to an
+    // owner in the read-only fixture would be a lie about the role.
+    return (
+      <p className="mt-3 text-xs text-muted">
+        {operation.reason === "module_disabled"
+          ? projectCeoRu.workspace.sources.moduleDisabled
+          : operation.reason === "capability_missing"
+            ? projectCeoRu.workspace.sources.noRegisterCapability
+            : projectCeoRu.common.commandUnavailable}
+      </p>
+    );
+  }
+
+  return (
+    <div className="mt-4 rounded-xl border border-line/70 p-3">
+      <p className="text-sm font-medium">{projectCeoRu.workspace.sources.registerTitle}</p>
+      <p className="mt-1 text-xs text-muted">{projectCeoRu.workspace.sources.registerHint}</p>
+      <div className="mt-3 grid gap-2">
+        <label className="text-xs text-muted">
+          {projectCeoRu.workspace.sources.registerName}
+          <input
+            value={name}
+            onChange={(event) => setName(event.target.value)}
+            placeholder={projectCeoRu.workspace.sources.registerNamePlaceholder}
+            className="mt-1 w-full rounded-lg border border-line px-3 py-2 text-sm text-ink"
+          />
+        </label>
+        <label className="text-xs text-muted">
+          {projectCeoRu.workspace.sources.registerPackage}
+          <select
+            value={effectivePackageId}
+            onChange={(event) => setPackageId(event.target.value)}
+            className="mt-1 w-full rounded-lg border border-line px-3 py-2 text-sm text-ink"
+          >
+            {packages.map((item) => (
+              <option key={item.id} value={item.id}>{item.name}</option>
+            ))}
+          </select>
+        </label>
+        <div className="grid grid-cols-3 gap-2">
+          <label className="text-xs text-muted">
+            {projectCeoRu.workspace.sources.registerFloor}
+            <input
+              value={floor}
+              onChange={(event) => setFloor(event.target.value)}
+              className="mt-1 w-full rounded-lg border border-line px-2 py-2 text-sm text-ink"
+            />
+          </label>
+          <label className="text-xs text-muted">
+            {projectCeoRu.workspace.sources.registerZone}
+            <input
+              value={zone}
+              onChange={(event) => setZone(event.target.value)}
+              className="mt-1 w-full rounded-lg border border-line px-2 py-2 text-sm text-ink"
+            />
+          </label>
+          <label className="text-xs text-muted">
+            {projectCeoRu.workspace.sources.registerDiscipline}
+            <input
+              value={discipline}
+              onChange={(event) => setDiscipline(event.target.value)}
+              className="mt-1 w-full rounded-lg border border-line px-2 py-2 text-sm text-ink"
+            />
+          </label>
+        </div>
+        <label className="text-xs text-muted">
+          {projectCeoRu.workspace.sources.registerStatus}
+          <select
+            value={documentStatus}
+            onChange={(event) => setDocumentStatus(event.target.value as typeof documentStatus)}
+            className="mt-1 w-full rounded-lg border border-line px-3 py-2 text-sm text-ink"
+          >
+            {(["current", "previous", "reference", "unknown"] as const).map((status) => (
+              <option key={status} value={status}>
+                {projectCeoRu.workspace.sources.documentStatusOptions[status]}
+              </option>
+            ))}
+          </select>
+        </label>
+        <ProjectCeoCommandButton
+          disabled={!complete}
+          command={{
+            contractVersion: PROJECTCEO_COMMAND_CONTRACT_VERSION,
+            kind: "register_source" as const,
+            projectId: view.project.id,
+            payload: {
+              packageId: effectivePackageId,
+              physicalRecordId,
+              sanitizedName: name.trim(),
+              floorId: floor.trim(),
+              zoneId: zone.trim(),
+              disciplineId: discipline.trim(),
+              availability: "placeholder" as const,
+              documentStatus,
+              sizeBytes: null,
+              checksum: null,
+              sourceRevisionId: null,
+              semanticConflict: false,
+            },
+          }}
+        >
+          {projectCeoRu.workspace.sources.register}
+        </ProjectCeoCommandButton>
+        {!complete && (
+          <p className="text-xs text-muted">{projectCeoRu.workspace.sources.registerIncomplete}</p>
+        )}
+      </div>
+    </div>
+  );
+}
+
+/**
+ * A human decision on a source revision.
+ *
+ * The button is offered exactly when the server would accept it: the operation
+ * state is server-derived (`view.operations.review_source`) and the target
+ * comes from the card itself. An unavailable control always states why —
+ * "disabled" without a reason reads as breakage.
+ */
+function SourceReviewControls({
+  view,
+  role,
+  source,
+}: {
+  readonly view: ProjectWorkspaceView;
+  readonly role: ProjectCeoRole;
+  readonly source: SourceRegistryItem;
+}) {
+  const operation = view.operations.review_source;
+  const target = source.reviewTargetRevisionId;
+  const decided = source.reviewStatus === "confirmed" || source.reviewStatus === "rejected";
+  const available = operation.status === "available" && target !== null && !decided;
+
+  const reason = operation.status === "unavailable"
+    ? operation.reason === "module_disabled"
+      ? projectCeoRu.workspace.sources.moduleDisabled
+      : operation.reason === "capability_missing"
+        ? can(role, "review_source")
+          ? projectCeoRu.workspace.sources.noReviewClaimCapability
+          : projectCeoRu.workspace.sources.noReviewCapability
+        : projectCeoRu.common.commandUnavailable
+    : target === null
+      ? projectCeoRu.workspace.sources.noReviewTarget
+      : decided
+        ? projectCeoRu.workspace.sources.alreadyDecided
+        : null;
+
+  const command = (decision: "confirmed" | "rejected") => ({
+    contractVersion: PROJECTCEO_COMMAND_CONTRACT_VERSION,
+    kind: "review_source" as const,
+    projectId: view.project.id,
+    payload: {
+      targetRevisionId: target ?? "",
+      expectedRevisionId: target ?? "",
+      decision,
+    },
+  });
+
+  return (
+    <>
+      <div className="mt-5 grid gap-2">
+        <ProjectCeoCommandButton command={command("confirmed")} disabled={!available}>
+          {projectCeoRu.actions.confirmSource}
+        </ProjectCeoCommandButton>
+        {/* The server has no "clarification" decision: its vocabulary is
+            confirmed or rejected. The control stays honestly disabled instead
+            of faking a third path. */}
+        <button type="button" disabled className="btn-ghost">
+          {projectCeoRu.actions.clarification}
+        </button>
+        <ProjectCeoCommandButton
+          command={command("rejected")}
+          disabled={!available}
+          className="rounded-lg border border-red-200 px-3 py-2 text-sm font-medium text-red-700 disabled:opacity-40"
+          confirmation={projectCeoRu.workspace.sources.rejectConfirmation}
+        >
+          {projectCeoRu.actions.reject}
+        </ProjectCeoCommandButton>
+      </div>
+      <p className="mt-3 text-xs text-muted">
+        {reason ?? projectCeoRu.workspace.sources.clarificationNotBuilt}
+      </p>
+    </>
+  );
+}
+
 function SourcesView({
   view,
   role,
@@ -463,7 +691,6 @@ function SourcesView({
     )
   )), [availability, query, view.sources]);
   const selected = view.sources.find((source) => source.id === selectedId) ?? filtered[0] ?? null;
-  const mayReview = can(role, "review_source");
 
   return (
     <div className="grid gap-4 xl:grid-cols-[1fr_21rem]">
@@ -573,23 +800,18 @@ function SourcesView({
                 <dd className="mt-1">{selected.quarantine ?? projectCeoRu.common.none}</dd>
               </div>
             </dl>
-            <div className="mt-5 grid gap-2">
-              <button type="button" disabled className="btn-primary">
-                {projectCeoRu.actions.confirmSource}
-              </button>
-              <button type="button" disabled className="btn-ghost">
-                {projectCeoRu.actions.clarification}
-              </button>
-              <button type="button" disabled className="rounded-lg border border-red-200 px-3 py-2 text-sm font-medium text-red-700 disabled:opacity-40">
-                {projectCeoRu.actions.reject}
-              </button>
-            </div>
-            <p className="mt-3 text-xs text-muted">
-              {!mayReview ? projectCeoRu.workspace.sources.noReviewCapability : projectCeoRu.common.commandUnavailable}
-            </p>
+            <SourceReviewControls
+              view={view}
+              role={role}
+              source={selected}
+            />
+            <SourceIntakeForm view={view} />
           </>
         ) : (
-          <p className="mt-3 text-sm text-muted">{projectCeoRu.workspace.sources.notSelected}</p>
+          <>
+            <p className="mt-3 text-sm text-muted">{projectCeoRu.workspace.sources.notSelected}</p>
+            <SourceIntakeForm view={view} />
+          </>
         )}
       </aside>
     </div>
@@ -1254,6 +1476,287 @@ function HistoryView({ view }: { readonly view: ProjectWorkspaceView }) {
   );
 }
 
+/**
+ * Registering a sheet from an approved M2 decision.
+ *
+ * The form asks for a number and a title only. Room, layout signature and the
+ * approved commit are not asked because they cannot be chosen: the server
+ * derives provenance from the published handoff, and the RPC has no parameters
+ * to override it with.
+ */
+function RegisterSheetForm({
+  view,
+}: {
+  readonly view: ProjectWorkspaceView;
+}) {
+  const documentation = view.documentation;
+  const operation = view.operations.register_documentation_sheet;
+  const handoffs = documentation?.completeness ?? [];
+  const [sheetNumber, setSheetNumber] = useState("");
+  const [title, setTitle] = useState("");
+  const [handoffId, setHandoffId] = useState(handoffs[0]?.handoffId ?? "");
+  const handoff = handoffs.find((item) => item.handoffId === handoffId) ?? handoffs[0] ?? null;
+  const complete = Boolean(sheetNumber.trim() && title.trim() && handoff);
+  // The same declared sheet keeps one identity across retries and remounts —
+  // the register RPC refuses a second sheet id, so a random id would turn an
+  // accidental double press into a stuck form.
+  const sheetId = recordIdFromContent([
+    "m3-sheet", handoff?.handoffId ?? "", sheetNumber,
+  ]);
+  const revisionId = recordIdFromContent([
+    "m3-sheet-r1", handoff?.handoffId ?? "", sheetNumber, title,
+  ]);
+
+  if (operation.status !== "available") {
+    return (
+      <p className="mt-3 text-xs text-muted">
+        {operation.reason === "module_disabled"
+          ? projectCeoRu.workspace.sources.moduleDisabled
+          : operation.reason === "prerequisite_missing"
+            ? projectCeoRu.workspace.documentation.registerSheetNoHandoff
+            : projectCeoRu.workspace.documentation.noRegisterSheet}
+      </p>
+    );
+  }
+
+  return (
+    <div className="mt-4 rounded-xl border border-line/70 p-3">
+      <p className="text-sm font-medium">{projectCeoRu.workspace.documentation.registerSheetTitle}</p>
+      <p className="mt-1 text-xs text-muted">{projectCeoRu.workspace.documentation.registerSheetHint}</p>
+      <div className="mt-3 grid gap-2">
+        <div className="grid grid-cols-[8rem_1fr] gap-2">
+          <label className="text-xs text-muted">
+            {projectCeoRu.workspace.documentation.sheetNumberLabel}
+            <input
+              value={sheetNumber}
+              onChange={(event) => setSheetNumber(event.target.value)}
+              placeholder={projectCeoRu.workspace.documentation.sheetNumberPlaceholder}
+              className="mt-1 w-full rounded-lg border border-line px-2 py-2 text-sm text-ink"
+            />
+          </label>
+          <label className="text-xs text-muted">
+            {projectCeoRu.workspace.documentation.sheetTitleLabel}
+            <input
+              value={title}
+              onChange={(event) => setTitle(event.target.value)}
+              placeholder={projectCeoRu.workspace.documentation.sheetTitlePlaceholder}
+              className="mt-1 w-full rounded-lg border border-line px-2 py-2 text-sm text-ink"
+            />
+          </label>
+        </div>
+        {handoffs.length > 1 && (
+          <label className="text-xs text-muted">
+            {projectCeoRu.workspace.documentation.approvedInput}
+            <select
+              value={handoff?.handoffId ?? ""}
+              onChange={(event) => setHandoffId(event.target.value)}
+              className="mt-1 w-full rounded-lg border border-line px-3 py-2 text-sm text-ink"
+            >
+              {handoffs.map((item) => (
+                <option key={item.handoffId} value={item.handoffId}>{item.roomId}</option>
+              ))}
+            </select>
+          </label>
+        )}
+        <ProjectCeoCommandButton
+          disabled={!complete}
+          command={{
+            contractVersion: PROJECTCEO_COMMAND_CONTRACT_VERSION,
+            kind: "register_documentation_sheet" as const,
+            projectId: view.project.id,
+            payload: {
+              packageId: handoff?.packageId ?? "",
+              handoffId: handoff?.handoffId ?? "",
+              handoffRevisionId: handoff?.handoffRevisionId ?? "",
+              sheetId,
+              sheetNumber: sheetNumber.trim(),
+              title: title.trim(),
+              revisionId,
+              specificationRevisionIds: [],
+              reason: projectCeoRu.workspace.documentation.registerSheetReason(sheetNumber.trim()),
+            },
+          }}
+        >
+          {projectCeoRu.workspace.documentation.registerSheet}
+        </ProjectCeoCommandButton>
+        {!complete && (
+          <p className="text-xs text-muted">{projectCeoRu.workspace.documentation.registerSheetIncomplete}</p>
+        )}
+      </div>
+    </div>
+  );
+}
+
+/**
+ * Reflecting an uncovered approved selection onto a sheet.
+ *
+ * The candidates are exactly the SPECIFICATION_NOT_COVERED findings: the
+ * completeness review names the gap, and this control lets a human close it —
+ * with a new sheet revision that leaves the previous one as issued.
+ */
+function AttachSpecificationControl({
+  view,
+  report,
+  finding,
+}: {
+  readonly view: ProjectWorkspaceView;
+  readonly report: { readonly packageId: string };
+  readonly finding: { readonly code: string; readonly subject: string };
+}) {
+  const documentation = view.documentation;
+  const operation = view.operations.attach_documentation_sheet_specifications;
+  // Only sheets of this finding's package are valid targets: a foreign sheet
+  // would be refused by the server (the selection is not in its approved set),
+  // and offering it would be promising a refusal.
+  const sheets = (documentation?.sheets ?? []).filter(
+    (item) => item.packageId === report.packageId,
+  );
+  const [sheetId, setSheetId] = useState(sheets[0]?.sheetId ?? "");
+  if (finding.code !== "SPECIFICATION_NOT_COVERED") return null;
+  if (operation.status !== "available" || sheets.length === 0) return null;
+  const sheet = sheets.find((item) => item.sheetId === sheetId) ?? sheets[0]!;
+  const revisionId = recordIdFromContent([
+    "m3-sheet-attach", sheet.sheetId, sheet.revisionId, finding.subject,
+  ]);
+
+  return (
+    <span className="mt-1 inline-flex items-center gap-2">
+      {sheets.length > 1 && (
+        <select
+          value={sheet.sheetId}
+          onChange={(event) => setSheetId(event.target.value)}
+          className="rounded-lg border border-line px-2 py-1 text-xs text-ink"
+          aria-label={projectCeoRu.workspace.documentation.attachTo(sheet.sheetNumber)}
+        >
+          {sheets.map((item) => (
+            <option key={item.sheetId} value={item.sheetId}>{item.sheetNumber}</option>
+          ))}
+        </select>
+      )}
+      <ProjectCeoCommandButton
+        className="btn-ghost text-xs"
+        command={{
+          contractVersion: PROJECTCEO_COMMAND_CONTRACT_VERSION,
+          kind: "attach_documentation_sheet_specifications" as const,
+          projectId: view.project.id,
+          payload: {
+            packageId: sheet.packageId,
+            sheetId: sheet.sheetId,
+            revisionId,
+            expectedRevisionId: sheet.revisionId,
+            specificationRevisionIds: [finding.subject],
+            reason: projectCeoRu.workspace.documentation.attachReason(sheet.sheetNumber),
+          },
+        }}
+      >
+        {projectCeoRu.workspace.documentation.attachSpecification}
+      </ProjectCeoCommandButton>
+    </span>
+  );
+}
+
+/**
+ * The documentation package: its sheets and what it is missing.
+ *
+ * Completeness arrives already computed by the module's own code — the UI
+ * neither recomputes nor softens it. It approves and releases nothing: it
+ * names the gap and leaves the decision to a human.
+ */
+function DocumentationView({
+  view,
+}: {
+  readonly view: ProjectWorkspaceView;
+}) {
+  const documentation = view.documentation;
+  if (!documentation) {
+    return (
+      <section className="rounded-2xl border border-line bg-paper p-4 text-sm text-muted">
+        {projectCeoRu.workspace.documentation.unavailable}
+      </section>
+    );
+  }
+
+  return (
+    <div className="grid gap-4 xl:grid-cols-[1fr_21rem]">
+      <section className="min-w-0 rounded-2xl border border-line bg-white p-4 shadow-sm sm:p-5">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <h2 className="font-display text-xl font-semibold">{projectCeoRu.workspace.documentation.sheets}</h2>
+          <Badge tone="neutral">{projectCeoRu.workspace.documentation.sheetCount(documentation.sheets.length)}</Badge>
+        </div>
+        {documentation.sheets.length === 0 ? (
+          <p className="mt-3 text-sm text-muted">{projectCeoRu.workspace.documentation.noSheets}</p>
+        ) : (
+          <div className="mt-4 overflow-x-auto">
+            <table className="w-full min-w-[36rem] text-left text-sm">
+              <thead className="text-xs uppercase tracking-[0.14em] text-muted">
+                <tr>
+                  <th className="px-3 py-3 font-medium">{projectCeoRu.workspace.documentation.number}</th>
+                  <th className="px-3 py-3 font-medium">{projectCeoRu.workspace.documentation.title}</th>
+                  <th className="px-3 py-3 font-medium">{projectCeoRu.workspace.documentation.room}</th>
+                  <th className="px-3 py-3 font-medium">{projectCeoRu.workspace.documentation.revision}</th>
+                  <th className="px-3 py-3 font-medium">{projectCeoRu.workspace.documentation.specifications}</th>
+                  <th className="px-3 py-3 font-medium">{projectCeoRu.workspace.documentation.layoutSignature}</th>
+                </tr>
+              </thead>
+              <tbody>
+                {documentation.sheets.map((sheet) => (
+                  <tr key={sheet.sheetId} className="border-t border-line/70">
+                    <td className="px-3 py-3 font-medium">{sheet.sheetNumber}</td>
+                    <td className="px-3 py-3">{sheet.title}</td>
+                    <td className="px-3 py-3 text-muted">{sheet.roomId}</td>
+                    <td className="px-3 py-3">{projectCeoRu.workspace.documentation.revisionNo(sheet.revisionNo)}</td>
+                    <td className="px-3 py-3">{sheet.specificationRevisionIds.length}</td>
+                    {/* The layout signature is why a sheet is evidence at all,
+                        so it belongs in the table, not behind a detail pane. */}
+                    <td className="px-3 py-3 font-mono text-xs text-muted">{shortHash(sheet.layoutSemanticHash)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+        <RegisterSheetForm view={view} />
+      </section>
+
+      <aside className="rounded-2xl border border-line bg-white p-5 shadow-sm">
+        <p className="text-xs font-semibold uppercase tracking-[0.14em] text-muted">
+          {projectCeoRu.workspace.documentation.completeness}
+        </p>
+        {documentation.completeness.length === 0 ? (
+          <p className="mt-3 text-sm text-muted">{projectCeoRu.workspace.documentation.noApprovedInput}</p>
+        ) : (
+          <ul className="mt-3 space-y-4">
+            {documentation.completeness.map((report) => (
+              <li key={report.handoffId} className="rounded-xl border border-line/70 p-3">
+                <div className="flex items-center justify-between gap-3">
+                  <span className="text-sm font-medium">{report.roomId}</span>
+                  <Badge tone={report.complete ? "success" : "warning"}>
+                    {report.complete
+                      ? projectCeoRu.workspace.documentation.complete
+                      : projectCeoRu.workspace.documentation.incomplete}
+                  </Badge>
+                </div>
+                {report.findings.length > 0 && (
+                  <ul className="mt-3 space-y-2 text-sm">
+                    {report.findings.map((finding) => (
+                      <li key={`${finding.code}:${finding.subject}`}>
+                        <p>{projectCeoRu.workspace.documentation.findings[finding.code]}</p>
+                        <p className="mt-0.5 font-mono text-xs text-muted">{finding.subject}</p>
+                        <AttachSpecificationControl view={view} report={report} finding={finding} />
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </li>
+            ))}
+          </ul>
+        )}
+        <p className="mt-4 text-xs text-muted">{projectCeoRu.workspace.documentation.decisionIsHuman}</p>
+      </aside>
+    </div>
+  );
+}
+
 function TabContent({
   tab,
   view,
@@ -1267,6 +1770,7 @@ function TabContent({
     case "overview": return <OverviewView view={view} role={role} />;
     case "sources": return <SourcesView view={view} role={role} />;
     case "decisions": return <DecisionsView view={view} role={role} />;
+    case "documentation": return <DocumentationView view={view} />;
     case "baseline": return <BaselineView view={view} role={role} />;
     case "releases": return <ReleasesView view={view} role={role} />;
     case "changes": return <ChangesView view={view} role={role} />;
@@ -1282,7 +1786,12 @@ export function ProjectCeoWorkspace({
 }) {
   const role = view.actor.role;
   const [scenario, setScenario] = useState<UiScenario>("ready");
-  const visibleTabs = visibleTabsForRole(role);
+  // A module tab is never left hanging empty: when the surface does not exist
+  // for this human (module off, or the role receives no sheets), it is absent
+  // from the navigation too.
+  const visibleTabs = visibleTabsForRole(role).filter((item) => (
+    item !== "documentation" || view.documentation !== null
+  ));
   const [tab, setTab] = useState<ProjectCeoTab>("overview");
   const effectiveTab = visibleTabs.includes(tab) ? tab : visibleTabs[0]!;
 

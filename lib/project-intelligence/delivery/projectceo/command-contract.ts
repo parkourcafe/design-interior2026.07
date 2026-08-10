@@ -14,10 +14,11 @@ const projectSelector = z.object({
 // Зеркалит VersionScopedEvidenceInput (project-brain.ts) и то, что реально
 // проверяет RPC projectceo_product._validate_evidence_array: все шесть полей
 // обязательны, до 100 элементов. Обязательно (кроме claimStatus="human_origin",
-// см. RPC projectceo_product._append_claim_revision) — без предварительной
-// регистрации источника (register_source/review_source — пока UNAVAILABLE)
-// валидных ссылок на evidence не получить, поэтому на практике сегодня
-// проходит только human_origin с evidence: [].
+// см. RPC projectceo_product._append_claim_revision). Регистрация источника
+// (register_source) открыта, но она заводит физическую запись инвентаря, а не
+// граф утверждений: ссылки на evidence по-прежнему приходят из воркерного
+// ingest_source_graph, поэтому из браузера сегодня проходит только
+// human_origin с evidence: [].
 const versionScopedEvidence = z.object({
   evidenceVersionId: z.string().min(1).max(160),
   evidenceLinkId: z.string().min(1).max(160),
@@ -27,6 +28,9 @@ const versionScopedEvidence = z.object({
   fragmentId: z.string().min(1).max(160),
 }).strict();
 
+// floor_key / zone_key / discipline_key в таблице инвентаря источников:
+// непустая обрезанная строка до 160 символов.
+const inventoryKey = z.string().trim().min(1).max(160);
 const claimStatus = z.enum(["extracted", "interpreted", "unknown", "human_origin"]);
 // nodeId/revisionId границы длины — из projectceo_product._assert_text
 // (миграция 20260717101000_projectceo_product_brain_operations.sql).
@@ -100,7 +104,7 @@ function prevalidateM2Layout(value: unknown): value is Record<string, unknown> {
 // Small browser-safe synchronous SHA-256. The command contract is imported by
 // client components too, so node:crypto would turn this shared boundary into a
 // server-only module.
-function sha256Hex(text: string): string {
+export function sha256Hex(text: string): string {
   const rightRotate = (value: number, amount: number): number =>
     (value >>> amount) | (value << (32 - amount));
   const bytes = Array.from(new TextEncoder().encode(text));
@@ -543,11 +547,108 @@ export const projectCeoCommandSchema = z.discriminatedUnion("kind", [
       }
     }),
   }).strict(),
+  // Intake M3 P0. Зеркалит ровно то, что проверяет RPC
+  // register_source_inventory: набор полей записи, словари
+  // availability/documentStatus и перекрёстные правила материализованной и
+  // плейсхолдерной записи. Одна команда — один документ: пакетный импорт
+  // остаётся операционным путём, браузеру он не нужен и расширяет поверхность.
+  projectSelector.extend({
+    contractVersion: z.literal(PROJECTCEO_COMMAND_CONTRACT_VERSION),
+    kind: z.literal("register_source"),
+    payload: z.object({
+      packageId: uuid,
+      physicalRecordId: uuid,
+      sanitizedName: z.string().trim().min(1).max(500)
+        .refine((value) => !/[/\\]/.test(value), "sanitized_name_must_not_contain_path_separators"),
+      floorId: inventoryKey,
+      zoneId: inventoryKey,
+      disciplineId: inventoryKey,
+      availability: z.enum(["materialized", "placeholder"]),
+      documentStatus: z.enum(["current", "previous", "reference", "unknown"]),
+      sizeBytes: z.number().int().safe().nonnegative().nullable().default(null),
+      checksum: z.string().regex(/^[a-f0-9]{64}$/).nullable().default(null),
+      sourceRevisionId: z.string().trim().min(1).max(160).nullable().default(null),
+      semanticConflict: z.boolean().default(false),
+    }).strict().superRefine((payload, context) => {
+      const materialized = payload.availability === "materialized";
+      const carried = [payload.sizeBytes, payload.checksum, payload.sourceRevisionId];
+      if (materialized && carried.some((value) => value === null)) {
+        context.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ["availability"],
+          message: "materialized_record_requires_size_checksum_and_revision",
+        });
+      }
+      if (!materialized && carried.some((value) => value !== null)) {
+        context.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ["availability"],
+          message: "placeholder_record_must_not_carry_materialized_fields",
+        });
+      }
+    }),
+  }).strict(),
+  // Ревизия источника подтверждается тем же человеческим решением, что и любое
+  // утверждение: project_intelligence_api.review_claim. Второго механизма
+  // ревью не заводится — читающая проекция уже показывает reviewStatus именно
+  // из project_intelligence.human_reviews.
+  projectSelector.extend({
+    contractVersion: z.literal(PROJECTCEO_COMMAND_CONTRACT_VERSION),
+    kind: z.literal("review_source"),
+    payload: z.object({
+      targetRevisionId: z.string().trim().min(1).max(160),
+      expectedRevisionId: z.string().trim().min(1).max(160),
+      decision: z.enum(["confirmed", "rejected"]),
+    }).strict().superRefine((payload, context) => {
+      // RPC отказывает, если они разошлись; ловим это до сети.
+      if (payload.targetRevisionId !== payload.expectedRevisionId) {
+        context.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ["expectedRevisionId"],
+          message: "expected_revision_id_must_match_target",
+        });
+      }
+    }),
+  }).strict(),
+  // M3: регистрация листа. Комната, подпись планировки и утверждённый коммит
+  // в команде отсутствуют намеренно — происхождение выводит сервер из
+  // опубликованного handoff, и параметров для его подмены у RPC просто нет.
+  projectSelector.extend({
+    contractVersion: z.literal(PROJECTCEO_COMMAND_CONTRACT_VERSION),
+    kind: z.literal("register_documentation_sheet"),
+    payload: z.object({
+      packageId: uuid,
+      handoffId: inventoryKey,
+      handoffRevisionId: inventoryKey,
+      sheetId: inventoryKey,
+      sheetNumber: z.string().trim().min(1).max(64),
+      title: z.string().trim().min(1).max(400),
+      revisionId: inventoryKey,
+      specificationRevisionIds: z.array(inventoryKey).max(2000).refine(
+        (ids) => new Set(ids).size === ids.length,
+        "specification_revision_ids_must_be_unique",
+      ),
+      reason: z.string().trim().min(3).max(4000),
+    }).strict(),
+  }).strict(),
+  projectSelector.extend({
+    contractVersion: z.literal(PROJECTCEO_COMMAND_CONTRACT_VERSION),
+    kind: z.literal("attach_documentation_sheet_specifications"),
+    payload: z.object({
+      packageId: uuid,
+      sheetId: inventoryKey,
+      revisionId: inventoryKey,
+      expectedRevisionId: inventoryKey,
+      specificationRevisionIds: z.array(inventoryKey).min(1).max(2000).refine(
+        (ids) => new Set(ids).size === ids.length,
+        "specification_revision_ids_must_be_unique",
+      ),
+      reason: z.string().trim().min(3).max(4000),
+    }).strict(),
+  }).strict(),
   projectSelector.extend({
     contractVersion: z.literal(PROJECTCEO_COMMAND_CONTRACT_VERSION),
     kind: z.enum([
-      "register_source",
-      "review_source",
       "publish_release",
       "build_handover",
     ]),

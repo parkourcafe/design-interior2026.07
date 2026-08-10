@@ -92,14 +92,17 @@ function client(value: unknown, calls: string[]): PostgresRpcClient {
   } }) };
 }
 
-describe("Cycle 6 authenticated read v6 adapter", () => {
-  it("uses only v6 and parses the exact persisted review and M3 projections", async () => {
+describe("Cycle 6 authenticated read adapter", () => {
+  // Адаптер ходит в самую свежую проекцию — сейчас v7, которая надстроена над
+  // v6. Проверяется здесь именно то, что цикл 6 обещал: разборы обзоров и
+  // входа M3 не изменились от смены версии.
+  it("uses only the latest projection and parses the exact persisted review and M3 projections", async () => {
     const calls: string[] = [];
     const result = await new ProjectCeoAuthenticatedReadPostgresAdapter(client(envelope(), calls))
       .getProjectWorkspaceRead({ projectId, packageId });
     const data = result.data as unknown as Record<string, unknown>;
 
-    expect(calls).toEqual(["projectceo_read_api.get_project_workspace_read_v6"]);
+    expect(calls).toEqual(["projectceo_read_api.get_project_workspace_read_v7"]);
     expect(data.m2ClientReviewSubmissions).toEqual([
       expect.objectContaining({ id: "submission-1", assignedClientUserId: "73000000-0000-4000-8000-000000000011" }),
     ]);
