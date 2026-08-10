@@ -174,6 +174,19 @@ export class ProjectCeoCommandService {
     return `ui:${command.projectId}:${command.kind}:${command.commandId}`;
   }
 
+  private async scopeOnly(projectId: string): Promise<ProjectListItem> {
+    const projects = await this.foundation.listProjects();
+    if (projects.error || !projects.data) {
+      throw new ProjectIntelligenceAdapterError(
+        projects.error?.code ?? "internal_error",
+        null,
+      );
+    }
+    const scope = effectiveScope(projects.data, projectId);
+    if (!scope) throw new ProjectIntelligenceAdapterError("not_found", null);
+    return scope;
+  }
+
   private async context(projectId: string): Promise<{
     readonly scope: ProjectListItem;
     readonly delivery: ProductDeliveryProjection;
@@ -223,8 +236,36 @@ export class ProjectCeoCommandService {
       return failure(requestId, "unavailable", "operation_unavailable");
     }
     try {
-      const { scope, delivery } = await this.context(command.projectId);
       const idempotencyKey = this.idempotencyKey(command);
+      if (command.kind === "review_source") {
+        // Этой команде продуктовая delivery-проекция не нужна вовсе — только
+        // источники из authenticated read. Полный context() стоил бы лишнего
+        // тяжёлого чтения на каждом клике ревью.
+        const scope = await this.scopeOnly(command.projectId);
+        const read = await this.read.getProjectWorkspaceRead({
+          projectId: command.projectId,
+          packageId: scope.accessScope === "package" ? scope.packageId ?? null : null,
+        });
+        if (read.error) {
+          throw new ProjectIntelligenceAdapterError(read.error.code, null);
+        }
+        const target = read.data.sources.find((source) => (
+          source.reviewTargetRevisionId === command.payload.targetRevisionId
+        ));
+        if (!target) return failure(requestId, "error", "not_found");
+        if (target.reviewStatus !== "pending") {
+          return failure(requestId, "error", "scope_conflict");
+        }
+        return completed(requestId, await this.db2.reviewClaim({
+          projectId: command.projectId,
+          targetRevisionId: command.payload.targetRevisionId,
+          expectedRevisionId: command.payload.expectedRevisionId,
+          decision: command.payload.decision,
+          expectedStateRevision: read.stateRevision,
+          idempotencyKey,
+        }));
+      }
+      const { scope, delivery } = await this.context(command.projectId);
       if (command.kind === "submit_m2_client_review") {
         return completed(requestId, await this.product.submitM2ClientReview({
           projectId: command.projectId,
@@ -331,34 +372,6 @@ export class ProjectCeoCommandService {
             physicalRecordIds: [command.payload.physicalRecordId],
           },
           expectedStateRevision: scope.stateRevision,
-          idempotencyKey,
-        }));
-      }
-      if (command.kind === "review_source") {
-        // Ревизия обязана быть ревизией источника, видимого этому человеку в
-        // его же области доступа. Без этой сверки команда стала бы обобщённым
-        // review_claim по любому идентификатору ревизии проекта — поверхность
-        // шире той, которую открывает M3 P0.
-        const read = await this.read.getProjectWorkspaceRead({
-          projectId: command.projectId,
-          packageId: scope.accessScope === "package" ? scope.packageId ?? null : null,
-        });
-        if (read.error) {
-          throw new ProjectIntelligenceAdapterError(read.error.code, null);
-        }
-        const target = read.data.sources.find((source) => (
-          source.reviewTargetRevisionId === command.payload.targetRevisionId
-        ));
-        if (!target) return failure(requestId, "error", "not_found");
-        if (target.reviewStatus !== "pending") {
-          return failure(requestId, "error", "scope_conflict");
-        }
-        return completed(requestId, await this.db2.reviewClaim({
-          projectId: command.projectId,
-          targetRevisionId: command.payload.targetRevisionId,
-          expectedRevisionId: command.payload.expectedRevisionId,
-          decision: command.payload.decision,
-          expectedStateRevision: read.stateRevision,
           idempotencyKey,
         }));
       }

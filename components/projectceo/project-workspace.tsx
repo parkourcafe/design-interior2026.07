@@ -1584,14 +1584,21 @@ function RegisterSheetForm({
  */
 function AttachSpecificationControl({
   view,
+  report,
   finding,
 }: {
   readonly view: ProjectWorkspaceView;
+  readonly report: { readonly packageId: string };
   readonly finding: { readonly code: string; readonly subject: string };
 }) {
   const documentation = view.documentation;
   const operation = view.operations.attach_documentation_sheet_specifications;
-  const sheets = documentation?.sheets ?? [];
+  // Only sheets of this finding's package are valid targets: a foreign sheet
+  // would be refused by the server (the selection is not in its approved set),
+  // and offering it would be promising a refusal.
+  const sheets = (documentation?.sheets ?? []).filter(
+    (item) => item.packageId === report.packageId,
+  );
   const [sheetId, setSheetId] = useState(sheets[0]?.sheetId ?? "");
   if (finding.code !== "SPECIFICATION_NOT_COVERED") return null;
   if (operation.status !== "available" || sheets.length === 0) return null;
@@ -1723,7 +1730,7 @@ function DocumentationView({
                       <li key={`${finding.code}:${finding.subject}`}>
                         <p>{projectCeoRu.workspace.documentation.findings[finding.code]}</p>
                         <p className="mt-0.5 font-mono text-xs text-muted">{finding.subject}</p>
-                        <AttachSpecificationControl view={view} finding={finding} />
+                        <AttachSpecificationControl view={view} report={report} finding={finding} />
                       </li>
                     ))}
                   </ul>

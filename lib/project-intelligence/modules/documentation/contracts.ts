@@ -69,6 +69,13 @@ export interface RegisterDocumentationSheetInput {
 
 export interface AttachSheetSpecificationsInput {
   readonly specificationRevisionIds: readonly string[];
+  /**
+   * Утверждённый набор из того же handoff, от которого лист заведён. Лист
+   * его не хранит (это свойство утверждения, не листа), поэтому вызывающая
+   * сторона обязана его передать — сервер при привязке точно так же
+   * перечитывает handoff.
+   */
+  readonly approvedSelectionRevisionIds: readonly string[];
   readonly revision: RevisionIdentity;
 }
 

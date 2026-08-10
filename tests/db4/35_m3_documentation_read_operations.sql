@@ -72,8 +72,9 @@ begin
   if v_read->'error' is not null and v_read->'error'<>'null'::jsonb then
     raise exception 'DB4_M3_READ_CLIENT_FORBIDDEN';
   end if;
-  if jsonb_array_length(v_read#>'{data,m3DocumentationSheets}')<>0
-     or jsonb_array_length(v_read#>'{data,m3DocumentationHandoffs}')<>0 then
+  -- Ключей нет вовсе: «не получает поверхность», а не «получает пустую».
+  if v_read#>'{data,m3DocumentationSheets}' is not null
+     or v_read#>'{data,m3DocumentationHandoffs}' is not null then
     raise exception 'DB4_M3_READ_CLIENT_LEAK';
   end if;
 end

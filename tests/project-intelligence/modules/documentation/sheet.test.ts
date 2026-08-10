@@ -129,6 +129,7 @@ describe("Лист документации: привязка специфика
     const sheet = registerDocumentationSheet(input());
     const next = attachSheetSpecifications(sheet, {
       specificationRevisionIds: ["sel-rev-2"],
+      approvedSelectionRevisionIds: HANDOFF.selectionRevisionIds,
       revision: { ...REVISION, revisionId: "5e6f7a8b-9c0d-4e1f-8a2b-3c4d5e6f7a81", revisionNo: 2 },
     });
 
@@ -143,6 +144,7 @@ describe("Лист документации: привязка специфика
     const sheet = registerDocumentationSheet(input());
     expect(() => attachSheetSpecifications(sheet, {
       specificationRevisionIds: ["sel-rev-2"],
+      approvedSelectionRevisionIds: HANDOFF.selectionRevisionIds,
       revision: REVISION,
     })).toThrowError(DecisionContractError);
   });
@@ -151,7 +153,19 @@ describe("Лист документации: привязка специфика
     const sheet = registerDocumentationSheet(input());
     expect(() => attachSheetSpecifications(sheet, {
       specificationRevisionIds: ["sel-rev-1"],
+      approvedSelectionRevisionIds: HANDOFF.selectionRevisionIds,
       revision: { ...REVISION, revisionId: "6f7a8b9c-0d1e-4f2a-8b3c-4d5e6f7a8b92", revisionNo: 2 },
+    })).toThrowError(DecisionContractError);
+  });
+
+  // Паритет с регистрацией и с серверным RPC, который перечитывает handoff:
+  // привязка — не обходной путь мимо утверждённого набора.
+  it("отклоняет привязку выбора вне утверждённого набора", () => {
+    const sheet = registerDocumentationSheet(input());
+    expect(() => attachSheetSpecifications(sheet, {
+      specificationRevisionIds: ["sel-rev-foreign"],
+      approvedSelectionRevisionIds: HANDOFF.selectionRevisionIds,
+      revision: { ...REVISION, revisionId: "7a8b9c0d-1e2f-4a3b-8c4d-5e6f7a8b9ca3", revisionNo: 2 },
     })).toThrowError(DecisionContractError);
   });
 });

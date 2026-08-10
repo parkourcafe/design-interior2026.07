@@ -12,7 +12,9 @@ import { sha256Hex } from "@/lib/project-intelligence/delivery/projectceo/comman
  * point — the format carries no promise of randomness to anyone downstream.
  */
 export function recordIdFromContent(parts: readonly string[]): string {
-  const digest = sha256Hex(parts.map((part) => part.trim()).join("|"));
+  // Части кодируются, а не склеиваются разделителем: floor="1|A", zone="B" и
+  // floor="1", zone="A|B" — разные документы и обязаны давать разные id.
+  const digest = sha256Hex(JSON.stringify(parts.map((part) => part.trim())));
   const variant = ((parseInt(digest.slice(16, 17), 16) & 0x3) | 0x8).toString(16);
   return [
     digest.slice(0, 8),

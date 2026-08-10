@@ -122,14 +122,28 @@ begin
       'selectionRevisionIds', coalesce(handoff.payload->'selectionRevisionIds', '[]'::jsonb)
     ) order by handoff.entity_id collate "C"), '[]'::jsonb)
     into v_handoffs
-    from projectceo_product.m2_workspace_revisions handoff
-    where handoff.organization_id = v_org
-      and handoff.project_id = get_project_workspace_read_v7.project_id
-      and (package_id is null or handoff.package_id = package_id)
-      and handoff.entity_kind = 'm2_m3_handoff'
-      and handoff.status = 'published';
+    from (
+      -- Переопубликованный handoff остаётся published во всех своих ревизиях
+      -- (леджер append-only), но входом модуля является только последняя:
+      -- лист, заведённый от вытесненной ревизии, указывал бы на утверждение,
+      -- которого больше нет.
+      select distinct on (handoff.entity_id) handoff.*
+      from projectceo_product.m2_workspace_revisions handoff
+      where handoff.organization_id = v_org
+        and handoff.project_id = get_project_workspace_read_v7.project_id
+        and (package_id is null or handoff.package_id = package_id)
+        and handoff.entity_kind = 'm2_m3_handoff'
+        and handoff.status = 'published'
+      order by handoff.entity_id, handoff.revision_no desc
+    ) handoff;
   end if;
 
+  -- Ключи ставятся только тем, кто получает поверхность. Отсутствие ключей —
+  -- это утверждение «роль не получает листы», и порт превращает его в null;
+  -- пустой массив значил бы «получает, но пусто» — другое утверждение.
+  if v_role not in ('owner_lead', 'architect') then
+    return v_base;
+  end if;
   v_base := jsonb_set(v_base, '{data,m3DocumentationSheets}', v_sheets, true);
   return jsonb_set(v_base, '{data,m3DocumentationHandoffs}', v_handoffs, true);
 end

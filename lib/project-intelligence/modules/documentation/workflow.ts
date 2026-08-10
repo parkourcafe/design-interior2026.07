@@ -172,12 +172,12 @@ export function attachSheetSpecifications(
     );
   }
 
-  if (new Set(input.specificationRevisionIds).size !== input.specificationRevisionIds.length) {
-    throw new DecisionContractError(
-      "DOCUMENTATION_SHEET_DUPLICATE_SPECIFICATION",
-      "A specification revision cannot be listed twice on one sheet.",
-    );
-  }
+  // Тот же инвариант, что при регистрации: лист не вправе ссылаться на выбор
+  // вне утверждённого набора — и привязка не даёт обходного пути.
+  requireApprovedSpecifications(
+    input.specificationRevisionIds,
+    input.approvedSelectionRevisionIds,
+  );
 
   for (const revisionId of input.specificationRevisionIds) {
     if (sheet.specificationRevisionIds.includes(revisionId)) {

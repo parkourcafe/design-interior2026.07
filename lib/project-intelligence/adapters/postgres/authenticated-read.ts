@@ -611,6 +611,72 @@ function isM2ClientReview(value: unknown): boolean {
     && isTimestamp(value.createdAt);
 }
 
+function isDocumentationSheetOrigin(value: unknown): boolean {
+  return isRecord(value)
+    && hasExactKeys(value, [
+      "handoffId", "handoffRevisionId", "handoffContractVersion",
+      "approvedM2CommitRevisionId", "designIntentRevisionId",
+      "layoutDocumentId", "layoutVersionId", "layoutRevisionId", "semanticHash",
+    ])
+    && isIdentifier(value.handoffId)
+    && isIdentifier(value.handoffRevisionId)
+    && isIdentifier(value.handoffContractVersion)
+    && isIdentifier(value.approvedM2CommitRevisionId)
+    && isIdentifier(value.designIntentRevisionId)
+    && isIdentifier(value.layoutDocumentId)
+    && isIdentifier(value.layoutVersionId)
+    && isIdentifier(value.layoutRevisionId)
+    && typeof value.semanticHash === "string"
+    && /^sha256:[0-9a-f]{64}$/.test(value.semanticHash);
+}
+
+function isDocumentationSheet(value: unknown): value is AuthenticatedReadDocumentationSheet {
+  return isRecord(value)
+    && hasExactKeys(value, [
+      "sheetId", "packageId", "roomId", "sheetNumber", "title",
+      "revisionId", "revisionNo", "specificationRevisionIds",
+      "reason", "createdByUserId", "origin", "createdAt",
+    ])
+    && isIdentifier(value.sheetId)
+    && isUuid(value.packageId)
+    && isIdentifier(value.roomId)
+    && isIdentifier(value.sheetNumber)
+    && typeof value.title === "string" && value.title.length > 0
+    && isIdentifier(value.revisionId)
+    && isRevisionNumber(value.revisionNo)
+    && Array.isArray(value.specificationRevisionIds)
+    && value.specificationRevisionIds.every(isIdentifier)
+    && typeof value.reason === "string"
+    && isUuid(value.createdByUserId)
+    && isDocumentationSheetOrigin(value.origin)
+    && isTimestamp(value.createdAt);
+}
+
+function isDocumentationHandoff(value: unknown): value is AuthenticatedReadDocumentationHandoff {
+  return isRecord(value)
+    && hasExactKeys(value, [
+      "handoffId", "revisionId", "contractVersion", "packageId", "roomId",
+      "approvedM2CommitRevisionId", "designIntentRevisionId", "layout",
+      "selectionRevisionIds",
+    ])
+    && isIdentifier(value.handoffId)
+    && isIdentifier(value.revisionId)
+    && isIdentifier(value.contractVersion)
+    && isUuid(value.packageId)
+    && isIdentifier(value.roomId)
+    && isIdentifier(value.approvedM2CommitRevisionId)
+    && isIdentifier(value.designIntentRevisionId)
+    && isRecord(value.layout)
+    && hasExactKeys(value.layout, ["documentId", "versionId", "revisionId", "semanticHash"])
+    && isIdentifier(value.layout.documentId)
+    && isIdentifier(value.layout.versionId)
+    && isIdentifier(value.layout.revisionId)
+    && typeof value.layout.semanticHash === "string"
+    && /^sha256:[0-9a-f]{64}$/.test(value.layout.semanticHash)
+    && Array.isArray(value.selectionRevisionIds)
+    && value.selectionRevisionIds.every(isIdentifier);
+}
+
 function isM2M3Handoff(value: unknown): value is AuthenticatedReadM2M3Handoff {
   return isRecord(value)
     && hasExactKeys(value, [
@@ -710,6 +776,15 @@ function parseAuthenticatedProjectRead(value: unknown): AuthenticatedProjectRead
     && data.m2ClientReviews.every(isM2ClientReview);
   const validM2M3Handoffs = Array.isArray(data.m2M3Handoffs)
     && data.m2M3Handoffs.every(isM2M3Handoff);
+  // Ключи v7 необязательны (их нет у ролей без поверхности и в старых
+  // проекциях), но присутствуя — разбираются так же строго, как остальные:
+  // сломанная строка падает на границе адаптера, а не в глубине рендера.
+  const validM3DocumentationSheets = data.m3DocumentationSheets === undefined
+    || (Array.isArray(data.m3DocumentationSheets)
+      && data.m3DocumentationSheets.every(isDocumentationSheet));
+  const validM3DocumentationHandoffs = data.m3DocumentationHandoffs === undefined
+    || (Array.isArray(data.m3DocumentationHandoffs)
+      && data.m3DocumentationHandoffs.every(isDocumentationHandoff));
   const validScope = isUuid(scope.actorUserId)
     && isUuid(scope.organizationId)
     && isUuid(scope.projectId)
@@ -724,6 +799,8 @@ function parseAuthenticatedProjectRead(value: unknown): AuthenticatedProjectRead
     || !validM2ClientReviewSubmissions
     || !validM2ClientReviews
     || !validM2M3Handoffs
+    || !validM3DocumentationSheets
+    || !validM3DocumentationHandoffs
     || !validScope
     || !isRecord(data.extensionStatus)
     || projectMetadata === null
