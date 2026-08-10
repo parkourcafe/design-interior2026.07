@@ -321,13 +321,33 @@ test.describe("AP5 — цепочка Kora на живом стеке", () => {
     expect(selection.status, JSON.stringify(selection.body.error)).toBe(200);
   });
 
-  test("6. закрытие передачи остаётся воркерной операцией и честно об этом говорит", async ({ browser }) => {
+  /**
+   * Ожидание менялось вместе с продуктом, и прогон 159 это поймал.
+   *
+   * До guardrail'а M4 `build_handover` был закрыт по одной причине — операция
+   * воркерная (`worker_only`). С 10.08 модуль исполнения закрыт флагом целиком
+   * (`REMHAOS_EXECUTION_ENABLED`, `execution-flag.ts`), и поверхность отвечает
+   * `module_disabled` — причина более сильная и более честная: закрыта не одна
+   * операция, а весь модуль, роль тут ни при чём.
+   *
+   * Флаг в прогоне намеренно НЕ включается: A6 §5.1 его не разрешает, и
+   * включить его здесь значило бы открыть поверхность M4 ради зелёного теста.
+   * Поэтому проверяется именно закрытость модуля — и то, что причина названа
+   * той, что есть.
+   */
+  test("8. модуль исполнения закрыт флагом, и поверхность говорит об этом прямо", async ({ browser }) => {
     const owner = await requestAs(browser, "owner");
     const operations = (await workspace(owner)).operations;
-    // Это не пропуск шага, а его результат: build_handover помечен worker_only
-    // на сервере, и браузер не должен делать вид, что закрывает передачу.
     expect(operations.build_handover?.status).toBe("unavailable");
-    expect(operations.build_handover?.reason).toBe("worker_only");
+    expect(operations.build_handover?.reason).toBe("module_disabled");
+
+    // Guardrail закрывает весь модуль, а не одну операцию: инкремент 1 из
+    // A6 §1.1 обязан быть закрыт той же причиной, иначе «закрыт модуль»
+    // означало бы «закрыта одна кнопка».
+    for (const kind of ["distribute_release", "acknowledge_release", "create_change"]) {
+      expect(operations[kind]?.status, kind).toBe("unavailable");
+      expect(operations[kind]?.reason, kind).toBe("module_disabled");
+    }
   });
 });
 
