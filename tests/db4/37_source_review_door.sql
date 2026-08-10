@@ -226,3 +226,95 @@ begin
   end;
 end
 $db4_review_door_refusals$;
+
+-- Вторая половина находки AP5: поверхность не должна предлагать ревизию,
+-- которой нет в графе утверждений.
+--
+-- Источник, заведённый человеком, попадает в инвентарь, но узлы графа создаёт
+-- воркерный `ingest_source_graph`. Чтение до v8 отдавало
+-- `reviewTargetRevisionId` прямо из инвентаря, и кнопка ревью выглядела
+-- рабочей; `review_claim` отвечал на неё `P1004 REVISION_STALE` с
+-- `currentRevisionId: null`. v8 (`20260810060000`) сужает ровно это поле.
+do $db4_review_target_requires_graph$
+declare
+  v_v7 jsonb;
+  v_v8 jsonb;
+  v_revision bigint;
+  v_inventory_only text := 'db4-inventory-only-revision';
+begin
+  -- Регистрация идёт настоящей командой, а не вставкой в таблицу: именно так
+  -- источник заводит человек из браузера, и именно её результат читает v8.
+  select state_revision into v_revision
+  from project_intelligence.project_workflows
+  where project_id = '41111111-1111-4111-8111-111111111111';
+
+  perform set_config('request.jwt.claim.sub',
+    '31111111-1111-4111-8111-111111111111', true);
+  set local role authenticated;
+  perform projectceo_api.register_source_inventory(
+    '41111111-1111-4111-8111-111111111111',
+    jsonb_build_array(jsonb_build_object(
+      'physicalRecordId', '5ddddddd-1111-4111-8111-111111111111',
+      'sanitizedName', 'db4-inventory-only.pdf',
+      'hierarchy', jsonb_build_object(
+        'projectId', '41111111-1111-4111-8111-111111111111',
+        'packageId', '41111111-1111-4111-8111-111111111111',
+        'floorId', 'floor-db4',
+        'zoneId', 'zone-db4',
+        'disciplineId', 'architecture'
+      ),
+      'availability', 'materialized',
+      'documentStatus', 'current',
+      'sizeBytes', 1024,
+      'checksum', repeat('d', 64),
+      'sourceRevisionId', v_inventory_only,
+      'semanticConflict', false
+    )),
+    jsonb_build_object(
+      'projectId', '41111111-1111-4111-8111-111111111111',
+      'entries', jsonb_build_array(),
+      'exactHashGroups', jsonb_build_array()
+    ),
+    v_revision,
+    'db4-inventory-only-register'
+  );
+  reset role;
+
+  perform set_config('request.jwt.claim.sub',
+    '31111111-1111-4111-8111-111111111111', true);
+  set local role authenticated;
+  v_v7 := projectceo_read_api.get_project_workspace_read_v7(
+    '41111111-1111-4111-8111-111111111111', null);
+  v_v8 := projectceo_read_api.get_project_workspace_read_v8(
+    '41111111-1111-4111-8111-111111111111', null);
+  reset role;
+
+  -- v8 обязана сузить поле, иначе чинить было нечего.
+  if (
+    select s ->> 'reviewTargetRevisionId'
+    from jsonb_array_elements(v_v8 #> '{data,sources}') s
+    where s ->> 'sourceRevisionId' = v_inventory_only
+  ) is not null then
+    raise exception 'DB4_REVIEW_TARGET_OFFERED_WITHOUT_GRAPH';
+  end if;
+
+  -- ...и обязана сузить ТОЛЬКО его: источник, у которого ревизия в графе есть,
+  -- по-прежнему рецензируем, иначе v8 просто сломала бы ревью целиком.
+  if (
+    select s ->> 'reviewTargetRevisionId'
+    from jsonb_array_elements(v_v8 #> '{data,sources}') s
+    where s ->> 'sourceRevisionId' = 'revision-source-1'
+  ) is distinct from 'revision-source-1' then
+    raise exception 'DB4_REVIEW_TARGET_LOST_FOR_GRAPH_BACKED_SOURCE';
+  end if;
+
+  -- Ничего, кроме этого поля, v8 не трогает: состав и число источников те же.
+  if jsonb_array_length(v_v8 #> '{data,sources}')
+     <> jsonb_array_length(v_v7 #> '{data,sources}') then
+    raise exception 'DB4_REVIEW_READ_V8_CHANGED_SOURCE_COUNT';
+  end if;
+  if (v_v8 ->> 'stateRevision') is distinct from (v_v7 ->> 'stateRevision') then
+    raise exception 'DB4_REVIEW_READ_V8_CHANGED_STATE_REVISION';
+  end if;
+end
+$db4_review_target_requires_graph$;

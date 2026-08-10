@@ -59,6 +59,7 @@ async function command(
 type Workspace = {
   readonly sources: readonly {
     readonly id: string;
+    readonly sourceRevisionId: string | null;
     readonly reviewTargetRevisionId: string | null;
     readonly reviewStatus: string;
   }[];
@@ -125,41 +126,50 @@ test.describe("AP5 — цепочка Kora на живом стеке", () => {
   });
 
   /**
-   * Звено, на котором гейт нашёл дефект, и оно же — проверка починки.
+   * Звено, на котором гейт нашёл ДВА дефекта, сложенных друг на друга.
    *
-   * Решение по источнику пишет `project_intelligence_api.review_claim`, а эта
-   * схема намеренно не отдана Data API (`supabase/config.toml`;
-   * `verify-runtime.mjs` требует от неё 406). Вызов не находился PostgREST,
-   * ошибка не ложилась ни на один SQLSTATE и выходила наружу как 500 — при том
-   * что поверхность действие предлагала. Миграция `20260810050000` завела
-   * тонкую дверь `projectceo_api.review_source` в уже отданной схеме; прав она
-   * не добавляет (`security invoker`, авторизация внутри `review_claim`).
+   * Первый — граница схем. Решение пишет
+   * `project_intelligence_api.review_claim`, а эта схема намеренно не отдана
+   * Data API (`supabase/config.toml`; `verify-runtime.mjs` требует от неё 406).
+   * Вызов не находился PostgREST, ошибка не ложилась ни на один SQLSTATE и
+   * выходила наружу как 500. Починено дверью `projectceo_api.review_source`
+   * (миграция `20260810050000`), и её поведение проверяет DB4-сценарий
+   * `tests/db4/37_source_review_door.sql`.
    *
-   * Проверяется здесь именно то, чего не хватало: путь из браузера, а не
-   * поведение RPC при прямом вызове в базе.
+   * Второй дефект был этим 500 закрыт и обнажился, когда дверь появилась:
+   * прогон стал отвечать 409 `stale_state`. Источник, заведённый человеком,
+   * попадает в инвентарь, но узлы графа утверждений создаёт воркерный
+   * `ingest_source_graph`. Чтение при этом отдавало `reviewTargetRevisionId`
+   * прямо из инвентаря — то есть поверхность предлагала отрецензировать
+   * ревизию, которой в графе нет, и `review_claim` честно отвечал
+   * `P1004 REVISION_STALE` с `currentRevisionId: null`.
+   *
+   * Починка — чтение v8 (`20260810060000`): цель ревью существует только тогда,
+   * когда ревизия есть в графе. Значит из браузера сегодня проверяется не
+   * успешное ревью (для него нужен воркерный ingest, см. «Чего он не
+   * доказывает»), а то, что поверхность больше не обещает невозможного.
    */
-  test("4. ревью источника подтверждает ровно ту ревизию", async ({ browser }) => {
+  test("4. ревью источника не предлагается, пока ревизии нет в графе", async ({ browser }) => {
     const architect = await requestAs(browser, "designer");
     const view = await workspace(architect);
     const source = view.sources.at(0);
-    expect(source?.reviewTargetRevisionId).toBeTruthy();
+    expect(source?.sourceRevisionId).toBeTruthy();
 
-    // Поверхность обязана предлагать действие — и предлагать ровно ту ревизию,
-    // которую команда потом и отправит.
-    expect(view.operations.review_source?.status).toBe("available");
-    expect(view.operations.review_source?.commandTargetId)
-      .toBe(source!.reviewTargetRevisionId);
+    // Источник в инвентаре есть, а ревизии в графе нет — цели для ревью тоже
+    // нет. Это и есть починка: раньше здесь лежал идентификатор из инвентаря.
+    expect(source?.reviewTargetRevisionId).toBeNull();
+    expect(view.operations.review_source?.status).toBe("unavailable");
+    expect(view.operations.review_source?.reason).toBe("prerequisite_missing");
 
+    // Если команду всё же послать в обход интерфейса — контролируемый отказ,
+    // а не 500 и не 409 из глубины базы.
     const result = await command(architect, "review_source", {
-      targetRevisionId: source!.reviewTargetRevisionId,
-      expectedRevisionId: source!.reviewTargetRevisionId,
+      targetRevisionId: AP5_SOURCE_REVISION_ID,
+      expectedRevisionId: AP5_SOURCE_REVISION_ID,
       decision: "confirmed",
     });
-    expect(result.status, JSON.stringify(result.body.error)).toBe(200);
-
-    const reviewed = (await workspace(architect)).sources
-      .find((candidate) => candidate.id === source!.id);
-    expect(reviewed?.reviewStatus).toBe("confirmed");
+    expect(result.status, JSON.stringify(result.body.error)).toBe(404);
+    expect(result.body.error?.code).toBe("not_found");
   });
 
   test("5. решение человеческого происхождения", async ({ browser }) => {

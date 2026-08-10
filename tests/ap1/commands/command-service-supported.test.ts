@@ -272,7 +272,7 @@ function fakeClient(calls: Call[], readOverrides: Readonly<Record<string, unknow
             packageMemberships: [],
           }), error: null };
         }
-        if (name === "projectceo_read_api.get_project_workspace_read_v7") {
+        if (name === "projectceo_read_api.get_project_workspace_read_v8") {
           return { data: authenticatedRead(readOverrides), error: null };
         }
         if (name === "projectceo_m4_api.get_execution_delivery") {

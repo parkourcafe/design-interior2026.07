@@ -213,6 +213,9 @@ describe("Layout Studio delivery/UI slice", () => {
       // починка дефекта, найденного гейтом AP5. К Layout Studio отношения не
       // имеет.
       "20260810050000_projectceo_source_review_door.sql",
+      // Чтение v8: ревизия для ревью не предлагается, пока её нет в графе
+      // утверждений. Тоже находка гейта AP5, к Layout Studio не относится.
+      "20260810060000_projectceo_source_review_target_requires_graph.sql",
     ];
     const actual = readdirSync(join(repoRoot, "supabase/migrations"), { withFileTypes: true })
       .filter((entry) => entry.isFile())
