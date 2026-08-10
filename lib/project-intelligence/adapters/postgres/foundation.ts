@@ -86,6 +86,33 @@ export interface ProjectDeliveryProjection {
 export class FoundationPostgresAdapter {
   constructor(private readonly client: PostgresRpcClient) {}
 
+  /**
+   * Решение по источнику. Идёт через тонкую дверь `projectceo_api.review_source`
+   * (миграция 20260810050000), а не напрямую в `project_intelligence_api`:
+   * та схема не отдана Data API, и прямой вызов из приложения не находится
+   * PostgREST. Дверь ничего не расширяет — `security invoker`, авторизация
+   * остаётся во внутренней `review_claim`.
+   */
+  async reviewSource(input: {
+    readonly projectId: string;
+    readonly targetRevisionId: string;
+    readonly expectedRevisionId: string;
+    readonly expectedStateRevision: number;
+    readonly decision: "confirmed" | "rejected";
+    readonly idempotencyKey: string;
+  }): Promise<CommandMutation<unknown>> {
+    return parseCommandMutation<unknown>(
+      await callRpc(this.client, "projectceo_api", "review_source", {
+        project_id: input.projectId,
+        target_revision_id: input.targetRevisionId,
+        expected_revision_id: input.expectedRevisionId,
+        expected_state_revision: input.expectedStateRevision,
+        decision: input.decision,
+        idempotency_key: input.idempotencyKey,
+      }),
+    );
+  }
+
   async enrollOrganizationProject(input: {
     readonly projectId: string;
     readonly idempotencyKey: string;

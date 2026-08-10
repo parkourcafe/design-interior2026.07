@@ -1005,9 +1005,12 @@ function operationStates(input: {
     (input.delivery.m3DocumentationHandoffs?.length ?? 0) > 0;
   const hasDocumentationSheet =
     (input.delivery.m3DocumentationSheets?.length ?? 0) > 0;
-  // Ревизия, ждущая решения, больше не ищется: пока команда review_source
-  // закрыта (см. ниже), предлагать по ней нечего, а вычислять цель действия,
-  // которого нет, — значит держать наготове обещание.
+  const pendingSourceRevisionId = nullableText(
+    input.delivery.sources.find((source) => (
+      source.reviewStatus === "pending"
+      && source.reviewTargetRevisionId !== null
+    ))?.reviewTargetRevisionId,
+  );
   const photoSourcePackageIds = new Set(
     input.delivery.sources.filter((source) => (
       source.availability === "materialized"
@@ -1064,17 +1067,17 @@ function operationStates(input: {
     // Решение по источнику пишется через review_claim, и RPC требует именно
     // capability review_claim — предлагать действие по review_source значило бы
     // обещать то, чего сервер не разрешит.
-    // Поверхность закрыта, пока решение по источнику некуда отправить.
-    // `review_claim` живёт в `project_intelligence_api` — схеме, которую
-    // окружение намеренно НЕ отдаёт Data API (`supabase/config.toml`), и
-    // `verify-runtime.mjs` требует, чтобы она отвечала 406. Значит вызов из
-    // браузера не доходит до RPC вовсе. Предлагать действие в таком состоянии
-    // значит обещать то, чего сервер не выполнит: AP5 получал на нём 500.
-    // Открыть обратно — только вместе с тонкой RPC в уже отданной схеме.
+    // Само решение уходит теперь через `projectceo_api.review_source` — тонкую
+    // дверь в уже отданной схеме (миграция `20260810050000`). До неё вызов шёл
+    // в `project_intelligence_api`, которую окружение намеренно не отдаёт Data
+    // API, не находился PostgREST и выходил наружу как 500: это поймал AP5.
     review_source: !documentationEnabled
       ? unavailable("module_disabled")
       : can(input.role, "review_claim") && can(input.role, "review_source")
-        ? unavailable("read_contract_pending")
+        ? pendingSourceRevisionId ? {
+            status: "available",
+            commandTargetId: pendingSourceRevisionId,
+          } : unavailable("prerequisite_missing")
         : unavailable("capability_missing"),
     // Лист регистрируется той же властью, что публикует вход M3 — это
     // проверит и сервер (prepare_client_handoff + роль owner/architect).

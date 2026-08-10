@@ -65,7 +65,11 @@ type Workspace = {
   readonly decisions: readonly { readonly revisionId: string; readonly claimStatus: string }[];
   readonly selections: readonly { readonly id: string; readonly decisionRevisionId: string }[];
   readonly participants: readonly { readonly role: string }[];
-  readonly operations: Record<string, { readonly status?: string; readonly reason?: string }>;
+  readonly operations: Record<string, {
+    readonly status?: string;
+    readonly reason?: string;
+    readonly commandTargetId?: string;
+  }>;
 };
 
 async function workspace(request: APIRequestContext): Promise<Workspace> {
@@ -121,32 +125,41 @@ test.describe("AP5 — цепочка Kora на живом стеке", () => {
   });
 
   /**
-   * Звено закрыто — и закрыто честно, что и проверяется.
+   * Звено, на котором гейт нашёл дефект, и оно же — проверка починки.
    *
    * Решение по источнику пишет `project_intelligence_api.review_claim`, а эта
    * схема намеренно не отдана Data API (`supabase/config.toml`;
-   * `verify-runtime.mjs` требует от неё 406). Раньше поверхность действие
-   * предлагала, вызов не находился PostgREST, и наружу выходил 500 — ровно это
-   * гейт и поймал в прогоне 09:42. Теперь и affordance, и команда говорят
-   * «недоступно», а 500 у пользователя больше нет.
+   * `verify-runtime.mjs` требует от неё 406). Вызов не находился PostgREST,
+   * ошибка не ложилась ни на один SQLSTATE и выходила наружу как 500 — при том
+   * что поверхность действие предлагала. Миграция `20260810050000` завела
+   * тонкую дверь `projectceo_api.review_source` в уже отданной схеме; прав она
+   * не добавляет (`security invoker`, авторизация внутри `review_claim`).
+   *
+   * Проверяется здесь именно то, чего не хватало: путь из браузера, а не
+   * поведение RPC при прямом вызове в базе.
    */
-  test("4. ревью источника закрыто до тонкой RPC и не обещает лишнего", async ({ browser }) => {
+  test("4. ревью источника подтверждает ровно ту ревизию", async ({ browser }) => {
     const architect = await requestAs(browser, "designer");
     const view = await workspace(architect);
     const source = view.sources.at(0);
     expect(source?.reviewTargetRevisionId).toBeTruthy();
 
-    expect(view.operations.review_source?.status).toBe("unavailable");
-    expect(view.operations.review_source?.reason).toBe("read_contract_pending");
+    // Поверхность обязана предлагать действие — и предлагать ровно ту ревизию,
+    // которую команда потом и отправит.
+    expect(view.operations.review_source?.status).toBe("available");
+    expect(view.operations.review_source?.commandTargetId)
+      .toBe(source!.reviewTargetRevisionId);
 
     const result = await command(architect, "review_source", {
       targetRevisionId: source!.reviewTargetRevisionId,
       expectedRevisionId: source!.reviewTargetRevisionId,
       decision: "confirmed",
     });
-    // Контролируемый отказ, а не 500: 409 operation_unavailable.
-    expect(result.status, JSON.stringify(result.body.error)).toBe(409);
-    expect(result.body.error?.code).toBe("operation_unavailable");
+    expect(result.status, JSON.stringify(result.body.error)).toBe(200);
+
+    const reviewed = (await workspace(architect)).sources
+      .find((candidate) => candidate.id === source!.id);
+    expect(reviewed?.reviewStatus).toBe("confirmed");
   });
 
   test("5. решение человеческого происхождения", async ({ browser }) => {

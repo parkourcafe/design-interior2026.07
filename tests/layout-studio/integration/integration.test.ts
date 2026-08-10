@@ -209,6 +209,10 @@ describe("Layout Studio delivery/UI slice", () => {
       // Продолжение auth-фикса 20260801120000: переписывает тела пяти функций
       // M2/M3 на request-claim. К Layout Studio отношения не имеет.
       "20260810040000_projectceo_m2_m3_request_claim_followup.sql",
+      // Дверь ревью источника в отданной схеме (projectceo_api.review_source) —
+      // починка дефекта, найденного гейтом AP5. К Layout Studio отношения не
+      // имеет.
+      "20260810050000_projectceo_source_review_door.sql",
     ];
     const actual = readdirSync(join(repoRoot, "supabase/migrations"), { withFileTypes: true })
       .filter((entry) => entry.isFile())

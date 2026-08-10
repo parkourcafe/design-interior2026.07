@@ -1,7 +1,6 @@
 import "server-only";
 
 import {
-  Db2HumanPostgresAdapter,
   FoundationPostgresAdapter,
   ProjectCeoM3HumanPostgresAdapter,
   ProjectCeoAuthenticatedReadPostgresAdapter,
@@ -159,12 +158,10 @@ export class ProjectCeoCommandService {
   private readonly read: ProjectCeoAuthenticatedReadPostgresAdapter;
   private readonly product: ProjectBrainHumanPostgresAdapter;
   private readonly execution: ProjectCeoM4HumanPostgresAdapter;
-  private readonly db2: Db2HumanPostgresAdapter;
   private readonly m3: ProjectCeoM3HumanPostgresAdapter;
 
   constructor(private readonly dependencies: ProjectCeoCommandDependencies) {
     this.foundation = new FoundationPostgresAdapter(dependencies.client);
-    this.db2 = new Db2HumanPostgresAdapter(dependencies.client);
     this.m3 = new ProjectCeoM3HumanPostgresAdapter(dependencies.client);
     this.read = new ProjectCeoAuthenticatedReadPostgresAdapter(dependencies.client);
     this.product = new ProjectBrainHumanPostgresAdapter(dependencies.client);
@@ -311,14 +308,37 @@ export class ProjectCeoCommandService {
       }
       }
       if (command.kind === "review_source") {
-        // Отказ до всякой работы, и он контролируемый. Решение по источнику
-        // пишет `project_intelligence_api.review_claim`, а эта схема намеренно
-        // не отдана Data API (`supabase/config.toml`; `verify-runtime.mjs`
-        // требует от неё 406). PostgREST такой вызов не находит, ошибка не
-        // ложится ни на один SQLSTATE и превращалась в 500 — что AP5 и поймал.
-        // Открывать обратно вместе с тонкой RPC в уже отданной схеме, а до тех
-        // пор поверхность обязана честно говорить «недоступно».
-        return failure(requestId, "unavailable", "operation_unavailable");
+        // Этой команде продуктовая delivery-проекция не нужна вовсе — только
+        // источники из authenticated read. Полный context() стоил бы лишнего
+        // тяжёлого чтения на каждом клике ревью.
+        const scope = await this.scopeOnly(command.projectId);
+        const read = await this.read.getProjectWorkspaceRead({
+          projectId: command.projectId,
+          packageId: scope.accessScope === "package" ? scope.packageId ?? null : null,
+        });
+        if (read.error) {
+          throw new ProjectIntelligenceAdapterError(read.error.code, null);
+        }
+        const target = read.data.sources.find((source) => (
+          source.reviewTargetRevisionId === command.payload.targetRevisionId
+        ));
+        if (!target) return failure(requestId, "error", "not_found");
+        // Повторное решение по той же ревизии база отбивает уникальным
+        // ограничением human_reviews, а это уже 23505 без контролируемого кода.
+        // Отказываем здесь, чтобы наружу шёл scope_conflict, а не 500.
+        if (target.reviewStatus !== "pending") {
+          return failure(requestId, "error", "scope_conflict");
+        }
+        // Дверь в отданной схеме: projectceo_api.review_source →
+        // project_intelligence_api.review_claim (миграция 20260810050000).
+        return completed(requestId, await this.foundation.reviewSource({
+          projectId: command.projectId,
+          targetRevisionId: command.payload.targetRevisionId,
+          expectedRevisionId: command.payload.expectedRevisionId,
+          decision: command.payload.decision,
+          expectedStateRevision: read.stateRevision,
+          idempotencyKey,
+        }));
       }
       const { scope, delivery } = await this.context(command.projectId);
       if (command.kind === "submit_m2_client_review") {

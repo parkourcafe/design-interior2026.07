@@ -211,7 +211,9 @@ function fakeClient(calls: Call[], readOverrides: Readonly<Record<string, unknow
       packageId,
       specificationRevisionIds: ["selection-a@1"],
     },
-    "project_intelligence_api.review_claim": {
+    // Дверь в отданной схеме: приложение зовёт её, а не приватную
+    // `project_intelligence_api.review_claim` (миграция `20260810050000`).
+    "projectceo_api.review_source": {
       reviewId: "review:source-r1",
       targetRevisionId: "source-r1",
       decision: "confirmed",
@@ -864,13 +866,12 @@ describe("AP1 supported human commands", () => {
       });
   });
 
-  it("refuses source review in a controlled way and never reaches the private schema", async () => {
-    // Решение по источнику пишет project_intelligence_api.review_claim, а эта
-    // схема намеренно не отдана Data API (supabase/config.toml, и
-    // verify-runtime.mjs требует от неё 406). Вызов не находится PostgREST,
-    // ошибка не ложится ни на один SQLSTATE и выходила наружу как 500 — это
-    // поймал AP5. Пока нет тонкой RPC в уже отданной схеме, команда обязана
-    // отказывать сама и до сети.
+  it("reviews only a source revision this human can already see, and only once", async () => {
+    // Вызов идёт в `projectceo_api.review_source` — тонкую дверь в отданной
+    // схеме (миграция `20260810050000`), а не напрямую в
+    // `project_intelligence_api.review_claim`: та схема намеренно не отдана
+    // Data API (`supabase/config.toml`, и `verify-runtime.mjs` требует от неё
+    // 406), из браузера её не видно, и AP5 получал на ней 500.
     const pendingSource = {
       availability: "materialized",
       checksum: "b".repeat(64),
@@ -900,10 +901,44 @@ describe("AP1 supported human commands", () => {
       }),
       "review-source",
     );
-    expect(result).toMatchObject({
-      status: "unavailable",
-      error: { code: "operation_unavailable" },
-    });
+    expect(result).toMatchObject({ status: "completed", replay: false });
+    expect(calls.find((entry) => entry.name === "projectceo_api.review_source")?.args)
+      .toMatchObject({
+        project_id: projectId,
+        target_revision_id: "source-r1",
+        expected_revision_id: "source-r1",
+        decision: "confirmed",
+        expected_state_revision: 9,
+      });
+    // Приватная схема из приложения не зовётся вовсе — иначе дверь не нужна.
     expect(calls.some((entry) => entry.name === "project_intelligence_api.review_claim")).toBe(false);
+
+    // Ревизия вне видимых источников — отказ до сети.
+    const unknownCalls: Call[] = [];
+    const unknown = await service(unknownCalls, { sources: [pendingSource] }).execute(
+      command("review_source", {
+        targetRevisionId: "source-r9",
+        expectedRevisionId: "source-r9",
+        decision: "confirmed",
+      }),
+      "review-source-unknown",
+    );
+    expect(unknown).toMatchObject({ status: "error", error: { code: "not_found" } });
+    expect(unknownCalls.some((entry) => entry.name === "projectceo_api.review_source")).toBe(false);
+
+    // Уже решённая ревизия не пересматривается этой командой.
+    const decidedCalls: Call[] = [];
+    const decided = await service(decidedCalls, {
+      sources: [{ ...pendingSource, reviewStatus: "confirmed" }],
+    }).execute(
+      command("review_source", {
+        targetRevisionId: "source-r1",
+        expectedRevisionId: "source-r1",
+        decision: "rejected",
+      }),
+      "review-source-decided",
+    );
+    expect(decided).toMatchObject({ status: "error", error: { code: "scope_conflict" } });
+    expect(decidedCalls.some((entry) => entry.name === "projectceo_api.review_source")).toBe(false);
   });
 });
