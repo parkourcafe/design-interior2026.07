@@ -1122,7 +1122,9 @@ function operationStates(input: {
       ? hasSubmittedApproval ? { status: "available" } : unavailable("prerequisite_missing")
       : unavailable("capability_missing"),
     publish_baseline: unavailable("read_contract_pending"),
-    publish_release: unavailable("read_contract_pending"),
+    publish_release: can(input.role, "publish_release")
+      ? latestBaseline ? { status: "available" } : unavailable("prerequisite_missing")
+      : unavailable("capability_missing"),
     distribute_release: can(input.role, "distribute_release")
       ? distributableVersionId ? {
           status: "available",

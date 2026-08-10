@@ -646,12 +646,38 @@ export const projectCeoCommandSchema = z.discriminatedUnion("kind", [
       reason: z.string().trim().min(3).max(4000),
     }).strict(),
   }).strict(),
+  // Зеркалит publish_baseline: дескриптор с семантическим хешем строит
+  // доменный слой (modules/package), сервер пересчитывает дайджест и отвергает
+  // расхождение — браузеру здесь нечего доказывать, только предъявить.
   projectSelector.extend({
     contractVersion: z.literal(PROJECTCEO_COMMAND_CONTRACT_VERSION),
-    kind: z.enum([
-      "publish_release",
-      "build_handover",
-    ]),
+    kind: z.literal("publish_release"),
+    payload: z.object({
+      descriptor: z.object({
+        id: claimRevisionId,
+        packageId: uuid,
+        baselineId: claimRevisionId,
+        previousVersionId: claimRevisionId.nullable(),
+        exactRevisionRefs: z.object({
+          sources: revisionIdList,
+          requirements: revisionIdList,
+          assumptions: revisionIdList,
+          decisions: revisionIdList,
+          selections: revisionIdList,
+        }).strict(),
+        organizationId: uuid,
+        projectId: uuid,
+        schemaVersion: z.literal("project-ceo-production-package/0.1"),
+        semanticHash: z.string().regex(/^sha256:[0-9a-f]{64}$/),
+      }).strict(),
+    }).strict(),
+  }).strict(),
+  // Сборка и закрытие handover идут через отдельный worker-allowlist
+  // (AP3 §10): человеческой команды нет намеренно, и static-boundary тест
+  // запрещает её появление в этом сервисе.
+  projectSelector.extend({
+    contractVersion: z.literal(PROJECTCEO_COMMAND_CONTRACT_VERSION),
+    kind: z.literal("build_handover"),
     payload: z.object({}).strict(),
   }).strict(),
 ]).superRefine((command, ctx) => {

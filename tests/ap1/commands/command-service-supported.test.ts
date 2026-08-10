@@ -180,6 +180,14 @@ function fakeClient(calls: Call[], readOverrides: Readonly<Record<string, unknow
       projectId,
       status: "approved",
     },
+    "projectceo_product_api.publish_production_package_version": {
+      id: "package-v1",
+      projectId,
+      packageId,
+      versionNo: 1,
+      status: "published",
+      semanticHash,
+    },
     "projectceo_product_api.publish_project_baseline": {
       id: "baseline-v3",
       projectId,
@@ -634,6 +642,45 @@ describe("AP1 supported human commands", () => {
     expect(retryReviewed).toMatchObject({ status: "completed", replay: true });
   });
 
+  it("publishes a production package version and pins the descriptor to the request scope", async () => {
+    const descriptor = {
+      id: "package-v1",
+      packageId,
+      baselineId: "baseline-v2",
+      previousVersionId: null,
+      exactRevisionRefs: {
+        sources: ["source-r1"],
+        requirements: [],
+        assumptions: [],
+        decisions: ["decision-r1"],
+        selections: ["selection-r1"],
+      },
+      organizationId,
+      projectId,
+      schemaVersion: "project-ceo-production-package/0.1" as const,
+      semanticHash,
+    };
+    const calls: Call[] = [];
+    const result = await service(calls).execute(
+      command("publish_release", { descriptor }),
+      "release-publish",
+    );
+    expect(result).toMatchObject({ status: "completed", replay: false });
+    expect(calls.find((call) => call.name === "projectceo_product_api.publish_production_package_version")?.args)
+      .toMatchObject({ project_id: projectId, descriptor, expected_state_revision: 9 });
+
+    // Дескриптор о чужом проекте или организации — сломанный клиент: отказ до RPC.
+    const foreignCalls: Call[] = [];
+    const foreign = await service(foreignCalls).execute(
+      command("publish_release", {
+        descriptor: { ...descriptor, organizationId: "99999999-9999-4999-8999-999999999999" },
+      }),
+      "release-publish-foreign",
+    );
+    expect(foreign).toMatchObject({ status: "error", error: { code: "scope_conflict" } });
+    expect(foreignCalls.some((call) => call.name === "projectceo_product_api.publish_production_package_version")).toBe(false);
+  });
+
   it("publishes a validated baseline descriptor through the existing product RPC", async () => {
     const calls: Call[] = [];
     const descriptor = {
@@ -660,7 +707,8 @@ describe("AP1 supported human commands", () => {
   });
 
   it.each([
-    "publish_release",
+    // Сборка handover — воркерный путь с отдельным allowlist (AP3 §10);
+    // человеческой команды нет намеренно.
     "build_handover",
   ] as const)("keeps unsupported %s fail-closed without reads or writes", async (kind) => {
     const calls: Call[] = [];

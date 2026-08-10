@@ -35,8 +35,9 @@ type CommandErrorCode =
   | "operation_unavailable"
   | "internal_error";
 
+// Сборка handover — воркерный путь с отдельным allowlist (AP3 §10); в
+// человеческом сервисе команды нет намеренно.
 const UNAVAILABLE = new Set<ProjectCeoCommand["kind"]>([
-  "publish_release",
   "build_handover",
 ]);
 
@@ -665,6 +666,23 @@ export class ProjectCeoCommandService {
           expectedStatus: command.payload.expectedStatus,
           decision: command.payload.decision,
           reason: command.payload.reason,
+          expectedStateRevision: scope.stateRevision,
+          idempotencyKey,
+        }));
+      }
+      if (command.kind === "publish_release") {
+        // Организация и проект дескриптора обязаны совпадать с серверной
+        // областью запроса: дескриптор, говорящий о чужом проекте, — это
+        // сломанный клиент, а не другая публикация.
+        if (
+          command.payload.descriptor.projectId !== command.projectId
+          || command.payload.descriptor.organizationId !== scope.organizationId
+        ) {
+          return failure(requestId, "error", "scope_conflict");
+        }
+        return completed(requestId, await this.product.publishProductionPackageVersion({
+          projectId: command.projectId,
+          descriptor: command.payload.descriptor,
           expectedStateRevision: scope.stateRevision,
           idempotencyKey,
         }));
