@@ -310,6 +310,9 @@ function service(
     tokenSecret: "secret-".repeat(6),
     now: () => new Date("2026-07-18T00:00:00.000Z"),
     documentationEnabled,
+    // Guardrail модуля 4 закрыт по умолчанию; здесь проверяется поведение
+    // принятых команд, а не сам запрет — его проверяет execution-guardrail.test.ts.
+    executionEnabled: "true",
   });
 }
 

@@ -54,6 +54,7 @@ import { capabilitiesForRole, can } from "@/components/projectceo/role-policy";
 import { ru } from "@/lib/i18n/ru";
 import { reviewPackageCompleteness } from "../../modules/documentation";
 import { isDocumentationModuleEnabled } from "./documentation-flag";
+import { EXECUTION_MODULE, isExecutionModuleEnabled } from "./execution-flag";
 import type { ProjectCeoVerifiedIdentity } from "./request-context";
 
 type UnknownRecord = Readonly<Record<string, unknown>>;
@@ -973,9 +974,11 @@ function operationStates(input: {
   readonly delivery: AuthenticatedProjectReadProjection;
   readonly m4: readonly ExecutionDeliveryEnvelope[];
   readonly documentationEnabled?: boolean;
+  readonly executionEnabled?: boolean;
 }): ProjectCeoOperationStates {
   const documentationEnabled = input.documentationEnabled
     ?? isDocumentationModuleEnabled();
+  const executionEnabled = input.executionEnabled ?? isExecutionModuleEnabled();
   const supports = (capability: Parameters<typeof can>[1]): ProjectCeoOperationState => (
     can(input.role, capability) ? { status: "available" } : unavailable("capability_missing")
   );
@@ -1050,7 +1053,7 @@ function operationStates(input: {
       }
     }
   }
-  return {
+  const states: ProjectCeoOperationStates = {
     create_invitation: can(input.role, "manage_access")
       ? { status: "available" }
       : unavailable("capability_missing"),
@@ -1177,6 +1180,13 @@ function operationStates(input: {
       : unavailable("capability_missing"),
     build_handover: unavailable("worker_only"),
   };
+  if (executionEnabled) return states;
+  // Guardrail модуля 4: при выключенном флаге поверхность модуля не
+  // существует для пользователя. Причина именно `module_disabled`, а не
+  // `capability_missing` — роль тут ни при чём, закрыт весь модуль.
+  const disabled: Record<string, ProjectCeoOperationState> = { ...states };
+  for (const kind of EXECUTION_MODULE) disabled[kind] = unavailable("module_disabled");
+  return disabled as ProjectCeoOperationStates;
 }
 
 function onboarding(projectCount: number): OnboardingState {

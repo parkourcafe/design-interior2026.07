@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from "vitest";
+import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 
 vi.mock("server-only", () => ({}));
 import type { PostgresRpcClient } from "../../lib/project-intelligence/adapters/postgres";
@@ -232,6 +232,17 @@ function executionWithPhotoDecision(decision: "accepted" | "rejected" | null) {
 }
 
 describe("ProjectCEO live DTO sanitizer", () => {
+  // Guardrail модуля 4 (10.08.2026) закрыт по умолчанию, а проверки ниже
+  // описывают поведение поверхности исполнения, когда модуль есть. Сам запрет
+  // проверяется отдельно — последним тестом файла и в
+  // tests/ap1/commands/execution-guardrail.test.ts.
+  const previousExecution = process.env.REMHAOS_EXECUTION_ENABLED;
+  beforeAll(() => { process.env.REMHAOS_EXECUTION_ENABLED = "true"; });
+  afterAll(() => {
+    if (previousExecution === undefined) delete process.env.REMHAOS_EXECUTION_ENABLED;
+    else process.env.REMHAOS_EXECUTION_ENABLED = previousExecution;
+  });
+
   it("fails closed for malformed nested v6 client-review submissions", async () => {
     const variant = (role: string, suffix: string): {
       role: string;
@@ -726,5 +737,39 @@ describe("ProjectCEO live DTO sanitizer", () => {
     }).getProjectWorkspace({ projectId, requestId: "project-org-conflict" });
     expect(result.data).toBeNull();
     expect(result.error?.code).toBe("scope_conflict");
+  });
+
+  it("hides the whole execution surface when the module flag is off", async () => {
+    // Вторая половина guardrail: команда отказывает, а поверхность обязана не
+    // предлагать. Причина именно `module_disabled` — роль тут ни при чём,
+    // закрыт весь модуль, и `capability_missing` соврало бы о причине.
+    process.env.REMHAOS_EXECUTION_ENABLED = "false";
+    try {
+      const result = await new ProjectCeoLiveReadPort(fakeClient(), {
+        userId: "66666666-6666-4666-8666-666666666666",
+        displayName: "Controlled user",
+      }).getProjectWorkspace({ projectId, requestId: "execution-disabled" });
+
+      for (const kind of [
+        "distribute_release",
+        "acknowledge_release",
+        "create_change",
+        "review_change_impact",
+        "upload_photo_evidence",
+        "review_photo_evidence",
+        "accept_milestone",
+        "build_handover",
+      ] as const) {
+        expect(result.data?.operations[kind], kind).toEqual({
+          status: "unavailable",
+          reason: "module_disabled",
+        });
+      }
+
+      // ...и ровно этот модуль, а не всё подряд: соседние поверхности живы.
+      expect(result.data?.operations.create_invitation).toEqual({ status: "available" });
+    } finally {
+      process.env.REMHAOS_EXECUTION_ENABLED = "true";
+    }
   });
 });

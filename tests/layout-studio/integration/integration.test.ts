@@ -216,6 +216,9 @@ describe("Layout Studio delivery/UI slice", () => {
       // Чтение v8: ревизия для ревью не предлагается, пока её нет в графе
       // утверждений. Тоже находка гейта AP5, к Layout Studio не относится.
       "20260810060000_projectceo_source_review_target_requires_graph.sql",
+      // Guardrail модуля 4: отзыв прав на командные RPC у authenticated.
+      // К Layout Studio отношения не имеет.
+      "20260810070000_projectceo_m4_execution_guardrail.sql",
     ];
     const actual = readdirSync(join(repoRoot, "supabase/migrations"), { withFileTypes: true })
       .filter((entry) => entry.isFile())

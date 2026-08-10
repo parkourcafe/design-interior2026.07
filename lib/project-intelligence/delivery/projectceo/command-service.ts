@@ -20,6 +20,7 @@ import {
   type ProjectCeoCommandResponse,
 } from "./command-contract";
 import { isDocumentationModuleEnabled } from "./documentation-flag";
+import { EXECUTION_MODULE, isExecutionModuleEnabled } from "./execution-flag";
 
 type UnknownRecord = Readonly<Record<string, unknown>>;
 type CommandErrorCode =
@@ -39,6 +40,12 @@ type CommandErrorCode =
 const UNAVAILABLE = new Set<ProjectCeoCommand["kind"]>([
   "build_handover",
 ]);
+
+// Guardrail модуля 4 от 10.08.2026. Проверка серверная и стоит до чтений и
+// записей: при выключенном модуле команда не доходит ни до одного RPC.
+// Список — из `execution-flag.ts`, где он же сверяется с контрактом
+// exhaustive-тестом: новая команда M4, не отнесённая ни к одному инкременту,
+// роняет CI, а не тихо проходит мимо запрета.
 
 // Intake — поверхность модуля 3, поэтому она закрыта его флагом (A5 §4.2.2).
 // Проверка серверная и стоит до чтений и записей: при выключенном модуле
@@ -143,6 +150,8 @@ export interface ProjectCeoCommandDependencies {
   readonly client: PostgresRpcClient;
   readonly tokenSecret?: string;
   readonly now?: () => Date;
+  /** Значение REMHAOS_EXECUTION_ENABLED; по умолчанию читается из окружения. */
+  readonly executionEnabled?: string;
   /** Значение REMHAOS_DOCUMENTATION_ENABLED; по умолчанию читается из окружения. */
   readonly documentationEnabled?: string;
 }
@@ -221,6 +230,12 @@ export class ProjectCeoCommandService {
     if (
       DOCUMENTATION_MODULE.has(command.kind)
       && !isDocumentationModuleEnabled(this.dependencies.documentationEnabled)
+    ) {
+      return failure(requestId, "unavailable", "operation_unavailable");
+    }
+    if (
+      EXECUTION_MODULE.has(command.kind)
+      && !isExecutionModuleEnabled(this.dependencies.executionEnabled)
     ) {
       return failure(requestId, "unavailable", "operation_unavailable");
     }
