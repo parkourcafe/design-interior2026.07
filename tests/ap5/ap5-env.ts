@@ -39,7 +39,9 @@ export function ap5Env() {
     appUrl: process.env.AP5_APP_URL ?? "http://127.0.0.1:3100",
     supabaseUrl: required("NEXT_PUBLIC_SUPABASE_URL"),
     anonKey: required("NEXT_PUBLIC_SUPABASE_ANON_KEY"),
-    password: required("AP1_TEST_PASSWORD"),
+    // Нужен только чтобы выпустить magic link вместо почтового ящика — это
+    // подмена доставки письма, а не выполнение операции за человека.
+    serviceRoleKey: required("SUPABASE_SERVICE_ROLE_KEY"),
     emailFor: (key: Ap5RoleKey) => `${key}@ap1.${domain}`,
   };
 }

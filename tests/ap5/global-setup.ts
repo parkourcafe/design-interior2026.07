@@ -48,19 +48,59 @@ async function assertLiveStackNotFixtures(): Promise<void> {
   }
 }
 
-/** Настоящая пользовательская сессия, а не service role. */
-async function signIn(role: Ap5RoleKey) {
+/**
+ * Вход по одноразовой ссылке, а не по паролю.
+ *
+ * Это не удобство, а требование контракта. `public.projectceo_custom_access_token_hook`
+ * (миграции 20260801150000 и 20260802001000) выдаёт claim `email_verified`
+ * ТОЛЬКО методам, доказывающим владение адресом — `otp`, `magiclink`, `invite`,
+ * `email/signup`. Вход по паролю его не получает намеренно, и вся поверхность
+ * ProjectCEO для такой сессии закрыта как `identity_unverified`. Именно на этом
+ * останавливался приём приглашений.
+ *
+ * Ящика в стенде нет (`local_smtp` выключен в config.toml), поэтому письмо
+ * заменяется выпуском ссылки через admin API. Service role здесь подменяет
+ * доставку письма, а не выполняет операцию за человека: по ссылке ходит
+ * браузер, и сессия рождается в нём.
+ */
+async function issueMagicLink(role: Ap5RoleKey) {
+  const admin = createClient(env.supabaseUrl, env.serviceRoleKey, {
+    auth: { autoRefreshToken: false, persistSession: false },
+  });
+  const { data, error } = await admin.auth.admin.generateLink({
+    type: "magiclink",
+    email: env.emailFor(role),
+  });
+  const tokenHash = data?.properties?.hashed_token;
+  if (error || !tokenHash || !data?.user) {
+    throw new Error(`AP5: не выпустить ссылку для ${role}: ${error?.message ?? "нет токена"}`);
+  }
+  return { tokenHash, userId: data.user.id };
+}
+
+/** Ссылка ведёт в /auth/callback, который меняет token_hash на сессию. */
+function callbackUrl(tokenHash: string, next = "/dashboard"): string {
+  const url = new URL("/auth/callback", env.appUrl);
+  url.searchParams.set("token_hash", tokenHash);
+  url.searchParams.set("type", "magiclink");
+  url.searchParams.set("next", next);
+  return url.toString();
+}
+
+/** Токен той же природы для RPC-шага: одноразовая ссылка тратится один раз. */
+async function accessTokenFor(role: Ap5RoleKey): Promise<string> {
+  const { tokenHash } = await issueMagicLink(role);
   const client = createClient(env.supabaseUrl, env.anonKey, {
     auth: { autoRefreshToken: false, persistSession: false },
   });
-  const { data, error } = await client.auth.signInWithPassword({
-    email: env.emailFor(role),
-    password: env.password,
+  const { data, error } = await client.auth.verifyOtp({
+    type: "magiclink",
+    token_hash: tokenHash,
   });
-  if (error || !data.session || !data.user) {
-    throw new Error(`AP5: ${role} не смог войти: ${error?.message ?? "нет сессии"}`);
+  if (error || !data.session) {
+    throw new Error(`AP5: ${role} не получил сессию: ${error?.message ?? "нет сессии"}`);
   }
-  return { accessToken: data.session.access_token, userId: data.user.id };
+  return data.session.access_token;
 }
 
 /**
@@ -115,20 +155,23 @@ async function enroll(ownerToken: string, projectId: string): Promise<void> {
   if (error) throw new Error(`AP5: enroll_organization_project отказал: ${error.message}`);
 }
 
-/** Вход через настоящую форму — сессия рождается в браузере, а не подкладывается. */
-async function captureBrowserSession(role: Ap5RoleKey): Promise<void> {
+/** Сессия рождается в браузере: он сам проходит по ссылке и получает куку. */
+async function captureBrowserSession(role: Ap5RoleKey): Promise<string> {
+  const { tokenHash, userId } = await issueMagicLink(role);
   const browser = await chromium.launch();
   try {
     const context = await browser.newContext({ baseURL: env.appUrl });
     const page = await context.newPage();
-    await page.goto("/login");
-    await page.locator("#email").fill(env.emailFor(role));
-    await page.locator("#password").fill(env.password);
-    await page.locator("form").filter({ has: page.locator("#password") })
-      .locator("button[type=submit]").click();
-    await page.waitForURL((url) => !url.pathname.startsWith("/login"), { timeout: 30_000 });
+    await page.goto(callbackUrl(tokenHash));
+    // Неверная ссылка не падает, а уводит на /login?error=… — проверяем адрес,
+    // иначе сохранили бы пустую сессию и получили невнятный отказ позже.
+    await page.waitForURL((url) => !url.pathname.startsWith("/auth/"), { timeout: 30_000 });
+    if (new URL(page.url()).pathname.startsWith("/login")) {
+      throw new Error(`AP5: вход ${role} по ссылке отклонён: ${page.url()}`);
+    }
     await context.storageState({ path: storageStatePath(role) });
     await context.close();
+    return userId;
   } finally {
     await browser.close();
   }
@@ -226,17 +269,13 @@ export default async function globalSetup(): Promise<void> {
 
   const userIds: Record<string, string> = {};
 
-  const owner = await signIn("owner");
-  userIds.owner = owner.userId;
-
   for (const role of AP5_ROLES) {
-    if (role.key !== "owner") userIds[role.key] = (await signIn(role.key)).userId;
-    await captureBrowserSession(role.key);
+    userIds[role.key] = await captureBrowserSession(role.key);
   }
 
   // Сессия owner уже есть — проект создаётся ею, и только потом привязывается.
   const projectId = await createLegacyProject();
-  await enroll(owner.accessToken, projectId);
+  await enroll(await accessTokenFor("owner"), projectId);
 
   for (const role of AP5_INVITED_ROLES) {
     const invitationUrl = await createInvitation(
