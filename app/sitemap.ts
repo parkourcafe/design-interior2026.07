@@ -1,5 +1,6 @@
 import type { MetadataRoute } from "next";
 import { appUrl } from "@/lib/env";
+import { PUBLISHED_INTENTS } from "@/lib/seo/intents";
 
 type Route = {
   path: string;
@@ -22,12 +23,25 @@ const ROUTES: Route[] = [
   { path: "/support", priority: 0.4, changeFrequency: "yearly" },
   { path: "/legal/privacy", priority: 0.3, changeFrequency: "yearly" },
   { path: "/legal/terms", priority: 0.3, changeFrequency: "yearly" },
+  // Хабы интент-кластеров.
+  { path: "/for-clients", priority: 0.7, changeFrequency: "monthly" },
+  { path: "/guides", priority: 0.7, changeFrequency: "monthly" },
 ];
+
+// Интент-страницы берутся из реестра, а не переписываются сюда руками:
+// иначе sitemap разойдётся с фактическими маршрутами при первом же изменении.
+// Отклонённые интенты (honest=false) в PUBLISHED_INTENTS не попадают, поэтому
+// страницы под непостроенную функциональность физически не могут сюда пролезть.
+const INTENT_ROUTES: Route[] = PUBLISHED_INTENTS.map((intent) => ({
+  path: intent.route,
+  priority: intent.priority === "P1" ? 0.6 : 0.5,
+  changeFrequency: "monthly" as const,
+}));
 
 export default function sitemap(): MetadataRoute.Sitemap {
   const base = appUrl();
   const lastModified = new Date();
-  return ROUTES.map((r) => ({
+  return [...ROUTES, ...INTENT_ROUTES].map((r) => ({
     url: `${base}${r.path === "/" ? "" : r.path}`,
     lastModified,
     changeFrequency: r.changeFrequency,
