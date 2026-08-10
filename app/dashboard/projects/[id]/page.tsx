@@ -12,6 +12,7 @@ import {
   type CustomBriefQuestion,
 } from "@/lib/brief/custom-questions";
 import { isProfileComplete } from "@/lib/designer";
+import { isLayoutStudioEnabled } from "@/lib/layout-studio/feature-flag";
 import { getStudio } from "@/lib/studio";
 import { missingFields, firstMeetingQuestions, type RiskCardRow } from "@/lib/review";
 import PassportView from "@/components/passport-view";
@@ -332,8 +333,18 @@ async function ReviewBoard({
         </div>
       </section>
 
-      <div>
+      <div className="flex flex-wrap items-center gap-4">
         {project.status === "active_project" ? <Link href={`/dashboard/projects/${project.id}/room`} className="btn-primary">{ru.projectRoom.open}</Link> : <Link href={`/dashboard/projects/${project.id}/proposal`} className="btn-primary">{ru.review.buildProposal}</Link>}
+        {/* Модуль 2 — работа после утверждённого КП. Ссылка появляется только
+            при включённом флаге: иначе она вела бы на 404. */}
+        {isLayoutStudioEnabled() ? (
+          <Link
+            href={`/dashboard/projects/${project.id}/layouts`}
+            className="inline-flex text-sm underline"
+          >
+            {ru.layoutStudio.project.title}
+          </Link>
+        ) : null}
       </div>
     </div>
   );

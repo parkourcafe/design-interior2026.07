@@ -3,6 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { ru } from "@/lib/i18n/ru";
+import { LayoutPlanThumbnail } from "@/components/layout-studio/plan-thumbnail";
 import { sendProjectCeoCommand } from "./command-client";
 import type { ProjectWorkspaceView } from "./contracts";
 import { buildClientReviewCommand, clientReviewControlState } from "./m2-cycle6-command-builders";
@@ -49,6 +50,8 @@ export function M2ClientReviewPanel({ view }: { readonly view: ProjectWorkspaceV
     <div className="mt-4 grid gap-3 lg:grid-cols-3">
       {selectedSubmission.variants.map((variant) => <label key={variant.variantId} className="rounded-xl border border-line p-4">
         <span className="flex gap-2"><input type="radio" name="m2-variant" value={variant.variantId} checked={chosenVariantId === variant.variantId} onChange={() => setChosenVariantId(variant.variantId)} />{roleLabel[variant.role]}</span>
+        {/* §8.4: клиент выбирает по чертежу, а не по номеру ревизии. */}
+        <LayoutPlanThumbnail projectId={view.project.id} layoutRevisionId={variant.layoutRevisionId} />
         <span className="mt-3 block text-xs">{ru.projectCeo.workspace.decisions.layoutVersion}: {variant.layoutVersionId}</span>
         <span className="block text-xs">{ru.projectCeo.workspace.decisions.layoutRevision}: {variant.layoutRevisionId}</span>
         <span className="mt-2 block text-xs font-medium">{ru.projectCeo.workspace.decisions.clientSelections}</span>

@@ -9,6 +9,7 @@ import type {
   LayoutVersion,
   VersionPublicationInput,
 } from "@/lib/layout-studio/application/layout-repository";
+import type { LayoutRepositoryPort } from "@/lib/layout-studio/application/layout-repository-port";
 
 export type {
   LayoutVersion,
@@ -24,17 +25,23 @@ interface MemoryVersionPublicationInput extends VersionPublicationInput {
 
 export interface DraftRecord {
   document: LayoutDocument;
-  parentVersionId: string | null;
 }
 
 export interface CheckpointInput {
-  checkpointId: string;
+  /**
+   * Идентификатор минтится сервером (uuid): клиентский id на глобальном
+   * первичном ключе означал бы коллизии между вкладками и студиями и
+   * возможность занимать чужие идентификаторы. Локальное хранилище минтит
+   * само, когда id не передан.
+   */
+  checkpointId?: string;
   reasonCode: string;
   reason: string;
   createdAt: string;
 }
 
 export interface LayoutCheckpoint extends CheckpointInput {
+  checkpointId: string;
   documentId: string;
   document: LayoutDocument;
 }
@@ -71,15 +78,32 @@ async function deterministicRevisionId(
   return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
 }
 
-export class MemoryLayoutRepository implements LayoutRepository {
+export class MemoryLayoutRepository implements LayoutRepository, LayoutRepositoryPort {
   private readonly drafts = new Map<string, DraftRecord>();
   private readonly checkpoints = new Map<string, LayoutCheckpoint>();
   private readonly versions = new Map<string, LayoutVersion>();
   private readonly pendingVersionIds = new Set<string>();
   private readonly pendingDocumentIds = new Set<string>();
 
-  async saveDraft(document: LayoutDocument, parentVersionId: string | null): Promise<void> {
-    this.drafts.set(document.documentId, clone({ document, parentVersionId }));
+  /**
+   * Сохранить черновик.
+   *
+   * Второй аргумент — ревизия, которую вызывающий считает текущей
+   * (см. LayoutRepositoryPort): если в хранилище лежит другая, правка
+   * отклоняется с STATE_STALE, а не затирает чужую работу. null отключает
+   * проверку — так сохраняется самый первый черновик.
+   */
+  async saveDraft(document: LayoutDocument, expectedRevision: number | null): Promise<void> {
+    if (expectedRevision !== null) {
+      const current = this.drafts.get(document.documentId);
+      if (!current || current.document.stateRevision !== expectedRevision) {
+        throw new LayoutRepositoryError(
+          "STATE_STALE",
+          "Черновик основан на устаревшей ревизии документа",
+        );
+      }
+    }
+    this.drafts.set(document.documentId, clone({ document }));
   }
 
   async loadDraft(documentId: string): Promise<LayoutDocument | null> {
@@ -91,11 +115,13 @@ export class MemoryLayoutRepository implements LayoutRepository {
     document: LayoutDocument,
     input: CheckpointInput,
   ): Promise<LayoutCheckpoint> {
-    if (this.checkpoints.has(input.checkpointId)) {
+    const checkpointId = input.checkpointId ?? globalThis.crypto.randomUUID();
+    if (this.checkpoints.has(checkpointId)) {
       throw new LayoutRepositoryError("CHECKPOINT_IMMUTABLE", "Checkpoint уже существует");
     }
     const checkpoint: LayoutCheckpoint = {
       ...clone(input),
+      checkpointId,
       documentId: document.documentId,
       document: clone(document),
     };
@@ -106,6 +132,37 @@ export class MemoryLayoutRepository implements LayoutRepository {
   async loadCheckpoint(checkpointId: string): Promise<LayoutCheckpoint | null> {
     const checkpoint = this.checkpoints.get(checkpointId);
     return checkpoint ? clone(checkpoint) : null;
+  }
+
+  async listCheckpoints(documentId: string): Promise<LayoutCheckpoint[]> {
+    return [...this.checkpoints.values()]
+      .filter((checkpoint) => checkpoint.documentId === documentId)
+      .sort((left, right) => left.createdAt.localeCompare(right.createdAt))
+      .map(clone);
+  }
+
+  /**
+   * Вернуть черновик к состоянию чекпойнта. Ревизия не откатывается назад, а
+   * растёт: восстановление — это ещё одна правка в истории, а не путешествие
+   * во времени. Так undo/redo и защита от устаревшей ревизии остаются
+   * согласованными (см. LayoutRepositoryPort).
+   */
+  async restoreCheckpoint(checkpointId: string, expectedRevision: number): Promise<LayoutDocument> {
+    const checkpoint = this.checkpoints.get(checkpointId);
+    if (!checkpoint) {
+      throw new LayoutRepositoryError("CHECKPOINT_NOT_FOUND", "Checkpoint не найден");
+    }
+    const current = this.drafts.get(checkpoint.documentId);
+    if (!current || current.document.stateRevision !== expectedRevision) {
+      throw new LayoutRepositoryError(
+        "STATE_STALE",
+        "Восстановление основано на устаревшей ревизии документа",
+      );
+    }
+    const restored = clone(checkpoint.document);
+    restored.stateRevision = current.document.stateRevision + 1;
+    this.drafts.set(restored.documentId, clone({ document: restored }));
+    return clone(restored);
   }
 
   async publishVersion(

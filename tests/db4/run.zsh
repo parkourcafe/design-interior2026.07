@@ -59,7 +59,8 @@ for sql in \
   "${repo_root}/tests/db4/32_m2_layout_version_operations.sql" \
   "${repo_root}/tests/db4/33_m2_client_review_m3_handoff_operations.sql" \
   "${repo_root}/tests/db4/34_m3_documentation_sheet_operations.sql" \
-  "${repo_root}/tests/db4/35_m3_documentation_read_operations.sql"; do
+  "${repo_root}/tests/db4/35_m3_documentation_read_operations.sql" \
+  "${repo_root}/tests/db4/36_m2_layout_document_v02_validation.sql"; do
   print -r -- "Running ${sql:t}"
   run_file "${sql}"
 done

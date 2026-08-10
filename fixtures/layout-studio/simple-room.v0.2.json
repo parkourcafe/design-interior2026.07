@@ -1,0 +1,208 @@
+{
+  "contractVersion": "archidom.layout-document/0.2",
+  "documentId": "layout.simple.room",
+  "projectId": "project.simple.demo",
+  "name": "Простая комната",
+  "canonicalUnits": "mm",
+  "stateRevision": 0,
+  "floor": {
+    "id": "floor.simple.main",
+    "label": "Этаж",
+    "elevationMm": 0,
+    "clearHeightMm": 2800
+  },
+  "variant": {
+    "id": "variant.simple.a",
+    "label": "Вариант A",
+    "status": "draft"
+  },
+  "nodes": [
+    {
+      "id": "node.simple.nw",
+      "xMm": 0,
+      "yMm": 4000,
+      "locked": true
+    },
+    {
+      "id": "node.simple.ne",
+      "xMm": 6000,
+      "yMm": 4000,
+      "locked": true
+    },
+    {
+      "id": "node.simple.se",
+      "xMm": 6000,
+      "yMm": 0,
+      "locked": true
+    },
+    {
+      "id": "node.simple.sw",
+      "xMm": 0,
+      "yMm": 0,
+      "locked": true
+    }
+  ],
+  "walls": [
+    {
+      "id": "wall.simple.north",
+      "startNodeId": "node.simple.nw",
+      "endNodeId": "node.simple.ne",
+      "thicknessMm": 100,
+      "heightMm": 2800,
+      "kind": "existing",
+      "locked": true,
+      "label": "Северная стена"
+    },
+    {
+      "id": "wall.simple.east",
+      "startNodeId": "node.simple.ne",
+      "endNodeId": "node.simple.se",
+      "thicknessMm": 100,
+      "heightMm": 2800,
+      "kind": "existing",
+      "locked": true,
+      "label": "Восточная стена"
+    },
+    {
+      "id": "wall.simple.south",
+      "startNodeId": "node.simple.se",
+      "endNodeId": "node.simple.sw",
+      "thicknessMm": 100,
+      "heightMm": 2800,
+      "kind": "existing",
+      "locked": true,
+      "label": "Южная стена"
+    },
+    {
+      "id": "wall.simple.west",
+      "startNodeId": "node.simple.sw",
+      "endNodeId": "node.simple.nw",
+      "thicknessMm": 100,
+      "heightMm": 2800,
+      "kind": "existing",
+      "locked": true,
+      "label": "Западная стена"
+    }
+  ],
+  "openings": [
+    {
+      "id": "opening.simple.door",
+      "parentWallId": "wall.simple.south",
+      "kind": "door",
+      "offsetMm": 2400,
+      "widthMm": 900,
+      "heightMm": 2100,
+      "sillMm": 0,
+      "handing": "left",
+      "locked": true,
+      "label": "Дверь"
+    }
+  ],
+  "columns": [],
+  "objects": [
+    {
+      "id": "object.simple.table",
+      "kind": "equipment",
+      "catalogKey": "generic.table",
+      "xMm": 3000,
+      "yMm": 2000,
+      "zMm": 0,
+      "widthMm": 1600,
+      "depthMm": 800,
+      "heightMm": 750,
+      "rotationDeg": 0,
+      "locked": false,
+      "label": "Стол"
+    }
+  ],
+  "clearanceZones": [
+    {
+      "id": "clearance.simple.table",
+      "label": "Проход вокруг стола",
+      "polygon": [
+        {
+          "xMm": 1900,
+          "yMm": 1100
+        },
+        {
+          "xMm": 4100,
+          "yMm": 1100
+        },
+        {
+          "xMm": 4100,
+          "yMm": 2900
+        },
+        {
+          "xMm": 1900,
+          "yMm": 2900
+        }
+      ],
+      "severity": "warning",
+      "relatedObjectIds": [
+        "object.simple.table"
+      ]
+    }
+  ],
+  "materials": [
+    {
+      "id": "material.simple.wall",
+      "labelRu": "Матовая штукатурка",
+      "baseColor": "#D8D3C8",
+      "roughness": 0.9,
+      "metalness": 0,
+      "emissive": "#000000",
+      "emissiveIntensity": 0,
+      "provenance": "ArchiDom synthetic fixture"
+    }
+  ],
+  "materialAssignments": [
+    {
+      "id": "assignment.simple.north",
+      "targetId": "wall.simple.north",
+      "surfaceRole": "all",
+      "materialId": "material.simple.wall"
+    },
+    {
+      "id": "assignment.simple.east",
+      "targetId": "wall.simple.east",
+      "surfaceRole": "all",
+      "materialId": "material.simple.wall"
+    },
+    {
+      "id": "assignment.simple.south",
+      "targetId": "wall.simple.south",
+      "surfaceRole": "all",
+      "materialId": "material.simple.wall"
+    },
+    {
+      "id": "assignment.simple.west",
+      "targetId": "wall.simple.west",
+      "surfaceRole": "all",
+      "materialId": "material.simple.wall"
+    },
+    {
+      "id": "assignment.simple.table",
+      "targetId": "object.simple.table",
+      "surfaceRole": "all",
+      "materialId": "material.simple.wall"
+    }
+  ],
+  "lights": [
+    {
+      "id": "light.simple.ambient",
+      "kind": "ambient",
+      "xMm": 3000,
+      "yMm": 2000,
+      "zMm": 2500,
+      "color": "#FFFFFF",
+      "intensity": 1,
+      "label": "Общий свет"
+    }
+  ],
+  "metadata": {
+    "sourceRefs": [
+      "synthetic://simple-room-v0.1"
+    ],
+    "warnings": []
+  }
+}
