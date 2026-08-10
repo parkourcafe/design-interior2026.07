@@ -163,11 +163,23 @@ async function captureBrowserSession(role: Ap5RoleKey): Promise<string> {
     const context = await browser.newContext({ baseURL: env.appUrl });
     const page = await context.newPage();
     await page.goto(callbackUrl(tokenHash));
-    // Неверная ссылка не падает, а уводит на /login?error=… — проверяем адрес,
-    // иначе сохранили бы пустую сессию и получили невнятный отказ позже.
     await page.waitForURL((url) => !url.pathname.startsWith("/auth/"), { timeout: 30_000 });
+
+    // Отказ самой ссылки виден по ?error=… — обработчик уводит на /login именно
+    // так. Без этой проверки сохранили бы пустую сессию и получили невнятный
+    // отказ через три шага.
+    const landing = new URL(page.url());
+    if (landing.searchParams.has("error") || landing.searchParams.has("error_description")) {
+      throw new Error(`AP5: ссылка ${role} отвергнута: ${page.url()}`);
+    }
+
+    // Хост в редиректе обработчика может отличаться от того, на котором стоят
+    // куки: ходим на 127.0.0.1, а `${origin}` собирается как localhost. Для кук
+    // это разные хосты, и proxy.ts на втором сессии уже не видит. Поэтому на
+    // рабочий экран возвращаемся сами, по базовому адресу.
+    await page.goto("/dashboard");
     if (new URL(page.url()).pathname.startsWith("/login")) {
-      throw new Error(`AP5: вход ${role} по ссылке отклонён: ${page.url()}`);
+      throw new Error(`AP5: сессия ${role} не установилась: ${page.url()}`);
     }
     await context.storageState({ path: storageStatePath(role) });
     await context.close();
