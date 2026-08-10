@@ -333,7 +333,7 @@ describe("ProjectCEO live DTO sanitizer", () => {
 
   // Intake M3 P0: поверхность открыта, но ровно по тем правам, которые
   // проверит сервер, и только когда есть что рецензировать.
-  it("offers source intake by capability and source review only for a pending revision", async () => {
+  it("offers source intake by capability, and never offers a review it cannot deliver", async () => {
     const previous = process.env.REMHAOS_DOCUMENTATION_ENABLED;
     process.env.REMHAOS_DOCUMENTATION_ENABLED = "true";
     try {
@@ -355,22 +355,13 @@ describe("ProjectCEO live DTO sanitizer", () => {
       { userId: "66666666-6666-4666-8666-666666666666", displayName: "Architect" },
     ).getProjectWorkspace({ projectId, requestId: "intake-architect" });
     expect(architect.data?.operations.register_source).toEqual({ status: "available" });
+    // Ревизия ждёт решения, право у роли есть — и всё равно не предлагаем.
+    // Решение пишет project_intelligence_api.review_claim, а эта схема не
+    // отдана Data API: вызов не доходит до RPC. Обещать действие, которое
+    // сервер не выполнит, нельзя — AP5 получал на нём 500.
     expect(architect.data?.operations.review_source).toEqual({
-      status: "available",
-      commandTargetId: "source-pending-r1",
-    });
-
-    // Всё уже отрецензировано — предлагать нечего.
-    const settled = await new ProjectCeoLiveReadPort(
-      fakeClient(
-        { sources: [{ ...pending, reviewStatus: "confirmed" }] },
-        [{ ...defaultProjectEntries[0], role: "architect" }],
-      ),
-      { userId: "66666666-6666-4666-8666-666666666666", displayName: "Architect" },
-    ).getProjectWorkspace({ projectId, requestId: "intake-settled" });
-    expect(settled.data?.operations.review_source).toEqual({
       status: "unavailable",
-      reason: "prerequisite_missing",
+      reason: "read_contract_pending",
     });
 
     // Строитель заводит источники, но решений по ним не принимает:
