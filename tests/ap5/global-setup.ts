@@ -64,14 +64,42 @@ async function signIn(role: Ap5RoleKey) {
 }
 
 /**
- * Регистрация организации и проекта.
+ * Проект в браузере, штатной формой дизайнера на `/dashboard`.
  *
- * ⚠️ Известное отступление, зафиксированное в AP5_RUNBOOK.md: у
- * `enroll_organization_project` сегодня нет HTTP-поверхности — ни маршрута, ни
- * элемента интерфейса, `FoundationService` никуда не подключён. Поэтому шаг
- * выполняется RPC от лица owner ЕГО ЖЕ access token — инвариант «human
- * operations не выполняются через service role» соблюдён, но браузерным
- * доказательством этот шаг не является.
+ * `enroll_organization_project` НЕ создаёт проект: он берёт уже существующую
+ * строку `public.projects` и требует, чтобы её `designer_id` совпадал с
+ * актором (миграция 20260717090000, ветка P1104 `not_found`). Придуманный
+ * UUID тут не годится — именно на этом прогон 09:04 и остановился.
+ */
+async function createLegacyProject(): Promise<string> {
+  const browser = await chromium.launch();
+  try {
+    const context = await browser.newContext({
+      baseURL: env.appUrl,
+      storageState: storageStatePath("owner"),
+    });
+    const page = await context.newPage();
+    await page.goto("/dashboard");
+    await page.locator("#client").fill("AP5 Kora");
+    await page.locator("form button[type=submit]").first().click();
+    await page.waitForURL(/\/dashboard\/projects\/[0-9a-f-]{36}$/, { timeout: 30_000 });
+    const projectId = new URL(page.url()).pathname.split("/").pop()!;
+    await context.close();
+    return projectId;
+  } finally {
+    await browser.close();
+  }
+}
+
+/**
+ * Привязка проекта к ProjectCEO.
+ *
+ * ⚠️ Известное отступление, зафиксированное в AP5_RUNBOOK.md: у самой
+ * `enroll_organization_project` нет HTTP-поверхности — ни маршрута, ни элемента
+ * интерфейса, `FoundationService` никуда не подключён. Поэтому вызов идёт RPC
+ * от лица owner ЕГО ЖЕ access token: инвариант «human operations не выполняются
+ * через service role» соблюдён, но браузерным доказательством этот шаг не
+ * является. Создание самого проекта — уже браузерное, см. выше.
  */
 async function enroll(ownerToken: string, projectId: string): Promise<void> {
   const client = createClient(env.supabaseUrl, env.anonKey, {
@@ -176,17 +204,19 @@ export default async function globalSetup(): Promise<void> {
   await waitForApp();
   await assertLiveStackNotFixtures();
 
-  const projectId = randomUUID();
   const userIds: Record<string, string> = {};
 
   const owner = await signIn("owner");
   userIds.owner = owner.userId;
-  await enroll(owner.accessToken, projectId);
 
   for (const role of AP5_ROLES) {
     if (role.key !== "owner") userIds[role.key] = (await signIn(role.key)).userId;
     await captureBrowserSession(role.key);
   }
+
+  // Сессия owner уже есть — проект создаётся ею, и только потом привязывается.
+  const projectId = await createLegacyProject();
+  await enroll(owner.accessToken, projectId);
 
   for (const role of AP5_INVITED_ROLES) {
     const invitationUrl = await createInvitation(
