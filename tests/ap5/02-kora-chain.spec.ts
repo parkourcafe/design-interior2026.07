@@ -1,4 +1,4 @@
-import { randomUUID } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 
 import { expect, test, type APIRequestContext, type Browser } from "@playwright/test";
 
@@ -12,6 +12,9 @@ function handoff() {
   cached ??= readHandoff();
   return cached;
 }
+
+const AP5_SOURCE_NAME = "ap5-floor-1-zone-a-architectural";
+const AP5_SOURCE_REVISION_ID = "ap5-source-revision-1";
 
 // Цепочка идёт одним состоянием проекта: каждый шаг опирается на предыдущий.
 test.describe.configure({ mode: "serial" });
@@ -91,17 +94,24 @@ test.describe("AP5 — цепочка Kora на живом стеке", () => {
 
   test("3. регистрация санитизированного источника", async ({ browser }) => {
     const architect = await requestAs(browser, "designer");
+    // Запись материализованная, а не плейсхолдер. Читающая проекция берёт
+    // `reviewTargetRevisionId` из `inventory.source_revision_id`
+    // (20260718124958), а плейсхолдеру контракт нести ревизию запрещает — то
+    // есть рецензировать в нём нечего по замыслу, и шаг 4 был бы невозможен.
+    // Размер, контрольная сумма и ревизия — метаданные инвентаря, которые
+    // команда и ожидает от клиента; объект в Storage они не утверждают.
     const result = await command(architect, "register_source", {
       packageId: handoff().rootPackageId,
       physicalRecordId: randomUUID(),
-      sanitizedName: "ap5-floor-1-zone-a-architectural",
+      sanitizedName: AP5_SOURCE_NAME,
       floorId: "floor-1",
       zoneId: "zone-a",
       disciplineId: "architectural",
-      // Плейсхолдер: материализованная запись потребовала бы размера,
-      // контрольной суммы и ревизии, то есть реального файла в Storage.
-      availability: "placeholder",
+      availability: "materialized",
       documentStatus: "current",
+      sizeBytes: 1024,
+      checksum: createHash("sha256").update(AP5_SOURCE_NAME).digest("hex"),
+      sourceRevisionId: AP5_SOURCE_REVISION_ID,
     });
     expect(result.status, JSON.stringify(result.body.error)).toBe(200);
     expect(result.body.status).toBe("completed");
