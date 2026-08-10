@@ -15,6 +15,10 @@ function handoff() {
 
 const AP5_SOURCE_NAME = "ap5-floor-1-zone-a-architectural";
 const AP5_SOURCE_REVISION_ID = "ap5-source-revision-1";
+// Шаг 6 одобряет ровно ту ревизию, которую создал шаг 5, поэтому значение
+// общее для цепочки, а не локальное для одного теста.
+const AP5_DECISION_NODE_ID = "ap5-decision-floor-1";
+const AP5_DECISION_REVISION_ID = "ap5-decision-revision-1";
 
 // Цепочка идёт одним состоянием проекта: каждый шаг опирается на предыдущий.
 test.describe.configure({ mode: "serial" });
@@ -174,11 +178,11 @@ test.describe("AP5 — цепочка Kora на живом стеке", () => {
 
   test("5. решение человеческого происхождения", async ({ browser }) => {
     const architect = await requestAs(browser, "designer");
-    const decisionRevisionId = randomUUID();
+    const decisionRevisionId = AP5_DECISION_REVISION_ID;
 
     const decision = await command(architect, "create_decision", {
       packageId: handoff().rootPackageId,
-      nodeId: "ap5-decision-floor-1",
+      nodeId: AP5_DECISION_NODE_ID,
       revisionId: decisionRevisionId,
       expectedRevisionId: null,
       // Только human_origin: ссылки на evidence рождаются в воркерном
@@ -198,6 +202,78 @@ test.describe("AP5 — цепочка Kora на живом стеке", () => {
 
     const view = await workspace(architect);
     expect(view.decisions.some((item) => item.revisionId === decisionRevisionId)).toBe(true);
+  });
+
+  /**
+   * Гейт 1 из A6 §6.1, первая половина: выход M3 через браузер.
+   *
+   * Всё, на что она опирается, собрано в этой сессии: дверь версии графа
+   * (`20260810080000`), правило полноты, снапшот-токен и оркестровка в
+   * команде. Клиент присылает только токен — состав выводит сервер.
+   */
+  test("6. выпуск версии: одобрение и публикация baseline из браузера", async ({ browser }) => {
+    const architect = await requestAs(browser, "designer");
+    const approvalPackageId = `ap5-approval-${randomUUID()}`;
+
+    const created = await command(architect, "create_approval_package", {
+      packageId: handoff().rootPackageId,
+      approvalPackageId,
+      items: [{
+        targetKind: "decision_revision",
+        entityId: AP5_DECISION_NODE_ID,
+        revisionId: AP5_DECISION_REVISION_ID,
+      }],
+    });
+    expect(created.status, JSON.stringify(created.body.error)).toBe(200);
+
+    const submitted = await command(architect, "submit_approval_package", {
+      approvalPackageId,
+      expectedStatus: "draft",
+    });
+    expect(submitted.status, JSON.stringify(submitted.body.error)).toBe(200);
+
+    const approved = await command(architect, "review_selection", {
+      approvalPackageId,
+      expectedStatus: "submitted",
+      decision: "approved",
+      reason: "AP5 authenticated browser chain",
+    });
+    expect(approved.status, JSON.stringify(approved.body.error)).toBe(200);
+
+    // Поверхность обязана предложить публикацию и выдать токен: именно его
+    // команда потребует назад, и именно он ловит гонку.
+    const view = await workspace(architect);
+    expect(view.operations.publish_baseline?.status).toBe("available");
+    const snapshotToken = view.operations.publish_baseline?.commandTargetId;
+    expect(snapshotToken).toBeTruthy();
+
+    const published = await command(architect, "publish_baseline", { snapshotToken });
+    expect(published.status, JSON.stringify(published.body.error)).toBe(200);
+
+    // Устаревший токен обязан быть отвергнут, а не опубликован повторно:
+    // после публикации состояние сдвинулось.
+    const stale = await command(architect, "publish_baseline", { snapshotToken });
+    expect(stale.status, JSON.stringify(stale.body.error)).toBe(409);
+  });
+
+  /**
+   * НЕ ПРОХОДИТ: у `publish_release` та же болезнь, которую у `publish_baseline`
+   * вылечили решением A′ 10.08.2026.
+   *
+   * Контракт команды по-прежнему требует от клиента полный дескриптор с
+   * собственным `semanticHash` (`command-contract.ts`, `publish_release`), а
+   * сборки этого дескриптора и его хеша из браузера нет: ни хелпера, ни
+   * preview, ни токена. То есть вторая половина гейта 1 упирается ровно в тот
+   * же вопрос, что и первая, и закрывается тем же способом — состав и хеш
+   * выводит сервер, клиент возвращает токен.
+   *
+   * Это находка гейта, а не пропуск: до неё казалось, что после baseline
+   * останется только нажать кнопку.
+   */
+  test.fixme("7. выпуск пакета ждёт того же решения, что и baseline", async ({ browser }) => {
+    const architect = await requestAs(browser, "designer");
+    const result = await command(architect, "publish_release", {});
+    expect(result.status).toBe(200);
   });
 
   /**
