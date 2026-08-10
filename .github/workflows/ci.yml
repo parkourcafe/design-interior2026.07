@@ -51,6 +51,117 @@ jobs:
           PI_DB_IMAGE: ${{ matrix.image }}
         run: zsh tests/db4/run.zsh
 
+  # AP5 — browser matrix на НАСТОЯЩЕМ стеке: Auth, PostgREST, RLS, пять
+  # отдельных аутентифицированных сессий. Санитизированный харнесс
+  # /projectceo-qa/[role] его не заменяет (AP1_RUNBOOK §5).
+  #
+  # Не в каждом push: поднимает весь Supabase, идёт ~15 минут. Запускается
+  # вручную (workflow_dispatch) или по метке `ap5` на PR. Пока цепочка Kora
+  # закрыта не полностью (см. AP5_RUNBOOK.md), гейт информационный — его
+  # состояние видно, но прогон он не роняет.
+  ap5:
+    name: AP5 authenticated browser matrix (informational)
+    if: >-
+      github.event_name == 'workflow_dispatch'
+      || contains(github.event.pull_request.labels.*.name, 'ap5')
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    continue-on-error: true
+    env:
+      # Порт из additional_redirect_urls в supabase/config.toml — Auth не примет
+      # возврат на адрес, которого там нет.
+      AP5_APP_URL: http://127.0.0.1:3100
+      AP1_EMAIL_DOMAIN: remhaos.test
+      AP1_TEST_PASSWORD: ap5-local-only-password
+      AP1_CONFIRM_DISPOSABLE: "yes"
+      NEXT_PUBLIC_APP_URL: http://127.0.0.1:3100
+      # Модули, которые должна видеть матрица ролей.
+      ARCHIDOM_LAYOUT_STUDIO_ENABLED: "1"
+      REMHAOS_DOCUMENTATION_ENABLED: "1"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - uses: supabase/setup-cli@v1
+        with:
+          # Версия зафиксирована контрактом supabase/config.toml.
+          version: 2.109.1
+      - run: npm ci
+
+      # Стек поднимается из репозиторного config.toml: порты, список схем в
+      # Data API и custom access token hook берутся оттуда, а не из дефолтов.
+      - name: Start Supabase stack
+        run: supabase start
+
+      - name: Export stack credentials
+        run: |
+          supabase status -o env > "${RUNNER_TEMP}/supabase.env"
+          set -a && . "${RUNNER_TEMP}/supabase.env" && set +a
+          # CLI переименовал ключи публикации; берём то из двух, что реально
+          # пришло, вместо того чтобы падать на пустой переменной.
+          {
+            echo "NEXT_PUBLIC_SUPABASE_URL=${API_URL}"
+            echo "NEXT_PUBLIC_SUPABASE_ANON_KEY=${ANON_KEY:-${PUBLISHABLE_KEY}}"
+            echo "SUPABASE_SERVICE_ROLE_KEY=${SERVICE_ROLE_KEY:-${SECRET_KEY}}"
+            echo "SUPABASE_DB_URL=${DB_URL}"
+          } >> "${GITHUB_ENV}"
+
+      # Та же проверка состояния базы, что и в AP1: managed-auth ссылок не
+      # осталось, request-claim helpers на месте, приватные гранты закрыты.
+      - name: Verify database state
+        run: psql "${SUPABASE_DB_URL}" -X --set ON_ERROR_STOP=1 -f tests/ap1/environment/verify-db.sql
+
+      # Тот же верификатор, что и в локальном прогоне AP1: разрешённые схемы
+      # отвечают, приватные закрыты 406, Auth и Storage живы.
+      - name: Verify exposed schemas and service health
+        run: supabase status --output json | node tests/ap1/environment/verify-runtime.mjs
+
+      # Только auth-identity. Членства раздаёт owner приглашениями уже внутри
+      # браузерного прогона: human operations через service role запрещены.
+      - name: Provision five role identities
+        run: npm run provision:ap1
+
+      - name: Build and start the application
+        env:
+          # Токен приглашений детерминированный, значение локальное и одноразовое.
+          PROJECTCEO_TOKEN_SECRET: ap5-local-only-invitation-secret
+        run: |
+          npm run build
+          # nohup — чтобы процесс пережил завершение шага; лог кладём рядом,
+          # он попадает в артефакты и объясняет падения на стороне сервера.
+          PORT=3100 nohup npm run start > "${RUNNER_TEMP}/app.log" 2>&1 &
+          echo $! > "${RUNNER_TEMP}/app.pid"
+
+      - name: Install Playwright browser
+        run: npx playwright install --with-deps chromium
+
+      - name: Authenticated role matrix and Kora chain
+        run: npm run test:ap5
+
+      - name: Application log on failure
+        if: failure()
+        run: tail -n 200 "${RUNNER_TEMP}/app.log" || true
+
+      - name: Collect Supabase logs on failure
+        if: failure()
+        run: supabase status || true
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: ap5-playwright-report
+          path: |
+            playwright-report/
+            test-results/
+          retention-days: 7
+          if-no-files-found: ignore
+
+      - name: Stop the application
+        if: always()
+        run: kill "$(cat "${RUNNER_TEMP}/app.pid")" 2>/dev/null || true
+
   # Гейт цикла 7 намеренно красный, пока не предоставлен внешний реальный
   # пакет, поэтому он не входит в блокирующий CI. Здесь он запускается только
   # чтобы его состояние было видно, и не роняет прогон.

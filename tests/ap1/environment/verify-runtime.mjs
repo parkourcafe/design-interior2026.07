@@ -13,6 +13,7 @@ const allowedSchemas = [
   "projectceo_api",
   "projectceo_read_api",
   "projectceo_product_api",
+  "projectceo_m3_api",
   "projectceo_m4_api",
 ];
 const privateSchemas = [
@@ -20,6 +21,7 @@ const privateSchemas = [
   "project_intelligence_api",
   "projectceo_foundation",
   "projectceo_product",
+  "projectceo_m3",
   "projectceo_m4",
 ];
 
