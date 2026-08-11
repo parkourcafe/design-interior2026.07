@@ -24,7 +24,8 @@
     "fetch:media": "node scripts/fetch-landing-media.mjs",
     "provision:ap1": "tsx scripts/provision-ap1-users.ts",
     "worker:release-artifacts": "tsx scripts/run-release-artifact-worker.ts",
-    "worker:telegram-outbox": "tsx scripts/run-telegram-outbox-worker.ts"
+    "worker:telegram-outbox": "tsx scripts/run-telegram-outbox-worker.ts",
+    "worker:telegram-inbound": "tsx scripts/run-telegram-inbound-worker.ts"
   },
   "dependencies": {
     "@capacitor/core": "^8.4.2",
