@@ -148,6 +148,7 @@ describe("Telegram bridge surface matrix", () => {
     // Отдельный файл легко забыть позвать — и он молча перестанет что-либо
     // доказывать, оставаясь в репозитории как свидетельство обратного.
     const runner = read("tests/db4/run.zsh");
+    expect(runner).toContain("run-telegram-concurrency.zsh");
     expect(runner).toContain("run-telegram-upgrade.zsh");
     const upgrade = read("tests/db4/run-telegram-upgrade.zsh");
     for (const scenario of [
