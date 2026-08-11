@@ -13,6 +13,14 @@
  * минуя приложение целиком. Эту дыру закрывает миграция
  * `20260810070000_projectceo_m4_execution_guardrail.sql`. Один флаг без неё
  * описывал бы запрет, а не создавал его — см. §3 guardrail.
+ *
+ * И этого оказалось мало. Отзыв по схеме `projectceo_m4_api` не касался
+ * четырёх командных RPC модуля, живущих в ПРОДУКТОВОЙ схеме
+ * (`distribute_release`, `acknowledge_release` и их request-bound версии):
+ * выдача выпущенного пакета и подтверждение получения оставались доступны через
+ * Data API при выключенном модуле. Закрывает `20260811020000`. Полный состав
+ * поверхности — матрица `m4-surface.ts`, и она сверяется с базой тестами, а не
+ * читается глазами.
  */
 
 import type { ProjectCeoCommand } from "./command-contract";
@@ -46,11 +54,26 @@ export const EXECUTION_INCREMENT_2 = [
 ] as const;
 
 /**
- * Все команды модуля 4. Флаг закрывает их целиком: guardrail — про запрет, а
- * разделение по инкрементам живёт в A6 и включится, когда инкремент 1 начнут
- * строить.
+ * Все команды модуля 4. Флаг закрывает их целиком: при выключенном модуле
+ * поверхности нет ни у одного инкремента.
  */
 export const EXECUTION_MODULE: ReadonlySet<ProjectCeoCommand["kind"]> = new Set([
   ...EXECUTION_INCREMENT_1,
   ...EXECUTION_INCREMENT_2,
 ] as readonly ProjectCeoCommand["kind"][]);
+
+/** Открыто подписью A6. Живёт только при включённом флаге. */
+export const EXECUTION_INCREMENT_1_COMMANDS: ReadonlySet<ProjectCeoCommand["kind"]> =
+  new Set(EXECUTION_INCREMENT_1 as readonly ProjectCeoCommand["kind"][]);
+
+/**
+ * Закрыто НЕЗАВИСИМО от флага.
+ *
+ * Флаг отвечает на вопрос «включён ли модуль», а инкремент 2 закрыт не этим:
+ * его не авторизовал ни один подписанный документ (A6 §1.1), и до отдельного
+ * решения о воркерном контуре он обязан оставаться закрытым даже там, где
+ * модуль намеренно открыт. Поэтому проверка отдельная и стоит до флага: иначе
+ * «включить M4» означало бы «включить и то, что никто не разрешал».
+ */
+export const EXECUTION_INCREMENT_2_COMMANDS: ReadonlySet<ProjectCeoCommand["kind"]> =
+  new Set(EXECUTION_INCREMENT_2 as readonly ProjectCeoCommand["kind"][]);

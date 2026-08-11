@@ -96,6 +96,42 @@ describe("AP5 chain identifiers satisfy the command contract", () => {
     })).toBeNull();
   });
 
+  // Звенья гейта 2. Payload здесь собирается из значений, которые прогон берёт
+  // из проекции (идентификатор версии пакета, получатель, идентификатор
+  // выдачи), поэтому проверяются их ФОРМЫ: версия пакета — свободный текст,
+  // получатель и выдача — uuid. Ошибка формы в спеке стоила бы сорока пяти
+  // минут прогона и выглядела бы как отказ сервера.
+  it("9. distribute_release addresses a text version id and a uuid recipient", () => {
+    expect(parse("distribute_release", {
+      productionPackageVersionId: "package-ap5-root-v1",
+      recipientUserId: "44444444-4444-4444-8444-444444444444",
+    })).toBeNull();
+  });
+
+  it("10. acknowledge_release addresses the distribution by uuid", () => {
+    expect(parse("acknowledge_release", {
+      distributionId: "55555555-5555-4555-8555-555555555555",
+    })).toBeNull();
+  });
+
+  it("11. create_change carries integer deltas and the previous version id", () => {
+    expect(parse("create_change", {
+      reason: "AP5: на объекте вскрылось расхождение с выпущенной редакцией",
+      fromProductionPackageVersionId: "package-ap5-root-v1",
+      deltaCostRub: 0,
+      deltaDays: 0,
+    })).toBeNull();
+  });
+
+  // Шаг 8 посылает заведомо закрытую команду инкремента 2 и ждёт отказа
+  // сервера. Отказ обязан быть по неавторизованному инкременту, а не по
+  // контракту, — иначе шаг доказывал бы работу валидатора, а не запрета.
+  it("8. the increment 2 probe is contract-valid, so its refusal is the module's", () => {
+    expect(parse("accept_milestone", {
+      milestoneId: "a5d0c1c1-0000-4000-8000-00000000dead",
+    })).toBeNull();
+  });
+
   // Негативный контроль: без него тест выше зелёный и когда схема перестала
   // проверять поле вовсе.
   it("rejects the non-uuid revision id that failed run 156", () => {

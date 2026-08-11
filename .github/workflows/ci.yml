@@ -92,6 +92,12 @@ jobs:
       # operation_unavailable ещё до RPC.
       ARCHIDOM_LAYOUT_STUDIO_ENABLED: "true"
       REMHAOS_DOCUMENTATION_ENABLED: "true"
+      # Модуль 4 включается здесь с 11.08: гейт 1 пройден, A6 §6.3 разрешает
+      # интерфейс инкремента 1, а доказать его иначе, чем при включённом
+      # модуле, нельзя — это и есть гейт 2. Включение действует только в этом
+      # одноразовом стеке: по умолчанию флаг выключен, и вторая граница (права
+      # в базе) закрыта guardrail'ами до явного шага ниже.
+      REMHAOS_EXECUTION_ENABLED: "true"
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -162,6 +168,19 @@ jobs:
       # production feature flag. Production-включение — отдельное решение.
       - name: Enable M3 publication on the database boundary
         run: psql "${SUPABASE_DB_URL}" -X --set ON_ERROR_STOP=1 -f tests/ap1/environment/enable-m3-publication.sql
+
+      # То же самое для модуля 4, и по той же причине. Проверка стоит ДО
+      # включения: первая попытка закрыть эту границу (`20260810070000`)
+      # пропустила четыре командные RPC модуля, живущие в продуктовой схеме, и
+      # выдача пакета была доступна через Data API при выключенном модуле.
+      - name: Verify M4 execution is closed on the Data API
+        run: node tests/ap1/environment/verify-m4-data-api-closed.mjs
+
+      # Открывается РОВНО инкремент 1 (A6 §1.1 / DEC-025). Пять команд
+      # инкремента 2 не открывает ни этот шаг, ни любая другая среда: сам скрипт
+      # падает, если они окажутся доступны.
+      - name: Enable M4 increment 1 on the database boundary
+        run: psql "${SUPABASE_DB_URL}" -X --set ON_ERROR_STOP=1 -f tests/ap1/environment/enable-m4-increment-1.sql
 
       - name: Build and start the application
         env:

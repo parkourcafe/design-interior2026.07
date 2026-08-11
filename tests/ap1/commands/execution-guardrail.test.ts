@@ -114,6 +114,48 @@ describe("M4 execution guardrail", () => {
     expect(declared.length).toBe(8);
   });
 
+  /**
+   * Инкремент 1 открыт подписью A6, инкремент 2 — нет. С 11.08 это различие
+   * живёт в коде, а не только в документе: включение модуля обязано открывать
+   * ровно первое и ни одной командой больше.
+   */
+  it("opens increment 1 and keeps increment 2 closed when the flag is on", async () => {
+    for (const kind of EXECUTION_INCREMENT_2) {
+      const calls: string[] = [];
+      const service = new ProjectCeoCommandService({
+        client: client(calls),
+        tokenSecret: "secret-".repeat(6),
+        executionEnabled: "true",
+      });
+      const result = await service.execute(command(kind), `increment2-${kind}`);
+      expect(result, kind).toMatchObject({
+        status: "unavailable",
+        error: { code: "operation_unavailable" },
+      });
+      // Отказ по неавторизованному инкременту обязан быть таким же тихим, как
+      // отказ по выключенному модулю: ни одного RPC.
+      expect(calls, kind).toEqual([]);
+    }
+
+    // Инкремент 1 при включённом модуле до базы доходит. Проверяется именно
+    // это — не успех команды (payload здесь пустой и база ответит отказом), а
+    // то, что запрет её больше не перехватывает.
+    for (const kind of EXECUTION_INCREMENT_1) {
+      const calls: string[] = [];
+      const service = new ProjectCeoCommandService({
+        client: client(calls),
+        tokenSecret: "secret-".repeat(6),
+        executionEnabled: "true",
+      });
+      const result = await service.execute(command(kind), `increment1-${kind}`);
+      expect(result, kind).not.toMatchObject({
+        status: "unavailable",
+        error: { code: "operation_unavailable" },
+      });
+      expect(calls.length, kind).toBeGreaterThan(0);
+    }
+  });
+
   it("does not touch commands outside the module when the flag is off", async () => {
     // Guardrail обязан быть узким: закрыв лишнее, он сломал бы M2 и M3, и это
     // выглядело бы как отказ продукта, а не как запрет одного модуля.

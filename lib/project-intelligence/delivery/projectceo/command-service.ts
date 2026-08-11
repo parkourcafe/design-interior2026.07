@@ -20,7 +20,11 @@ import {
   type ProjectCeoCommandResponse,
 } from "./command-contract";
 import { DOCUMENTATION_PUBLICATION, isDocumentationModuleEnabled } from "./documentation-flag";
-import { EXECUTION_MODULE, isExecutionModuleEnabled } from "./execution-flag";
+import {
+  EXECUTION_INCREMENT_2_COMMANDS,
+  EXECUTION_MODULE,
+  isExecutionModuleEnabled,
+} from "./execution-flag";
 import {
   computeBaselineSemanticHash,
   confirmBaselineSnapshot,
@@ -45,7 +49,10 @@ type CommandErrorCode =
   | "internal_error";
 
 // Сборка handover — воркерный путь с отдельным allowlist (AP3 §10); в
-// человеческом сервисе команды нет намеренно.
+// человеческом сервисе команды нет намеренно. Остальные четыре команды
+// инкремента 2 закрыты по другому основанию (A6 §1.1 их не открывает) и живут
+// в `EXECUTION_INCREMENT_2_COMMANDS` — разные причины не сливаются в один
+// список, чтобы снятие одной не снимало вторую.
 const UNAVAILABLE = new Set<ProjectCeoCommand["kind"]>([
   "build_handover",
 ]);
@@ -251,6 +258,12 @@ export class ProjectCeoCommandService {
       EXECUTION_MODULE.has(command.kind)
       && !isExecutionModuleEnabled(this.dependencies.executionEnabled)
     ) {
+      return failure(requestId, "unavailable", "operation_unavailable");
+    }
+    // Инкремент 2 закрыт независимо от флага: его не открывал ни один
+    // подписанный документ (A6 §1.1). Проверка стоит ПОСЛЕ флага и не зависит
+    // от него — включение модуля не должно открывать неавторизованное.
+    if (EXECUTION_INCREMENT_2_COMMANDS.has(command.kind)) {
       return failure(requestId, "unavailable", "operation_unavailable");
     }
     if (
@@ -950,7 +963,14 @@ export class ProjectCeoCommandService {
         );
       }
       if (command.kind === "distribute_release") {
-        if (scope.role !== "owner_lead") {
+        // Роли те же, что у права `distribute_release` в базе
+        // (`_role_capabilities`, `20260717090000`) и в гейте 2 A6 §6.1.
+        // До 11.08 здесь стоял только `owner_lead`, и это было расхождение не в
+        // пользу безопасности, а против честности: поверхность предлагала
+        // выдачу архитектору (`role-policy.ts`), база её разрешала, а
+        // приложение отвечало `forbidden` — то есть кнопка обещала то, чего не
+        // делала.
+        if (scope.role !== "owner_lead" && scope.role !== "architect") {
           return failure(requestId, "error", "forbidden");
         }
         const read = await this.read.getProjectWorkspaceRead({

@@ -54,7 +54,10 @@ for sql in \
   "${repo_root}/tests/db3/20_foundation_operations.sql" \
   "${repo_root}/tests/db4/05_m3_publication_guardrail.sql" \
   "${repo_root}/tests/db4/06_m3_surface_classification.sql" \
+  "${repo_root}/tests/db4/07_m4_execution_boundary.sql" \
+  "${repo_root}/tests/db4/08_m4_surface_classification.sql" \
   "${repo_root}/tests/ap1/environment/enable-m3-publication.sql" \
+  "${repo_root}/tests/ap1/environment/enable-m4-increment-1.sql" \
   "${repo_root}/tests/db4/10_schema_security.sql" \
   "${repo_root}/tests/db4/20_product_operations.sql" \
   "${repo_root}/tests/db4/30_m2_expansion_operations.sql" \

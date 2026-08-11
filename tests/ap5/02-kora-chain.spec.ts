@@ -10,10 +10,12 @@ import {
   storageStatePath,
   AP5_DECISION_NODE_ID,
   AP5_DECISION_REVISION_ID,
+  AP5_RELEASE_ARTIFACT_ID,
   AP5_SOURCE_NAME,
   AP5_SOURCE_REVISION_ID,
   type Ap5RoleKey,
 } from "./ap5-env";
+import { materializeReleaseArtifact } from "./release-worker";
 
 const env = ap5Env();
 // Ленивое чтение: сборка списка тестов не должна зависеть от того,
@@ -86,6 +88,15 @@ type Workspace = {
   }[];
   readonly decisions: readonly { readonly revisionId: string; readonly claimStatus: string }[];
   readonly selections: readonly { readonly id: string; readonly decisionRevisionId: string }[];
+  readonly releases: readonly {
+    readonly id: string;
+    readonly versionNo: number;
+    readonly distributionStatus: string;
+    readonly pendingDistributionId: string | null;
+    readonly acknowledgementCount: number;
+    readonly recipientCount: number;
+  }[];
+  readonly changes: readonly { readonly id: string; readonly reason: string }[];
   readonly participants: readonly { readonly role: string }[];
   readonly operations: Record<string, {
     readonly status?: string;
@@ -328,32 +339,148 @@ test.describe("AP5 — цепочка Kora на живом стеке", () => {
   });
 
   /**
-   * Ожидание менялось вместе с продуктом, и прогон 159 это поймал.
+   * Ожидание менялось вместе с продуктом дважды, и оба раза это ловил прогон.
    *
-   * До guardrail'а M4 `build_handover` был закрыт по одной причине — операция
-   * воркерная (`worker_only`). С 10.08 модуль исполнения закрыт флагом целиком
-   * (`REMHAOS_EXECUTION_ENABLED`, `execution-flag.ts`), и поверхность отвечает
-   * `module_disabled` — причина более сильная и более честная: закрыта не одна
-   * операция, а весь модуль, роль тут ни при чём.
+   * До guardrail'а M4 `build_handover` был закрыт одной причиной — операция
+   * воркерная (`worker_only`). С 10.08 модуль закрыт флагом целиком, и причиной
+   * стал `module_disabled`. С 11.08 модуль в этом прогоне ВКЛЮЧЁН: гейт 1
+   * пройден, A6 §6.3 разрешает интерфейс инкремента 1, и доказать его иначе,
+   * чем при включённом модуле, нельзя.
    *
-   * Флаг в прогоне намеренно НЕ включается: A6 §5.1 его не разрешает, и
-   * включить его здесь значило бы открыть поверхность M4 ради зелёного теста.
-   * Поэтому проверяется именно закрытость модуля — и то, что причина названа
-   * той, что есть.
+   * Отсюда третья редакция ожидания. Инкремент 2 закрыт не флагом — его не
+   * авторизовал ни один подписанный документ (A6 §1.1), — и причина обязана
+   * называть именно это. Сказать `module_disabled` при включённом модуле
+   * значило бы соврать о состоянии системы.
    */
-  test("8. модуль исполнения закрыт флагом, и поверхность говорит об этом прямо", async ({ browser }) => {
+  test("8. модуль включён, но инкремент 2 закрыт — и назван своей причиной", async ({ browser }) => {
     const owner = await requestAs(browser, "owner");
     const operations = (await workspace(owner)).operations;
-    expect(operations.build_handover?.status).toBe("unavailable");
-    expect(operations.build_handover?.reason).toBe("module_disabled");
 
-    // Guardrail закрывает весь модуль, а не одну операцию: инкремент 1 из
-    // A6 §1.1 обязан быть закрыт той же причиной, иначе «закрыт модуль»
-    // означало бы «закрыта одна кнопка».
-    for (const kind of ["distribute_release", "acknowledge_release", "create_change"]) {
+    for (const kind of [
+      "review_change_impact",
+      "upload_photo_evidence",
+      "review_photo_evidence",
+      "accept_milestone",
+      "build_handover",
+    ]) {
       expect(operations[kind]?.status, kind).toBe("unavailable");
-      expect(operations[kind]?.reason, kind).toBe("module_disabled");
+      expect(operations[kind]?.reason, kind).toBe("increment_not_authorized");
     }
+
+    // Поверхность — половина запрета. Вторая половина в том, что команда,
+    // посланная в обход интерфейса, отклоняется сервером до единого чтения и
+    // записи, а не доходит до RPC и не получает отказ по правам.
+    const denied = await command(owner, "accept_milestone", {
+      milestoneId: "a5d0c1c1-0000-4000-8000-00000000dead",
+    });
+    expect(denied.status, JSON.stringify(denied.body.error)).toBe(409);
+    expect(denied.body.error?.code).toBe("operation_unavailable");
+  });
+
+  /**
+   * Гейт 2 из A6 §6.1, звено 1: выдача выпущенного пакета.
+   *
+   * Здесь же — находка гейта, которую стоит назвать прямо. A6 §1.1 утверждает,
+   * что у инкремента 1 нет воркерных предпосылок. Для выдачи это неверно:
+   * `distribute_release` адресуется артефакту выпуска, а собрать артефакт может
+   * только система (`build_release_artifact`, права только у service_role,
+   * автор записи — `system:projectceo-product-worker`). Человеческой двери к
+   * ней нет. Поэтому шаг делает ровно то, что в продакшене делает воркер, и
+   * ничего сверх: сама выдача идёт через браузер сессией владельца.
+   */
+  test("9. выдача пакета получателю из браузера", async ({ browser }) => {
+    const owner = await requestAs(browser, "owner");
+    const release = (await workspace(owner)).releases.at(0);
+    expect(release?.id, "выпуск шага 7 обязан быть виден в проекции").toBeTruthy();
+
+    materializeReleaseArtifact({
+      projectId: handoff().projectId,
+      productionPackageVersionId: release!.id,
+      artifactId: AP5_RELEASE_ARTIFACT_ID,
+    });
+
+    // Только теперь поверхность имеет право предлагать выдачу: до артефакта
+    // она отвечала `prerequisite_missing`, и это было честно.
+    const view = await workspace(owner);
+    expect(view.operations.distribute_release?.status).toBe("available");
+    expect(view.operations.distribute_release?.commandTargetId).toBe(release!.id);
+
+    const recipientUserId = handoff().userIds.builder;
+    expect(recipientUserId).toBeTruthy();
+
+    const distributed = await command(owner, "distribute_release", {
+      productionPackageVersionId: release!.id,
+      recipientUserId,
+    });
+    expect(distributed.status, JSON.stringify(distributed.body.error)).toBe(200);
+
+    const after = (await workspace(owner)).releases.at(0);
+    expect(after?.recipientCount).toBeGreaterThan(0);
+  });
+
+  /**
+   * Гейт 2, звено 2: подтверждение получения — СЕССИЕЙ ПОЛУЧАТЕЛЯ.
+   *
+   * A6 §6.1 требует именно этого и объясняет почему: право
+   * `acknowledge_release` есть и у `owner_lead`, и у `architect`, так что
+   * подтвердить «за строителя» технически возможно, и доказательство,
+   * собранное чужой сессией, не стоило бы ничего.
+   */
+  test("10. подтверждение получения сессией получателя, а не отправителя", async ({ browser }) => {
+    const builder = await requestAs(browser, "builder");
+    const view = await workspace(builder);
+    expect(view.operations.acknowledge_release?.status).toBe("available");
+    const distributionId = view.operations.acknowledge_release?.commandTargetId;
+    expect(distributionId).toBeTruthy();
+
+    // Отправитель получателем не является, и его поверхность это признаёт:
+    // выдача не создаёт ему собственного получения.
+    const owner = await requestAs(browser, "owner");
+    const ownerView = await workspace(owner);
+    expect(ownerView.operations.acknowledge_release?.status).toBe("unavailable");
+    expect(ownerView.operations.acknowledge_release?.reason).toBe("prerequisite_missing");
+
+    const acknowledged = await command(builder, "acknowledge_release", { distributionId });
+    expect(acknowledged.status, JSON.stringify(acknowledged.body.error)).toBe(200);
+
+    const release = (await workspace(builder)).releases.at(0);
+    expect(release?.acknowledgementCount).toBeGreaterThan(0);
+  });
+
+  /**
+   * Гейт 2, звено 3: заявка на изменение.
+   *
+   * Предпосылка заявки — расхождение: выпущенная версия пакета собрана по
+   * baseline, который больше не последний. Поэтому архитектор публикует
+   * baseline V2 (тем же путём A′, что и на шаге 6), и только после этого
+   * строитель видит, что работает по устаревшей редакции, и заводит заявку.
+   */
+  test("11. заявка на изменение от строителя по устаревшей редакции", async ({ browser }) => {
+    const architect = await requestAs(browser, "designer");
+    const beforeSecondBaseline = await workspace(architect);
+    expect(beforeSecondBaseline.operations.publish_baseline?.status).toBe("available");
+    const snapshotToken = beforeSecondBaseline.operations.publish_baseline?.commandTargetId;
+    expect(snapshotToken).toBeTruthy();
+
+    const secondBaseline = await command(architect, "publish_baseline", { snapshotToken });
+    expect(secondBaseline.status, JSON.stringify(secondBaseline.body.error)).toBe(200);
+
+    const builder = await requestAs(browser, "builder");
+    const view = await workspace(builder);
+    expect(view.operations.create_change?.status).toBe("available");
+    const fromProductionPackageVersionId = view.operations.create_change?.commandTargetId;
+    expect(fromProductionPackageVersionId).toBeTruthy();
+
+    const change = await command(builder, "create_change", {
+      reason: "AP5: на объекте вскрылось расхождение с выпущенной редакцией",
+      fromProductionPackageVersionId,
+      deltaCostRub: 0,
+      deltaDays: 0,
+    });
+    expect(change.status, JSON.stringify(change.body.error)).toBe(200);
+
+    const changes = (await workspace(builder)).changes;
+    expect(changes.length).toBeGreaterThan(0);
   });
 });
 
@@ -363,24 +490,18 @@ test.describe("AP5 — цепочка Kora на живом стеке", () => {
  * «не доказано», и в отчёте гейта он виден именно так.
  */
 test.describe("AP5 — ещё не покрытые звенья", () => {
+  // Три звена ушли отсюда 11.08, и каждое — потому что доказано, а не потому
+  // что причина перестала нравиться. Строка-пропуск на пройденном звене — это
+  // отчёт, который врёт:
+  //   * «Decision/Selection approval → ProjectBaseline V1» — шаг 6 (гейт 1);
+  //   * «ProductionPackageVersion V1 → распространение и подтверждение» —
+  //     шаги 7, 9 и 10 (гейт 1 и гейт 2);
+  //   * заявка на изменение — шаг 11.
   test.fixme(
-    "Decision/Selection approval → ProjectBaseline V1",
-    // create_approval_package/submit_approval_package/review_selection/publish_baseline
-    // подключены, но publish_baseline принимает дескриптор с семантическим
-    // хешем, который собирает доменный слой; сборка дескриптора из браузера
-    // не описана (AP1_RUNBOOK §4.1 — открытый вопрос владельца).
-    () => {},
-  );
-  test.fixme(
-    "ProductionPackageVersion V1 → распространение и подтверждение",
-    // publish_release/distribute_release/acknowledge_release требуют
-    // опубликованного baseline из предыдущего пункта.
-    () => {},
-  );
-  test.fixme(
-    "изменение с дельтой в рублях и днях → bounded impact и решения человека",
-    // create_change проходит, но review_change_impact адресуется impactRunId,
-    // который создаёт воркерный расчёт влияния.
+    "bounded impact заявки на изменение и решения человека по нему",
+    // Сама заявка проходит (шаг 11), но `review_change_impact` адресуется
+    // `impactRunId`, который создаёт воркерный расчёт влияния. Сверх того
+    // команда принадлежит инкременту 2 и не авторизована ничем (A6 §1.1).
     () => {},
   );
   test.fixme(

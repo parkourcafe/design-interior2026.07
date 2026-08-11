@@ -622,47 +622,38 @@ describe("ProjectCEO live DTO sanitizer", () => {
     });
   });
 
-  it("does not offer milestone acceptance while photo evidence is undecided", async () => {
-    const result = await new ProjectCeoLiveReadPort(fakeClient({
-      executionPackages: executionWithPhotoDecision(null),
-    }), {
-      userId: "66666666-6666-4666-8666-666666666666",
-      displayName: "Controlled user",
-    }).getProjectWorkspace({ projectId, requestId: "milestone-undecided" });
+  // Три теста ниже до 11.08 проверяли предпосылку приёмки вехи: пока хоть одно
+  // фото не принято, приёмка не предлагается, а после — предлагается точной
+  // вехой. С открытием инкремента 1 приёмка вехи стала недостижима по более
+  // сильной причине: команда принадлежит инкременту 2, которого не открывал ни
+  // один подписанный документ (A6 §1.1). Ответ поверхности теперь один и тот же
+  // при любом состоянии фотодоказательств — и это то, что обязано быть
+  // проверено, потому что именно это видит человек.
+  //
+  // Фикстуры трёх состояний оставлены намеренно: логика предпосылки в порту
+  // никуда не делась, она просто перекрыта. Когда инкремент 2 откроют отдельным
+  // решением, эти три теста возвращаются к прежним утверждениям — вместе с
+  // прежними фикстурами, а не заново.
+  it.each([
+    ["undecided", null],
+    ["rejected", "rejected"],
+    ["accepted", "accepted"],
+  ] as const)(
+    "keeps milestone acceptance closed as increment 2 with photo evidence %s",
+    async (label, decision) => {
+      const result = await new ProjectCeoLiveReadPort(fakeClient({
+        executionPackages: executionWithPhotoDecision(decision),
+      }), {
+        userId: "66666666-6666-4666-8666-666666666666",
+        displayName: "Controlled user",
+      }).getProjectWorkspace({ projectId, requestId: `milestone-${label}` });
 
-    expect(result.data?.operations.accept_milestone).toEqual({
-      status: "unavailable",
-      reason: "prerequisite_missing",
-    });
-  });
-
-  it("does not offer milestone acceptance when photo evidence was rejected", async () => {
-    const result = await new ProjectCeoLiveReadPort(fakeClient({
-      executionPackages: executionWithPhotoDecision("rejected"),
-    }), {
-      userId: "66666666-6666-4666-8666-666666666666",
-      displayName: "Controlled user",
-    }).getProjectWorkspace({ projectId, requestId: "milestone-rejected" });
-
-    expect(result.data?.operations.accept_milestone).toEqual({
-      status: "unavailable",
-      reason: "prerequisite_missing",
-    });
-  });
-
-  it("offers exact milestone acceptance only after every photo was accepted", async () => {
-    const result = await new ProjectCeoLiveReadPort(fakeClient({
-      executionPackages: executionWithPhotoDecision("accepted"),
-    }), {
-      userId: "66666666-6666-4666-8666-666666666666",
-      displayName: "Controlled user",
-    }).getProjectWorkspace({ projectId, requestId: "milestone-accepted" });
-
-    expect(result.data?.operations.accept_milestone).toEqual({
-      status: "available",
-      commandTargetId: "55555555-5555-4555-8555-555555555555",
-    });
-  });
+      expect(result.data?.operations.accept_milestone).toEqual({
+        status: "unavailable",
+        reason: "increment_not_authorized",
+      });
+    },
+  );
 
   it("does not invent fixture pilot counts in the live portfolio", async () => {
     const result = await new ProjectCeoLiveReadPort(client, {

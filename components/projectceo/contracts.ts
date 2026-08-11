@@ -604,6 +604,11 @@ export type ProjectCeoOperationState =
       readonly reason:
         | "capability_missing"
         | "exact_scope_missing"
+        // Модуль включён, но именно этот инкремент не открыт ни одним
+        // подписанным документом (A6 §1.1: инкремент 2 модуля 4). Причина
+        // отдельная от `module_disabled` намеренно: сказать «модуль выключен»
+        // там, где он включён, значит соврать о состоянии системы.
+        | "increment_not_authorized"
         // Поверхность принадлежит модулю, который владелец ещё не включил.
         | "module_disabled"
         | "prerequisite_missing"
