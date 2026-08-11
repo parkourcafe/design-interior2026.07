@@ -163,8 +163,10 @@ export async function handleTelegramUpdate(
       return { status: "ignored", code: "membership_event_only" };
     }
 
-    // Приостановленная привязка ничего не сохраняет: RPC откажет, и это
-    // правильный отказ, а не сбой.
+    // Здесь `binding` — снимок ДО публикации уведомления, и это не устаревшие
+    // данные, а нужное поведение: сообщение, которое приехало раньше, чем
+    // участники узнали о сборе, не сохраняется. Приём начинается со СЛЕДУЮЩЕГО.
+    // То же условие закрывает приостановленную привязку.
     if (binding.status !== "active" || binding.captureMode !== "full_after_notice") {
       logger.emit({
         event: "webhook_dead_letter",
