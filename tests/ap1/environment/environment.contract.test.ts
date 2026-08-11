@@ -61,9 +61,13 @@ describe("AP1 disposable Supabase environment contract", () => {
     // ниже в том же регулярном отрицании.
     expect(api).toContain('"projectceo_m3_api"');
     expect(api).toContain('"projectceo_m4_api"');
+    // Шлюз интеграций (A7 / DEC-031): приложение зовёт его RPC через PostgREST,
+    // поэтому API-схема отдана. Права при этом закрыты — сама по себе строка
+    // ничего не открывает.
+    expect(api).toContain('"projectceo_gateway_api"');
     expect(api).toContain("auto_expose_new_tables = false");
     expect(api).not.toMatch(
-      /project_intelligence|projectceo_foundation|projectceo_product"|projectceo_m3"|projectceo_m4"/,
+      /project_intelligence|projectceo_foundation|projectceo_product"|projectceo_m3"|projectceo_m4"|projectceo_gateway"/,
     );
   });
 

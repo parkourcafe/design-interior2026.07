@@ -91,7 +91,10 @@ begin
     where organization_id = v_org
       and project_id = '41111111-1111-4111-8111-111111111111'
       and user_id = '31111111-1111-4111-8111-111111111111'
-  ) <> 20 then
+  -- 21 с 11.08.2026: к преднастройке владельца добавилась
+  -- `manage_project_integrations` (A7 / DEC-031). Она нужна, чтобы подключить
+  -- канал переписки, и в P0 её не получает больше никто.
+  ) <> 21 then
     raise exception 'DB3_OWNER_CAPABILITY_PRESET';
   end if;
 end

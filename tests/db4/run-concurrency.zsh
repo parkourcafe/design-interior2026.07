@@ -412,4 +412,72 @@ fi
 
 print -r -- "DB4_RELEASE_ARTIFACT_WORKER_OK"
 
+# Два проекта РАЗНЫХ организаций одновременно подключают ОДИН И ТОТ ЖЕ чат
+# (A7 / DEC-031, INV-T1). Оба интента настоящие и уже погашены
+# (`42_telegram_bridge_operations.sql`), оба инициатора связаны своими
+# числовыми Telegram-идентификаторами и оба владеют своим проектом — то есть
+# проигрывает не полномочие, а именно ограничение «один проект на активный чат».
+#
+# Контракт: ровно одна транзакция успешна, вторая падает контролируемым
+# `scope_conflict` (P1109), а не 23505 наружу; активная привязка чата — одна.
+bridge_chat=-1001000000777
+bridge_intent_a=$(psql_exec db4-bridge-race-intent-a "
+  select intent_id from projectceo_gateway.channel_link_intents
+  where nonce_digest = sha256(convert_to('db4-race-a', 'UTF8'))
+")
+bridge_intent_b=$(psql_exec db4-bridge-race-intent-b "
+  select intent_id from projectceo_gateway.channel_link_intents
+  where nonce_digest = sha256(convert_to('db4-race-b', 'UTF8'))
+")
+bridge_call_a="begin;
+set local role service_role;
+select projectceo_gateway_api.complete_channel_binding(
+  '${bridge_intent_a}', '770001', '${bridge_chat}', 'supergroup', true, 'notice/0.1'
+);
+commit;"
+bridge_call_b="begin;
+set local role service_role;
+select projectceo_gateway_api.complete_channel_binding(
+  '${bridge_intent_b}', '770002', '${bridge_chat}', 'supergroup', true, 'notice/0.1'
+);
+commit;"
+
+set +e
+psql_exec db4-bridge-race-a "${bridge_call_a}" >"${tmpdir}/bridge-a.out" 2>&1 &
+bridge_pid_a=$!
+psql_exec db4-bridge-race-b "${bridge_call_b}" >"${tmpdir}/bridge-b.out" 2>&1 &
+bridge_pid_b=$!
+wait "${bridge_pid_a}"; bridge_status_a=$?
+wait "${bridge_pid_b}"; bridge_status_b=$?
+set -e
+
+if [[ $(( bridge_status_a + bridge_status_b )) == 0 ]] \
+  || [[ "${bridge_status_a}" != "0" && "${bridge_status_b}" != "0" ]]; then
+  print -u2 -r -- "Concurrent channel binding race did not select exactly one winner"
+  sed -n '1,120p' "${tmpdir}/bridge-a.out" >&2
+  sed -n '1,120p' "${tmpdir}/bridge-b.out" >&2
+  exit 1
+fi
+
+# Проигравший обязан получить контролируемый отказ шлюза, а не сырое нарушение
+# уникальности: 23505 наружу означал бы, что клиент видит устройство таблицы.
+if ! rg -q 'scope_conflict' "${tmpdir}/bridge-a.out" "${tmpdir}/bridge-b.out"; then
+  print -u2 -r -- "Concurrent channel binding loser did not fail with scope_conflict"
+  sed -n '1,120p' "${tmpdir}/bridge-a.out" >&2
+  sed -n '1,120p' "${tmpdir}/bridge-b.out" >&2
+  exit 1
+fi
+
+bridge_result=$(psql_exec db4-bridge-race-assert "
+  select count(*)::text || '|' || count(distinct project_id)::text
+  from projectceo_gateway.project_channel_bindings
+  where external_chat_id = '${bridge_chat}' and status = 'active'
+")
+if [[ "${bridge_result}" != "1|1" ]]; then
+  print -u2 -r -- "Concurrent channel binding persisted invalid state: ${bridge_result}"
+  exit 1
+fi
+
+print -r -- "DB4_TELEGRAM_BRIDGE_CONCURRENCY_OK"
+
 print -r -- "DB4_CONCURRENCY_OK"

@@ -56,8 +56,10 @@ for sql in \
   "${repo_root}/tests/db4/06_m3_surface_classification.sql" \
   "${repo_root}/tests/db4/07_m4_execution_boundary.sql" \
   "${repo_root}/tests/db4/08_m4_surface_classification.sql" \
+  "${repo_root}/tests/db4/09_telegram_bridge_boundary.sql" \
   "${repo_root}/tests/ap1/environment/enable-m3-publication.sql" \
   "${repo_root}/tests/ap1/environment/enable-m4-increment-1.sql" \
+  "${repo_root}/tests/ap1/environment/enable-telegram-bridge.sql" \
   "${repo_root}/tests/db4/10_schema_security.sql" \
   "${repo_root}/tests/db4/20_product_operations.sql" \
   "${repo_root}/tests/db4/30_m2_expansion_operations.sql" \
@@ -71,7 +73,8 @@ for sql in \
   "${repo_root}/tests/db4/38_m4_execution_guardrail.sql" \
   "${repo_root}/tests/db4/39_publish_version_door.sql" \
   "${repo_root}/tests/db4/40_baseline_refs_read.sql" \
-  "${repo_root}/tests/db4/41_release_artifact_backlog.sql"; do
+  "${repo_root}/tests/db4/41_release_artifact_backlog.sql" \
+  "${repo_root}/tests/db4/42_telegram_bridge_operations.sql"; do
   print -r -- "Running ${sql:t}"
   run_file "${sql}"
 done
