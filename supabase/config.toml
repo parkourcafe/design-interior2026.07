@@ -20,6 +20,10 @@ schemas = [
   # но недостижимы приложением — миграции при этом отчитываются об успехе.
   "projectceo_m3_api",
   "projectceo_m4_api",
+  # Мост Telegram (A7/DEC-031): наружу отдана ТОЛЬКО api-схема, и права в
+  # ней раздаются поимённо — системные RPC воркеру, человеческие
+  # authenticated. Приватная `remhaos_channel` не отдаётся никогда.
+  "remhaos_channel_api",
 ]
 extra_search_path = ["public", "extensions"]
 max_rows = 1000
