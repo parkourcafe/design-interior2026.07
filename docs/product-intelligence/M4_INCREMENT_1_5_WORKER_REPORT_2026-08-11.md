@@ -3,7 +3,9 @@
 **Дата:** 11.08.2026
 **Основание:** OWNER DECISION 11.08.2026, DEC-030 `LOCKED`.
 **Объём:** ровно один системный воркер — Release Artifact Worker.
-**Итоговое состояние:** `M4_RELEASE_WORKER_PROVEN`.
+**Итоговое состояние:** `M4_RELEASE_WORKER_PROVEN` — взято прогоном CI **201**
+(`abb58fd`): AP5 ✓ (звено 9 зовёт настоящий воркер), `lint · typecheck · test ·
+build` ✓, DB4 на PG16 и PG17 ✓. Красный только цикл 7 — намеренно.
 
 ---
 
