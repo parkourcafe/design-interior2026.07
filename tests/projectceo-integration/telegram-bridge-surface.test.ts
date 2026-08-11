@@ -29,11 +29,16 @@ const squash = (value: string): string => value.replace(/\s+/g, "");
 const OPERATION_MIGRATIONS = [
   "supabase/migrations/20260811050000_remhaos_channel_bridge_operations.sql",
   "supabase/migrations/20260811060000_remhaos_channel_bridge_inbox.sql",
+  // Исправление фундамента (CORRECTIVE GO 11.08.2026): часть системных дверей
+  // здесь пересоздана с новой сигнатурой, и грант живёт вместе с ними. Список,
+  // не включающий эту миграцию, сверял бы матрицу с уже неверной половиной.
+  "supabase/migrations/20260811070000_remhaos_channel_bridge_correction.sql",
 ] as const;
 
 const DB4_SCENARIOS = [
   "tests/db4/42_telegram_bridge_boundary.sql",
   "tests/db4/43_telegram_inbox_vertical.sql",
+  "tests/db4/44_telegram_bridge_correction.sql",
 ] as const;
 
 const operationSources = OPERATION_MIGRATIONS.map(read);

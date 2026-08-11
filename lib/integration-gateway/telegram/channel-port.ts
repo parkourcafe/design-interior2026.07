@@ -88,6 +88,9 @@ const claimedNotificationSchema = z.object({
   bindingId: z.string(),
   templateVersion: z.string(),
   attemptCount: z.number().int().nonnegative(),
+  // Токен аренды. Возвращается захватом и требуется завершением: без него
+  // «захват» был бы обещанием, а не механизмом.
+  leaseToken: z.string(),
   payload: z.record(z.unknown()),
   externalChatId: z.number(),
   botInstanceId: z.string(),
@@ -121,6 +124,15 @@ export class TelegramSystemPort {
     });
   }
 
+  /**
+   * Создаёт связь в состоянии `notice_pending`: приём ещё НЕ открыт. Открывает
+   * его только `markChannelNoticePosted` — после того, как участники группы
+   * получили сообщение о сборе.
+   *
+   * Оба факта об администраторстве проверяет транспорт (база не умеет спросить
+   * Telegram) и передаёт их явными аргументами. Отказ при `false` живёт в самой
+   * RPC: пропустить обязательный аргумент труднее, чем забыть проверку.
+   */
   async activateProjectBinding(input: {
     readonly nonceDigest: PostgresBytea;
     readonly externalUserId: number;
@@ -128,7 +140,9 @@ export class TelegramSystemPort {
     readonly chatId: number;
     readonly chatType: string;
     readonly noticeVersion: string;
-  }): Promise<{ readonly projectId: string }> {
+    readonly initiatorIsChatAdmin: boolean;
+    readonly botIsChatAdmin: boolean;
+  }): Promise<{ readonly projectId: string; readonly bindingId: string }> {
     const data = await callChannelRpc(this.client, "activate_project_binding", {
       nonce_digest: input.nonceDigest,
       external_user_id: input.externalUserId,
@@ -136,12 +150,31 @@ export class TelegramSystemPort {
       external_chat_id: input.chatId,
       external_chat_type: input.chatType,
       notice_version: input.noticeVersion,
+      initiator_is_chat_admin: input.initiatorIsChatAdmin,
+      bot_is_chat_admin: input.botIsChatAdmin,
     });
-    const parsed = z.object({ projectId: z.string() }).safeParse(data);
+    const parsed = z
+      .object({ projectId: z.string(), bindingId: z.string() })
+      .safeParse(data);
     if (!parsed.success) {
       throw new TelegramChannelRpcError("activate_project_binding", "shape_invalid");
     }
     return parsed.data;
+  }
+
+  /**
+   * Уведомление опубликовано — связь становится активной и приём открывается.
+   * Отдельный шаг, потому что отдельный факт: между созданием связи и словами в
+   * чате может пройти минута, а может не пройти ничего.
+   */
+  async markChannelNoticePosted(input: {
+    readonly bindingId: string;
+    readonly noticeVersion: string;
+  }): Promise<void> {
+    await callChannelRpc(this.client, "mark_channel_notice_posted", {
+      binding_id: input.bindingId,
+      notice_version: input.noticeVersion,
+    });
   }
 
   async suspendProjectBinding(input: {
@@ -216,23 +249,32 @@ export class TelegramSystemPort {
     return parsed.success ? parsed.data : [];
   }
 
+  /**
+   * Завершение требует ТОЙ ЖЕ аренды, что и захват. Воркер, чью работу уже
+   * забрали по истёкшей аренде, ничего не подтверждает — и, что важнее, не
+   * воскрешает отменённое уведомление.
+   */
   async markNotificationSent(input: {
     readonly notificationId: string;
+    readonly leaseToken: string;
     readonly externalMessageId: number | null;
   }): Promise<void> {
     await callChannelRpc(this.client, "mark_notification_sent", {
       notification_id: input.notificationId,
+      lease_token: input.leaseToken,
       external_message_id: input.externalMessageId,
     });
   }
 
   async markNotificationFailed(input: {
     readonly notificationId: string;
+    readonly leaseToken: string;
     readonly failureCode: string;
     readonly retryAfterSeconds: number;
   }): Promise<void> {
     await callChannelRpc(this.client, "mark_notification_failed", {
       notification_id: input.notificationId,
+      lease_token: input.leaseToken,
       failure_code: input.failureCode,
       retry_after_seconds: input.retryAfterSeconds,
     });

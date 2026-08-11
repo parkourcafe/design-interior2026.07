@@ -21,6 +21,7 @@ import {
   TelegramSystemPort,
 } from "@/lib/integration-gateway/telegram/channel-port";
 import {
+  extractBotUserId,
   isChatAdministrator,
   TelegramBotApi,
 } from "@/lib/integration-gateway/telegram/bot-api";
@@ -154,9 +155,13 @@ async function handleHandshake(
     }
   }
 
-  // Группа. Право подключить чат проверяется в Telegram: обычный участник не
-  // должен уметь привязать рабочий чат к своему проекту. База этого знать не
-  // может — это работа транспорта.
+  // Группа. Проверяются ДВА администраторства, и оба обязательны.
+  //
+  // Инициатор — потому что подключить чужой рабочий чат к своему проекту не
+  // должен уметь случайный участник. Сам бот — потому что privacy mode включён
+  // глобально, и бот без прав администратора переписки не увидит: связь в таком
+  // чате была бы связью, которая ничего не принимает, а человек узнал бы об
+  // этом только по тишине.
   const membership = await bot.getChatMember({
     chatId: event.chatId,
     userId: event.senderId,
@@ -168,15 +173,39 @@ async function handleHandshake(
     });
   }
 
+  const identity = await bot.getMe();
+  const botUserId = identity.ok ? extractBotUserId(identity.result) : null;
+  if (botUserId === null) {
+    return ack("binding_rejected", requestId, {
+      updateId: event.updateId,
+      chatId: event.chatId,
+    });
+  }
+  const botMembership = await bot.getChatMember({
+    chatId: event.chatId,
+    userId: botUserId,
+  });
+  if (!botMembership.ok || !isChatAdministrator(botMembership.result)) {
+    return ack("binding_rejected", requestId, {
+      updateId: event.updateId,
+      chatId: event.chatId,
+    });
+  }
+
+  let bindingId: string;
   try {
-    await port.activateProjectBinding({
+    // Связь создаётся в состоянии `notice_pending`: приём ещё НЕ открыт.
+    const activated = await port.activateProjectBinding({
       nonceDigest: digest,
       externalUserId: event.senderId,
       botInstanceId,
       chatId: event.chatId,
       chatType: event.chatType,
       noticeVersion: GROUP_NOTICE_VERSION,
+      initiatorIsChatAdmin: true,
+      botIsChatAdmin: true,
     });
+    bindingId = activated.bindingId;
   } catch {
     return ack("binding_rejected", requestId, {
       updateId: event.updateId,
@@ -184,11 +213,30 @@ async function handleHandshake(
     });
   }
 
-  // Уведомление о сборе данных публикуется сразу и не блокирует подключение:
-  // связь уже создана, а неотправленное сообщение — повод повторить, не повод
-  // откатить. Юридическим закрытием 152-ФЗ это уведомление не является (A7
-  // §1.11), и обещать обратное здесь нечем.
-  await bot.sendMessage({ chatId: event.chatId, text: renderGroupNotice() });
+  // Уведомление о сборе данных БЛОКИРУЕТ приём, а не сопровождает его.
+  //
+  // Прежде связь создавалась сразу активной, а это сообщение уходило после и
+  // «не блокировало подключение». Следствие было ровно обратным замыслу:
+  // сообщения группы сохранялись у людей, которых ещё не предупредили. Если
+  // отправка не удалась, связь остаётся в `notice_pending` — следующее событие
+  // в этом чате повторит попытку, а до тех пор не сохраняется ничего.
+  //
+  // Юридическим закрытием 152-ФЗ это уведомление не является (A7 §1.11).
+  const notice = await bot.sendMessage({
+    chatId: event.chatId,
+    text: renderGroupNotice(),
+  });
+  if (!notice.ok) {
+    return ack("binding_notice_pending", requestId, {
+      updateId: event.updateId,
+      chatId: event.chatId,
+    });
+  }
+
+  await port.markChannelNoticePosted({
+    bindingId,
+    noticeVersion: GROUP_NOTICE_VERSION,
+  });
 
   return ack("binding_activated", requestId, {
     updateId: event.updateId,

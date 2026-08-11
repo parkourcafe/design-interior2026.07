@@ -140,6 +140,16 @@ export class TelegramBotApi {
       user_id: input.userId,
     });
   }
+
+  /**
+   * Кто сам бот. Нужен ровно для одного вопроса — администратор ли он в этой
+   * группе: privacy mode включён глобально, и бот без прав администратора не
+   * увидит переписку. Связь, созданная в таком чате, была бы связью, которая
+   * ничего не принимает, а человек узнал бы об этом только по тишине.
+   */
+  async getMe(): Promise<TelegramCallOutcome> {
+    return this.call("getMe", {});
+  }
 }
 
 const CHAT_MEMBER_SCHEMA = z.object({ status: z.string() });
@@ -149,6 +159,12 @@ export function isChatAdministrator(result: unknown): boolean {
   const parsed = CHAT_MEMBER_SCHEMA.safeParse(result);
   if (!parsed.success) return false;
   return parsed.data.status === "creator" || parsed.data.status === "administrator";
+}
+
+/** Числовой идентификатор бота из ответа `getMe`. */
+export function extractBotUserId(result: unknown): number | null {
+  const parsed = z.object({ id: z.number().int().positive() }).safeParse(result);
+  return parsed.success ? parsed.data.id : null;
 }
 
 export function extractSentMessageId(result: unknown): number | null {

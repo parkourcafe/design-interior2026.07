@@ -60,6 +60,7 @@ async function deliverOne(
     // видимой, а не потерянной.
     await port.markNotificationFailed({
       notificationId: notification.notificationId,
+      leaseToken: notification.leaseToken,
       failureCode: "template_unknown",
       retryAfterSeconds: 0,
     });
@@ -74,6 +75,7 @@ async function deliverOne(
   if (outcome.ok) {
     await port.markNotificationSent({
       notificationId: notification.notificationId,
+      leaseToken: notification.leaseToken,
       externalMessageId: extractSentMessageId(outcome.result),
     });
     return "sent";
@@ -81,6 +83,7 @@ async function deliverOne(
 
   await port.markNotificationFailed({
     notificationId: notification.notificationId,
+    leaseToken: notification.leaseToken,
     failureCode: outcome.failureCode,
     // Неретраибельный отказ отдаётся с нулевой паузой: решение «больше не
     // пробовать» принимает база по счётчику попыток, а не отправитель.

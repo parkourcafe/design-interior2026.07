@@ -50,12 +50,13 @@ begin
   select signature into v_leaked
   from unnest(array[
     'remhaos_channel_api.ingest_channel_update(text, bigint, bigint, bigint, text, bigint, timestamptz, bigint, text, jsonb)',
-    'remhaos_channel_api.activate_project_binding(bytea, bigint, text, bigint, text, text)',
+    'remhaos_channel_api.activate_project_binding(bytea, bigint, text, bigint, text, text, boolean, boolean)',
+    'remhaos_channel_api.mark_channel_notice_posted(uuid, text)',
     'remhaos_channel_api.consume_identity_link_intent(bytea, bigint)',
     'remhaos_channel_api.enqueue_notification(uuid, text, text, text, jsonb, text)',
     'remhaos_channel_api.claim_notification_batch(integer, integer)',
-    'remhaos_channel_api.mark_notification_sent(uuid, bigint)',
-    'remhaos_channel_api.mark_notification_failed(uuid, text, integer)',
+    'remhaos_channel_api.mark_notification_sent(uuid, uuid, bigint)',
+    'remhaos_channel_api.mark_notification_failed(uuid, uuid, text, integer)',
     'remhaos_channel_api.suspend_project_binding(text, bigint, text)'
   ]) signature
   where pg_catalog.has_function_privilege('authenticated', signature, 'EXECUTE')
@@ -90,7 +91,7 @@ begin
 
   begin
     perform remhaos_channel_api.activate_project_binding(
-      decode(repeat('00', 32), 'hex'), 1, 'probe-bot', 1, 'group', 'v1'
+      decode(repeat('00', 32), 'hex'), 1, 'probe-bot', 1, 'group', 'v1', true, true
     );
     raise exception 'DB4_TG_ACTIVATE_REACHED';
   exception when insufficient_privilege then v_denied := v_denied + 1;
@@ -271,7 +272,7 @@ begin
   begin
     perform remhaos_channel_api.activate_project_binding(
       pg_catalog.sha256(convert_to('db4-binding-nonce-superseded', 'UTF8')),
-      777001, 'db4-bot', -100500, 'supergroup', 'notice-v1'
+      777001, 'db4-bot', -100500, 'supergroup', 'notice-v1', true, true
     );
     raise exception 'DB4_TG_REVOKED_INTENT_ACTIVATED';
   exception when sqlstate 'P1103' then null;
@@ -288,7 +289,7 @@ begin
   begin
     perform remhaos_channel_api.activate_project_binding(
       pg_catalog.sha256(convert_to('db4-binding-nonce', 'UTF8')),
-      999999, 'db4-bot', -100500, 'supergroup', 'notice-v1'
+      999999, 'db4-bot', -100500, 'supergroup', 'notice-v1', true, true
     );
     raise exception 'DB4_TG_BINDING_ACCEPTED_FOREIGN_ACTOR';
   exception when sqlstate 'P1103' then null;
@@ -301,7 +302,67 @@ begin;
 set local role service_role;
 select remhaos_channel_api.activate_project_binding(
   pg_catalog.sha256(convert_to('db4-binding-nonce', 'UTF8')),
-  777001, 'db4-bot', -100500, 'supergroup', 'notice-v1'
+  777001, 'db4-bot', -100500, 'supergroup', 'notice-v1', true, true
+);
+commit;
+
+-- Связь создана, но приём ещё НЕ открыт: уведомление участникам не публиковали.
+do $binding_notice_pending$
+begin
+  if not exists (
+    select 1 from remhaos_channel.project_channel_bindings
+    where project_id = '41111111-1111-4111-8111-111111111111'
+      and status = 'notice_pending'
+      and capture_state = 'none'
+      and external_chat_id = -100500
+  ) then
+    raise exception 'DB4_TG_BINDING_NOT_NOTICE_PENDING';
+  end if;
+end
+$binding_notice_pending$;
+
+select binding_id::text as db4_binding_100500
+from remhaos_channel.project_channel_bindings
+where project_id = '41111111-1111-4111-8111-111111111111'
+  and external_chat_id = -100500
+  and status = 'notice_pending' \gset
+
+-- Сообщение до уведомления не сохраняется: приём закрыт.
+begin;
+set local role service_role;
+do $ingest_before_notice$
+declare
+  v_result jsonb;
+begin
+  v_result := remhaos_channel_api.ingest_channel_update(
+    'db4-bot', 5901, -100500, 91, 'message', 777001, null, null, null,
+    '{"kind":"message","text":"До уведомления"}'::jsonb
+  ) -> 'data';
+  if (v_result ->> 'stored')::boolean then
+    raise exception 'DB4_TG_CAPTURED_BEFORE_NOTICE';
+  end if;
+  if v_result ->> 'reason' <> 'capture_not_open' then
+    raise exception 'DB4_TG_CAPTURE_REASON:%', v_result ->> 'reason';
+  end if;
+end
+$ingest_before_notice$;
+rollback;
+
+do $nothing_stored_before_notice$
+begin
+  if exists (
+    select 1 from remhaos_channel.channel_events where external_message_id = 91
+  ) then
+    raise exception 'DB4_TG_STORED_CONTENT_BEFORE_NOTICE';
+  end if;
+end
+$nothing_stored_before_notice$;
+
+-- Уведомление опубликовано — только теперь связь активна и приём открыт.
+begin;
+set local role service_role;
+select remhaos_channel_api.mark_channel_notice_posted(
+  :'db4_binding_100500'::uuid, 'notice-v1'
 );
 commit;
 
@@ -311,6 +372,8 @@ begin
     select 1 from remhaos_channel.project_channel_bindings
     where project_id = '41111111-1111-4111-8111-111111111111'
       and status = 'active'
+      and capture_state = 'full_after_notice'
+      and notice_posted_at is not null
       and external_chat_id = -100500
   ) then
     raise exception 'DB4_TG_BINDING_NOT_ACTIVE';
@@ -479,19 +542,36 @@ $outbox_dedup$;
 begin;
 set local role service_role;
 select set_config(
-  'projectceo.db4_tg_notification',
-  (remhaos_channel_api.claim_notification_batch(10, 60) -> 'data' -> 0 ->> 'notificationId'),
+  'projectceo.db4_tg_claim',
+  (remhaos_channel_api.claim_notification_batch(10, 60) -> 'data' -> 0)::text,
   false
 );
 commit;
 
+select set_config(
+  'projectceo.db4_tg_notification',
+  (current_setting('projectceo.db4_tg_claim')::jsonb ->> 'notificationId'),
+  false
+);
+select set_config(
+  'projectceo.db4_tg_lease',
+  (current_setting('projectceo.db4_tg_claim')::jsonb ->> 'leaseToken'),
+  false
+);
+
 begin;
 set local role service_role;
 select remhaos_channel_api.mark_notification_sent(
-  current_setting('projectceo.db4_tg_notification')::uuid, 12345
+  current_setting('projectceo.db4_tg_notification')::uuid,
+  current_setting('projectceo.db4_tg_lease')::uuid,
+  12345
 );
+-- Повтор с той же арендой безопасен: строка уже `sent`, и второй отправки не
+-- будет. Аренда при этом уже снята, поэтому вызов ничего не меняет.
 select remhaos_channel_api.mark_notification_sent(
-  current_setting('projectceo.db4_tg_notification')::uuid, 12345
+  current_setting('projectceo.db4_tg_notification')::uuid,
+  current_setting('projectceo.db4_tg_lease')::uuid,
+  12345
 );
 commit;
 
