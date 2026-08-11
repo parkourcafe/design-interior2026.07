@@ -18,17 +18,12 @@
  *   * `app_gate_only` — закрыто ТОЛЬКО приложением. Прямой вызов через Data API
  *     аутентифицированной сессией сегодня пройдёт.
  *
- * `app_gate_only` — не недосмотр, а названный остаток, и вот почему он есть.
- * Отзывать права вслепую нельзя: `projectceo_api` — схема общая, в ней живут
- * операции, к модулю 3 отношения не имеющие. Закрыть такую RPC в базе можно
- * только одним из двух способов: завести M3-aware обёртку (как дверь
- * `projectceo_api.review_source`) либо серверный gate внутри самой RPC. Оба —
- * работа, а не строчка, и до неё остаток обязан быть виден здесь, а не жить
- * необнаруженным.
- *
- * Публикующие RPC в общей схеме отозваны, несмотря на общую схему, потому что
- * их семантика принадлежит модулю 3 целиком: baseline и производственная версия
- * — это выход M3, и другого потребителя у них нет.
+ * `app_gate_only` — не недосмотр, а названный остаток. Решением владельца 11.08
+ * он сокращён до ОДНОЙ строки: `register_source_inventory`. RPC общая, и до
+ * появления M3-aware обёртки отзывать её вслепую нельзя — обёртка записана в
+ * backlog `M3 Production Hardening`. Всё остальное — три публикующие RPC и три
+ * M3-only авторские — отозвано у `authenticated` и включается только явно
+ * (`enable-m3-publication.sql`).
  */
 
 import type { ProjectCeoCommand } from "./command-contract";
@@ -93,8 +88,8 @@ export const M3_SURFACE: readonly M3SurfaceRow[] = [
       signature: "projectceo_api.review_source(uuid, text, text, bigint, text, text)",
       sharing: "m3_only",
       // Дверь заведена ради модуля 3 (`20260810050000`) и другого потребителя
-      // не имеет; закрыть её в базе можно без риска для M1/M2 — остаток.
-      closure: "app_gate_only",
+      // не имеет — отозвана решением владельца 11.08.
+      closure: "revoked_from_authenticated",
     }],
   },
   {
@@ -106,7 +101,7 @@ export const M3_SURFACE: readonly M3SurfaceRow[] = [
       name: "register_documentation_sheet",
       signature: "projectceo_m3_api.register_documentation_sheet(uuid, uuid, text, text, text, text, text, text, text[], text, bigint, text)",
       sharing: "m3_only",
-      closure: "app_gate_only",
+      closure: "revoked_from_authenticated",
     }],
   },
   {
@@ -118,7 +113,7 @@ export const M3_SURFACE: readonly M3SurfaceRow[] = [
       name: "attach_documentation_sheet_specifications",
       signature: "projectceo_m3_api.attach_documentation_sheet_specifications(uuid, uuid, text, text, text, text[], text, bigint, text)",
       sharing: "m3_only",
-      closure: "app_gate_only",
+      closure: "revoked_from_authenticated",
     }],
   },
   {

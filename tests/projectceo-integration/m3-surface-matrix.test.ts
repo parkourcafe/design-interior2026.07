@@ -99,11 +99,8 @@ describe("M3 surface matrix", () => {
    * него роняет CI до тех пор, пока владелец не увидит новую строку.
    */
   it("pins the residue closed by the application boundary alone", () => {
-    expect([...M3_APP_GATE_ONLY_SIGNATURES].sort()).toEqual([
+    expect([...M3_APP_GATE_ONLY_SIGNATURES]).toEqual([
       "projectceo_api.register_source_inventory(uuid, jsonb, jsonb, bigint, text)",
-      "projectceo_api.review_source(uuid, text, text, bigint, text, text)",
-      "projectceo_m3_api.attach_documentation_sheet_specifications(uuid, uuid, text, text, text, text[], text, bigint, text)",
-      "projectceo_m3_api.register_documentation_sheet(uuid, uuid, text, text, text, text, text, text, text[], text, bigint, text)",
     ]);
   });
 

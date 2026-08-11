@@ -76,6 +76,39 @@ if (!control.ok) {
 // которую у неё нет прав; 401/403 — отказ явный. Успех недопустим ни в каком
 // виде, как и 400: 400 означал бы, что вызов дошёл до валидации аргументов.
 const denied = [
+  ["projectceo_api", "review_source", {
+    project_id: "00000000-0000-4000-8000-000000000000",
+    target_revision_id: "probe",
+    expected_revision_id: "probe",
+    expected_state_revision: 1,
+    decision: "confirmed",
+    idempotency_key: "probe",
+  }],
+  ["projectceo_m3_api", "register_documentation_sheet", {
+    project_id: "00000000-0000-4000-8000-000000000000",
+    package_id: "00000000-0000-4000-8000-000000000000",
+    handoff_id: "probe",
+    handoff_revision_id: "probe",
+    sheet_id: "probe",
+    sheet_number: "probe",
+    title: "probe",
+    revision_id: "probe",
+    specification_revision_ids: [],
+    reason: "probe",
+    expected_state_revision: 1,
+    idempotency_key: "probe",
+  }],
+  ["projectceo_m3_api", "attach_documentation_sheet_specifications", {
+    project_id: "00000000-0000-4000-8000-000000000000",
+    package_id: "00000000-0000-4000-8000-000000000000",
+    sheet_id: "probe",
+    revision_id: "probe",
+    expected_revision_id: "probe",
+    specification_revision_ids: [],
+    reason: "probe",
+    expected_state_revision: 1,
+    idempotency_key: "probe",
+  }],
   ["projectceo_api", "publish_version", {
     project_id: "00000000-0000-4000-8000-000000000000",
     expected_latest_version_id: null,

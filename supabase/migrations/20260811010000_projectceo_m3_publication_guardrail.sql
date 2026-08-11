@@ -21,9 +21,16 @@
 -- отзыв сплошной по схеме. Модуль 3 обязан РАБОТАТЬ при включённом флаге, а его
 -- RPC живут в схеме, которую делят с ним M2 и общий продуктовый мозг. Сплошной
 -- отзыв по схеме здесь сломал бы решения, выборы и одобрения — то есть отзыв
--- обязан быть точечным, по трём функциям публикации. Список не «по именам на
--- глаз»: он полный, потому что публикующих RPC ровно три, и каждая проверяется
--- в do-блоке ниже.
+-- обязан быть точечным. Отзываются шесть функций двух групп:
+--
+--   * три публикующие (выход модуля);
+--   * три M3-only авторские (решение владельца 11.08): дверь ревью источника и
+--     обе RPC листов документации. Они принадлежат модулю целиком, другого
+--     потребителя не имеют, и закрыть их в базе можно без риска для M1/M2.
+--
+-- `projectceo_api.register_source_inventory` НЕ отзывается: RPC общая, и до
+-- появления M3-aware обёртки она остаётся названным остатком `app_gate_only`
+-- (см. матрицу `m3-surface.ts`).
 --
 -- КАК МОДУЛЬ ВКЛЮЧАЕТСЯ В СРЕДЕ. База не видит переменную окружения — значит
 -- вторая половина выключателя живёт в правах. По умолчанию (после этой
@@ -47,7 +54,10 @@ begin;
 revoke execute on function
   projectceo_api.publish_version(uuid, text, bigint, text, jsonb, text),
   projectceo_product_api.publish_project_baseline(uuid, jsonb, bigint, text),
-  projectceo_product_api.publish_production_package_version(uuid, jsonb, bigint, text)
+  projectceo_product_api.publish_production_package_version(uuid, jsonb, bigint, text),
+  projectceo_api.review_source(uuid, text, text, bigint, text, text),
+  projectceo_m3_api.register_documentation_sheet(uuid, uuid, text, text, text, text, text, text, text[], text, bigint, text),
+  projectceo_m3_api.attach_documentation_sheet_specifications(uuid, uuid, text, text, text, text[], text, bigint, text)
   from authenticated;
 
 -- Запрет, который никто не проверяет, — это комментарий. Миграция обязана
@@ -61,7 +71,10 @@ begin
   from unnest(array[
     'projectceo_api.publish_version(uuid, text, bigint, text, jsonb, text)',
     'projectceo_product_api.publish_project_baseline(uuid, jsonb, bigint, text)',
-    'projectceo_product_api.publish_production_package_version(uuid, jsonb, bigint, text)'
+    'projectceo_product_api.publish_production_package_version(uuid, jsonb, bigint, text)',
+    'projectceo_api.review_source(uuid, text, text, bigint, text, text)',
+    'projectceo_m3_api.register_documentation_sheet(uuid, uuid, text, text, text, text, text, text, text[], text, bigint, text)',
+    'projectceo_m3_api.attach_documentation_sheet_specifications(uuid, uuid, text, text, text, text[], text, bigint, text)'
   ]) signature
   where pg_catalog.has_function_privilege('authenticated', signature, 'EXECUTE')
   limit 1;
@@ -77,7 +90,8 @@ begin
     'projectceo_product_api.append_decision_revision(uuid, uuid, text, text, text, text, text, text, text, text, jsonb, text, bigint, text)',
     'projectceo_product_api.create_approval_package(uuid, uuid, text, jsonb, bigint, text)',
     'projectceo_product_api.review_approval_package(uuid, text, text, text, text, bigint, text)',
-    'projectceo_read_api.get_project_workspace_read_v9(uuid, uuid)'
+    'projectceo_read_api.get_project_workspace_read_v9(uuid, uuid)',
+    'projectceo_api.register_source_inventory(uuid, jsonb, jsonb, bigint, text)'
   ]) signature
   where not pg_catalog.has_function_privilege('authenticated', signature, 'EXECUTE')
   limit 1;

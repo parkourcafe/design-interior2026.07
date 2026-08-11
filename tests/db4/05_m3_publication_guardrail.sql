@@ -26,7 +26,10 @@ begin
   from unnest(array[
     'projectceo_api.publish_version(uuid, text, bigint, text, jsonb, text)',
     'projectceo_product_api.publish_project_baseline(uuid, jsonb, bigint, text)',
-    'projectceo_product_api.publish_production_package_version(uuid, jsonb, bigint, text)'
+    'projectceo_product_api.publish_production_package_version(uuid, jsonb, bigint, text)',
+    'projectceo_api.review_source(uuid, text, text, bigint, text, text)',
+    'projectceo_m3_api.register_documentation_sheet(uuid, uuid, text, text, text, text, text, text, text[], text, bigint, text)',
+    'projectceo_m3_api.attach_documentation_sheet_specifications(uuid, uuid, text, text, text, text[], text, bigint, text)'
   ]) signature
   where pg_catalog.has_function_privilege('authenticated', signature, 'EXECUTE')
   limit 1;
@@ -76,8 +79,42 @@ begin
     when insufficient_privilege then v_denied := v_denied + 1;
   end;
 
-  if v_denied <> 3 then
-    raise exception 'DB4_M3_PUBLICATION_DENIALS_EXPECTED_3_GOT_%', v_denied;
+  begin
+    perform projectceo_api.review_source(
+      '41111111-1111-4111-8111-111111111111', 'probe', 'probe', 1,
+      'confirmed', 'db4-guardrail-probe'
+    );
+    raise exception 'DB4_M3_REVIEW_SOURCE_REACHED';
+  exception
+    when insufficient_privilege then v_denied := v_denied + 1;
+  end;
+
+  begin
+    perform projectceo_m3_api.register_documentation_sheet(
+      '41111111-1111-4111-8111-111111111111',
+      '41111111-1111-4111-8111-111111111111',
+      'probe', 'probe', 'probe', 'probe', 'probe', 'probe',
+      array[]::text[], 'db4-guardrail-probe', 1, 'db4-guardrail-probe'
+    );
+    raise exception 'DB4_M3_REGISTER_SHEET_REACHED';
+  exception
+    when insufficient_privilege then v_denied := v_denied + 1;
+  end;
+
+  begin
+    perform projectceo_m3_api.attach_documentation_sheet_specifications(
+      '41111111-1111-4111-8111-111111111111',
+      '41111111-1111-4111-8111-111111111111',
+      'probe', 'probe', 'probe',
+      array[]::text[], 'db4-guardrail-probe', 1, 'db4-guardrail-probe'
+    );
+    raise exception 'DB4_M3_ATTACH_SPECS_REACHED';
+  exception
+    when insufficient_privilege then v_denied := v_denied + 1;
+  end;
+
+  if v_denied <> 6 then
+    raise exception 'DB4_M3_PUBLICATION_DENIALS_EXPECTED_6_GOT_%', v_denied;
   end if;
 end
 $direct_calls_denied$;
