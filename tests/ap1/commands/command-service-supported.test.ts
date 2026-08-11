@@ -5,6 +5,7 @@ vi.mock("server-only", () => ({}));
 import type { PostgresRpcClient } from "../../../lib/project-intelligence/adapters/postgres";
 import type { ProjectCeoCommand } from "../../../lib/project-intelligence/delivery/projectceo/command-contract";
 import { ProjectCeoCommandService } from "../../../lib/project-intelligence/delivery/projectceo/command-service";
+import { buildReleaseSnapshot } from "../../../lib/project-intelligence/modules/package/release-snapshot";
 import { buildBaselineSnapshot } from "../../../lib/project-intelligence/modules/decisions";
 
 const projectId = "11111111-1111-4111-8111-111111111111";
@@ -274,7 +275,7 @@ function fakeClient(calls: Call[], readOverrides: Readonly<Record<string, unknow
             packageMemberships: [],
           }), error: null };
         }
-        if (name === "projectceo_read_api.get_project_workspace_read_v8") {
+        if (name === "projectceo_read_api.get_project_workspace_read_v9") {
           return { data: authenticatedRead(readOverrides), error: null };
         }
         if (name === "projectceo_m4_api.get_execution_delivery") {
@@ -649,43 +650,100 @@ describe("AP1 supported human commands", () => {
     expect(retryReviewed).toMatchObject({ status: "completed", replay: true });
   });
 
-  it("publishes a production package version and pins the descriptor to the request scope", async () => {
-    const descriptor = {
-      id: "package-v1",
+  it("derives the package version from the published baseline and publishes what was shown", async () => {
+    // A′, вторая половина: клиент присылает только токен. Состав версии — это
+    // состав опубликованного baseline целиком, а организация и проект в хеше
+    // берутся из серверной области запроса, а не из тела команды.
+    const packages = [{
+      id: packageId,
+      kind: "project_root",
+      parentPackageId: null,
+      stableKey: "root",
+    }];
+    const baselineRefs = {
+      sources: ["source-r1"],
+      requirements: [],
+      assumptions: [],
+      decisions: ["decision-r1"],
+      selections: ["selection-r1"],
+    };
+    const snapshot = buildReleaseSnapshot({
       packageId,
       baselineId: "baseline-v2",
       previousVersionId: null,
-      exactRevisionRefs: {
-        sources: ["source-r1"],
-        requirements: [],
-        assumptions: [],
-        decisions: ["decision-r1"],
-        selections: ["selection-r1"],
-      },
-      organizationId,
-      projectId,
-      schemaVersion: "project-ceo-production-package/0.1" as const,
-      semanticHash,
-    };
+      baselineRefs,
+    });
+
     const calls: Call[] = [];
-    const result = await service(calls).execute(
-      command("publish_release", { descriptor }),
+    const result = await service(calls, {
+      packages,
+      packageVersions: [],
+      latestBaseline: { id: "baseline-v2", exactRevisionRefs: baselineRefs },
+    }).execute(
+      command("publish_release", { snapshotToken: snapshot.token }),
       "release-publish",
     );
     expect(result).toMatchObject({ status: "completed", replay: false });
-    expect(calls.find((call) => call.name === "projectceo_product_api.publish_production_package_version")?.args)
-      .toMatchObject({ project_id: projectId, descriptor, expected_state_revision: 9 });
 
-    // Дескриптор о чужом проекте или организации — сломанный клиент: отказ до RPC.
-    const foreignCalls: Call[] = [];
-    const foreign = await service(foreignCalls).execute(
-      command("publish_release", {
-        descriptor: { ...descriptor, organizationId: "99999999-9999-4999-8999-999999999999" },
-      }),
-      "release-publish-foreign",
+    const published = calls.find((call) => (
+      call.name === "projectceo_product_api.publish_production_package_version"
+    ))?.args as { descriptor: Record<string, unknown> } | undefined;
+    expect(published?.descriptor).toMatchObject({
+      packageId,
+      baselineId: "baseline-v2",
+      previousVersionId: null,
+      organizationId,
+      projectId,
+      schemaVersion: "project-ceo-production-package/0.1",
+      exactRevisionRefs: baselineRefs,
+    });
+    expect(String(published?.descriptor.semanticHash)).toMatch(/^sha256:[0-9a-f]{64}$/);
+  });
+
+  it("refuses the release with stale_state when a version was published after the preview", async () => {
+    const baselineRefs = {
+      sources: [],
+      requirements: [],
+      assumptions: [],
+      decisions: ["decision-r1"],
+      selections: [],
+    };
+    // Токен посчитан, когда версий ещё не было; читается состояние, где версия
+    // уже есть, — значит подтверждают не то, что показывали.
+    const stale = buildReleaseSnapshot({
+      packageId,
+      baselineId: "baseline-v2",
+      previousVersionId: null,
+      baselineRefs,
+    });
+
+    const calls: Call[] = [];
+    const result = await service(calls, {
+      packages: [{ id: packageId, kind: "project_root", parentPackageId: null, stableKey: "root" }],
+      packageVersions: [{ id: "package-v1", packageId, versionNo: 1, baselineId: "baseline-v2" }],
+      latestBaseline: { id: "baseline-v2", exactRevisionRefs: baselineRefs },
+    }).execute(
+      command("publish_release", { snapshotToken: stale.token }),
+      "release-publish-stale",
     );
-    expect(foreign).toMatchObject({ status: "error", error: { code: "scope_conflict" } });
-    expect(foreignCalls.some((call) => call.name === "projectceo_product_api.publish_production_package_version")).toBe(false);
+    expect(result).toMatchObject({ status: "error", error: { code: "stale_state" } });
+    expect(calls.some((call) => (
+      call.name === "projectceo_product_api.publish_production_package_version"
+    ))).toBe(false);
+  });
+
+  it("does not offer a release when no baseline is published", async () => {
+    const calls: Call[] = [];
+    const result = await service(calls, {
+      packages: [{ id: packageId, kind: "project_root", parentPackageId: null, stableKey: "root" }],
+      latestBaseline: null,
+    }).execute(
+      command("publish_release", {
+        snapshotToken: `sha256:${"0".repeat(64)}`,
+      }),
+      "release-publish-no-baseline",
+    );
+    expect(result).toMatchObject({ status: "unavailable", error: { code: "operation_unavailable" } });
   });
 
   it("derives the baseline itself and publishes exactly what the preview showed", async () => {

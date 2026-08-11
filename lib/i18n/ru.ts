@@ -1334,6 +1334,13 @@ export const ru = {
         publishBaselineNothing: "Пока нечего замораживать: нет утверждённых решений",
         publishBaselineHint:
           "Версия замораживает утверждённое состояние целиком — выбирать состав вручную нельзя",
+        publishRelease: "Выпустить пакет",
+        publishReleaseConfirm:
+          "Выпустить производственный пакет от опубликованного baseline? Состав "
+          + "берётся из baseline целиком; если состояние изменилось, выпуск будет отклонён.",
+        publishReleaseNothing: "Выпускать нечего: baseline ещё не опубликован",
+        publishReleaseHint:
+          "Пакет выражает опубликованный baseline целиком — состав выводит сервер, не клиент",
         acceptMilestone: "Принять этап",
         acceptMilestoneConfirm: "Принять этап после проверки всех фото?",
         handoverArchive: "Handover archive",

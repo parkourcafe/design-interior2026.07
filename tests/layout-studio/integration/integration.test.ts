@@ -222,6 +222,9 @@ describe("Layout Studio delivery/UI slice", () => {
       // Дверь публикации версии графа — предпосылка выхода M3.
       // К Layout Studio отношения не имеет.
       "20260810080000_projectceo_publish_version_door.sql",
+      // Состав опубликованного baseline в чтении v9 — предпосылка выпуска
+      // версии пакета. К Layout Studio отношения не имеет.
+      "20260810090000_projectceo_baseline_refs_read.sql",
     ];
     const actual = readdirSync(join(repoRoot, "supabase/migrations"), { withFileTypes: true })
       .filter((entry) => entry.isFile())

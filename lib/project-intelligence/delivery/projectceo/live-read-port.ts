@@ -56,6 +56,7 @@ import { reviewPackageCompleteness } from "../../modules/documentation";
 import { isDocumentationModuleEnabled } from "./documentation-flag";
 import { EXECUTION_MODULE, isExecutionModuleEnabled } from "./execution-flag";
 import { buildBaselineSnapshot } from "../../modules/decisions";
+import { buildReleaseSnapshot } from "../../modules/package/release-snapshot";
 import type { ProjectCeoVerifiedIdentity } from "./request-context";
 
 type UnknownRecord = Readonly<Record<string, unknown>>;
@@ -1037,6 +1038,51 @@ function operationStates(input: {
   } catch {
     baselineSnapshotToken = null;
   }
+  // Снапшот версии пакета: тот же приём, что у baseline, шагом позже. Состав
+  // берётся из опубликованного baseline (чтение v9, `20260810090000`), а не из
+  // одобренного «сейчас» — версия обязана выражать замороженное, иначе RPC
+  // отказывает `PACKAGE_REF_NOT_IN_BASELINE`.
+  let releaseSnapshotToken: string | null = null;
+  const rootPackageId = nullableText(
+    rows(input.delivery.packages).find((entry) => text(entry.kind) === "project_root")?.id,
+  );
+  const latestBaselineRecord = record(input.delivery.latestBaseline);
+  const baselineRefsRecord = record(latestBaselineRecord.exactRevisionRefs);
+  const refGroup = (key: string): readonly string[] => (
+    Array.isArray(baselineRefsRecord[key])
+      ? (baselineRefsRecord[key] as unknown[]).flatMap((value) => {
+        const id = nullableText(value);
+        return id ? [id] : [];
+      })
+      : []
+  );
+  if (rootPackageId && latestBaseline) {
+    try {
+      releaseSnapshotToken = buildReleaseSnapshot({
+        packageId: rootPackageId,
+        baselineId: latestBaseline,
+        previousVersionId: packageVersions
+          .filter((version) => nullableText(version.packageId) === rootPackageId)
+          .reduce<{ id: string | null; versionNo: number }>((latest, version) => {
+            const versionNo = Number(version.versionNo ?? 0);
+            return versionNo > latest.versionNo
+              ? { id: nullableText(version.id), versionNo }
+              : latest;
+          }, { id: null, versionNo: 0 }).id,
+        baselineRefs: {
+          sources: refGroup("sources"),
+          requirements: refGroup("requirements"),
+          assumptions: refGroup("assumptions"),
+          decisions: refGroup("decisions"),
+          selections: refGroup("selections"),
+        },
+      }).token;
+    } catch {
+      // Пустой baseline или негодный идентификатор — действие не предлагается.
+      // Обещать выпуск, который RPC отвергнет, хуже, чем не предлагать его.
+      releaseSnapshotToken = null;
+    }
+  }
   const photoSourcePackageIds = new Set(
     input.delivery.sources.filter((source) => (
       source.availability === "materialized"
@@ -1166,8 +1212,14 @@ function operationStates(input: {
           commandTargetId: baselineSnapshotToken,
         } : unavailable("prerequisite_missing")
       : unavailable("capability_missing"),
+    // A′ и здесь: поверхность выдаёт токен показанного состава, команда
+    // требует его назад. Без baseline или с пустым составом — честное
+    // `prerequisite_missing`, а не кнопка, которую отвергнет база.
     publish_release: can(input.role, "publish_release")
-      ? latestBaseline ? { status: "available" } : unavailable("prerequisite_missing")
+      ? releaseSnapshotToken ? {
+          status: "available",
+          commandTargetId: releaseSnapshotToken,
+        } : unavailable("prerequisite_missing")
       : unavailable("capability_missing"),
     distribute_release: can(input.role, "distribute_release")
       ? distributableVersionId ? {

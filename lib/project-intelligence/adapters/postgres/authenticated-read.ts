@@ -835,7 +835,7 @@ export class ProjectCeoAuthenticatedReadPostgresAdapter {
       await callRpc(
         this.client,
         "projectceo_read_api",
-        "get_project_workspace_read_v8",
+        "get_project_workspace_read_v9",
         {
           project_id: input.projectId,
           package_id: input.packageId,

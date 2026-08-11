@@ -353,6 +353,41 @@ function OverviewView({
                   {projectCeoRu.workspace.overview.publishBaselineNothing}
                 </p>
               ) : null}
+
+          {/*
+            Release publication — the same A' shape one step later. The package
+            version expresses the published baseline in full, so there is no
+            composition to choose here either: the button carries the snapshot
+            token and nothing else, and a state that moved between the preview
+            and the click is refused rather than published.
+          */}
+          {view.operations.publish_release.status === "available"
+            && view.operations.publish_release.commandTargetId ? (
+              <div className="mt-4 space-y-2 border-t border-line pt-4">
+                <ProjectCeoCommandButton
+                  command={{
+                    contractVersion: PROJECTCEO_COMMAND_CONTRACT_VERSION,
+                    kind: "publish_release",
+                    projectId: view.project.id,
+                    payload: {
+                      snapshotToken: view.operations.publish_release.commandTargetId,
+                    },
+                  }}
+                  className="btn-primary w-full"
+                  confirmation={projectCeoRu.workspace.overview.publishReleaseConfirm}
+                >
+                  {projectCeoRu.workspace.overview.publishRelease}
+                </ProjectCeoCommandButton>
+                <p className="text-xs text-muted">
+                  {projectCeoRu.workspace.overview.publishReleaseHint}
+                </p>
+              </div>
+            ) : view.operations.publish_release.status === "unavailable"
+              && view.operations.publish_release.reason === "prerequisite_missing" ? (
+                <p className="mt-4 border-t border-line pt-4 text-xs text-muted">
+                  {projectCeoRu.workspace.overview.publishReleaseNothing}
+                </p>
+              ) : null}
         </section>
 
         <section className="rounded-2xl border border-line bg-white p-5 shadow-sm">

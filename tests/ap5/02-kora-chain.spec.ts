@@ -274,23 +274,29 @@ test.describe("AP5 — цепочка Kora на живом стеке", () => {
   });
 
   /**
-   * НЕ ПРОХОДИТ: у `publish_release` та же болезнь, которую у `publish_baseline`
-   * вылечили решением A′ 10.08.2026.
-   *
-   * Контракт команды по-прежнему требует от клиента полный дескриптор с
-   * собственным `semanticHash` (`command-contract.ts`, `publish_release`), а
-   * сборки этого дескриптора и его хеша из браузера нет: ни хелпера, ни
-   * preview, ни токена. То есть вторая половина гейта 1 упирается ровно в тот
-   * же вопрос, что и первая, и закрывается тем же способом — состав и хеш
-   * выводит сервер, клиент возвращает токен.
-   *
-   * Это находка гейта, а не пропуск: до неё казалось, что после baseline
-   * останется только нажать кнопку.
+   * Гейт 1 из A6 §6.1, вторая половина: выпуск производственного пакета через
+   * браузер. Раньше здесь стоял `fixme` — контракт требовал от клиента полный
+   * дескриптор с собственным `semanticHash`, а собрать его из браузера было
+   * нечем. Лечение то же, что у baseline: состав выводит сервер из
+   * опубликованного baseline (чтение v9), клиент возвращает снапшот-токен.
    */
-  test.fixme("7. выпуск пакета ждёт того же решения, что и baseline", async ({ browser }) => {
+  test("7. выпуск пакета: производственная версия от baseline из браузера", async ({ browser }) => {
     const architect = await requestAs(browser, "designer");
-    const result = await command(architect, "publish_release", {});
-    expect(result.status).toBe(200);
+
+    // Поверхность обязана предложить выпуск и выдать токен — тот же контракт,
+    // что и у baseline: без токена нажимать нечего.
+    const view = await workspace(architect);
+    expect(view.operations.publish_release?.status).toBe("available");
+    const snapshotToken = view.operations.publish_release?.commandTargetId;
+    expect(snapshotToken).toBeTruthy();
+
+    const published = await command(architect, "publish_release", { snapshotToken });
+    expect(published.status, JSON.stringify(published.body.error)).toBe(200);
+
+    // Повтор тем же токеном обязан быть отвергнут: версия сдвинула состояние,
+    // и второй выпуск выражал бы уже не то, что показывали.
+    const stale = await command(architect, "publish_release", { snapshotToken });
+    expect(stale.status, JSON.stringify(stale.body.error)).toBe(409);
   });
 
   /**

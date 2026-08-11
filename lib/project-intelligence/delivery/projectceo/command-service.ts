@@ -25,6 +25,11 @@ import {
   computeBaselineSemanticHash,
   confirmBaselineSnapshot,
 } from "../../modules/decisions";
+import {
+  computeReleaseSemanticHash,
+  confirmReleaseSnapshot,
+  RELEASE_SCHEMA_VERSION,
+} from "../../modules/package/release-snapshot";
 
 type UnknownRecord = Readonly<Record<string, unknown>>;
 type CommandErrorCode =
@@ -692,18 +697,76 @@ export class ProjectCeoCommandService {
         }));
       }
       if (command.kind === "publish_release") {
-        // Организация и проект дескриптора обязаны совпадать с серверной
-        // областью запроса: дескриптор, говорящий о чужом проекте, — это
-        // сломанный клиент, а не другая публикация.
-        if (
-          command.payload.descriptor.projectId !== command.projectId
-          || command.payload.descriptor.organizationId !== scope.organizationId
-        ) {
-          return failure(requestId, "error", "scope_conflict");
+        // A′, вторая половина. Состав версии — это состав опубликованного
+        // baseline целиком, и выводится он здесь: клиент присылает только
+        // токен показанного. Организация и проект в хеш складываются из
+        // серверной области запроса, а не из тела команды, — подменить их
+        // клиенту больше нечем.
+        const read = await this.read.getProjectWorkspaceRead({
+          projectId: command.projectId,
+          packageId: scope.accessScope === "package" ? scope.packageId ?? null : null,
+        });
+        if (read.error) throw new ProjectIntelligenceAdapterError(read.error.code, null);
+        const baseline = record(read.data.latestBaseline);
+        const baselineId = typeof baseline.id === "string" ? baseline.id : null;
+        const rootPackageId = rows(read.data.packages)
+          .find((entry) => String(entry.kind ?? "") === "project_root")?.id;
+        if (!baselineId || typeof rootPackageId !== "string") {
+          return failure(requestId, "unavailable", "operation_unavailable");
         }
+        const refs = record(baseline.exactRevisionRefs);
+        const refGroup = (key: string): readonly string[] => (
+          Array.isArray(refs[key])
+            ? (refs[key] as unknown[]).filter((value): value is string => typeof value === "string")
+            : []
+        );
+        const compositionInput = {
+          packageId: rootPackageId,
+          baselineId,
+          previousVersionId: rows(read.data.packageVersions)
+            .filter((version) => version.packageId === rootPackageId)
+            .reduce<{ id: string | null; versionNo: number }>((latest, version) => {
+              const versionNo = Number(version.versionNo ?? 0);
+              return versionNo > latest.versionNo
+                ? { id: typeof version.id === "string" ? version.id : null, versionNo }
+                : latest;
+            }, { id: null, versionNo: 0 }).id,
+          baselineRefs: {
+            sources: refGroup("sources"),
+            requirements: refGroup("requirements"),
+            assumptions: refGroup("assumptions"),
+            decisions: refGroup("decisions"),
+            selections: refGroup("selections"),
+          },
+        };
+        let confirmation;
+        try {
+          confirmation = confirmReleaseSnapshot(compositionInput, command.payload.snapshotToken);
+        } catch {
+          // Состав, который RPC не примет (пустой baseline, негодный
+          // идентификатор). Это состояние проекта, а не ошибка запроса.
+          return failure(requestId, "unavailable", "operation_unavailable");
+        }
+        if (!confirmation.ok) return failure(requestId, "error", "stale_state");
+
+        const descriptor = {
+          id: `release:${command.commandId}`,
+          packageId: confirmation.composition.packageId,
+          baselineId: confirmation.composition.baselineId,
+          previousVersionId: confirmation.composition.previousVersionId,
+          exactRevisionRefs: confirmation.composition.exactRevisionRefs,
+          organizationId: scope.organizationId,
+          projectId: command.projectId,
+          schemaVersion: RELEASE_SCHEMA_VERSION,
+          semanticHash: computeReleaseSemanticHash({
+            organizationId: scope.organizationId,
+            projectId: command.projectId,
+            composition: confirmation.composition,
+          }),
+        };
         return completed(requestId, await this.product.publishProductionPackageVersion({
           projectId: command.projectId,
-          descriptor: command.payload.descriptor,
+          descriptor,
           expectedStateRevision: scope.stateRevision,
           idempotencyKey,
         }));
