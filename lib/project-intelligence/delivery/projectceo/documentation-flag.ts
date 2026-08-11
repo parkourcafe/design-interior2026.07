@@ -29,6 +29,14 @@ export function isDocumentationModuleEnabled(
  *
  * Вторая граница — права в базе (`20260811010000`): флаг живёт в TypeScript, а
  * вызов через Data API до TypeScript не доходит.
+ *
+ * Форма требования A5 §4.2.2 для встроенного модуля задана каноническим
+ * уточнением `REMHAOS_A5_CLARIFICATION_M3_ROUTES_2026-08-11.md` (DEC-028), а не
+ * этим комментарием: общий workspace остаётся 200, поверхности и данные модуля
+ * отсутствуют, будущие собственные URL отвечают 404.
+ *
+ * Грант в базе — временный механизм AP5 и default-deny, НЕ финальный
+ * production feature flag; продакшен-включение — отдельное решение.
  */
 export const DOCUMENTATION_PUBLICATION = new Set([
   "publish_baseline",

@@ -129,14 +129,6 @@ jobs:
       - name: Model hosted auth ACLs
         run: psql "${SUPABASE_DB_URL}" -X --set ON_ERROR_STOP=1 -f tests/ap1/environment/apply-local-auth-compat.sql
 
-      # Вторая граница guardrail'а модуля 3 (`20260811010000`): по умолчанию
-      # публикация закрыта правами в базе, и флаг приложения этого не отменяет —
-      # PostgREST его не видит. Среда, где M3 намеренно открыт, включает вторую
-      # половину выключателя явно. Здесь это одноразовый стек AP5; в продакшене
-      # этот шаг не исполняется, и там модуль остаётся закрытым.
-      - name: Enable M3 publication on the database boundary
-        run: psql "${SUPABASE_DB_URL}" -X --set ON_ERROR_STOP=1 -f tests/ap1/environment/enable-m3-publication.sql
-
       # Та же проверка состояния базы, что и в AP1: managed-auth ссылок не
       # осталось, request-claim helpers на месте, приватные гранты закрыты.
       - name: Verify database state
@@ -151,6 +143,25 @@ jobs:
       # браузерного прогона: human operations через service role запрещены.
       - name: Provision five role identities
         run: npm run provision:ap1
+
+      # Прямой обход приложения — буквально: настоящий access token, настоящий
+      # PostgREST, настоящий HTTP. Шаг стоит ПОСЛЕ создания личностей (нужен
+      # реальный пользователь) и ДО включения второй границы: включи мы её
+      # раньше, проверка мерила бы уже открытую базу.
+      - name: Verify M3 publication is closed on the Data API
+        run: node tests/ap1/environment/verify-m3-data-api-closed.mjs
+
+      # Вторая граница guardrail'а модуля 3 (`20260811010000`): по умолчанию
+      # публикация закрыта правами в базе, и флаг приложения этого не отменяет —
+      # PostgREST его не видит. Среда, где M3 намеренно открыт, включает вторую
+      # половину выключателя явно. Здесь это одноразовый стек AP5; в продакшене
+      # этот шаг не исполняется, и там модуль остаётся закрытым.
+      #
+      # Механизм временный: по решению владельца от 11.08 грант — способ открыть
+      # модуль в одноразовой среде и default-deny до запуска M3, но НЕ финальный
+      # production feature flag. Production-включение — отдельное решение.
+      - name: Enable M3 publication on the database boundary
+        run: psql "${SUPABASE_DB_URL}" -X --set ON_ERROR_STOP=1 -f tests/ap1/environment/enable-m3-publication.sql
 
       - name: Build and start the application
         env:
