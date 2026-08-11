@@ -309,11 +309,14 @@ worker_org=$(psql_exec db4-release-worker-org "
   select organization_id from project_intelligence.project_workflows
   where project_id='${project}'
 ")
-# Та же деривация, что в TypeScript: sha256('org project version'), первые 32
-# hex. Разойдись они — воркер и этот сценарий проверяли бы разные вещи.
+# Та же деривация, что в TypeScript (`planner.ts`): sha256 от
+# «организация U+001F проект U+001F версия», первые 32 hex. Разделитель именно
+# U+001F, а не пробел и не NUL: пробел бывает внутри идентификатора версии, а
+# NUL PostgreSQL в `text` не принимает вовсе. Разойдись эти две деривации —
+# воркер и этот сценарий проверяли бы разные значения, а комментарий врал бы.
 worker_artifact=$(psql_exec db4-release-worker-artifact-id "
   select 'release-artifact:' || left(encode(project_intelligence._sha256_text(
-    '${worker_org}' || ' ' || '${project}' || ' ' || 'package-db4-work-v1'
+    '${worker_org}' || E'\\x1f' || '${project}' || E'\\x1f' || 'package-db4-work-v1'
   ), 'hex'), 32)
 ")
 worker_descriptor=$(psql_exec db4-release-worker-descriptor "

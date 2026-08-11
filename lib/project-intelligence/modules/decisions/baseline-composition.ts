@@ -181,7 +181,7 @@ export function composeBaseline(input: BaselineCompositionInput): BaselineCompos
           + "without it a re-approved entity would be frozen twice",
         );
       }
-      latest.set(`${item.targetKind} ${item.entityId}`, {
+      latest.set(`${item.targetKind}\u0000${item.entityId}`, {
         field,
         revisionId: item.revisionId,
       });
