@@ -296,4 +296,117 @@ if [[ "${cycle6_result}" != "1|1" ]]; then
   exit 1
 fi
 
+# Два системных воркера артефактов выпуска сталкиваются на одной версии
+# (DEC-030, инкремент 1.5). Идентификатор артефакта и ключ идемпотентности
+# детерминированные — те же, что выводит `planner.ts`, — поэтому оба вызова
+# уходят одинаковыми. Контракт: обе транзакции успешны, артефакт ровно один,
+# и ровно одна из них видит `replay: false`.
+worker_state=$(psql_exec db4-release-worker-state "
+  select state_revision from project_intelligence.project_workflows
+  where project_id='${project}'
+")
+worker_org=$(psql_exec db4-release-worker-org "
+  select organization_id from project_intelligence.project_workflows
+  where project_id='${project}'
+")
+# Та же деривация, что в TypeScript: sha256('org project version'), первые 32
+# hex. Разойдись они — воркер и этот сценарий проверяли бы разные вещи.
+worker_artifact=$(psql_exec db4-release-worker-artifact-id "
+  select 'release-artifact:' || left(encode(project_intelligence._sha256_text(
+    '${worker_org}' || ' ' || '${project}' || ' ' || 'package-db4-work-v1'
+  ), 'hex'), 32)
+")
+worker_descriptor=$(psql_exec db4-release-worker-descriptor "
+  select jsonb_build_object(
+    'artifactId', '${worker_artifact}',
+    'productionPackageVersionId', 'package-db4-work-v1',
+    'format', 'logical_json',
+    'semanticHash', 'sha256:' || encode(
+      project_intelligence._sha256_jsonb(jsonb_build_object(
+        'artifacts', jsonb_build_array(jsonb_build_object(
+          'contentHash', 'sha256:' || encode(ppv.semantic_digest, 'hex'),
+          'kind', 'logical_json'
+        )),
+        'baselineId', ppv.baseline_id,
+        'exactRevisionRefs', ppv.semantic_content -> 'exactRevisionRefs',
+        'organizationId', ppv.organization_id,
+        'packageId', ppv.package_id,
+        'productionPackageSemanticHash',
+          'sha256:' || encode(ppv.semantic_digest, 'hex'),
+        'productionPackageVersionId', ppv.production_package_version_id,
+        'projectId', ppv.project_id,
+        'schemaVersion', 'project-ceo-release/0.1'
+      )),
+      'hex'
+    )
+  )::text
+  from projectceo_product.production_package_versions ppv
+  where ppv.project_id='${project}'
+    and ppv.production_package_version_id='package-db4-work-v1'
+")
+worker_call="begin;
+set local role service_role;
+select projectceo_product_api.build_release_artifact(
+  '${project}',
+  '${worker_descriptor}'::jsonb,
+  ${worker_state},
+  'worker:release-artifact:package-db4-work-v1'
+);
+commit;"
+
+set +e
+psql_exec db4-release-worker-a "${worker_call}" >"${tmpdir}/worker-a.out" 2>&1 &
+worker_pid_a=$!
+psql_exec db4-release-worker-b "${worker_call}" >"${tmpdir}/worker-b.out" 2>&1 &
+worker_pid_b=$!
+wait "${worker_pid_a}"; worker_status_a=$?
+wait "${worker_pid_b}"; worker_status_b=$?
+set -e
+
+if [[ "${worker_status_a}" != "0" || "${worker_status_b}" != "0" ]]; then
+  print -u2 -r -- "Concurrent release artifact worker failed"
+  sed -n '1,160p' "${tmpdir}/worker-a.out" >&2
+  sed -n '1,160p' "${tmpdir}/worker-b.out" >&2
+  exit 1
+fi
+
+if [[ $(
+  (rg -o '"replay": false' "${tmpdir}/worker-a.out" "${tmpdir}/worker-b.out" || true) \
+    | wc -l | tr -d ' '
+) != "1" ]] || [[ $(
+  (rg -o '"replay": true' "${tmpdir}/worker-a.out" "${tmpdir}/worker-b.out" || true) \
+    | wc -l | tr -d ' '
+) != "1" ]]; then
+  print -u2 -r -- "Concurrent release artifact replay contract failed"
+  sed -n '1,160p' "${tmpdir}/worker-a.out" >&2
+  sed -n '1,160p' "${tmpdir}/worker-b.out" >&2
+  exit 1
+fi
+
+worker_result=$(psql_exec db4-release-worker-assert "
+  select count(*)::text || '|' || count(distinct artifact_id)::text
+  from projectceo_product.release_artifacts
+  where project_id='${project}'
+    and production_package_version_id='package-db4-work-v1'
+")
+if [[ "${worker_result}" != "1|1" ]]; then
+  print -u2 -r -- "Concurrent release artifact persisted invalid state: ${worker_result}"
+  exit 1
+fi
+
+# Повтор после гонки — тот же ключ, тот же результат, второго артефакта нет.
+psql_exec db4-release-worker-repeat "${worker_call}" >"${tmpdir}/worker-repeat.out" 2>&1
+worker_repeat=$(psql_exec db4-release-worker-repeat-assert "
+  select count(*)::text
+  from projectceo_product.release_artifacts
+  where project_id='${project}'
+    and production_package_version_id='package-db4-work-v1'
+")
+if [[ "${worker_repeat}" != "1" ]]; then
+  print -u2 -r -- "Release artifact repeat created a duplicate: ${worker_repeat}"
+  exit 1
+fi
+
+print -r -- "DB4_RELEASE_ARTIFACT_WORKER_OK"
+
 print -r -- "DB4_CONCURRENCY_OK"

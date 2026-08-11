@@ -11,12 +11,11 @@ import {
   AP5_DECISION_NODE_ID,
   AP5_DECISION_REVISION_ID,
   AP5_DECISION_REVISION_ID_2,
-  AP5_RELEASE_ARTIFACT_ID,
   AP5_SOURCE_NAME,
   AP5_SOURCE_REVISION_ID,
   type Ap5RoleKey,
 } from "./ap5-env";
-import { materializeReleaseArtifact } from "./release-worker";
+import { runReleaseArtifactWorker } from "./release-worker";
 
 const env = ap5Env();
 // Ленивое чтение: сборка списка тестов не должна зависеть от того,
@@ -386,22 +385,35 @@ test.describe("AP5 — цепочка Kora на живом стеке", () => {
    * `distribute_release` адресуется артефакту выпуска, а собрать артефакт может
    * только система (`build_release_artifact`, права только у service_role,
    * автор записи — `system:projectceo-product-worker`). Человеческой двери к
-   * ней нет. Поэтому шаг делает ровно то, что в продакшене делает воркер, и
-   * ничего сверх: сама выдача идёт через браузер сессией владельца.
+   * ней нет.
+   *
+   * С 11.08 (DEC-030) этот шаг делает НАСТОЯЩИЙ воркер, а не psql-мост, который
+   * его изображал: `npm run worker:release-artifacts`. Очередь воркер находит
+   * сам — ни версии, ни идентификатора артефакта ему тут не передают, иначе
+   * недоказанным осталось бы ровно то, ради чего он написан. Сама выдача идёт
+   * через браузер сессией владельца.
    */
   test("9. выдача пакета получателю из браузера", async ({ browser }) => {
     const owner = await requestAs(browser, "owner");
     const release = (await workspace(owner)).releases.at(0);
     expect(release?.id, "выпуск шага 7 обязан быть виден в проекции").toBeTruthy();
 
-    materializeReleaseArtifact({
-      projectId: handoff().projectId,
-      productionPackageVersionId: release!.id,
-      artifactId: AP5_RELEASE_ARTIFACT_ID,
-    });
+    // До воркера поверхность честно отвечала `prerequisite_missing`.
+    const beforeWorker = await workspace(owner);
+    expect(beforeWorker.operations.distribute_release?.status).toBe("unavailable");
+    expect(beforeWorker.operations.distribute_release?.reason).toBe("prerequisite_missing");
 
-    // Только теперь поверхность имеет право предлагать выдачу: до артефакта
-    // она отвечала `prerequisite_missing`, и это было честно.
+    const worker = runReleaseArtifactWorker();
+    expect(worker.created, JSON.stringify(worker)).toBeGreaterThan(0);
+
+    // Повтор — no-op: очередь пуста, второго артефакта не появляется. Это то
+    // же свойство, что DB4 проверяет на гонке, но здесь оно проверено на живом
+    // стеке настоящим процессом.
+    const repeat = runReleaseArtifactWorker();
+    expect(repeat.created, JSON.stringify(repeat)).toBe(0);
+    expect(repeat.scanned, JSON.stringify(repeat)).toBe(0);
+
+    // Только теперь поверхность имеет право предлагать выдачу.
     const view = await workspace(owner);
     expect(view.operations.distribute_release?.status).toBe("available");
     expect(view.operations.distribute_release?.commandTargetId).toBe(release!.id);

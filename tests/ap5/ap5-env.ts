@@ -45,14 +45,12 @@ export const AP5_DECISION_REVISION_ID = "a5d0c1c1-0000-4000-8000-000000000001";
  */
 export const AP5_DECISION_REVISION_ID_2 = "a5d0c1c1-0000-4000-8000-000000000002";
 
-/**
- * Идентификатор артефакта выпуска. Артефакт собирает СИСТЕМА
- * (`materialize-release-artifact.sql`), а не человек: прав на
- * `build_release_artifact` у человеческой роли нет ни в одной среде.
- * Значение детерминированное — повтор шага обязан быть повтором, а не вторым
- * артефактом.
+/*
+ * Идентификатор артефакта выпуска отсюда убран 11.08 вместе с psql-мостом:
+ * артефакт собирает настоящий воркер (`npm run worker:release-artifacts`), и
+ * идентификатор он выводит сам из версии. Знать его прогону незачем — а если
+ * бы знал, осталось бы недоказанным, что воркер находит очередь сам.
  */
-export const AP5_RELEASE_ARTIFACT_ID = "ap5-release-artifact-1";
 
 export const AP5_INVITED_ROLES = AP5_ROLES.filter(
   (role): role is Extract<typeof AP5_ROLES[number], { targetRole: string }> =>

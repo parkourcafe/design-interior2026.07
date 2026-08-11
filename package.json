@@ -22,7 +22,8 @@
     "test:watch": "vitest",
     "seed": "tsx scripts/seed.ts",
     "fetch:media": "node scripts/fetch-landing-media.mjs",
-    "provision:ap1": "tsx scripts/provision-ap1-users.ts"
+    "provision:ap1": "tsx scripts/provision-ap1-users.ts",
+    "worker:release-artifacts": "tsx scripts/run-release-artifact-worker.ts"
   },
   "dependencies": {
     "@capacitor/core": "^8.4.2",
