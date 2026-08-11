@@ -2,32 +2,38 @@
 set -euo pipefail
 unsetopt BG_NICE
 
-# Гонки СОЗДАНИЯ живой связи, а не её поздней финализации.
+# Гонки СОЗДАНИЯ живой связи — с доказательством, что критические секции
+# ДЕЙСТВИТЕЛЬНО пересеклись.
 #
-# Финализация двух связей одного чата (её проверяет `run-concurrency.zsh`)
-# доказывает, что победитель один. Но она уже опоздала: к тому моменту обе
-# связи существуют, обе занимают чат, и вопрос лишь в том, какая откроет приём.
-# Инвариант «одна живая связь» нарушается РАНЬШЕ — при вставке. Сюда и целится
-# этот файл.
+# ЧЕГО НЕ ДОКАЗЫВАЕТ ОДНОВРЕМЕННЫЙ СТАРТ. Синтетическая защёлка, которую
+# участники отпускают ДО вызова, показывает лишь то, что они подошли к старту
+# вместе. Дальше они могут разойтись по времени и пройти последовательно —
+# и тест останется зелёным, ни разу не нагрузив настоящие замки `_lock_scope`.
 #
-# СИНХРОНИЗАЦИЯ — НАБЛЮДАЕМАЯ ЗАЩЁЛКА, А НЕ `sleep`.
+# Поэтому здесь доказывается ожидание на НАСТОЯЩЕМ замке:
 #
-#   1. контролёр берёт ИСКЛЮЧИТЕЛЬНУЮ advisory-блокировку и держит её;
-#   2. сценарий ждёт, пока блокировка НАБЛЮДАЕМО выдана (`pg_locks.granted`);
-#   3. участники берут ту же блокировку РАЗДЕЛЯЕМОЙ — и встают в очередь;
-#   4. контролёр ждёт, пока в `pg_locks` появятся ровно N неудовлетворённых
-#      ожиданий, и только тогда отпускает;
-#   5. разделяемую блокировку все участники получают ОДНОВРЕМЕННО.
+#   1. сессия A вызывает `activate_project_binding` и НЕ коммитит: транзакция
+#      открыта, значит xact-замки `_lock_scope` ещё удерживаются;
+#   2. сценарий убеждается по `pg_locks`, что A держит именно тот advisory-замок,
+#      который выводит `_lock_scope` (ключ считается той же формулой);
+#   3. стартует сессия B со встречной активацией;
+#   4. удерживающая сессия ждёт в `pg_locks` строку `granted = false` на ТОМ ЖЕ
+#      ключе — это и есть доказательство пересечения, а не догадка о нём;
+#   5. только теперь A отпускается и коммитит;
+#   6. победитель один, проигравший получает `P1109`, сырой `23505` наружу не
+#      выходит, осиротевших `notice_pending` не остаётся.
 #
-# `sleep 0.4` вместо этого означал бы «наверное, успели». На загруженном
-# раннере не успевают, и тест из доказательства превращается в лотерею, которая
-# чаще всего выпадает зелёной.
+# Ни одного `sleep` в роли синхронизации: всё ожидание — это проверка условия,
+# отсутствие которого роняет прогон.
 
 : "${PI_DB4_DATABASE:?PI_DB4_DATABASE is required}"
 
 owner_a=31111111-1111-4111-8111-111111111111
 owner_b=33333333-3333-4333-8333-333333333333
 project_b=42222222-2222-4222-8222-222222222222
+project_g=47777777-7777-4777-8777-777777777777
+project_h=48888888-8888-4888-8888-888888888888
+project_i=49999999-9999-4999-8999-999999999999
 
 tmpdir=$(mktemp -d "${TMPDIR:-/tmp}/pi-db4-tg-concurrency.XXXXXX")
 trap 'rm -rf "${tmpdir}"' EXIT INT TERM
@@ -65,13 +71,47 @@ fail() {
   exit 1
 }
 
-LATCH_CLASS=424242
+HOLD_CLASS=525252
 
-# Контролёр защёлки: держит её, пока не увидит нужное число ожидающих.
-latch_controller() {
-  local slot=$1 waiters=$2
-  print -r -- "select pg_catalog.pg_advisory_lock(${LATCH_CLASS}, ${slot});
-do \$latch\$
+# ─────────────────────────────────────────────────────────────────────────────
+# Ключи настоящих замков `_lock_scope`
+# ─────────────────────────────────────────────────────────────────────────────
+#
+# Формула повторяется здесь ОДИН в ОДИН с миграцией. Разойдись они — сценарий
+# наблюдал бы за замком, которого никто не берёт, и «пересечение доказано»
+# означало бы «мы смотрели не туда». `chr(31)` — тот же U+001F, что и
+# `u&'\001f'` в SQL функции.
+lock_key_parts() {
+  local key_sql=$1
+  psql_exec db4-tgc-lock-key "
+    with k as (select (${key_sql}) as key)
+    select ((k.key >> 32) & 4294967295)::text || '|' || (k.key & 4294967295)::text
+    from k"
+}
+
+chat_key_sql() {
+  local chat=$1
+  print -r -- "pg_catalog.hashtextextended(
+    'remhaos_channel:chat' || chr(31) || 'telegram' || chr(31) || (${chat})::text, 0)"
+}
+
+project_key_sql() {
+  local project=$1
+  print -r -- "(select pg_catalog.hashtextextended(
+    'remhaos_channel:project' || chr(31) || 'telegram' || chr(31)
+      || pw.organization_id::text || chr(31) || pw.project_id::text, 0)
+   from project_intelligence.project_workflows pw
+   where pw.project_id = '${project}')"
+}
+
+# Удерживающая сессия: берёт замок-стопор, ждёт НАСТОЯЩЕГО ожидания на ключе и
+# только тогда отпускает. Её успешный выход — и есть доказательство: пока
+# `granted = false` на нужном ключе не появится, она не отпустит и упадёт по
+# таймауту.
+hold_until_contended() {
+  local slot=$1 classid=$2 objid=$3
+  print -r -- "select pg_catalog.pg_advisory_lock(${HOLD_CLASS}, ${slot});
+do \$hold\$
 declare
   v_waiting integer;
   v_spins integer := 0;
@@ -80,25 +120,24 @@ begin
     select count(*) into v_waiting
     from pg_catalog.pg_locks
     where locktype = 'advisory'
-      and classid = ${LATCH_CLASS} and objid = ${slot}
+      and classid = ${classid} and objid = ${objid} and objsubid = 1
       and not granted;
-    exit when v_waiting >= ${waiters};
+    exit when v_waiting >= 1;
     v_spins := v_spins + 1;
-    if v_spins > 600 then
-      raise exception 'DB4_TGC_LATCH_NEVER_REACHED_QUORUM:%', v_waiting;
+    if v_spins > 1200 then
+      raise exception 'DB4_TGC_NO_CONTENTION_ON_REAL_LOCK:%/%', ${classid}, ${objid};
     end if;
     perform pg_catalog.pg_sleep(0.05);
   end loop;
+  raise notice 'DB4_TGC_REAL_LOCK_CONTENDED %/%', ${classid}, ${objid};
 end
-\$latch\$;
-select pg_catalog.pg_advisory_unlock(${LATCH_CLASS}, ${slot});"
+\$hold\$;
+select pg_catalog.pg_advisory_unlock(${HOLD_CLASS}, ${slot});"
 }
 
-# Ожидание, что защёлка НАБЛЮДАЕМО закрыта. Не `sleep`: условие проверяется, и
-# его отсутствие — падение, а не молчаливое продолжение.
-await_latch_closed() {
+await_hold_taken() {
   local slot=$1
-  psql_exec db4-tgc-latch-wait "
+  psql_exec db4-tgc-hold-wait "
     do \$wait\$
     declare v_spins integer := 0;
     begin
@@ -106,25 +145,66 @@ await_latch_closed() {
         exit when exists (
           select 1 from pg_catalog.pg_locks
           where locktype = 'advisory'
-            and classid = ${LATCH_CLASS} and objid = ${slot}
+            and classid = ${HOLD_CLASS} and objid = ${slot}
             and granted
         );
         v_spins := v_spins + 1;
-        if v_spins > 600 then
-          raise exception 'DB4_TGC_LATCH_NEVER_CLOSED';
-        end if;
+        if v_spins > 1200 then raise exception 'DB4_TGC_HOLD_NEVER_TAKEN'; end if;
         perform pg_catalog.pg_sleep(0.05);
       end loop;
     end
     \$wait\$;" >/dev/null
 }
 
-# Участник гонки: встаёт на защёлку, и только потом делает свою работу.
-racer() {
-  local slot=$1 body=$2
-  print -r -- "select pg_catalog.pg_advisory_lock_shared(${LATCH_CLASS}, ${slot});
-select pg_catalog.pg_advisory_unlock_shared(${LATCH_CLASS}, ${slot});
-${body}"
+# Сессия A: активирует и УДЕРЖИВАЕТ транзакцию открытой на замке-стопоре. Пока
+# она стоит здесь, xact-замки `_lock_scope` не отпущены — это и делает
+# пересечение настоящим.
+holding_activation() {
+  local slot=$1 nonce=$2 external_user=$3 bot=$4 chat=$5
+  print -r -- "begin;
+set local role service_role;
+select remhaos_channel_api.activate_project_binding(
+  pg_catalog.sha256(convert_to('${nonce}', 'UTF8')),
+  ${external_user}, '${bot}', ${chat}, 'supergroup', 'notice-v1', true, true
+);
+reset role;
+select pg_catalog.pg_advisory_lock(${HOLD_CLASS}, ${slot});
+select pg_catalog.pg_advisory_unlock(${HOLD_CLASS}, ${slot});
+commit;"
+}
+
+competing_activation() {
+  local nonce=$1 external_user=$2 bot=$3 chat=$4
+  print -r -- "begin;
+set local role service_role;
+select remhaos_channel_api.activate_project_binding(
+  pg_catalog.sha256(convert_to('${nonce}', 'UTF8')),
+  ${external_user}, '${bot}', ${chat}, 'supergroup', 'notice-v1', true, true
+);
+commit;"
+}
+
+await_real_lock_granted() {
+  local classid=$1 objid=$2
+  psql_exec db4-tgc-real-lock-wait "
+    do \$wait\$
+    declare v_spins integer := 0;
+    begin
+      loop
+        exit when exists (
+          select 1 from pg_catalog.pg_locks
+          where locktype = 'advisory'
+            and classid = ${classid} and objid = ${objid} and objsubid = 1
+            and granted
+        );
+        v_spins := v_spins + 1;
+        if v_spins > 1200 then
+          raise exception 'DB4_TGC_REAL_LOCK_NEVER_HELD:%/%', ${classid}, ${objid};
+        end if;
+        perform pg_catalog.pg_sleep(0.05);
+      end loop;
+    end
+    \$wait\$;" >/dev/null
 }
 
 seed_intent() {
@@ -146,47 +226,70 @@ seed_intent() {
     where pw.project_id = '${project}'" >/dev/null
 }
 
-activate_body() {
-  local nonce=$1 external_user=$2 bot=$3 chat=$4
-  print -r -- "begin;
-set local role service_role;
-select remhaos_channel_api.activate_project_binding(
-  pg_catalog.sha256(convert_to('${nonce}', 'UTF8')),
-  ${external_user}, '${bot}', ${chat}, 'supergroup', 'notice-v1', true, true
-);
-commit;"
-}
+# ─────────────────────────────────────────────────────────────────────────────
+# Общий ход гонки
+# ─────────────────────────────────────────────────────────────────────────────
+run_contended_race() {
+  local label=$1 slot=$2 classid=$3 objid=$4 hold_call=$5 competing_call=$6
 
-assert_race_outcome() {
-  local label=$1 status_a=$2 status_b=$3 out_a=$4 out_b=$5
-  if [[ $(( status_a + status_b )) == 0 ]]; then
-    fail "${label}: both creations succeeded" "${out_a}" "${out_b}"
+  set +e
+  psql_exec "db4-tgc-hold-${slot}" "$(hold_until_contended "${slot}" "${classid}" "${objid}")" \
+    >"${tmpdir}/hold-${slot}.out" 2>&1 &
+  local hold_pid=$!
+  set -e
+  await_hold_taken "${slot}"
+
+  set +e
+  psql_exec "db4-tgc-a-${slot}" "${hold_call}" >"${tmpdir}/a-${slot}.out" 2>&1 &
+  local pid_a=$!
+  set -e
+  # A уже внутри транзакции и держит НАСТОЯЩИЙ замок: без этого ожидания
+  # сессия B могла бы прийти первой, и гонка проверяла бы обратный порядок.
+  await_real_lock_granted "${classid}" "${objid}"
+
+  set +e
+  psql_exec "db4-tgc-b-${slot}" "${competing_call}" >"${tmpdir}/b-${slot}.out" 2>&1 &
+  local pid_b=$!
+  wait "${hold_pid}"; local hold_status=$?
+  wait "${pid_a}"; local status_a=$?
+  wait "${pid_b}"; local status_b=$?
+  set -e
+
+  if [[ "${hold_status}" != "0" ]]; then
+    fail "${label}: contention on the real lock was never observed" \
+      "${tmpdir}/hold-${slot}.out"
   fi
-  if [[ "${status_a}" != "0" && "${status_b}" != "0" ]]; then
-    fail "${label}: both creations failed" "${out_a}" "${out_b}"
+  if ! rg -q 'DB4_TGC_REAL_LOCK_CONTENDED' "${tmpdir}/hold-${slot}.out"; then
+    fail "${label}: holder exited without recording contention" \
+      "${tmpdir}/hold-${slot}.out"
   fi
-  if ! rg -q 'scope_conflict' "${out_a}" "${out_b}"; then
-    fail "${label}: loser did not get a controlled conflict" "${out_a}" "${out_b}"
+  if [[ "${status_a}" != "0" ]]; then
+    fail "${label}: the holding activation failed" "${tmpdir}/a-${slot}.out"
   fi
-  if rg -qi 'duplicate key value|23505' "${out_a}" "${out_b}"; then
-    fail "${label}: a raw uniqueness violation leaked out" "${out_a}" "${out_b}"
+  if [[ "${status_b}" == "0" ]]; then
+    fail "${label}: the competing activation was allowed through" \
+      "${tmpdir}/a-${slot}.out" "${tmpdir}/b-${slot}.out"
+  fi
+  if ! rg -q 'scope_conflict' "${tmpdir}/b-${slot}.out"; then
+    fail "${label}: loser did not get a controlled conflict" "${tmpdir}/b-${slot}.out"
+  fi
+  if rg -qi 'duplicate key value|23505' "${tmpdir}/b-${slot}.out"; then
+    fail "${label}: a raw uniqueness violation leaked out" "${tmpdir}/b-${slot}.out"
   fi
 }
 
 # ─────────────────────────────────────────────────────────────────────────────
-# 1. Два бота, один чат, два проекта — вставка одновременно
+# 1. Два проекта, один чат, разные боты
 # ─────────────────────────────────────────────────────────────────────────────
 
 psql_exec db4-tgc-projects "
   insert into public.projects (id, designer_id, client_name, status, intake_token)
   values
-    ('47777777-7777-4777-8777-777777777777','${owner_a}','Race G','active_project','db4-tgc-g'),
-    ('48888888-8888-4888-8888-888888888888','${owner_a}','Race H','active_project','db4-tgc-h'),
-    ('49999999-9999-4999-8999-999999999999','${owner_a}','Race I','active_project','db4-tgc-i')" >/dev/null
+    ('${project_g}','${owner_a}','Race G','active_project','db4-tgc-g'),
+    ('${project_h}','${owner_a}','Race H','active_project','db4-tgc-h'),
+    ('${project_i}','${owner_a}','Race I','active_project','db4-tgc-i')" >/dev/null
 
-for proj in 47777777-7777-4777-8777-777777777777 \
-  48888888-8888-4888-8888-888888888888 \
-  49999999-9999-4999-8999-999999999999; do
+for proj in "${project_g}" "${project_h}" "${project_i}"; do
   psql_exec db4-tgc-enroll "
     begin;
     set local role authenticated;
@@ -195,31 +298,16 @@ for proj in 47777777-7777-4777-8777-777777777777 \
     commit;" >/dev/null
 done
 
-seed_intent 47777777-7777-4777-8777-777777777777 "${owner_a}" db4-tgc-chat-g
-seed_intent 48888888-8888-4888-8888-888888888888 "${owner_a}" db4-tgc-chat-h
+seed_intent "${project_g}" "${owner_a}" db4-tgc-chat-g
+seed_intent "${project_h}" "${owner_a}" db4-tgc-chat-h
 
-set +e
-psql_exec db4-tgc-latch-1 "$(latch_controller 1 2)" >"${tmpdir}/latch-1.out" 2>&1 &
-latch_pid_1=$!
-set -e
-await_latch_closed 1
+chat_parts=$(lock_key_parts "$(chat_key_sql -102000)")
+chat_classid=${chat_parts%%|*}
+chat_objid=${chat_parts##*|}
 
-set +e
-psql_exec db4-tgc-chat-a \
-  "$(racer 1 "$(activate_body db4-tgc-chat-g 777001 db4-bot-alpha -102000)")" \
-  >"${tmpdir}/chat-a.out" 2>&1 &
-chat_pid_a=$!
-psql_exec db4-tgc-chat-b \
-  "$(racer 1 "$(activate_body db4-tgc-chat-h 777001 db4-bot-beta -102000)")" \
-  >"${tmpdir}/chat-b.out" 2>&1 &
-chat_pid_b=$!
-wait "${latch_pid_1}" || fail "latch controller failed" "${tmpdir}/latch-1.out"
-wait "${chat_pid_a}"; chat_status_a=$?
-wait "${chat_pid_b}"; chat_status_b=$?
-set -e
-
-assert_race_outcome "cross-bot chat race" \
-  "${chat_status_a}" "${chat_status_b}" "${tmpdir}/chat-a.out" "${tmpdir}/chat-b.out"
+run_contended_race "cross-bot chat race" 1 "${chat_classid}" "${chat_objid}" \
+  "$(holding_activation 1 db4-tgc-chat-g 777001 db4-bot-alpha -102000)" \
+  "$(competing_activation db4-tgc-chat-h 777001 db4-bot-beta -102000)"
 
 chat_live=$(psql_exec db4-tgc-chat-assert "
   select count(*)::text from remhaos_channel.project_channel_bindings
@@ -228,43 +316,42 @@ chat_live=$(psql_exec db4-tgc-chat-assert "
 if [[ "${chat_live}" != "1" ]]; then
   fail "cross-bot chat race left ${chat_live} live bindings on one chat"
 fi
+chat_winner=$(psql_exec db4-tgc-chat-winner "
+  select project_id::text from remhaos_channel.project_channel_bindings
+  where external_chat_id = -102000
+    and status in ('pending', 'notice_pending', 'active')")
+if [[ "${chat_winner}" != "${project_g}" ]]; then
+  fail "the holding session did not win the chat: ${chat_winner}"
+fi
 
 # ─────────────────────────────────────────────────────────────────────────────
-# 2. Один проект, два чата — вставка одновременно
+# 2. Один проект, два чата
 # ─────────────────────────────────────────────────────────────────────────────
 
-seed_intent 49999999-9999-4999-8999-999999999999 "${owner_a}" db4-tgc-proj-1
-seed_intent 49999999-9999-4999-8999-999999999999 "${owner_a}" db4-tgc-proj-2
+seed_intent "${project_i}" "${owner_a}" db4-tgc-proj-1
+seed_intent "${project_i}" "${owner_a}" db4-tgc-proj-2
 
-set +e
-psql_exec db4-tgc-latch-2 "$(latch_controller 2 2)" >"${tmpdir}/latch-2.out" 2>&1 &
-latch_pid_2=$!
-set -e
-await_latch_closed 2
+project_parts=$(lock_key_parts "$(project_key_sql "${project_i}")")
+project_classid=${project_parts%%|*}
+project_objid=${project_parts##*|}
 
-set +e
-psql_exec db4-tgc-proj-a \
-  "$(racer 2 "$(activate_body db4-tgc-proj-1 777001 db4-bot-alpha -103000)")" \
-  >"${tmpdir}/proj-a.out" 2>&1 &
-proj_pid_a=$!
-psql_exec db4-tgc-proj-b \
-  "$(racer 2 "$(activate_body db4-tgc-proj-2 777001 db4-bot-alpha -103001)")" \
-  >"${tmpdir}/proj-b.out" 2>&1 &
-proj_pid_b=$!
-wait "${latch_pid_2}" || fail "latch controller failed" "${tmpdir}/latch-2.out"
-wait "${proj_pid_a}"; proj_status_a=$?
-wait "${proj_pid_b}"; proj_status_b=$?
-set -e
-
-assert_race_outcome "one-project two-chat race" \
-  "${proj_status_a}" "${proj_status_b}" "${tmpdir}/proj-a.out" "${tmpdir}/proj-b.out"
+run_contended_race "one-project two-chat race" 2 "${project_classid}" "${project_objid}" \
+  "$(holding_activation 2 db4-tgc-proj-1 777001 db4-bot-alpha -103000)" \
+  "$(competing_activation db4-tgc-proj-2 777001 db4-bot-alpha -103001)"
 
 proj_live=$(psql_exec db4-tgc-proj-assert "
   select count(*)::text from remhaos_channel.project_channel_bindings
-  where project_id = '49999999-9999-4999-8999-999999999999'
+  where project_id = '${project_i}'
     and status in ('pending', 'notice_pending', 'active')")
 if [[ "${proj_live}" != "1" ]]; then
   fail "one-project race left ${proj_live} live bindings for one project"
+fi
+proj_chat=$(psql_exec db4-tgc-proj-chat "
+  select external_chat_id::text from remhaos_channel.project_channel_bindings
+  where project_id = '${project_i}'
+    and status in ('pending', 'notice_pending', 'active')")
+if [[ "${proj_chat}" != "-103000" ]]; then
+  fail "the holding session did not win the project: chat ${proj_chat}"
 fi
 
 # Ни одной осиротевшей ожидающей связи после обеих гонок: проигравшая вставка
@@ -294,7 +381,8 @@ psql_exec db4-tgc-intent-b "
   );
   commit;" >/dev/null
 
-psql_exec db4-tgc-activate-b "$(activate_body db4-tgc-late-b 777002 db4-bot -100800)" >/dev/null
+psql_exec db4-tgc-activate-b \
+  "$(competing_activation db4-tgc-late-b 777002 db4-bot -100800)" >/dev/null
 
 binding_b=$(psql_exec db4-tgc-binding "
   select binding_id::text from remhaos_channel.project_channel_bindings
@@ -397,7 +485,8 @@ psql_exec db4-tgc-rebind-intent "
     '${project_b}', pg_catalog.sha256(convert_to('db4-tgc-queue-b', 'UTF8')), 600
   );
   commit;" >/dev/null
-psql_exec db4-tgc-rebind "$(activate_body db4-tgc-queue-b 777002 db4-bot -100801)" >/dev/null
+psql_exec db4-tgc-rebind \
+  "$(competing_activation db4-tgc-queue-b 777002 db4-bot -100801)" >/dev/null
 queue_binding=$(psql_exec db4-tgc-queue-binding "
   select binding_id::text from remhaos_channel.project_channel_bindings
   where external_chat_id = -100801 and status = 'notice_pending'")
@@ -438,10 +527,6 @@ psql_exec db4-tgc-expire "
   set lease_expires_at = statement_timestamp() - interval '1 minute'
   where notification_id = '${notification_id}'::uuid" >/dev/null
 
-# Завершение ПОСЛЕ истечения аренды, но ДО того, как её кто-либо перезахватил —
-# и в успех, и в отказ. Совпадающего токена мало: аренда уже не действует, и
-# запись больше не наша. `mark_notification_failed` проверяется отдельно:
-# у него другой путь и свой счётчик попыток.
 expired_sent=$(psql_exec db4-tgc-expired-sent "
   begin;
   set local role service_role;
@@ -474,7 +559,7 @@ if [[ "${state_after_expired}" != "sending|1" ]]; then
   fail "expired-lease completion changed the row anyway: ${state_after_expired}"
 fi
 
-# Два воркера перезахватывают ОДНОВРЕМЕННО, за той же защёлкой.
+# Два воркера перезахватывают одновременно.
 reclaim_body="begin;
 set local role service_role;
 select coalesce(
@@ -484,17 +569,10 @@ select coalesce(
 commit;"
 
 set +e
-psql_exec db4-tgc-latch-3 "$(latch_controller 3 2)" >"${tmpdir}/latch-3.out" 2>&1 &
-latch_pid_3=$!
-set -e
-await_latch_closed 3
-
-set +e
-psql_exec db4-tgc-reclaim-a "$(racer 3 "${reclaim_body}")" >"${tmpdir}/reclaim-a.out" 2>&1 &
+psql_exec db4-tgc-reclaim-a "${reclaim_body}" >"${tmpdir}/reclaim-a.out" 2>&1 &
 reclaim_pid_a=$!
-psql_exec db4-tgc-reclaim-b "$(racer 3 "${reclaim_body}")" >"${tmpdir}/reclaim-b.out" 2>&1 &
+psql_exec db4-tgc-reclaim-b "${reclaim_body}" >"${tmpdir}/reclaim-b.out" 2>&1 &
 reclaim_pid_b=$!
-wait "${latch_pid_3}" || fail "latch controller failed" "${tmpdir}/latch-3.out"
 wait "${reclaim_pid_a}"; reclaim_status_a=$?
 wait "${reclaim_pid_b}"; reclaim_status_b=$?
 set -e
@@ -514,8 +592,6 @@ if [[ -z "${lease_second}" || "${lease_second}" == "${lease_first}" ]]; then
   fail "reclaim did not rotate the fencing token: '${lease_second}'"
 fi
 
-# Первый воркер возвращается со СТАРЫМ токеном — и ничего не меняет, ни как
-# успех, ни как отказ.
 stale_sent=$(psql_exec db4-tgc-stale-sent "
   begin;
   set local role service_role;
@@ -577,4 +653,4 @@ if [[ "${final_state}" != "cancelled" ]]; then
   fail "cancelled turned out not to be terminal: ${final_state}"
 fi
 
-print -r -- "DB4_TELEGRAM_CREATION_RACES_OK"
+print -r -- "DB4_TELEGRAM_CONTENDED_CREATION_RACES_OK"

@@ -150,6 +150,18 @@ describe("Telegram bridge surface matrix", () => {
     const runner = read("tests/db4/run.zsh");
     expect(runner).toContain("run-telegram-concurrency.zsh");
     expect(runner).toContain("run-telegram-upgrade.zsh");
+    expect(runner).toContain("47_telegram_pending_ambiguity.sql");
+
+    // Гонки обязаны доказывать ожидание на НАСТОЯЩЕМ замке, а не одновременный
+    // подход к старту: сессия удерживает транзакцию открытой, и пересечение
+    // подтверждается строкой `granted = false` в `pg_locks` на том же ключе.
+    const races = read("tests/db4/run-telegram-concurrency.zsh");
+    expect(races).toContain("pg_locks");
+    expect(races).toContain("not granted");
+    expect(races).toContain("DB4_TGC_REAL_LOCK_CONTENDED");
+    // `sleep` допустим только как шаг опроса внутри ожидания условия — в
+    // качестве синхронизации он означал бы «наверное, успели».
+    expect(races).not.toMatch(/^\s*sleep\s/m);
     const upgrade = read("tests/db4/run-telegram-upgrade.zsh");
     for (const scenario of [
       "45_telegram_bridge_upgrade_seed.sql",
