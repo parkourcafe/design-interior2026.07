@@ -48,6 +48,45 @@ Approved decisions → drawing set → QA/conflicts → specifications → issue
 
 Issued baseline → site tasks → RFI/deviation → change/substitution → inspection → evidence → acceptance.
 
+## WF-GW-001 · Telegram Chat Bridge (Integration Gateway)
+
+**Статус:** AUTHORIZED BY A7 — P0 ONLY (`REMHAOS_ADDENDUM_A7_TELEGRAM_CHAT_BRIDGE.md`, DEC-031)
+**Owner module:** нет. Это workflow **шлюза интеграций**, а не доменного модуля:
+один горизонтальный контур обслуживает M1–M4, и своего Module 5 у него нет
+(DEC-001).
+**Trigger:** входящий update Telegram в активном связанном чате (входящая
+половина) либо persisted domain state, требующий уведомления (исходящая).
+
+Входящая половина:
+
+| # | Action | cost_class | Human gate | Output |
+|---:|---|---|---|---|
+| 1 | verify_webhook_and_normalize | free_deterministic | — | ChannelEvent |
+| 2 | materialize_attachment | free_deterministic | — | ChannelAttachment (`quarantined` → `clean`) |
+| 3 | extract_inbox_candidate | metered_ai | **обязательный** review человеком | ProjectInboxCandidate (`pending`) |
+| 4 | confirm_candidate | free_deterministic | существующая команда модуля | доменный объект (например ChangeRequest) |
+
+Исходящая половина:
+
+| # | Action | cost_class | Human gate | Output |
+|---:|---|---|---|---|
+| 1 | enqueue_notification | free_deterministic | — | NotificationOutbox (`pending`) |
+| 2 | send_notification | free_deterministic | — | сообщение в чате + защищённый deep link |
+| 3 | act_in_remhaos | free_deterministic | **вход и явное подтверждение человека** | существующая команда (например `acknowledge_release`) |
+
+Шаг 3 входящей половины — единственный `metered_ai` в контуре; он не имеет
+tools, обязан уметь вернуть `ignored` и ничего не мутирует (INV-T8). Шаг 4
+входящей и шаг 3 исходящей половины выполняются **только** человеческой сессией:
+мост полномочий не переносит (INV-T3).
+
+Acceptance: default-deny при выключенном флаге; идемпотентность внешнего update;
+новая ревизия источника на правку сообщения; отсутствие raw text, filename,
+токенов и download URL в structured logs; RLS negative scope; отдельные ролевые
+сессии в браузере.
+
+Не входит в P0: адаптеры M1/M2, прочие сценарии M3, M4 Increment 2, голосовая
+транскрипция, OCR, официальные действия через inline callback.
+
 ## Auto-trigger policy
 
 Only `free_deterministic` steps may auto-run without cost confirmation. `metered_ai` waits in `pending_cost_confirmation` when studio threshold is exceeded.

@@ -15,6 +15,7 @@ Studio,Studio Memory v0,EARLY_FRAGMENT,CODE_REPORTED,pricing/defaults stated,No 
 Studio,Design System,PLANNED,DOC_TARGET,Architecture,Not Sprint 1,Backlog,P2
 Integrations,P0 imports,UNKNOWN,DOC_TARGET,Charter ceiling,Repo proof missing,No implementation Sprint 1,P2
 Integrations,PII-heavy connectors,BLOCKED,OWNER_GATE,152-ФЗ open,Not authorized,Do not build,P3
+Integrations,Telegram Chat Bridge,NOT_PROVEN,DOC_TARGET,Charter/Architecture §9 + Addendum A7,P0 gateway adapter — no runtime proof; production disabled,Build per A7 — P0 ONLY (dev/CI/closed staging; production needs separate OWNER GO),P2
 M2,Design workflow,NOT_PROVEN,DOC_TARGET,Charter/catalog,No code proof,Build per A4,P1
 M3,Documentation workflow,NOT_PROVEN,DOC_TARGET,Charter/catalog,No code proof,Build per A5,P2
 M4,Execution workflow,NOT_PROVEN,DOC_TARGET,Charter/catalog,Thin P0 in code no UI surface,Build per A6 — INCREMENT 1 ONLY,P2
