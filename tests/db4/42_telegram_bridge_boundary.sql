@@ -53,6 +53,7 @@ begin
     'remhaos_channel_api.activate_project_binding(bytea, bigint, text, bigint, text, text, boolean, boolean)',
     'remhaos_channel_api.mark_channel_notice_posted(uuid, text, boolean, boolean)',
     'remhaos_channel_api.find_pending_notice_binding(text, bigint)',
+    'remhaos_channel_api.terminate_pending_binding(uuid, text)',
     'remhaos_channel_api.consume_identity_link_intent(bytea, bigint)',
     'remhaos_channel_api.enqueue_notification(uuid, text, text, text, jsonb, text)',
     'remhaos_channel_api.claim_notification_batch(integer, integer)',
@@ -1000,6 +1001,30 @@ begin
   end if;
 end
 $stale_worker_refused$;
+
+-- Та же тройка условий обязана держать и `mark_notification_failed`: истёкшая
+-- аренда не даёт права записывать исход, иначе устаревший воркер вернул бы в
+-- очередь работу, которую уже забрал другой.
+begin;
+set local role service_role;
+select set_config(
+  'projectceo.db4_tg_failed_stale',
+  remhaos_channel_api.mark_notification_failed(
+    current_setting('projectceo.db4_tg_notif')::uuid,
+    current_setting('projectceo.db4_tg_lease')::uuid,
+    'stale_worker', 30
+  ) -> 'data' ->> 'changed',
+  false
+);
+commit;
+
+do $failed_stale_refused$
+begin
+  if current_setting('projectceo.db4_tg_failed_stale') <> 'false' then
+    raise exception 'DB4_TG_STALE_LEASE_MARKED_FAILED';
+  end if;
+end
+$failed_stale_refused$;
 
 -- `cancelled` терминально: отменённое уведомление не воскрешается завершением.
 do $cancel_row$

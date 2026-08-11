@@ -79,6 +79,8 @@ for sql in \
   run_file "${sql}"
 done
 
+PI_DB_IMAGE="${image}" "${repo_root}/tests/db4/run-migration-upgrade.zsh"
+
 PI_DB4_CONTAINER="${container}" \
 PI_DB4_DATABASE="${database}" \
 PI_DB4_PASSWORD="${password}" \

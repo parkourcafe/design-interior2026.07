@@ -61,11 +61,69 @@ begin
 end
 $chat_conflicts_guard$;
 
-drop index remhaos_channel.project_channel_bindings_one_active_per_chat;
+-- УНИКАЛЬНОСТЬ ПО ЖИВЫМ СТАТУСАМ, А НЕ ТОЛЬКО ПО `active`.
+--
+-- Частичный индекс `where status = 'active'` разрешал сколько угодно
+-- одновременных `pending` / `notice_pending` в одном чате. Следствие не
+-- теоретическое: две недоведённые связи разных проектов сосуществовали в одной
+-- группе, каждая перехватывала обновления чата на свой повтор уведомления, и
+-- «один чат — один проект» держалось только на том, кто первым добежит до
+-- финализации. Живой считается связь в любом из трёх статусов.
+do $collapse_live_duplicates$
+begin
+  -- Осиротевшие и проигравшие `pending` уводятся в `revoked` ДО индексов:
+  -- иначе `create unique index` упал бы на существующих данных, а лишняя
+  -- связь продолжала бы перехватывать обновления.
+  with ranked as (
+    select binding_id,
+      row_number() over (
+        partition by provider, external_chat_id
+        order by case status when 'active' then 0 when 'notice_pending' then 1 else 2 end,
+          created_at desc
+      ) as rn
+    from remhaos_channel.project_channel_bindings
+    where status in ('pending', 'notice_pending', 'active')
+  )
+  update remhaos_channel.project_channel_bindings b
+  set status = 'revoked',
+    status_reason = 'superseded_duplicate_chat_binding',
+    -- `capture_state` здесь НЕ ставится: колонка появляется ниже, в разделе 2.
+    -- Её default — `none`, то есть ровно то, что нужно отозванной связи.
+    activated_at = null,
+    status_changed_at = statement_timestamp()
+  from ranked r
+  where b.binding_id = r.binding_id and r.rn > 1;
 
-create unique index project_channel_bindings_one_active_per_chat
+  with ranked as (
+    select binding_id,
+      row_number() over (
+        partition by organization_id, project_id
+        order by case status when 'active' then 0 when 'notice_pending' then 1 else 2 end,
+          created_at desc
+      ) as rn
+    from remhaos_channel.project_channel_bindings
+    where status in ('pending', 'notice_pending', 'active')
+  )
+  update remhaos_channel.project_channel_bindings b
+  set status = 'revoked',
+    status_reason = 'superseded_duplicate_project_binding',
+    activated_at = null,
+    status_changed_at = statement_timestamp()
+  from ranked r
+  where b.binding_id = r.binding_id and r.rn > 1;
+end
+$collapse_live_duplicates$;
+
+drop index remhaos_channel.project_channel_bindings_one_active_per_chat;
+drop index remhaos_channel.project_channel_bindings_one_active_per_project;
+
+create unique index project_channel_bindings_one_live_per_chat
   on remhaos_channel.project_channel_bindings (provider, external_chat_id)
-  where status = 'active';
+  where status in ('pending', 'notice_pending', 'active');
+
+create unique index project_channel_bindings_one_live_per_project
+  on remhaos_channel.project_channel_bindings (organization_id, project_id)
+  where status in ('pending', 'notice_pending', 'active');
 
 -- ---------------------------------------------------------------------------
 -- 2. Приём начинается только после уведомления участников
@@ -219,6 +277,14 @@ begin
     );
   end if;
 
+  -- Сериализация по ЧАТУ ДО чтения намерения и ДО вставки. Прежде гонка
+  -- разрешалась только на финализации: два бота спокойно создавали по
+  -- `notice_pending` в одном чате, и «один чат — один проект» держалось на
+  -- том, кто первым добежит. Блокировка транзакционная — снимается сама.
+  perform pg_catalog.pg_advisory_xact_lock(
+    pg_catalog.hashtextextended('remhaos_channel:chat:' || external_chat_id::text, 0)
+  );
+
   select * into v_intent
   from remhaos_channel.channel_link_intents i
   where i.provider = 'telegram'
@@ -270,15 +336,29 @@ begin
   -- Чат уже обслуживает другой проект. Индекс поймал бы это и сам, но отказ по
   -- нарушению уникальности не отличает «занят» от «гонка», а человеку нужно
   -- знать именно первое.
+  -- Живая связь — это `pending`, `notice_pending` или `active`. Проверять
+  -- только `active` значило бы разрешить вторую недоведённую связь в том же
+  -- чате, а именно она потом перехватывает обновления на свой повтор.
   if exists (
     select 1
     from remhaos_channel.project_channel_bindings b
     where b.provider = 'telegram'
       and b.external_chat_id = external_chat_id
-      and b.status = 'active'
+      and b.status in ('pending', 'notice_pending', 'active')
   ) then
     perform projectceo_foundation._raise(
       'P1109', 'scope_conflict', '{"reason":"CHANNEL_ALREADY_BOUND"}'::jsonb
+    );
+  end if;
+
+  if exists (
+    select 1
+    from remhaos_channel.project_channel_bindings b
+    where b.project_id = v_intent.project_id
+      and b.status in ('pending', 'notice_pending', 'active')
+  ) then
+    perform projectceo_foundation._raise(
+      'P1109', 'scope_conflict', '{"reason":"PROJECT_ALREADY_BOUND"}'::jsonb
     );
   end if;
 
@@ -478,6 +558,53 @@ exception
       'P1109', 'scope_conflict', '{"reason":"CHANNEL_ALREADY_BOUND"}'::jsonb
     );
     return null;
+end
+$function$;
+
+-- Терминализация недоведённой связи.
+--
+-- Постоянный отказ обязан ЗАКАНЧИВАТЬ попытку, а не оставлять `notice_pending`
+-- навсегда. Без этой двери отозванное право, понижение бота или невозвратный
+-- отказ Bot API приводили к тому, что мост слал уведомление на КАЖДОМ
+-- обновлении чата и никогда не завершал подключение: человек видел «ожидается
+-- публикация», а группа получала повторы.
+--
+-- `capture_state` остаётся `none`: терминализация не открывает приём никогда.
+create function remhaos_channel_api.terminate_pending_binding(
+  binding_id uuid,
+  reason text
+)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $function$
+#variable_conflict use_variable
+declare
+  v_status text;
+begin
+  -- Причина санитизирована: короткий код, а не текст провайдера, который может
+  -- содержать кусок отправленного сообщения.
+  if reason is null or reason !~ '^[a-z0-9_]{1,60}$' then
+    perform projectceo_foundation._raise(
+      'P1111', 'validation_failed', '{"field":"reason"}'::jsonb
+    );
+  end if;
+
+  update remhaos_channel.project_channel_bindings b
+  set status = 'suspended',
+    status_reason = reason,
+    capture_state = 'none',
+    activated_at = null,
+    status_changed_at = statement_timestamp()
+  where b.binding_id = binding_id
+    and b.status in ('pending', 'notice_pending')
+  returning b.status into v_status;
+
+  return remhaos_channel._envelope(jsonb_build_object(
+    'bindingId', binding_id,
+    'terminated', v_status is not null
+  ));
 end
 $function$;
 
@@ -1236,6 +1363,7 @@ begin
     'remhaos_channel_api.activate_project_binding(bytea, bigint, text, bigint, text, text, boolean, boolean)',
     'remhaos_channel_api.mark_channel_notice_posted(uuid, text, boolean, boolean)',
     'remhaos_channel_api.find_pending_notice_binding(text, bigint)',
+    'remhaos_channel_api.terminate_pending_binding(uuid, text)',
     'remhaos_channel_api.consume_identity_link_intent(bytea, bigint)',
     'remhaos_channel_api.ingest_channel_update(text, bigint, bigint, bigint, text, bigint, timestamptz, bigint, text, jsonb)',
     'remhaos_channel_api.claim_notification_batch(integer, integer)',
@@ -1262,6 +1390,7 @@ begin
     'remhaos_channel_api.activate_project_binding(bytea, bigint, text, bigint, text, text, boolean, boolean)',
     'remhaos_channel_api.mark_channel_notice_posted(uuid, text, boolean, boolean)',
     'remhaos_channel_api.find_pending_notice_binding(text, bigint)',
+    'remhaos_channel_api.terminate_pending_binding(uuid, text)',
     'remhaos_channel_api.consume_identity_link_intent(bytea, bigint)',
     'remhaos_channel_api.ingest_channel_update(text, bigint, bigint, bigint, text, bigint, timestamptz, bigint, text, jsonb)',
     'remhaos_channel_api.claim_notification_batch(integer, integer)',

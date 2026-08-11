@@ -347,8 +347,12 @@ describe("Telegram notice recovery", () => {
     expect(repeat.status).toBe(200);
     expect(bridgeWithSpentNonce.state.binding?.status).toBe("active");
     const operations = bridgeWithSpentNonce.calls.map((call) => call.operation);
+    // Активация НЕ зовётся вовсе. Порядок закреплён CORRECTIVE GO раунда 3:
+    // сначала поиск ожидающей связи, и только если её нет — новый `/start`.
+    // Прежнее ожидание фиксировало обратный порядок — сперва потратить
+    // попытку активации на заведомо потраченный секрет, потом откатиться к
+    // поиску. Отказ в этом месте и превращался в `200 binding_rejected`.
     expect(operations).toEqual([
-      "activate_project_binding",
       "find_pending_notice_binding",
       "mark_channel_notice_posted",
     ]);
@@ -368,11 +372,15 @@ describe("Telegram notice recovery", () => {
     log.restore();
 
     expect(response.status).toBe(200);
-    expect(bridge.state.binding?.status).toBe("notice_pending");
     expect(bridge.state.storedEvents).toBe(0);
     expect(script.sentMessages).toBe(0);
     expect(bridge.calls.some((c) => c.operation === "mark_channel_notice_posted")).toBe(false);
-    expect(log.outcomes).toEqual(["binding_notice_pending"]);
+    // Понижение бота — ПОСТОЯННЫЙ отказ, и попытка заканчивается. Оставить
+    // связь `notice_pending` значило бы слать уведомление на каждом обновлении
+    // чата и никогда не завершать подключение; CORRECTIVE GO раунда 3 требует
+    // терминального состояния с санитизированной причиной.
+    expect(bridge.calls.some((c) => c.operation === "terminate_pending_binding")).toBe(true);
+    expect(log.outcomes).toEqual(["binding_rejected"]);
   });
 
   it("passes freshly fetched administrator facts into the finalizing RPC", async () => {

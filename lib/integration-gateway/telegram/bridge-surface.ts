@@ -84,6 +84,15 @@ export const TELEGRAM_BRIDGE_SURFACE: readonly TelegramBridgeRpc[] = [
   },
   {
     schema: "remhaos_channel_api",
+    name: "terminate_pending_binding",
+    signature: "remhaos_channel_api.terminate_pending_binding(uuid, text)",
+    audience: "system",
+    // Закрывает недоведённую связь безопасным терминальным состоянием, чтобы
+    // постоянный отказ не оставлял `notice_pending` навсегда.
+    capability: null,
+  },
+  {
+    schema: "remhaos_channel_api",
     name: "find_pending_notice_binding",
     signature: "remhaos_channel_api.find_pending_notice_binding(text, bigint)",
     audience: "system",

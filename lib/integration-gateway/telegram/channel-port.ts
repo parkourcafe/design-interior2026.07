@@ -198,6 +198,25 @@ export class TelegramSystemPort {
   }
 
   /**
+   * Закончить недоведённую связь безопасным терминальным состоянием.
+   *
+   * Нужна ровно затем, чтобы постоянный отказ не оставлял `notice_pending`
+   * навсегда: иначе мост слал бы уведомление на каждом обновлении чата и
+   * никогда не завершал подключение.
+   */
+  async terminatePendingBinding(input: {
+    readonly bindingId: string;
+    readonly reason: string;
+  }): Promise<{ readonly terminated: boolean }> {
+    const data = await callChannelRpc(this.client, "terminate_pending_binding", {
+      binding_id: input.bindingId,
+      reason: input.reason,
+    });
+    const parsed = z.object({ terminated: z.boolean() }).safeParse(data);
+    return { terminated: parsed.success ? parsed.data.terminated : false };
+  }
+
+  /**
    * Связь этого чата, ожидающая публикации уведомления.
    *
    * Существует ровно ради повтора: одноразовый секрет потрачен при создании

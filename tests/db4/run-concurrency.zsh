@@ -441,15 +441,54 @@ for proj in "${tg_project_e}" "${tg_project_f}"; do
   " >/dev/null
 done
 
-# --- Гонка 1: два бота доводят СВОИ связи в ОДНОМ чате до активной ----------
+# --- Барьер ---------------------------------------------------------------
 #
-# Частичный уникальный индекс покрывает только `active`, поэтому два
-# `notice_pending` в одном чате сосуществуют законно. Победить обязан ровно
-# один, и проигравший обязан получить осмысленный конфликт, а не
-# `unique_violation`.
+# Просто запустить процессы через `&` недостаточно: планировщик может провести
+# их последовательно, и «гонка» ничего не докажет. Барьер держит обоих до тех
+# пор, пока оба не отметились, и только потом впускает в критическую секцию.
+psql_exec db4-tg-barrier-setup "
+  create table if not exists public.db4_barrier (
+    name text primary key, arrived integer not null default 0);
+  delete from public.db4_barrier;
+" >/dev/null
+
+# Прибытие — ОТДЕЛЬНАЯ команда psql. В одной команде несколько операторов идут
+# одной неявной транзакцией, и вставка не была бы видна второму процессу до
+# самого конца: барьер ждал бы сам себя. Первая редакция так и висела до
+# таймаута.
+barrier_arrive() {
+  psql_exec "db4-barrier-arrive" "
+    insert into public.db4_barrier (name, arrived) values ('$1', 1)
+    on conflict (name) do update set arrived = public.db4_barrier.arrived + 1;" >/dev/null
+}
+
+barrier_wait_sql() {
+  print -r -- "
+do \$barrier\$
+declare
+  v_arrived integer;
+  v_deadline timestamptz := clock_timestamp() + interval '20 seconds';
+begin
+  loop
+    select arrived into v_arrived from public.db4_barrier where name = '$1';
+    exit when v_arrived >= $2;
+    if clock_timestamp() > v_deadline then
+      raise exception 'DB4_BARRIER_TIMEOUT:%', v_arrived;
+    end if;
+    perform pg_sleep(0.02);
+  end loop;
+end
+\$barrier\$;"
+}
+
+# --- Гонка 1: два бота ОДНОВРЕМЕННО создают связь в одном чате --------------
+#
+# Прежняя редакция позволяла двум `notice_pending` сосуществовать и выбирала
+# победителя только при финализации. Это и было дефектом: обе недоведённые
+# связи перехватывали обновления чата. Теперь гонка идёт за СОЗДАНИЕ.
 race_chat=-100900
 for pair in "${tg_project_e}:bot-alpha:race-nonce-e" "${tg_project_f}:bot-beta:race-nonce-f"; do
-  proj=${pair%%:*}; rest=${pair#*:}; botid=${rest%%:*}; nonce=${rest#*:}
+  proj=${pair%%:*}; rest=${pair#*:}; nonce=${rest#*:}
   psql_exec db4-tg-race-intent "
     begin;
     set local role authenticated;
@@ -457,64 +496,80 @@ for pair in "${tg_project_e}:bot-alpha:race-nonce-e" "${tg_project_f}:bot-beta:r
     select remhaos_channel_api.create_binding_intent(
       '${proj}', pg_catalog.sha256(convert_to('${nonce}', 'UTF8')), 600);
     commit;
-    begin;
-    set local role service_role;
-    select remhaos_channel_api.activate_project_binding(
-      pg_catalog.sha256(convert_to('${nonce}', 'UTF8')),
-      777001, '${botid}', ${race_chat}, 'supergroup', 'notice-v1', true, true);
-    commit;
   " >/dev/null
 done
 
-binding_e=$(psql_exec db4-tg-race-binding-e "
-  select binding_id from remhaos_channel.project_channel_bindings
-  where project_id='${tg_project_e}' and status='notice_pending'")
-binding_f=$(psql_exec db4-tg-race-binding-f "
-  select binding_id from remhaos_channel.project_channel_bindings
-  where project_id='${tg_project_f}' and status='notice_pending'")
-
-notice_call() {
-  print -r -- "begin;
+activate_call() {
+  print -r -- "$(barrier_wait_sql create-race 2)
+begin;
 set local role service_role;
-select remhaos_channel_api.mark_channel_notice_posted('$1'::uuid,'notice-v1',true,true);
+select remhaos_channel_api.activate_project_binding(
+  pg_catalog.sha256(convert_to('$1', 'UTF8')),
+  777001, '$2', ${race_chat}, 'supergroup', 'notice-v1', true, true);
 commit;"
 }
 
 set +e
-psql_exec db4-tg-notice-e "$(notice_call "${binding_e}")" >"${tmpdir}/tg-notice-e.out" 2>&1 &
+{ barrier_arrive create-race
+  psql_exec db4-tg-create-e "$(activate_call race-nonce-e bot-alpha)"
+} >"${tmpdir}/tg-create-e.out" 2>&1 &
 tg_pid_e=$!
-psql_exec db4-tg-notice-f "$(notice_call "${binding_f}")" >"${tmpdir}/tg-notice-f.out" 2>&1 &
+{ barrier_arrive create-race
+  psql_exec db4-tg-create-f "$(activate_call race-nonce-f bot-beta)"
+} >"${tmpdir}/tg-create-f.out" 2>&1 &
 tg_pid_f=$!
 wait "${tg_pid_e}"; tg_status_e=$?
 wait "${tg_pid_f}"; tg_status_f=$?
 set -e
 
+if rg -q 'DB4_BARRIER_TIMEOUT' "${tmpdir}/tg-create-e.out" "${tmpdir}/tg-create-f.out"; then
+  print -u2 -r -- "Telegram create race barrier timed out — the race never overlapped"
+  exit 1
+fi
+
 if [[ $(( tg_status_e + tg_status_f )) == 0 ]] \
   || [[ "${tg_status_e}" != "0" && "${tg_status_f}" != "0" ]]; then
-  print -u2 -r -- "Telegram cross-bot notice race did not select exactly one winner"
-  sed -n '1,80p' "${tmpdir}/tg-notice-e.out" >&2
-  sed -n '1,80p' "${tmpdir}/tg-notice-f.out" >&2
+  print -u2 -r -- "Telegram cross-bot CREATE race did not select exactly one winner"
+  sed -n '1,80p' "${tmpdir}/tg-create-e.out" >&2
+  sed -n '1,80p' "${tmpdir}/tg-create-f.out" >&2
   exit 1
 fi
 
-# Проигравший обязан отказать ОСМЫСЛЕННО. `unique_violation` наружу означал бы,
-# что дверь полагается на индекс вместо собственной проверки.
+# Проигравший обязан получить контролируемый конфликт, а не `unique_violation`.
 if ! rg -q 'scope_conflict|CHANNEL_ALREADY_BOUND' \
-     "${tmpdir}/tg-notice-e.out" "${tmpdir}/tg-notice-f.out"; then
-  print -u2 -r -- "Telegram cross-bot notice race loser did not fail with a controlled conflict"
-  sed -n '1,80p' "${tmpdir}/tg-notice-e.out" >&2
-  sed -n '1,80p' "${tmpdir}/tg-notice-f.out" >&2
+     "${tmpdir}/tg-create-e.out" "${tmpdir}/tg-create-f.out"; then
+  print -u2 -r -- "Telegram cross-bot CREATE race loser did not fail with a controlled conflict"
+  sed -n '1,80p' "${tmpdir}/tg-create-e.out" >&2
+  sed -n '1,80p' "${tmpdir}/tg-create-f.out" >&2
+  exit 1
+fi
+if rg -q 'unique_violation|duplicate key' \
+     "${tmpdir}/tg-create-e.out" "${tmpdir}/tg-create-f.out"; then
+  print -u2 -r -- "Telegram cross-bot CREATE race surfaced a raw unique violation"
   exit 1
 fi
 
+# Ровно одна ЖИВАЯ связь: `pending`, `notice_pending` и `active` считаются все.
 tg_race_result=$(psql_exec db4-tg-race-assert "
   select count(*)::text
   from remhaos_channel.project_channel_bindings
-  where external_chat_id=${race_chat} and status='active'")
+  where external_chat_id=${race_chat}
+    and status in ('pending','notice_pending','active')")
 if [[ "${tg_race_result}" != "1" ]]; then
-  print -u2 -r -- "Telegram cross-bot race left ${tg_race_result} active bindings"
+  print -u2 -r -- "Telegram cross-bot race left ${tg_race_result} live bindings"
   exit 1
 fi
+
+# Победителя доводим до активной — дальше нужен настоящий приём.
+winner_binding=$(psql_exec db4-tg-race-winner-binding "
+  select binding_id from remhaos_channel.project_channel_bindings
+  where external_chat_id=${race_chat} and status='notice_pending'")
+psql_exec db4-tg-race-finalize "
+  begin;
+  set local role service_role;
+  select remhaos_channel_api.mark_channel_notice_posted(
+    '${winner_binding}'::uuid, 'notice-v1', true, true);
+  commit;" >/dev/null
 
 # --- Гонка 2: параллельные правки одного сообщения ---------------------------
 #
@@ -538,13 +593,16 @@ psql_exec db4-tg-edit-seed "
 set +e
 tg_edit_pids=()
 for i in 1 2 3 4; do
-  psql_exec "db4-tg-edit-${i}" "begin;
+  { barrier_arrive edit-race
+    psql_exec "db4-tg-edit-${i}" "$(barrier_wait_sql edit-race 4)
+begin;
 set local role service_role;
 select remhaos_channel_api.ingest_channel_update(
   '${winner_bot}', $(( 90000 + i )), ${race_chat}, 4242, 'edited_message', 777001,
   null, null, null,
   '{\"kind\":\"edited_message\",\"text\":\"правка ${i}\",\"attachmentCount\":0}'::jsonb);
-commit;" >"${tmpdir}/tg-edit-${i}.out" 2>&1 &
+commit;"
+  } >"${tmpdir}/tg-edit-${i}.out" 2>&1 &
   tg_edit_pids+=($!)
 done
 tg_edit_failures=0
@@ -552,6 +610,11 @@ for pid in "${tg_edit_pids[@]}"; do
   wait "${pid}" || tg_edit_failures=$(( tg_edit_failures + 1 ))
 done
 set -e
+
+if rg -q 'DB4_BARRIER_TIMEOUT' "${tmpdir}"/tg-edit-*.out; then
+  print -u2 -r -- "Telegram edit race barrier timed out — the edits never overlapped"
+  exit 1
+fi
 
 if [[ "${tg_edit_failures}" != "0" ]]; then
   print -u2 -r -- "Concurrent telegram edits failed: ${tg_edit_failures}"

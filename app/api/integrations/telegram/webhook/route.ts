@@ -19,6 +19,7 @@ import {
 import {
   TelegramChannelRpcError,
   TelegramSystemPort,
+  type PendingNoticeBinding,
 } from "@/lib/integration-gateway/telegram/channel-port";
 import {
   extractBotUserId,
@@ -144,7 +145,174 @@ async function readBoundedBody(request: Request): Promise<
  * Рукопожатие: `/start <nonce>`. Личный чат связывает Telegram-аккаунт с
  * человеком, групповой — подключает проект к чату.
  */
-async function handleHandshake(
+/**
+ * Постоянный ли это отказ базы.
+ *
+ * Разделение существенное, а не косметическое. Постоянный отказ — решение:
+ * права отозвали, чат занят, аргумент неверен. Транзиентный — наш сбой:
+ * `rpc_failed`, `envelope_invalid`, `shape_invalid`, сеть. Выдать второе за
+ * первое значит ответить Telegram «разобрались» на упавшей базе и потерять
+ * событие молча — ровно то, что делала прежняя редакция.
+ */
+function isPermanentRpcFailure(error: unknown): boolean {
+  if (!(error instanceof TelegramChannelRpcError)) return false;
+  return ["P1103", "P1109", "P1111", "P1104"].includes(error.failureCode);
+}
+
+/** Связь, ожидающая публикации уведомления. */
+interface PendingNotice {
+  readonly bindingId: string;
+  readonly noticeVersion: string;
+  readonly initiatorExternalUserId: number | null;
+}
+
+/**
+ * Опубликовать уведомление и довести КОНКРЕТНУЮ связь до `active`.
+ *
+ * Принимает связь аргументом, а не ищет её сам. На первой попытке передаётся
+ * `bindingId`, вернувшийся из `activateProjectBinding`: искать «последнюю
+ * pending» вместо точного идентификатора значит на ровном месте допустить
+ * работу с чужой связью.
+ *
+ * ПОРЯДОК: оба администраторства проверяются ДО отправки. Иначе на каждом
+ * обновлении в группу уходило бы уведомление, которое всё равно не будет
+ * финализировано, — повтор без конца и без результата.
+ */
+async function publishNoticeAndFinalize(
+  pending: PendingNotice,
+  event: NormalizedChannelUpdate,
+  port: TelegramSystemPort,
+  bot: TelegramBotApi,
+  requestId: string,
+): Promise<Response> {
+  const terminate = async (reason: string): Promise<Response> => {
+    // Постоянный отказ ЗАКАНЧИВАЕТ попытку. Без этого связь оставалась бы
+    // `notice_pending` навсегда, а группа получала бы повтор уведомления на
+    // каждом сообщении.
+    try {
+      await port.terminatePendingBinding({ bindingId: pending.bindingId, reason });
+    } catch {
+      // Терминализация не удалась — это наш сбой, и связь ещё жива.
+      return retryLater("terminate_failed", requestId, event);
+    }
+    return ack("binding_rejected", requestId, {
+      updateId: event.updateId,
+      chatId: event.chatId,
+    });
+  };
+
+  if (pending.initiatorExternalUserId === null) {
+    // Связь личности инициатора отозвана — восстановить нечем.
+    return terminate("initiator_identity_revoked");
+  }
+
+  const botUserId = await resolveBotUserId(bot);
+  if (botUserId === null) {
+    return retryLater("bot_identity_lookup_failed", requestId, event);
+  }
+
+  const [initiatorMembership, botMembership] = await Promise.all([
+    bot.getChatMember({ chatId: event.chatId, userId: pending.initiatorExternalUserId }),
+    bot.getChatMember({ chatId: event.chatId, userId: botUserId }),
+  ]);
+  for (const outcome of [initiatorMembership, botMembership]) {
+    if (!outcome.ok && outcome.retryable) {
+      return retryLater("membership_lookup_failed", requestId, event);
+    }
+  }
+  if (!initiatorMembership.ok || !isChatAdministrator(initiatorMembership.result)) {
+    return terminate("initiator_not_chat_admin");
+  }
+  if (!botMembership.ok || !isChatAdministrator(botMembership.result)) {
+    return terminate("bot_not_chat_admin");
+  }
+
+  // Юридическим закрытием 152-ФЗ это уведомление не является (A7 §1.11).
+  const notice = await bot.sendMessage({ chatId: event.chatId, text: renderGroupNotice() });
+  if (!notice.ok) {
+    return notice.retryable
+      ? retryLater("notice_send_failed", requestId, event)
+      : terminate("notice_delivery_refused");
+  }
+
+  try {
+    await port.markChannelNoticePosted({
+      bindingId: pending.bindingId,
+      noticeVersion: pending.noticeVersion || GROUP_NOTICE_VERSION,
+      initiatorIsChatAdmin: true,
+      botIsChatAdmin: true,
+    });
+  } catch (error) {
+    // Сообщение УЖЕ ушло. Транзиентный сбой обязан привести к повтору, иначе
+    // связь останется мёртвой при опубликованном уведомлении.
+    if (!isPermanentRpcFailure(error)) {
+      return retryLater("notice_finalize_failed", requestId, event);
+    }
+    return terminate("finalization_refused");
+  }
+
+  return ack("binding_activated", requestId, {
+    updateId: event.updateId,
+    chatId: event.chatId,
+  });
+}
+
+/** Идентификатор бота в Telegram. Нужен, чтобы спросить о его собственных правах. */
+async function resolveBotUserId(bot: TelegramBotApi): Promise<number | null> {
+  const identity = await bot.getMe();
+  return identity.ok ? extractBotUserId(identity.result) : null;
+}
+
+/**
+ * Рукопожатие в ЛИЧНОМ чате: связывание Telegram-аккаунта с человеком.
+ */
+async function handlePrivateHandshake(
+  event: NormalizedChannelUpdate,
+  port: TelegramSystemPort,
+  requestId: string,
+): Promise<Response> {
+  const digest = event.startPayload === null
+    ? null
+    : digestChannelLinkNonce(event.startPayload);
+  if (digest === null || event.senderId === null) {
+    return ack("identity_rejected", requestId, {
+      updateId: event.updateId,
+      chatId: event.chatId,
+    });
+  }
+
+  try {
+    await port.consumeIdentityLinkIntent({
+      nonceDigest: digest,
+      externalUserId: event.senderId,
+    });
+    return ack("identity_linked", requestId, {
+      updateId: event.updateId,
+      chatId: event.chatId,
+    });
+  } catch (error) {
+    // Просроченное, потраченное или чужое намерение — окончательный отказ.
+    // Упавшая база — нет, и выдавать её за отказ нельзя.
+    if (!isPermanentRpcFailure(error)) {
+      return retryLater("identity_consume_failed", requestId, event);
+    }
+    return ack("identity_rejected", requestId, {
+      updateId: event.updateId,
+      chatId: event.chatId,
+    });
+  }
+}
+
+/**
+ * Рукопожатие в ГРУППЕ: создание связи по одноразовому секрету.
+ *
+ * Зовётся ТОЛЬКО когда ожидающей связи у чата нет. Порядок задан в POST и
+ * является контрактом: повтор того же `/start` после сбоя обязан попасть в
+ * восстановление существующей связи, а не во второй `consume` уже потраченного
+ * секрета. Прежняя редакция проверяла `/start` первой и отвечала на такой
+ * повтор `200 binding_rejected` — связь оставалась мёртвой навсегда.
+ */
+async function handleGroupHandshake(
   event: NormalizedChannelUpdate,
   port: TelegramSystemPort,
   bot: TelegramBotApi,
@@ -161,58 +329,25 @@ async function handleHandshake(
     });
   }
 
-  if (!isGroupChat(event.chatType)) {
-    try {
-      await port.consumeIdentityLinkIntent({
-        nonceDigest: digest,
-        externalUserId: event.senderId,
-      });
-      return ack("identity_linked", requestId, {
-        updateId: event.updateId,
-        chatId: event.chatId,
-      });
-    } catch {
-      // Отказ базы на просроченном, потраченном или чужом намерении — не
-      // авария моста. Причину человеку сообщает экран RemHaOS, а не бот:
-      // подсказывать в чате, чем именно плох токен, значит помогать подбирать.
-      return ack("identity_rejected", requestId, {
-        updateId: event.updateId,
-        chatId: event.chatId,
-      });
+  const botUserId = await resolveBotUserId(bot);
+  if (botUserId === null) {
+    return retryLater("bot_identity_lookup_failed", requestId, event);
+  }
+
+  const [initiatorMembership, botMembership] = await Promise.all([
+    bot.getChatMember({ chatId: event.chatId, userId: event.senderId }),
+    bot.getChatMember({ chatId: event.chatId, userId: botUserId }),
+  ]);
+  for (const outcome of [initiatorMembership, botMembership]) {
+    if (!outcome.ok && outcome.retryable) {
+      return retryLater("membership_lookup_failed", requestId, event);
     }
   }
-
-  // Группа. Проверяются ДВА администраторства, и оба обязательны.
-  //
-  // Инициатор — потому что подключить чужой рабочий чат к своему проекту не
-  // должен уметь случайный участник. Сам бот — потому что privacy mode включён
-  // глобально, и бот без прав администратора переписки не увидит: связь в таком
-  // чате была бы связью, которая ничего не принимает, а человек узнал бы об
-  // этом только по тишине.
-  const membership = await bot.getChatMember({
-    chatId: event.chatId,
-    userId: event.senderId,
-  });
-  if (!membership.ok || !isChatAdministrator(membership.result)) {
-    return ack("binding_rejected", requestId, {
-      updateId: event.updateId,
-      chatId: event.chatId,
-    });
-  }
-
-  const identity = await bot.getMe();
-  const botUserId = identity.ok ? extractBotUserId(identity.result) : null;
-  if (botUserId === null) {
-    return ack("binding_rejected", requestId, {
-      updateId: event.updateId,
-      chatId: event.chatId,
-    });
-  }
-  const botMembership = await bot.getChatMember({
-    chatId: event.chatId,
-    userId: botUserId,
-  });
-  if (!botMembership.ok || !isChatAdministrator(botMembership.result)) {
+  const initiatorIsChatAdmin =
+    initiatorMembership.ok && isChatAdministrator(initiatorMembership.result);
+  const botIsChatAdmin = botMembership.ok && isChatAdministrator(botMembership.result);
+  if (!initiatorIsChatAdmin || !botIsChatAdmin) {
+    // Связи ещё нет — терминализировать нечего, отказ окончательный.
     return ack("binding_rejected", requestId, {
       updateId: event.updateId,
       chatId: event.chatId,
@@ -229,156 +364,32 @@ async function handleHandshake(
       chatId: event.chatId,
       chatType: event.chatType,
       noticeVersion: GROUP_NOTICE_VERSION,
-      initiatorIsChatAdmin: true,
-      botIsChatAdmin: true,
+      initiatorIsChatAdmin,
+      botIsChatAdmin,
     });
     bindingId = activated.bindingId;
-  } catch {
-    // Отказ активации ещё не значит, что делать нечего. Самый частый его повод
-    // — потраченный секрет: рукопожатие уже прошло, связь создана, а
-    // уведомление не ушло. Человек, повторяющий `/start` в группе, делает ровно
-    // то, что нужно; отвечать ему отказом значило бы требовать новую ссылку
-    // там, где достаточно повторить публикацию.
-    //
-    // Одноразовость секрета при этом не трогается: ожидающая связь ищется по
-    // паре «бот + чат», а не по нему.
-    const settled = await settleNotice(event, port, bot, botInstanceId, requestId);
-    return settled ?? ack("binding_rejected", requestId, {
-      updateId: event.updateId,
-      chatId: event.chatId,
-    });
-  }
-
-  void bindingId;
-  // Публикация уведомления и финализация — общий путь с повтором. Отдельной
-  // «первой попытки» здесь нет намеренно: если бы она была, ошибка в ней
-  // отличалась бы от ошибки повтора, а чинить пришлось бы дважды.
-  const settled = await settleNotice(event, port, bot, botInstanceId, requestId);
-  // null значит «ожидающей связи уже нет» — параллельный запрос успел довести
-  // её до конца. Для этого события работа сделана.
-  return settled ?? ack("binding_activated", requestId, {
-    updateId: event.updateId,
-    chatId: event.chatId,
-  });
-}
-
-/**
- * Довести связь этого чата из `notice_pending` в `active`.
- *
- * ЗАЧЕМ ЭТО ОТДЕЛЬНАЯ ФУНКЦИЯ И ПОЧЕМУ ОНА ЗОВЁТСЯ НА КАЖДОМ ОБНОВЛЕНИИ.
- *
- * Публикация уведомления может не удаться: Telegram ответил 429, сеть моргнула,
- * процесс упал между успешной отправкой и записью в базу. Одноразовый секрет к
- * этому моменту уже потрачен, и повторить рукопожатие нечем. Без этого пути
- * связь оставалась бы `notice_pending` НАВСЕГДА: приём закрыт, уведомление не
- * повторяется, а человек видит «подключено» и ждёт. Ровно это и было.
- *
- * Поэтому повтор не требует ни секрета, ни участия человека: связь ищется по
- * паре (бот, чат), а следующее же событие в чате доводит её до конца.
- *
- * Идемпотентность с двух сторон. Повторная ОТПРАВКА безвредна — сообщение
- * может уйти дважды, и это честная цена за то, чтобы оно ушло хоть раз.
- * Повторная ФИНАЛИЗАЦИЯ безвредна тоже: по уже активной связи RPC отвечает
- * `changed: false`, поэтому потерянный ответ базы после успешной отправки
- * восстанавливается следующим событием, а не оставляет связь мёртвой.
- */
-async function settleNotice(
-  event: NormalizedChannelUpdate,
-  port: TelegramSystemPort,
-  bot: TelegramBotApi,
-  botInstanceId: string,
-  requestId: string,
-): Promise<Response | null> {
-  let pending: Awaited<ReturnType<TelegramSystemPort["findPendingNoticeBinding"]>>;
-  try {
-    pending = await port.findPendingNoticeBinding({
-      botInstanceId,
-      chatId: event.chatId,
-    });
-  } catch {
-    // База недоступна — это НАШ сбой, а не отказ по смыслу. 503 просит Telegram
-    // прийти снова; 200 здесь означал бы «разобрались», и связь осталась бы
-    // висеть до следующего случайного сообщения.
-    return retryLater("notice_lookup_failed", requestId, event);
-  }
-
-  // Ожидающей связи нет — обычный путь обработки события.
-  if (pending === null) return null;
-
-  // Права в Telegram перепроверяются на КАЖДОЙ попытке, а не берутся из
-  // момента рукопожатия: между ними могло пройти сколько угодно времени.
-  if (pending.initiatorExternalUserId === null) {
-    // Связь личности инициатора отозвана. Финализировать нечем и незачем.
+  } catch (error) {
+    if (!isPermanentRpcFailure(error)) {
+      return retryLater("activation_failed", requestId, event);
+    }
     return ack("binding_rejected", requestId, {
       updateId: event.updateId,
       chatId: event.chatId,
     });
   }
 
-  const [initiatorMembership, botMembership] = await Promise.all([
-    bot.getChatMember({ chatId: event.chatId, userId: pending.initiatorExternalUserId }),
-    bot.getChatMember({ chatId: event.chatId, userId: Number(botInstanceId) }),
-  ]);
-  if (!initiatorMembership.ok || !botMembership.ok) {
-    return retryLater("membership_lookup_failed", requestId, event);
-  }
-  const initiatorIsChatAdmin = isChatAdministrator(initiatorMembership.result);
-  const botIsChatAdmin = isChatAdministrator(botMembership.result);
-
-  // Порядок из A7 §6: сначала права, потом слова. Опубликовать уведомление и
-  // только потом узнать от базы «нельзя» значит оставить в чужой группе
-  // сообщение о сборе данных, которого не будет: люди прочитают обещание,
-  // которое никто не собирается выполнять. Связь при этом остаётся
-  // `notice_pending` и восстановима — вернут права, вернётся и попытка.
-  if (!initiatorIsChatAdmin || !botIsChatAdmin) {
-    return ack("binding_notice_pending", requestId, {
-      updateId: event.updateId,
-      chatId: event.chatId,
-    });
-  }
-
-  // Юридическим закрытием 152-ФЗ это уведомление не является (A7 §1.11).
-  const notice = await bot.sendMessage({
-    chatId: event.chatId,
-    text: renderGroupNotice(),
-  });
-  if (!notice.ok) {
-    // Отправка не удалась — приём по-прежнему закрыт. Ретраибельный отказ
-    // просит Telegram вернуться; неретраибельный (бота выкинули) 200-ит, потому
-    // что повтор ничего не изменит.
-    return notice.retryable
-      ? retryLater("notice_send_failed", requestId, event)
-      : ack("binding_notice_pending", requestId, {
-          updateId: event.updateId,
-          chatId: event.chatId,
-        });
-  }
-
-  try {
-    await port.markChannelNoticePosted({
-      bindingId: pending.bindingId,
-      noticeVersion: pending.noticeVersion || GROUP_NOTICE_VERSION,
-      initiatorIsChatAdmin,
-      botIsChatAdmin,
-    });
-  } catch (error) {
-    // Отказ по смыслу — права отозвали, чат занят другим проектом — окончателен
-    // и повтора не заслуживает. Всё остальное — наш сбой: сообщение уже ушло,
-    // и связь обязана дожить до финализации.
-    const code = error instanceof TelegramChannelRpcError ? error.failureCode : "";
-    if (code === "P1103" || code === "P1109" || code === "P1111") {
-      return ack("binding_rejected", requestId, {
-        updateId: event.updateId,
-        chatId: event.chatId,
-      });
-    }
-    return retryLater("notice_finalize_failed", requestId, event);
-  }
-
-  return ack("binding_activated", requestId, {
-    updateId: event.updateId,
-    chatId: event.chatId,
-  });
+  // ТОЧНЫЙ идентификатор, вернувшийся из активации. Не «последняя pending».
+  return publishNoticeAndFinalize(
+    {
+      bindingId,
+      noticeVersion: GROUP_NOTICE_VERSION,
+      initiatorExternalUserId: event.senderId,
+    },
+    event,
+    port,
+    bot,
+    requestId,
+  );
 }
 
 export async function POST(request: Request) {
@@ -430,10 +441,6 @@ export async function POST(request: Request) {
   const botInstanceId = credentials.credentials.botInstanceId;
 
   try {
-    if (event.startPayload !== null) {
-      return await handleHandshake(event, port, bot, botInstanceId, requestId);
-    }
-
     if (event.kind === "my_chat_member" && event.botRemoved) {
       // Бота выкинули из группы. Связь приостанавливается, невыполненные
       // уведомления отменяются: слать в чат, где бота нет, — это очередь,
@@ -450,21 +457,47 @@ export async function POST(request: Request) {
     }
 
     if (!isGroupChat(event.chatType)) {
-      // Личная переписка с ботом содержимым проекта не является. Хранить её
-      // значило бы завести вторую истину рядом с проектной.
+      // В личном чате возможно только связывание аккаунта. Всё остальное —
+      // не содержимое проекта: хранить его значило бы завести вторую истину
+      // рядом с проектной.
+      if (event.startPayload !== null) {
+        return await handlePrivateHandshake(event, port, requestId);
+      }
       return ack("ignored_not_group", requestId, {
         updateId: event.updateId,
         chatId: event.chatId,
       });
     }
 
-    // ДО приёма — и это порядок, а не оптимизация. Если у чата есть связь,
-    // ожидающая уведомления, событие тратится на то, чтобы довести её до
-    // конца, и НЕ сохраняется: люди в группе ещё не предупреждены. Только так
-    // «уведомление раньше приёма» (A7 §6) остаётся правдой после сбоя, а не
-    // только в удачном сценарии.
-    const settled = await settleNotice(event, port, bot, botInstanceId, requestId);
-    if (settled !== null) return settled;
+    // ПОРЯДОК ДЛЯ ГРУППЫ — ЧАСТЬ КОНТРАКТА.
+    //
+    // 1. Есть ли у чата связь, ожидающая уведомления. 2. Только если нет —
+    // новый `/start <nonce>`. 3. Только потом приём.
+    //
+    // Обратный порядок и был центральной поломкой: повтор ТОГО ЖЕ `/start`
+    // после сбоя уходил во второй `consume` уже потраченного секрета, получал
+    // отказ и отвечал `200 binding_rejected`. Связь оставалась `notice_pending`
+    // навсегда, а восстановить её было нечем.
+    //
+    // Событие, потраченное на восстановление, НЕ сохраняется: участники группы
+    // ещё не предупреждены (A7 §6).
+    let pending: PendingNoticeBinding | null;
+    try {
+      pending = await port.findPendingNoticeBinding({
+        botInstanceId,
+        chatId: event.chatId,
+      });
+    } catch {
+      return retryLater("notice_lookup_failed", requestId, event);
+    }
+
+    if (pending !== null) {
+      return await publishNoticeAndFinalize(pending, event, port, bot, requestId);
+    }
+
+    if (event.startPayload !== null) {
+      return await handleGroupHandshake(event, port, bot, botInstanceId, requestId);
+    }
 
     const result = await port.ingestChannelUpdate({
       botInstanceId,
