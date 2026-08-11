@@ -15,7 +15,7 @@ Studio,Studio Memory v0,EARLY_FRAGMENT,CODE_REPORTED,pricing/defaults stated,No 
 Studio,Design System,PLANNED,DOC_TARGET,Architecture,Not Sprint 1,Backlog,P2
 Integrations,P0 imports,UNKNOWN,DOC_TARGET,Charter ceiling,Repo proof missing,No implementation Sprint 1,P2
 Integrations,PII-heavy connectors,BLOCKED,OWNER_GATE,152-ФЗ open,Not authorized,Do not build,P3
-Integrations,Telegram chat bridge,PARTIAL,CODE_AND_DB4,TG1/TG2/TG3 proven — schema+RLS+default-deny; webhook+binding+outbox; M3→M4 inbox vertical,TG4 blocked — no bot/group credentials; production BLOCKED pending owner GO,Run TG4 on a real bot and group; then separate OWNER GO for production,P2
+Integrations,Telegram chat bridge,NOT_PROVEN,CODE_AND_DB4,TG0 PASS (A7/DEC-031 signed); schema+RLS+default-deny and DB4 scenarios exist,TG1 REOPENED pending C1 acceptance; TG2 REOPENED; TG3 NOT PROVEN — no create_change and no browser proof; TG4 BLOCKED_EXTERNAL_CREDENTIALS; production disabled; M4 Increment 2 closed,Accept C1; then C2 transport correction; then C3 with real create_change and AP5,P2
 M2,Design workflow,NOT_PROVEN,DOC_TARGET,Charter/catalog,No code proof,Do not build,P2
 M3,Documentation workflow,NOT_PROVEN,DOC_TARGET,Charter/catalog,No code proof,Build per A5,P2
 M4,Execution workflow,NOT_PROVEN,DOC_TARGET,Charter/catalog,Thin P0 in code no UI surface,Build per A6 — INCREMENT 1 ONLY,P2

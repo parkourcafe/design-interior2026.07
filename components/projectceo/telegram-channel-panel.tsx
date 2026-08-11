@@ -20,7 +20,7 @@ import { ru } from "@/lib/i18n/ru";
 
 const strings = ru.telegramBridge;
 
-type BindingStatus = "pending" | "active" | "suspended";
+type BindingStatus = "pending" | "notice_pending" | "active" | "suspended";
 
 interface ChannelState {
   readonly identityLinked: boolean;
@@ -115,11 +115,13 @@ export function TelegramChannelPanel({ projectId }: { readonly projectId: string
   const status = state?.binding?.status;
   const statusLabel = status === "active"
     ? strings.status.active
-    : status === "pending"
-      ? strings.status.pending
-      : status === "suspended"
-        ? strings.status.suspended
-        : strings.status.notConnected;
+    : status === "notice_pending"
+      ? strings.status.noticePending
+      : status === "pending"
+        ? strings.status.pending
+        : status === "suspended"
+          ? strings.status.suspended
+          : strings.status.notConnected;
 
   return (
     <section className="rounded-lg border border-neutral-200 p-4">
@@ -147,6 +149,9 @@ export function TelegramChannelPanel({ projectId }: { readonly projectId: string
         <>
           <p className="mt-3 text-sm font-medium">{statusLabel}</p>
           <p className="mt-1 text-xs text-neutral-500">{strings.hints.oneChat}</p>
+          {status === "notice_pending" ? (
+            <p className="mt-2 text-sm text-amber-700">{strings.status.noticePendingHint}</p>
+          ) : null}
 
           {!state.canManage ? (
             <p className="mt-3 text-sm text-neutral-600">{strings.status.noPermission}</p>
@@ -166,7 +171,8 @@ export function TelegramChannelPanel({ projectId }: { readonly projectId: string
             </div>
           ) : null}
 
-          {state.canManage && state.identityLinked && status !== "active" ? (
+          {state.canManage && state.identityLinked && status !== "active"
+            && status !== "notice_pending" && status !== "pending" ? (
             <div className="mt-3">
               <p className="text-sm text-neutral-600">{strings.hints.connectStep}</p>
               <p className="mt-1 text-xs text-neutral-500">{strings.hints.adminRequired}</p>

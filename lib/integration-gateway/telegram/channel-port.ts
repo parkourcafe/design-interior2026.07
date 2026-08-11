@@ -98,6 +98,20 @@ const claimedNotificationSchema = z.object({
 
 export type ClaimedNotification = z.infer<typeof claimedNotificationSchema>;
 
+const pendingNoticeSchema = z.object({
+  pending: z.boolean(),
+  bindingId: z.string().optional(),
+  noticeVersion: z.string().optional(),
+  initiatorExternalUserId: z.number().nullable().optional(),
+});
+
+export interface PendingNoticeBinding {
+  readonly bindingId: string;
+  readonly noticeVersion: string;
+  /** null — связь личности инициатора отозвана; финализация обязана отказать. */
+  readonly initiatorExternalUserId: number | null;
+}
+
 export interface IngestChannelUpdateInput {
   readonly botInstanceId: string;
   readonly updateId: number;
@@ -170,11 +184,41 @@ export class TelegramSystemPort {
   async markChannelNoticePosted(input: {
     readonly bindingId: string;
     readonly noticeVersion: string;
-  }): Promise<void> {
-    await callChannelRpc(this.client, "mark_channel_notice_posted", {
+    readonly initiatorIsChatAdmin: boolean;
+    readonly botIsChatAdmin: boolean;
+  }): Promise<{ readonly changed: boolean }> {
+    const data = await callChannelRpc(this.client, "mark_channel_notice_posted", {
       binding_id: input.bindingId,
       notice_version: input.noticeVersion,
+      initiator_is_chat_admin: input.initiatorIsChatAdmin,
+      bot_is_chat_admin: input.botIsChatAdmin,
     });
+    const parsed = z.object({ changed: z.boolean() }).safeParse(data);
+    return { changed: parsed.success ? parsed.data.changed : false };
+  }
+
+  /**
+   * Связь этого чата, ожидающая публикации уведомления.
+   *
+   * Существует ровно ради повтора: одноразовый секрет потрачен при создании
+   * связи, и без этой двери зависший `notice_pending` нельзя было бы сдвинуть
+   * ничем, кроме ручной правки базы.
+   */
+  async findPendingNoticeBinding(input: {
+    readonly botInstanceId: string;
+    readonly chatId: number;
+  }): Promise<PendingNoticeBinding | null> {
+    const data = await callChannelRpc(this.client, "find_pending_notice_binding", {
+      bot_instance_id: input.botInstanceId,
+      external_chat_id: input.chatId,
+    });
+    const parsed = pendingNoticeSchema.safeParse(data);
+    if (!parsed.success || !parsed.data.pending) return null;
+    return {
+      bindingId: parsed.data.bindingId ?? "",
+      noticeVersion: parsed.data.noticeVersion ?? "",
+      initiatorExternalUserId: parsed.data.initiatorExternalUserId ?? null,
+    };
   }
 
   async suspendProjectBinding(input: {
@@ -362,7 +406,7 @@ export const projectChannelStateSchema = z.object({
   canManage: z.boolean(),
   binding: z
     .object({
-      status: z.enum(["pending", "active", "suspended"]),
+      status: z.enum(["pending", "notice_pending", "active", "suspended"]),
       chatType: z.string().nullable(),
       activatedAt: z.string().nullable(),
       statusReason: z.string().nullable(),

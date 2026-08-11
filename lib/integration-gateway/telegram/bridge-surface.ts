@@ -84,10 +84,21 @@ export const TELEGRAM_BRIDGE_SURFACE: readonly TelegramBridgeRpc[] = [
   },
   {
     schema: "remhaos_channel_api",
+    name: "find_pending_notice_binding",
+    signature: "remhaos_channel_api.find_pending_notice_binding(text, bigint)",
+    audience: "system",
+    // Существует ради повтора публикации уведомления: одноразовый секрет к
+    // этому моменту потрачен, и без этой двери зависший `notice_pending`
+    // нельзя сдвинуть ничем, кроме ручной правки базы.
+    capability: null,
+  },
+  {
+    schema: "remhaos_channel_api",
     name: "mark_channel_notice_posted",
     // Связь становится активной и приём открывается ТОЛЬКО здесь — после того
     // как участники группы получили уведомление о сборе.
-    signature: "remhaos_channel_api.mark_channel_notice_posted(uuid, text)",
+    signature:
+      "remhaos_channel_api.mark_channel_notice_posted(uuid, text, boolean, boolean)",
     audience: "system",
     capability: null,
   },

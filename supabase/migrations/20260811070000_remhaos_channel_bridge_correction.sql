@@ -130,18 +130,30 @@ alter table remhaos_channel.project_channel_bindings
 alter table remhaos_channel.notification_outbox
   add column lease_token uuid;
 
-alter table remhaos_channel.notification_outbox
-  add constraint notification_outbox_lease_shape_check check (
-    (state = 'sending') = (lease_token is not null)
-  );
-
--- Осиротевшие `sending` из прошлой реализации возвращаются в очередь: они
--- никогда не были бы подобраны заново.
+-- ПОРЯДОК ЗДЕСЬ — НЕ СТИЛЬ. Сначала нормализуются старые строки, и только потом
+-- появляется ограничение.
+--
+-- Первая редакция делала наоборот и была сломана: `lease_token` — новая
+-- колонка, у всех существующих строк она NULL, поэтому на любой уже
+-- существующей строке `state = 'sending'` проверка
+-- `(state = 'sending') = (lease_token is not null)` читается как `true = false`
+-- и миграция падает при применении. На пустой базе DB4 этого не видно — именно
+-- поэтому ниже стоит сценарий, который заводит такую строку заранее.
+--
+-- Осиротевшие `sending` из прошлой реализации возвращаются в очередь: аренды у
+-- них нет и никогда не было, подобрать их заново было бы некому.
 update remhaos_channel.notification_outbox
 set state = 'retry',
     lease_expires_at = null,
     next_attempt_at = statement_timestamp()
 where state = 'sending';
+
+-- Ограничение добавляется валидируемым: к этому моменту нарушать его нечем, и
+-- `not valid` только спрятал бы будущую поломку за отложенной проверкой.
+alter table remhaos_channel.notification_outbox
+  add constraint notification_outbox_lease_shape_check check (
+    (state = 'sending') = (lease_token is not null)
+  );
 
 -- Индекс должен покрывать и `sending`: иначе возврат протухшей аренды идёт
 -- сканом.
@@ -317,7 +329,9 @@ $function$;
 -- созданием связи и словами в чате может пройти и минута, и никогда.
 create function remhaos_channel_api.mark_channel_notice_posted(
   binding_id uuid,
-  notice_version text
+  notice_version text,
+  initiator_is_chat_admin boolean,
+  bot_is_chat_admin boolean
 )
 returns jsonb
 language plpgsql
@@ -326,8 +340,124 @@ set search_path = ''
 as $function$
 #variable_conflict use_variable
 declare
-  v_status text;
+  v_binding record;
+  v_external_user_id bigint;
+  v_linked_user uuid;
 begin
+  -- ПОЧЕМУ ЗДЕСЬ ПОВТОРЯЕТСЯ ВСЁ, ЧТО УЖЕ ПРОВЕРЯЛА АКТИВАЦИЯ.
+  --
+  -- Между созданием `notice_pending` и этим вызовом проходит настоящее время:
+  -- сеть, ответ Telegram, иногда — повторная попытка через сутки. За это время
+  -- человека могли исключить из проекта, отобрать право, понизить в группе;
+  -- бота могли разжаловать; чат могли отдать другому проекту. Функция, которая
+  -- в этот момент только меняет статус, открывает приём чужой переписки по
+  -- правам, которых уже нет. Первая редакция делала ровно это.
+  --
+  -- Сериализация по ЧАТУ, а не по связи: конкурируют между собой именно связи
+  -- разных ботов в одном чате, и блокировка строки каждой из них их не развела
+  -- бы. Advisory-блокировка транзакционная — снимается сама.
+  perform pg_catalog.pg_advisory_xact_lock(
+    pg_catalog.hashtextextended(
+      'remhaos_channel:chat:' || (
+        select b.external_chat_id::text
+        from remhaos_channel.project_channel_bindings b
+        where b.binding_id = binding_id
+      ), 0
+    )
+  );
+
+  select * into v_binding
+  from remhaos_channel.project_channel_bindings b
+  where b.binding_id = binding_id
+  for update;
+
+  if not found then
+    perform projectceo_foundation._raise(
+      'P1104', 'not_found', '{"entity":"channelBinding"}'::jsonb
+    );
+  end if;
+
+  -- Повтор по уже активной связи — не ошибка: сообщение могло уйти дважды, а
+  -- финализация — потеряться после успешной отправки. Идемпотентность здесь
+  -- обязательна, иначе восстановление после потерянного ответа невозможно.
+  if v_binding.status = 'active' then
+    return remhaos_channel._envelope(jsonb_build_object(
+      'bindingId', binding_id, 'status', 'active', 'changed', false
+    ));
+  end if;
+
+  if v_binding.status <> 'notice_pending' then
+    -- Отозванная или приостановленная связь приёма не открывает никогда.
+    perform projectceo_foundation._raise(
+      'P1109', 'scope_conflict', '{"reason":"BINDING_NOT_PENDING"}'::jsonb
+    );
+  end if;
+
+  if coalesce(initiator_is_chat_admin, false) is not true then
+    perform projectceo_foundation._raise(
+      'P1103', 'forbidden', '{"reason":"INITIATOR_NOT_CHAT_ADMIN"}'::jsonb
+    );
+  end if;
+  if coalesce(bot_is_chat_admin, false) is not true then
+    perform projectceo_foundation._raise(
+      'P1103', 'forbidden', '{"reason":"BOT_NOT_CHAT_ADMIN"}'::jsonb
+    );
+  end if;
+
+  -- Связь личности инициатора: она могла быть отозвана после создания связи.
+  select cil.external_user_id, cil.user_id
+  into v_external_user_id, v_linked_user
+  from remhaos_channel.channel_identity_links cil
+  where cil.provider = 'telegram'
+    and cil.user_id = v_binding.initiated_by_user_id
+    and cil.revoked_at is null;
+
+  if v_linked_user is null then
+    perform projectceo_foundation._raise(
+      'P1103', 'forbidden', '{"reason":"TELEGRAM_IDENTITY_NOT_LINKED"}'::jsonb
+    );
+  end if;
+  if v_external_user_id is null or v_external_user_id <= 0 then
+    perform projectceo_foundation._raise(
+      'P1111', 'validation_failed', '{"field":"externalUserId"}'::jsonb
+    );
+  end if;
+
+  if not exists (
+    select 1
+    from projectceo_foundation.project_memberships pm
+    join projectceo_foundation.project_member_capabilities pc
+      on pc.organization_id = pm.organization_id
+     and pc.project_id = pm.project_id
+     and pc.user_id = pm.user_id
+     and pc.capability = 'manage_project_integrations'
+    where pm.organization_id = v_binding.organization_id
+      and pm.project_id = v_binding.project_id
+      and pm.user_id = v_linked_user
+      and pm.status = 'active'
+  ) then
+    perform projectceo_foundation._raise(
+      'P1103', 'forbidden', '{"reason":"PROJECT_CAPABILITY_REQUIRED"}'::jsonb
+    );
+  end if;
+
+  -- Чат мог достаться другому проекту, пока это уведомление публиковалось.
+  -- Проверка явная: частичный уникальный индекс поймал бы это и сам, но
+  -- `unique_violation` не отличает «занят» от «гонка», а вызывающему нужно
+  -- знать именно первое.
+  if exists (
+    select 1
+    from remhaos_channel.project_channel_bindings other
+    where other.provider = 'telegram'
+      and other.external_chat_id = v_binding.external_chat_id
+      and other.status = 'active'
+      and other.binding_id <> binding_id
+  ) then
+    perform projectceo_foundation._raise(
+      'P1109', 'scope_conflict', '{"reason":"CHANNEL_ALREADY_BOUND"}'::jsonb
+    );
+  end if;
+
   update remhaos_channel.project_channel_bindings b
   set status = 'active',
     capture_state = 'full_after_notice',
@@ -335,28 +465,68 @@ begin
     notice_version = coalesce(nullif(btrim(notice_version), ''), b.notice_version),
     activated_at = statement_timestamp(),
     status_changed_at = statement_timestamp()
-  where b.binding_id = binding_id
-    and b.status = 'notice_pending'
-  returning b.status into v_status;
-
-  if v_status is null then
-    -- Повторная публикация по уже активной связи — не ошибка: сообщение могло
-    -- уйти дважды. Ошибкой было бы открыть приём у отозванной связи.
-    if exists (
-      select 1 from remhaos_channel.project_channel_bindings b
-      where b.binding_id = binding_id and b.status = 'active'
-    ) then
-      return remhaos_channel._envelope(jsonb_build_object(
-        'bindingId', binding_id, 'status', 'active', 'changed', false
-      ));
-    end if;
-    perform projectceo_foundation._raise(
-      'P1104', 'not_found', '{"entity":"channelBinding"}'::jsonb
-    );
-  end if;
+  where b.binding_id = binding_id;
 
   return remhaos_channel._envelope(jsonb_build_object(
     'bindingId', binding_id, 'status', 'active', 'changed', true
+  ));
+exception
+  when unique_violation then
+    -- Последний рубеж. Дойти сюда можно только гонкой, которую не развела
+    -- advisory-блокировка; ответ обязан быть тем же осмысленным конфликтом.
+    perform projectceo_foundation._raise(
+      'P1109', 'scope_conflict', '{"reason":"CHANNEL_ALREADY_BOUND"}'::jsonb
+    );
+    return null;
+end
+$function$;
+
+-- Поиск связи, ожидающей публикации уведомления, по чату и боту.
+--
+-- Нужна ровно затем, чтобы повтор НЕ требовал исходного одноразового секрета:
+-- он потрачен при создании связи, и без этой двери зависший `notice_pending`
+-- нельзя было бы восстановить ничем, кроме ручного вмешательства в базу.
+create function remhaos_channel_api.find_pending_notice_binding(
+  bot_instance_id text,
+  external_chat_id bigint
+)
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $function$
+#variable_conflict use_variable
+declare
+  v_binding record;
+begin
+  -- Идентификатор инициатора в Telegram отдаётся транспорту намеренно: без
+  -- него повтор не может спросить у Telegram, остался ли инициатор
+  -- администратором группы, а `mark_channel_notice_posted` требует этот факт
+  -- обязательным аргументом. Наружу к человеку он не уходит: дверь системная.
+  select b.binding_id, b.notice_version, cil.external_user_id as initiator_external_id
+  into v_binding
+  from remhaos_channel.project_channel_bindings b
+  left join remhaos_channel.channel_identity_links cil
+    on cil.provider = 'telegram'
+   and cil.user_id = b.initiated_by_user_id
+   and cil.revoked_at is null
+  where b.provider = 'telegram'
+    and b.bot_instance_id = bot_instance_id
+    and b.external_chat_id = external_chat_id
+    and b.status = 'notice_pending'
+  order by b.created_at desc
+  limit 1;
+
+  if not found then
+    return remhaos_channel._envelope(jsonb_build_object('pending', false));
+  end if;
+
+  return remhaos_channel._envelope(jsonb_build_object(
+    'pending', true,
+    'bindingId', v_binding.binding_id,
+    'noticeVersion', v_binding.notice_version,
+    'initiatorExternalUserId', v_binding.initiator_external_id
   ));
 end
 $function$;
@@ -687,10 +857,15 @@ begin
   where o.notification_id = notification_id
     and o.state = 'sending'
     and o.lease_token = lease_token
+    -- Третье условие обязательно. Совпадения токена мало: аренда могла
+    -- истечь, работу мог забрать другой воркер и уже отправить своё
+    -- сообщение. Завершение по протухшей аренде затирало бы чужой результат
+    -- — это и есть тот случай, ради которого fencing существует.
+    and o.lease_expires_at > statement_timestamp()
   returning o.state into v_state;
 
-  -- Не изменилось — значит либо уже отправлено, либо отменено, либо аренду
-  -- забрал другой. Все три исхода для воркера одинаковы: делать нечего.
+  -- Не изменилось — значит либо уже отправлено, либо отменено, либо аренда
+  -- истекла и её забрал другой. Все исходы для воркера одинаковы: делать нечего.
   return remhaos_channel._envelope(jsonb_build_object(
     'notificationId', notification_id,
     'changed', v_state is not null
@@ -719,7 +894,10 @@ begin
   from remhaos_channel.notification_outbox o
   where o.notification_id = notification_id
     and o.state = 'sending'
-    and o.lease_token = lease_token;
+    and o.lease_token = lease_token
+    -- Та же тройка, что и в `mark_notification_sent`: истёкшая аренда больше
+    -- не даёт права записывать исход.
+    and o.lease_expires_at > statement_timestamp();
 
   if v_attempt is null then
     -- Отменённое уведомление сюда не попадает и воскреснуть не может: `cancelled`
@@ -740,7 +918,10 @@ begin
       + make_interval(secs => greatest(coalesce(retry_after_seconds, 30), 1))
   where o.notification_id = notification_id
     and o.state = 'sending'
-    and o.lease_token = lease_token;
+    and o.lease_token = lease_token
+    -- Та же тройка, что и в `mark_notification_sent`: истёкшая аренда больше
+    -- не даёт права записывать исход.
+    and o.lease_expires_at > statement_timestamp();
   v_changed := found;
 
   return remhaos_channel._envelope(jsonb_build_object(
@@ -864,7 +1045,8 @@ declare
 begin
   foreach v_signature in array array[
     'remhaos_channel_api.activate_project_binding(bytea, bigint, text, bigint, text, text, boolean, boolean)',
-    'remhaos_channel_api.mark_channel_notice_posted(uuid, text)',
+    'remhaos_channel_api.mark_channel_notice_posted(uuid, text, boolean, boolean)',
+    'remhaos_channel_api.find_pending_notice_binding(text, bigint)',
     'remhaos_channel_api.consume_identity_link_intent(bytea, bigint)',
     'remhaos_channel_api.ingest_channel_update(text, bigint, bigint, bigint, text, bigint, timestamptz, bigint, text, jsonb)',
     'remhaos_channel_api.claim_notification_batch(integer, integer)',
@@ -889,7 +1071,8 @@ begin
   select signature into v_leaked
   from unnest(array[
     'remhaos_channel_api.activate_project_binding(bytea, bigint, text, bigint, text, text, boolean, boolean)',
-    'remhaos_channel_api.mark_channel_notice_posted(uuid, text)',
+    'remhaos_channel_api.mark_channel_notice_posted(uuid, text, boolean, boolean)',
+    'remhaos_channel_api.find_pending_notice_binding(text, bigint)',
     'remhaos_channel_api.consume_identity_link_intent(bytea, bigint)',
     'remhaos_channel_api.ingest_channel_update(text, bigint, bigint, bigint, text, bigint, timestamptz, bigint, text, jsonb)',
     'remhaos_channel_api.claim_notification_batch(integer, integer)',

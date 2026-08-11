@@ -412,4 +412,177 @@ fi
 
 print -r -- "DB4_RELEASE_ARTIFACT_WORKER_OK"
 
+# ---------------------------------------------------------------------------
+# Telegram Chat Bridge: настоящие гонки (CORRECTIVE C1, блокер 4)
+# ---------------------------------------------------------------------------
+#
+# Три последовательные правки конкурентностью не являются: они проходят по
+# одной, и блокировка ревизии на них не нагружается вовсе. Ниже — параллельные
+# процессы, каждый в своей сессии.
+
+tg_owner=31111111-1111-4111-8111-111111111111
+tg_project_e=45555555-5555-4555-8555-555555555555
+tg_project_f=46666666-6666-4666-8666-666666666666
+
+psql_exec db4-tg-race-setup "
+  insert into public.projects (id, designer_id, client_name, status, intake_token)
+  values
+    ('${tg_project_e}','${tg_owner}','Race E','active_project','db4-tg-race-e'),
+    ('${tg_project_f}','${tg_owner}','Race F','active_project','db4-tg-race-f');
+" >/dev/null
+
+for proj in "${tg_project_e}" "${tg_project_f}"; do
+  psql_exec db4-tg-race-enroll "
+    begin;
+    set local role authenticated;
+    set local request.jwt.claim.sub = '${tg_owner}';
+    select projectceo_api.enroll_organization_project('${proj}', 'db4-tg-enroll-${proj}');
+    commit;
+  " >/dev/null
+done
+
+# --- Гонка 1: два бота доводят СВОИ связи в ОДНОМ чате до активной ----------
+#
+# Частичный уникальный индекс покрывает только `active`, поэтому два
+# `notice_pending` в одном чате сосуществуют законно. Победить обязан ровно
+# один, и проигравший обязан получить осмысленный конфликт, а не
+# `unique_violation`.
+race_chat=-100900
+for pair in "${tg_project_e}:bot-alpha:race-nonce-e" "${tg_project_f}:bot-beta:race-nonce-f"; do
+  proj=${pair%%:*}; rest=${pair#*:}; botid=${rest%%:*}; nonce=${rest#*:}
+  psql_exec db4-tg-race-intent "
+    begin;
+    set local role authenticated;
+    set local request.jwt.claim.sub = '${tg_owner}';
+    select remhaos_channel_api.create_binding_intent(
+      '${proj}', pg_catalog.sha256(convert_to('${nonce}', 'UTF8')), 600);
+    commit;
+    begin;
+    set local role service_role;
+    select remhaos_channel_api.activate_project_binding(
+      pg_catalog.sha256(convert_to('${nonce}', 'UTF8')),
+      777001, '${botid}', ${race_chat}, 'supergroup', 'notice-v1', true, true);
+    commit;
+  " >/dev/null
+done
+
+binding_e=$(psql_exec db4-tg-race-binding-e "
+  select binding_id from remhaos_channel.project_channel_bindings
+  where project_id='${tg_project_e}' and status='notice_pending'")
+binding_f=$(psql_exec db4-tg-race-binding-f "
+  select binding_id from remhaos_channel.project_channel_bindings
+  where project_id='${tg_project_f}' and status='notice_pending'")
+
+notice_call() {
+  print -r -- "begin;
+set local role service_role;
+select remhaos_channel_api.mark_channel_notice_posted('$1'::uuid,'notice-v1',true,true);
+commit;"
+}
+
+set +e
+psql_exec db4-tg-notice-e "$(notice_call "${binding_e}")" >"${tmpdir}/tg-notice-e.out" 2>&1 &
+tg_pid_e=$!
+psql_exec db4-tg-notice-f "$(notice_call "${binding_f}")" >"${tmpdir}/tg-notice-f.out" 2>&1 &
+tg_pid_f=$!
+wait "${tg_pid_e}"; tg_status_e=$?
+wait "${tg_pid_f}"; tg_status_f=$?
+set -e
+
+if [[ $(( tg_status_e + tg_status_f )) == 0 ]] \
+  || [[ "${tg_status_e}" != "0" && "${tg_status_f}" != "0" ]]; then
+  print -u2 -r -- "Telegram cross-bot notice race did not select exactly one winner"
+  sed -n '1,80p' "${tmpdir}/tg-notice-e.out" >&2
+  sed -n '1,80p' "${tmpdir}/tg-notice-f.out" >&2
+  exit 1
+fi
+
+# Проигравший обязан отказать ОСМЫСЛЕННО. `unique_violation` наружу означал бы,
+# что дверь полагается на индекс вместо собственной проверки.
+if ! rg -q 'scope_conflict|CHANNEL_ALREADY_BOUND' \
+     "${tmpdir}/tg-notice-e.out" "${tmpdir}/tg-notice-f.out"; then
+  print -u2 -r -- "Telegram cross-bot notice race loser did not fail with a controlled conflict"
+  sed -n '1,80p' "${tmpdir}/tg-notice-e.out" >&2
+  sed -n '1,80p' "${tmpdir}/tg-notice-f.out" >&2
+  exit 1
+fi
+
+tg_race_result=$(psql_exec db4-tg-race-assert "
+  select count(*)::text
+  from remhaos_channel.project_channel_bindings
+  where external_chat_id=${race_chat} and status='active'")
+if [[ "${tg_race_result}" != "1" ]]; then
+  print -u2 -r -- "Telegram cross-bot race left ${tg_race_result} active bindings"
+  exit 1
+fi
+
+# --- Гонка 2: параллельные правки одного сообщения ---------------------------
+#
+# Ревизия считалась через `max(...)+1` без блокировки: под нагрузкой правки
+# получали один номер и терялись, а вызов отвечал «сохранено».
+winner_project=$(psql_exec db4-tg-race-winner "
+  select project_id from remhaos_channel.project_channel_bindings
+  where external_chat_id=${race_chat} and status='active'")
+winner_bot=$(psql_exec db4-tg-race-winner-bot "
+  select bot_instance_id from remhaos_channel.project_channel_bindings
+  where external_chat_id=${race_chat} and status='active'")
+
+psql_exec db4-tg-edit-seed "
+  begin;
+  set local role service_role;
+  select remhaos_channel_api.ingest_channel_update(
+    '${winner_bot}', 90000, ${race_chat}, 4242, 'message', 777001, null, null, null,
+    '{\"kind\":\"message\",\"text\":\"исходное\",\"attachmentCount\":0}'::jsonb);
+  commit;" >/dev/null
+
+set +e
+tg_edit_pids=()
+for i in 1 2 3 4; do
+  psql_exec "db4-tg-edit-${i}" "begin;
+set local role service_role;
+select remhaos_channel_api.ingest_channel_update(
+  '${winner_bot}', $(( 90000 + i )), ${race_chat}, 4242, 'edited_message', 777001,
+  null, null, null,
+  '{\"kind\":\"edited_message\",\"text\":\"правка ${i}\",\"attachmentCount\":0}'::jsonb);
+commit;" >"${tmpdir}/tg-edit-${i}.out" 2>&1 &
+  tg_edit_pids+=($!)
+done
+tg_edit_failures=0
+for pid in "${tg_edit_pids[@]}"; do
+  wait "${pid}" || tg_edit_failures=$(( tg_edit_failures + 1 ))
+done
+set -e
+
+if [[ "${tg_edit_failures}" != "0" ]]; then
+  print -u2 -r -- "Concurrent telegram edits failed: ${tg_edit_failures}"
+  sed -n '1,60p' "${tmpdir}"/tg-edit-*.out >&2
+  exit 1
+fi
+
+# Пять ревизий: исходная и четыре правки. Номера последовательные и различные —
+# ни одна правка не переписала предыдущую и ни одна не потерялась.
+tg_edit_result=$(psql_exec db4-tg-edit-assert "
+  select count(*)::text
+    || '|' || count(distinct source_revision)::text
+    || '|' || min(source_revision)::text
+    || '|' || max(source_revision)::text
+    || '|' || count(distinct payload->>'text')::text
+  from remhaos_channel.channel_events
+  where external_chat_id=${race_chat} and external_message_id=4242")
+if [[ "${tg_edit_result}" != "5|5|1|5|5" ]]; then
+  print -u2 -r -- "Concurrent telegram edits persisted invalid revisions: ${tg_edit_result}"
+  exit 1
+fi
+
+# Очередь этих проектов оставляем терминальной: claim глобален, и брошенная
+# работа увела бы следующий сценарий на чужую строку.
+psql_exec db4-tg-race-cleanup "
+  update remhaos_channel.notification_outbox
+  set state='cancelled', failure_code='db4_fixture_cleanup',
+      lease_token=null, lease_expires_at=null
+  where project_id in ('${tg_project_e}','${tg_project_f}')
+    and state in ('pending','retry','sending');" >/dev/null
+
+print -r -- "DB4_TELEGRAM_BRIDGE_CONCURRENCY_OK"
+
 print -r -- "DB4_CONCURRENCY_OK"

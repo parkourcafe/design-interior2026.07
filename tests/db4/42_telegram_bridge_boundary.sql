@@ -51,7 +51,8 @@ begin
   from unnest(array[
     'remhaos_channel_api.ingest_channel_update(text, bigint, bigint, bigint, text, bigint, timestamptz, bigint, text, jsonb)',
     'remhaos_channel_api.activate_project_binding(bytea, bigint, text, bigint, text, text, boolean, boolean)',
-    'remhaos_channel_api.mark_channel_notice_posted(uuid, text)',
+    'remhaos_channel_api.mark_channel_notice_posted(uuid, text, boolean, boolean)',
+    'remhaos_channel_api.find_pending_notice_binding(text, bigint)',
     'remhaos_channel_api.consume_identity_link_intent(bytea, bigint)',
     'remhaos_channel_api.enqueue_notification(uuid, text, text, text, jsonb, text)',
     'remhaos_channel_api.claim_notification_batch(integer, integer)',
@@ -362,7 +363,7 @@ $nothing_stored_before_notice$;
 begin;
 set local role service_role;
 select remhaos_channel_api.mark_channel_notice_posted(
-  :'db4_binding_100500'::uuid, 'notice-v1'
+  :'db4_binding_100500'::uuid, 'notice-v1', true, true
 );
 commit;
 
@@ -643,5 +644,385 @@ begin
   end if;
 end
 $ingest_after_disconnect$;
+
+-- ─────────────────────────────────────────────────────────────────────────────
+-- 7. Финальная активация перепроверяет права заново (CORRECTIVE C1, блокер 2)
+-- ─────────────────────────────────────────────────────────────────────────────
+--
+-- Между созданием `notice_pending` и публикацией уведомления проходит реальное
+-- время. Функция, которая в этот момент только меняет статус, открывает приём
+-- чужой переписки по правам, которых уже нет.
+
+-- Отдельный проект и отдельный чат, чтобы не мешать прошлым разделам.
+insert into public.projects (id, designer_id, client_name, status, intake_token)
+values (
+  '44444444-4444-4444-8444-444444444444',
+  '31111111-1111-4111-8111-111111111111',
+  'Foundation D', 'active_project', 'db4-tg-foundation-d'
+);
+
+begin;
+set local role authenticated;
+set local request.jwt.claim.sub = '31111111-1111-4111-8111-111111111111';
+select projectceo_api.enroll_organization_project(
+  '44444444-4444-4444-8444-444444444444', 'db4-tg-enroll-d'
+);
+select remhaos_channel_api.create_binding_intent(
+  '44444444-4444-4444-8444-444444444444',
+  pg_catalog.sha256(convert_to('db4-notice-recheck', 'UTF8')),
+  600
+);
+commit;
+
+begin;
+set local role service_role;
+select remhaos_channel_api.activate_project_binding(
+  pg_catalog.sha256(convert_to('db4-notice-recheck', 'UTF8')),
+  777001, 'db4-bot', -100700, 'supergroup', 'notice-v1', true, true
+);
+commit;
+
+-- Идентификатор кладётся в GUC, а не в psql-переменную: `:'var'` не
+-- подставляется внутри dollar-quoted блоков, и первая редакция на этом упала.
+select set_config(
+  'projectceo.db4_binding_100700',
+  (select b.binding_id::text
+   from remhaos_channel.project_channel_bindings b
+   where b.external_chat_id = -100700 and b.status = 'notice_pending'),
+  false
+);
+
+-- Инициатора понизили в группе, пока уведомление публиковалось.
+begin;
+set local role service_role;
+do $notice_initiator_demoted$
+begin
+  begin
+    perform remhaos_channel_api.mark_channel_notice_posted(
+      current_setting('projectceo.db4_binding_100700')::uuid, 'notice-v1', false, true
+    );
+    raise exception 'DB4_TG_NOTICE_ACCEPTED_DEMOTED_INITIATOR';
+  exception when sqlstate 'P1103' then null;
+  end;
+end
+$notice_initiator_demoted$;
+rollback;
+
+-- Бота разжаловали: он больше не увидит переписку, и приём открывать нельзя.
+begin;
+set local role service_role;
+do $notice_bot_demoted$
+begin
+  begin
+    perform remhaos_channel_api.mark_channel_notice_posted(
+      current_setting('projectceo.db4_binding_100700')::uuid, 'notice-v1', true, false
+    );
+    raise exception 'DB4_TG_NOTICE_ACCEPTED_DEMOTED_BOT';
+  exception when sqlstate 'P1103' then null;
+  end;
+end
+$notice_bot_demoted$;
+rollback;
+
+-- Право отобрали между рукопожатием и уведомлением.
+do $revoke_capability$
+begin
+  delete from projectceo_foundation.project_member_capabilities
+  where project_id = '44444444-4444-4444-8444-444444444444'
+    and user_id = '31111111-1111-4111-8111-111111111111'
+    and capability = 'manage_project_integrations';
+end
+$revoke_capability$;
+
+begin;
+set local role service_role;
+do $notice_capability_revoked$
+begin
+  begin
+    perform remhaos_channel_api.mark_channel_notice_posted(
+      current_setting('projectceo.db4_binding_100700')::uuid, 'notice-v1', true, true
+    );
+    raise exception 'DB4_TG_NOTICE_ACCEPTED_WITHOUT_CAPABILITY';
+  exception when sqlstate 'P1103' then null;
+  end;
+end
+$notice_capability_revoked$;
+rollback;
+
+do $restore_capability$
+begin
+  insert into projectceo_foundation.project_member_capabilities (
+    organization_id, project_id, user_id, capability
+  )
+  select pm.organization_id, pm.project_id, pm.user_id, 'manage_project_integrations'
+  from projectceo_foundation.project_memberships pm
+  where pm.project_id = '44444444-4444-4444-8444-444444444444'
+    and pm.user_id = '31111111-1111-4111-8111-111111111111'
+  on conflict do nothing;
+end
+$restore_capability$;
+
+-- Приём закрыт всё это время: ни одно сообщение не сохранено.
+begin;
+set local role service_role;
+select remhaos_channel_api.ingest_channel_update(
+  'db4-bot', 7001, -100700, 1, 'message', 777001, null, null, null,
+  '{"kind":"message","text":"до уведомления","attachmentCount":0}'::jsonb
+);
+commit;
+
+do $no_capture_before_notice$
+begin
+  if exists (select 1 from remhaos_channel.channel_events where update_id = 7001) then
+    raise exception 'DB4_TG_CAPTURED_BEFORE_NOTICE';
+  end if;
+end
+$no_capture_before_notice$;
+
+-- Права на месте, оба администратора — связь становится активной.
+begin;
+set local role service_role;
+select remhaos_channel_api.mark_channel_notice_posted(
+  current_setting('projectceo.db4_binding_100700')::uuid, 'notice-v1', true, true
+);
+commit;
+
+-- Повторная финализация безопасна: успешная отправка с потерянным ответом базы
+-- обязана восстанавливаться, а не оставлять связь мёртвой.
+begin;
+set local role service_role;
+select set_config(
+  'projectceo.db4_tg_renotice',
+  remhaos_channel_api.mark_channel_notice_posted(
+    current_setting('projectceo.db4_binding_100700')::uuid, 'notice-v1', true, true
+  ) -> 'data' ->> 'changed',
+  false
+);
+commit;
+
+do $notice_idempotent$
+begin
+  if current_setting('projectceo.db4_tg_renotice') <> 'false' then
+    raise exception 'DB4_TG_NOTICE_NOT_IDEMPOTENT:%',
+      current_setting('projectceo.db4_tg_renotice');
+  end if;
+  if not exists (
+    select 1 from remhaos_channel.project_channel_bindings
+    where binding_id = current_setting('projectceo.db4_binding_100700')::uuid
+      and status = 'active' and capture_state = 'full_after_notice'
+  ) then
+    raise exception 'DB4_TG_NOTICE_DID_NOT_OPEN_CAPTURE';
+  end if;
+end
+$notice_idempotent$;
+
+-- Поиск ожидающей связи без исходного секрета: то, на чём держится повтор.
+do $pending_lookup$
+declare
+  v_found jsonb;
+begin
+  v_found := remhaos_channel_api.find_pending_notice_binding('db4-bot', -100700) -> 'data';
+  if (v_found ->> 'pending') <> 'false' then
+    raise exception 'DB4_TG_PENDING_LOOKUP_STILL_PENDING';
+  end if;
+end
+$pending_lookup$;
+
+-- ─────────────────────────────────────────────────────────────────────────────
+-- 8. Аренда очереди: завершение только по живой аренде (CORRECTIVE C1, блокер 3)
+-- ─────────────────────────────────────────────────────────────────────────────
+
+begin;
+set local role service_role;
+select remhaos_channel_api.enqueue_notification(
+  '44444444-4444-4444-8444-444444444444',
+  'release_distributed', 'db4-lease-1', 'telegram-notice/1',
+  '{"kind":"release_distributed","projectId":"44444444-4444-4444-8444-444444444444"}'::jsonb,
+  'release_distributed:db4-lease-1'
+);
+commit;
+
+begin;
+set local role service_role;
+-- И токен, и идентификатор берутся ИЗ ОТВЕТА захвата: приватная схема
+-- `service_role` недоступна, и настоящий воркер читает их ровно отсюда.
+select set_config(
+  'projectceo.db4_tg_claim',
+  remhaos_channel_api.claim_notification_batch(10, 60) -> 'data' -> 0 #>> '{}',
+  false
+);
+commit;
+
+select set_config(
+  'projectceo.db4_tg_lease',
+  current_setting('projectceo.db4_tg_claim')::jsonb ->> 'leaseToken',
+  false
+);
+select set_config(
+  'projectceo.db4_tg_notif',
+  current_setting('projectceo.db4_tg_claim')::jsonb ->> 'notificationId',
+  false
+);
+
+-- Аренда истекла, но строку ещё никто не забрал: завершение обязано отказать.
+do $expire_lease$
+begin
+  update remhaos_channel.notification_outbox
+  set lease_expires_at = statement_timestamp() - interval '1 minute'
+  where notification_id = current_setting('projectceo.db4_tg_notif')::uuid;
+end
+$expire_lease$;
+
+begin;
+set local role service_role;
+select set_config(
+  'projectceo.db4_tg_expired_complete',
+  remhaos_channel_api.mark_notification_sent(
+    current_setting('projectceo.db4_tg_notif')::uuid,
+    current_setting('projectceo.db4_tg_lease')::uuid,
+    999
+  ) -> 'data' ->> 'changed',
+  false
+);
+commit;
+
+do $expired_completion_refused$
+begin
+  if current_setting('projectceo.db4_tg_expired_complete') <> 'false' then
+    raise exception 'DB4_TG_EXPIRED_LEASE_COMPLETED';
+  end if;
+  if exists (
+    select 1 from remhaos_channel.notification_outbox
+    where notification_id = current_setting('projectceo.db4_tg_notif')::uuid
+      and state = 'sent'
+  ) then
+    raise exception 'DB4_TG_EXPIRED_LEASE_MARKED_SENT';
+  end if;
+end
+$expired_completion_refused$;
+
+-- Перезахват выдаёт НОВЫЙ токен, и старый воркер с ним больше ничего не может.
+begin;
+set local role service_role;
+select set_config(
+  'projectceo.db4_tg_lease2',
+  (remhaos_channel_api.claim_notification_batch(10, 60) -> 'data' -> 0 ->> 'leaseToken'),
+  false
+);
+commit;
+
+do $reclaim_new_token$
+begin
+  if current_setting('projectceo.db4_tg_lease2') is null
+     or current_setting('projectceo.db4_tg_lease2') = '' then
+    raise exception 'DB4_TG_STALE_LEASE_NOT_RECLAIMED';
+  end if;
+  if current_setting('projectceo.db4_tg_lease2')
+     = current_setting('projectceo.db4_tg_lease') then
+    raise exception 'DB4_TG_RECLAIM_REUSED_FENCING_TOKEN';
+  end if;
+end
+$reclaim_new_token$;
+
+-- Устаревший воркер возвращается со старым токеном — и не меняет ничего.
+begin;
+set local role service_role;
+select set_config(
+  'projectceo.db4_tg_stale_complete',
+  remhaos_channel_api.mark_notification_sent(
+    current_setting('projectceo.db4_tg_notif')::uuid,
+    current_setting('projectceo.db4_tg_lease')::uuid,
+    998
+  ) -> 'data' ->> 'changed',
+  false
+);
+commit;
+
+do $stale_worker_refused$
+begin
+  if current_setting('projectceo.db4_tg_stale_complete') <> 'false' then
+    raise exception 'DB4_TG_STALE_WORKER_COMPLETED';
+  end if;
+end
+$stale_worker_refused$;
+
+-- `cancelled` терминально: отменённое уведомление не воскрешается завершением.
+do $cancel_row$
+begin
+  update remhaos_channel.notification_outbox
+  set state = 'cancelled', failure_code = 'binding_revoked',
+      lease_token = null, lease_expires_at = null
+  where notification_id = current_setting('projectceo.db4_tg_notif')::uuid;
+end
+$cancel_row$;
+
+begin;
+set local role service_role;
+select remhaos_channel_api.mark_notification_sent(
+  current_setting('projectceo.db4_tg_notif')::uuid,
+  current_setting('projectceo.db4_tg_lease2')::uuid,
+  997
+);
+commit;
+
+do $cancelled_terminal$
+begin
+  if not exists (
+    select 1 from remhaos_channel.notification_outbox
+    where notification_id = current_setting('projectceo.db4_tg_notif')::uuid
+      and state = 'cancelled'
+  ) then
+    raise exception 'DB4_TG_CANCELLED_RESURRECTED';
+  end if;
+end
+$cancelled_terminal$;
+
+-- ─────────────────────────────────────────────────────────────────────────────
+-- 9. Порядок в миграции аренды: сначала нормализация, потом ограничение
+-- ─────────────────────────────────────────────────────────────────────────────
+--
+-- DB4 применяет миграции к ПУСТОЙ базе, поэтому неверный порядок в
+-- `20260811070000` там не воспроизводился. Здесь строка `sending` заводится
+-- заранее, и последовательность миграции проигрывается заново на ней.
+do $lease_migration_order$
+begin
+  alter table remhaos_channel.notification_outbox
+    drop constraint notification_outbox_lease_shape_check;
+
+  update remhaos_channel.notification_outbox
+  set state = 'sending', lease_token = null,
+      lease_expires_at = statement_timestamp() + interval '1 minute'
+  where notification_id = current_setting('projectceo.db4_tg_notif')::uuid;
+
+  -- Порядок миграции: нормализация, затем валидируемое ограничение.
+  update remhaos_channel.notification_outbox
+  set state = 'retry', lease_expires_at = null,
+      next_attempt_at = statement_timestamp()
+  where state = 'sending';
+
+  alter table remhaos_channel.notification_outbox
+    add constraint notification_outbox_lease_shape_check check (
+      (state = 'sending') = (lease_token is not null)
+    );
+exception
+  when check_violation then
+    raise exception 'DB4_TG_LEASE_MIGRATION_ORDER_BROKEN';
+end
+$lease_migration_order$;
+
+-- Очередь после этого сценария обязана быть ТЕРМИНАЛЬНОЙ.
+--
+-- Оставленная в `retry` запись claim'ится глобально, и следующий сценарий
+-- подбирает чужую работу вместо своей. Первая редакция так и сделала: сценарий
+-- 44 захватил уведомление этого проекта и упал на своей же проверке отзыва.
+do $leave_queue_terminal$
+begin
+  update remhaos_channel.notification_outbox
+  set state = 'cancelled', failure_code = 'db4_fixture_cleanup',
+      lease_token = null, lease_expires_at = null
+  where project_id = '44444444-4444-4444-8444-444444444444'
+    and state in ('pending', 'retry', 'sending');
+end
+$leave_queue_terminal$;
 
 \echo DB4_TELEGRAM_BRIDGE_BOUNDARY_OK

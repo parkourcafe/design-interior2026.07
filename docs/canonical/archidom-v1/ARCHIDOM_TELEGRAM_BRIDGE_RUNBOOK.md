@@ -1,4 +1,10 @@
-# Runbook — Telegram Chat Bridge (A7 / DEC-031)
+> SUPERSEDED_BY_BRAND_RENAME_2026-07-28. CURRENT_BRAND: RemHaOS. Successor package: docs/canonical/remhaos-v1/. Historical content preserved for provenance.
+>
+> Зеркало `REMHAOS_TELEGRAM_BRIDGE_RUNBOOK.md`. Статусы гейтов в обоих
+> брендах обязаны совпадать дословно: расхождение пары — это два разных
+> ответа на один вопрос «взят ли гейт».
+
+# ARCHIDOM — Runbook, Telegram Chat Bridge (A7 / DEC-031)
 
 **Статус:** операционный документ этапа P0. Не канон и не решение — канон
 `REMHAOS_ADDENDUM_A7_TELEGRAM_CHAT_BRIDGE.md`, решение `DEC-031 · LOCKED`.

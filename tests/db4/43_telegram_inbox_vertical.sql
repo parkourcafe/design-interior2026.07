@@ -97,7 +97,7 @@ where project_id = '41111111-1111-4111-8111-111111111111'
 begin;
 set local role service_role;
 select remhaos_channel_api.mark_channel_notice_posted(
-  :'db4_binding_100600'::uuid, 'notice-v1'
+  :'db4_binding_100600'::uuid, 'notice-v1', true, true
 );
 commit;
 
