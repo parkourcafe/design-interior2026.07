@@ -158,9 +158,21 @@ guardrail-решением (`REMHAOS_GUARDRAIL_DECISION_M4_FLAG.md`), а не а
   схеме M4 и `20260811020000` по продуктовой схеме, где живут выдача и
   подтверждение получения). Инкремент 1 открывается ЯВНО и только там, где
   модуль намеренно открыт (`tests/ap1/environment/enable-m4-increment-1.sql`:
-  локальный стенд, AP5, DB4). Это механизм одноразовой среды, **не** production
-  feature flag. Матрица поверхности — `m4-surface.ts`, и всё, что в ней
-  написано, проверяется тестами (`m4-surface-matrix.test.ts`, DB4 07 и 08).
+  локальные стенды, CI, DB4/AP1). Это механизм одноразовой непроизводственной
+  среды — **не** production feature flag и **не** entitlement (DEC-029 LOCKED,
+  `REMHAOS_A6_CLARIFICATION_M4_GRANT_MECHANISM_2026-08-11.md`: постоянные
+  миграции таких прав не возвращают, production-включение — отдельный OWNER GO
+  плюс аудируемый DB-state). Матрица поверхности — `m4-surface.ts`, и всё, что в
+  ней написано, проверяется тестами (`m4-surface-matrix.test.ts`, DB4 07 и 08).
+
+**M4 Worker Foundation / Increment 1.5 открыт решением владельца 11.08.2026**
+(DEC-030) в объёме **одного** системного воркера — Release Artifact Worker.
+Основание — находка гейта 2: выдача опирается на артефакт выпуска, который
+собирает только система, то есть у инкремента 1 воркерная предпосылка всё-таки
+есть. Impact calculation, milestones, photo processing и handover **не
+разрешены**; инкремент 2 не начинается. Воркер работает только системной
+identity, не создаёт человеческого HTTP/RPC-доступа и не открывает M4 в
+production. Итоговое состояние этапа — `M4_RELEASE_WORKER_PROVEN`.
 
 Расширенный платный M4 из Charter (WBS, schedule, split estimate, procurement,
 Change Order) остаётся целевым состоянием и **A6 его не открывает**: не раньше
