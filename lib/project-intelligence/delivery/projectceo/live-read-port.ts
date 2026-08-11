@@ -1206,21 +1206,28 @@ function operationStates(input: {
     // замораживать нечего или встретился неизвестный вид ревизии, действие
     // просто не предлагается. Точную причину человек увидит при попытке
     // подтверждения — контролируемым отказом, а не пустым экраном.
-    publish_baseline: can(input.role, "publish_baseline")
-      ? baselineSnapshotToken ? {
-          status: "available",
-          commandTargetId: baselineSnapshotToken,
-        } : unavailable("prerequisite_missing")
-      : unavailable("capability_missing"),
+    // Выход модуля 3 закрыт его же флагом (A5 §4.2.2). До 11.08 закрыт был
+    // только приём, и публикация оставалась предложенной при выключенном
+    // модуле — сильнейшая операция мимо собственного выключателя.
+    publish_baseline: !documentationEnabled
+      ? unavailable("module_disabled")
+      : can(input.role, "publish_baseline")
+        ? baselineSnapshotToken ? {
+            status: "available",
+            commandTargetId: baselineSnapshotToken,
+          } : unavailable("prerequisite_missing")
+        : unavailable("capability_missing"),
     // A′ и здесь: поверхность выдаёт токен показанного состава, команда
     // требует его назад. Без baseline или с пустым составом — честное
     // `prerequisite_missing`, а не кнопка, которую отвергнет база.
-    publish_release: can(input.role, "publish_release")
-      ? releaseSnapshotToken ? {
-          status: "available",
-          commandTargetId: releaseSnapshotToken,
-        } : unavailable("prerequisite_missing")
-      : unavailable("capability_missing"),
+    publish_release: !documentationEnabled
+      ? unavailable("module_disabled")
+      : can(input.role, "publish_release")
+        ? releaseSnapshotToken ? {
+            status: "available",
+            commandTargetId: releaseSnapshotToken,
+          } : unavailable("prerequisite_missing")
+        : unavailable("capability_missing"),
     distribute_release: can(input.role, "distribute_release")
       ? distributableVersionId ? {
           status: "available",

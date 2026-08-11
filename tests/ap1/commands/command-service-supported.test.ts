@@ -1072,4 +1072,32 @@ describe("AP1 supported human commands", () => {
     expect(decided).toMatchObject({ status: "error", error: { code: "scope_conflict" } });
     expect(decidedCalls.some((entry) => entry.name === "projectceo_api.review_source")).toBe(false);
   });
+
+  /**
+   * Граница приложения у guardrail модуля 3 (решение владельца 11.08).
+   *
+   * Существенно не только то, что команда отказывает, но и КОГДА: до первого
+   * RPC. Отказ после чтения проекта означал бы, что выключенный модуль всё ещё
+   * ходит в базу — и что запрет держится на удаче, а не на порядке проверок.
+   * Поэтому проверяется пустой список вызовов, а не только код ответа.
+   */
+  it.each(["publish_baseline", "publish_release"] as const)(
+    "refuses %s before any RPC while the documentation module is off",
+    async (kind) => {
+      const calls: Call[] = [];
+      const payload = kind === "publish_baseline"
+        ? { snapshotToken: `sha256:${"0".repeat(64)}` }
+        : { snapshotToken: `sha256:${"0".repeat(64)}` };
+      const result = await service(calls, {}, "false").execute(
+        command(kind, payload),
+        `m3-guardrail-${kind}`,
+      );
+
+      expect(result).toMatchObject({
+        status: "unavailable",
+        error: { code: "operation_unavailable" },
+      });
+      expect(calls).toEqual([]);
+    },
+  );
 });

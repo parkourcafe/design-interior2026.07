@@ -19,7 +19,7 @@ import {
   type ProjectCeoCommand,
   type ProjectCeoCommandResponse,
 } from "./command-contract";
-import { isDocumentationModuleEnabled } from "./documentation-flag";
+import { DOCUMENTATION_PUBLICATION, isDocumentationModuleEnabled } from "./documentation-flag";
 import { EXECUTION_MODULE, isExecutionModuleEnabled } from "./execution-flag";
 import {
   computeBaselineSemanticHash,
@@ -56,14 +56,19 @@ const UNAVAILABLE = new Set<ProjectCeoCommand["kind"]>([
 // exhaustive-тестом: новая команда M4, не отнесённая ни к одному инкременту,
 // роняет CI, а не тихо проходит мимо запрета.
 
-// Intake — поверхность модуля 3, поэтому она закрыта его флагом (A5 §4.2.2).
+// Поверхность модуля 3 — и приём, и выход — закрыта его флагом (A5 §4.2.2).
 // Проверка серверная и стоит до чтений и записей: при выключенном модуле
 // команда не доходит ни до одного RPC.
+//
+// Публикация добавлена сюда 11.08 по решению владельца. До этого флаг закрывал
+// только приём, а `publish_baseline` / `publish_release` не были закрыты ничем —
+// см. `DOCUMENTATION_PUBLICATION` (`documentation-flag.ts`).
 const DOCUMENTATION_MODULE = new Set<ProjectCeoCommand["kind"]>([
   "register_source",
   "review_source",
   "register_documentation_sheet",
   "attach_documentation_sheet_specifications",
+  ...DOCUMENTATION_PUBLICATION,
 ]);
 
 const MAX_INVITATION_TTL_MS = 30 * 24 * 60 * 60 * 1000;

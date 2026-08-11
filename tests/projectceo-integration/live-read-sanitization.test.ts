@@ -238,10 +238,20 @@ describe("ProjectCEO live DTO sanitizer", () => {
   // проверяется отдельно — последним тестом файла и в
   // tests/ap1/commands/execution-guardrail.test.ts.
   const previousExecution = process.env.REMHAOS_EXECUTION_ENABLED;
-  beforeAll(() => { process.env.REMHAOS_EXECUTION_ENABLED = "true"; });
+  // Модуль 3 включён: этот файл проверяет поверхность модуля, а не его
+  // выключатель. Выключателю посвящён отдельный тест в конце файла — иначе
+  // «поверхность работает» и «поверхность закрыта» проверялись бы одним
+  // прогоном и мешали бы друг другу.
+  const previousDocumentation = process.env.REMHAOS_DOCUMENTATION_ENABLED;
+  beforeAll(() => {
+    process.env.REMHAOS_EXECUTION_ENABLED = "true";
+    process.env.REMHAOS_DOCUMENTATION_ENABLED = "true";
+  });
   afterAll(() => {
     if (previousExecution === undefined) delete process.env.REMHAOS_EXECUTION_ENABLED;
     else process.env.REMHAOS_EXECUTION_ENABLED = previousExecution;
+    if (previousDocumentation === undefined) delete process.env.REMHAOS_DOCUMENTATION_ENABLED;
+    else process.env.REMHAOS_DOCUMENTATION_ENABLED = previousDocumentation;
   });
 
   it("fails closed for malformed nested v6 client-review submissions", async () => {
@@ -818,5 +828,58 @@ describe("ProjectCEO live DTO sanitizer", () => {
       status: "unavailable",
       reason: "prerequisite_missing",
     });
+  });
+
+  /**
+   * Граница приложения у guardrail модуля 3 (решение владельца 11.08).
+   *
+   * До него флаг закрывал только приём, а публикация оставалась предложенной
+   * при выключенном модуле. Проверяется именно `module_disabled`, а не
+   * `capability_missing` и не `prerequisite_missing`: роль и предпосылки тут ни
+   * при чём — закрыт весь модуль, и поверхность обязана называть настоящую
+   * причину.
+   *
+   * Состав входа взят такой, при котором публикация была бы ДОСТУПНА при
+   * включённом модуле — иначе тест проходил бы и без guardrail, по отсутствию
+   * предпосылок.
+   */
+  it("closes publication with the module flag, not merely by capability", async () => {
+    const previous = process.env.REMHAOS_DOCUMENTATION_ENABLED;
+    process.env.REMHAOS_DOCUMENTATION_ENABLED = "false";
+    try {
+      const result = await new ProjectCeoLiveReadPort(fakeClient({
+        approvalPackages: [{
+          id: "approval-1",
+          status: "approved",
+          items: [{ targetKind: "decision_revision", revisionId: "decision-r1" }],
+        }],
+        packages: [{ id: packageId, kind: "project_root", name: "Root", status: "active" }],
+        latestBaseline: {
+          id: "baseline-v1",
+          exactRevisionRefs: {
+            sources: [],
+            requirements: [],
+            assumptions: [],
+            decisions: ["decision-r1"],
+            selections: [],
+          },
+        },
+      }), {
+        userId: "66666666-6666-4666-8666-666666666666",
+        displayName: "Owner",
+      }).getProjectWorkspace({ projectId, requestId: "m3-guardrail" });
+
+      expect(result.data?.operations.publish_baseline).toEqual({
+        status: "unavailable",
+        reason: "module_disabled",
+      });
+      expect(result.data?.operations.publish_release).toEqual({
+        status: "unavailable",
+        reason: "module_disabled",
+      });
+    } finally {
+      if (previous === undefined) delete process.env.REMHAOS_DOCUMENTATION_ENABLED;
+      else process.env.REMHAOS_DOCUMENTATION_ENABLED = previous;
+    }
   });
 });

@@ -129,6 +129,14 @@ jobs:
       - name: Model hosted auth ACLs
         run: psql "${SUPABASE_DB_URL}" -X --set ON_ERROR_STOP=1 -f tests/ap1/environment/apply-local-auth-compat.sql
 
+      # Вторая граница guardrail'а модуля 3 (`20260811010000`): по умолчанию
+      # публикация закрыта правами в базе, и флаг приложения этого не отменяет —
+      # PostgREST его не видит. Среда, где M3 намеренно открыт, включает вторую
+      # половину выключателя явно. Здесь это одноразовый стек AP5; в продакшене
+      # этот шаг не исполняется, и там модуль остаётся закрытым.
+      - name: Enable M3 publication on the database boundary
+        run: psql "${SUPABASE_DB_URL}" -X --set ON_ERROR_STOP=1 -f tests/ap1/environment/enable-m3-publication.sql
+
       # Та же проверка состояния базы, что и в AP1: managed-auth ссылок не
       # осталось, request-claim helpers на месте, приватные гранты закрыты.
       - name: Verify database state

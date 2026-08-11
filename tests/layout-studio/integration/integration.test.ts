@@ -225,6 +225,9 @@ describe("Layout Studio delivery/UI slice", () => {
       // Состав опубликованного baseline в чтении v9 — предпосылка выпуска
       // версии пакета. К Layout Studio отношения не имеет.
       "20260810090000_projectceo_baseline_refs_read.sql",
+      // Guardrail модуля 3: отзыв прав на публикацию у authenticated.
+      // К Layout Studio отношения не имеет.
+      "20260811010000_projectceo_m3_publication_guardrail.sql",
     ];
     const actual = readdirSync(join(repoRoot, "supabase/migrations"), { withFileTypes: true })
       .filter((entry) => entry.isFile())
