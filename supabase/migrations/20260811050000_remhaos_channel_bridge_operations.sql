@@ -180,13 +180,18 @@ begin
     );
   end if;
 
-  update remhaos_channel.channel_link_intents
+  -- Псевдоним `i` обязателен. Без него `project_id = project_id` при
+  -- `#variable_conflict use_variable` — это параметр, сравнённый сам с собой,
+  -- то есть всегда истина: одно открытое подключение молча гасило бы
+  -- незавершённые подключения ВСЕХ остальных проектов владельца. Первая
+  -- редакция была написана именно так.
+  update remhaos_channel.channel_link_intents i
   set revoked_at = statement_timestamp()
-  where actor_user_id = v_context.actor_user_id
-    and purpose = 'project_binding'
-    and project_id = project_id
-    and consumed_at is null
-    and revoked_at is null;
+  where i.actor_user_id = v_context.actor_user_id
+    and i.purpose = 'project_binding'
+    and i.project_id = project_id
+    and i.consumed_at is null
+    and i.revoked_at is null;
 
   insert into remhaos_channel.channel_link_intents (
     purpose, provider, nonce_digest, organization_id, project_id,
@@ -224,6 +229,7 @@ declare
   v_context record;
   v_binding record;
   v_identity_linked boolean;
+  v_can_manage boolean;
 begin
   select * into v_context
   from projectceo_foundation._authorize_project_human(project_id, 'view_project');
@@ -245,9 +251,22 @@ begin
       and cil.revoked_at is null
   ) into v_identity_linked;
 
+  -- Право подключать возвращается ЯВНО, а не выводится экраном из роли.
+  -- Экран, который сам догадывается о правах, рано или поздно предложит
+  -- кнопку, на которую база ответит отказом; а второй список прав в делевери —
+  -- ровно тот способ, каким слои расходятся незаметно.
+  select exists (
+    select 1
+    from projectceo_foundation.project_member_capabilities pc
+    where pc.project_id = project_id
+      and pc.user_id = v_context.actor_user_id
+      and pc.capability = 'manage_project_integrations'
+  ) into v_can_manage;
+
   return remhaos_channel._envelope(jsonb_build_object(
     'provider', 'telegram',
     'identityLinked', v_identity_linked,
+    'canManage', v_can_manage,
     'binding', case
       when v_binding is null then null
       else jsonb_build_object(

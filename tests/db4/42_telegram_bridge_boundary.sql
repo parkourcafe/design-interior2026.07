@@ -191,16 +191,94 @@ end
 $identity_replay_denied$;
 rollback;
 
--- Подключение чата: намерение создаёт владелец, активирует система.
+-- Второй проект того же владельца. Нужен, чтобы проверить область действия
+-- отзыва незавершённых намерений: подключая один проект, владелец не обязан
+-- терять начатое подключение другого. Проект заводится ПОСЛЕ миграции, поэтому
+-- заодно проверяется вторая дорога к capability — не backfill, а реестр ролей.
+insert into public.projects (id, designer_id, client_name, status, intake_token)
+values (
+  '43333333-3333-4333-8333-333333333333',
+  '31111111-1111-4111-8111-111111111111',
+  'Foundation C',
+  'active_project',
+  'db4-tg-foundation-c'
+);
+
 begin;
 set local role authenticated;
 set local request.jwt.claim.sub = '31111111-1111-4111-8111-111111111111';
+select projectceo_api.enroll_organization_project(
+  '43333333-3333-4333-8333-333333333333',
+  'db4-tg-enroll-c'
+);
+commit;
+
+-- Подключение чата: намерение создаёт владелец, активирует система.
+--
+-- Три намерения подряд: одно для проекта C и два для проекта A. Верное
+-- поведение — отозвать ровно предыдущее намерение ТОГО ЖЕ проекта.
+begin;
+set local role authenticated;
+set local request.jwt.claim.sub = '31111111-1111-4111-8111-111111111111';
+select remhaos_channel_api.create_binding_intent(
+  '43333333-3333-4333-8333-333333333333',
+  pg_catalog.sha256(convert_to('db4-binding-nonce-c', 'UTF8')),
+  600
+);
+select remhaos_channel_api.create_binding_intent(
+  '41111111-1111-4111-8111-111111111111',
+  pg_catalog.sha256(convert_to('db4-binding-nonce-superseded', 'UTF8')),
+  600
+);
 select remhaos_channel_api.create_binding_intent(
   '41111111-1111-4111-8111-111111111111',
   pg_catalog.sha256(convert_to('db4-binding-nonce', 'UTF8')),
   600
 );
 commit;
+
+do $binding_intent_scope$
+declare
+  v_state text;
+begin
+  -- Намерение чужого проекта живо. Если однажды предикат снова сравнит
+  -- параметр сам с собой, оно окажется отозванным и упадёт здесь.
+  select case when revoked_at is null then 'live' else 'revoked' end into v_state
+  from remhaos_channel.channel_link_intents
+  where nonce_digest = pg_catalog.sha256(convert_to('db4-binding-nonce-c', 'UTF8'));
+  if v_state is distinct from 'live' then
+    raise exception 'DB4_TG_INTENT_OF_OTHER_PROJECT_REVOKED:%', coalesce(v_state, 'missing');
+  end if;
+
+  -- А предыдущее намерение ТОГО ЖЕ проекта обязано быть отозвано: иначе две
+  -- живые ссылки подключали бы один проект.
+  select case when revoked_at is null then 'live' else 'revoked' end into v_state
+  from remhaos_channel.channel_link_intents
+  where nonce_digest = pg_catalog.sha256(
+    convert_to('db4-binding-nonce-superseded', 'UTF8')
+  );
+  if v_state is distinct from 'revoked' then
+    raise exception 'DB4_TG_SUPERSEDED_INTENT_STILL_LIVE:%', coalesce(v_state, 'missing');
+  end if;
+end
+$binding_intent_scope$;
+
+-- Отозванное намерение не активирует связь.
+begin;
+set local role service_role;
+do $binding_superseded_denied$
+begin
+  begin
+    perform remhaos_channel_api.activate_project_binding(
+      pg_catalog.sha256(convert_to('db4-binding-nonce-superseded', 'UTF8')),
+      777001, 'db4-bot', -100500, 'supergroup', 'notice-v1'
+    );
+    raise exception 'DB4_TG_REVOKED_INTENT_ACTIVATED';
+  exception when sqlstate 'P1103' then null;
+  end;
+end
+$binding_superseded_denied$;
+rollback;
 
 -- Ссылку открыл ДРУГОЙ Telegram-пользователь — отказ.
 begin;
@@ -239,6 +317,40 @@ begin
   end if;
 end
 $binding_active$;
+
+-- Экран настроек: право подключать приходит из базы, а не выводится делевери.
+begin;
+set local role authenticated;
+set local request.jwt.claim.sub = '31111111-1111-4111-8111-111111111111';
+select set_config(
+  'projectceo.db4_tg_state',
+  remhaos_channel_api.get_project_channel_state(
+    '41111111-1111-4111-8111-111111111111'
+  ) -> 'data' #>> '{}',
+  false
+);
+commit;
+
+do $channel_state_contract$
+declare
+  v_state jsonb := current_setting('projectceo.db4_tg_state')::jsonb;
+begin
+  if v_state ->> 'canManage' is distinct from 'true' then
+    raise exception 'DB4_TG_OWNER_CANNOT_MANAGE:%', v_state ->> 'canManage';
+  end if;
+  if v_state ->> 'identityLinked' is distinct from 'true' then
+    raise exception 'DB4_TG_STATE_IDENTITY_WRONG';
+  end if;
+  if v_state #>> '{binding,status}' is distinct from 'active' then
+    raise exception 'DB4_TG_STATE_BINDING_WRONG:%', v_state #>> '{binding,status}';
+  end if;
+  -- Экран показывает СОСТОЯНИЕ подключения, а не содержимое чата. Если сюда
+  -- однажды попадёт текст переписки, упасть должно здесь.
+  if v_state::text ~ 'text|message|payload' then
+    raise exception 'DB4_TG_STATE_LEAKS_CONTENT';
+  end if;
+end
+$channel_state_contract$;
 
 -- ─────────────────────────────────────────────────────────────────────────────
 -- 4. Единственность: тот же чат не уходит второму проекту
