@@ -236,6 +236,10 @@ describe("Layout Studio delivery/UI slice", () => {
       // поверхность воркерного этапа (DEC-030), права только у service role.
       // К Layout Studio отношения не имеет.
       "20260811030000_projectceo_release_artifact_worker_read.sql",
+      // Фундамент Telegram Chat Bridge (A7/DEC-031): собственная приватная
+      // схема, RLS deny-by-default. К Layout Studio отношения не имеет.
+      "20260811040000_remhaos_channel_bridge_foundation.sql",
+      "20260811050000_remhaos_channel_bridge_operations.sql",
     ];
     const actual = readdirSync(join(repoRoot, "supabase/migrations"), { withFileTypes: true })
       .filter((entry) => entry.isFile())
