@@ -1074,6 +1074,50 @@ describe("AP1 supported human commands", () => {
   });
 
   /**
+   * Идемпотентность публикации baseline: повтор той же команды обязан вернуть
+   * прежний результат, а не конфликт.
+   *
+   * Метка версии графа раньше содержала текущее время. Она входит в request
+   * digest RPC, поэтому повтор после потери ответа приходил с ДРУГИМ digest и
+   * получал `idempotency_conflict` — то есть ключ идемпотентности существовал,
+   * а идемпотентности не было. Метка стала производной от `commandId`, и этот
+   * тест держит её такой: два вызова с одним `commandId` обязаны послать
+   * побайтово одинаковые аргументы.
+   */
+  it("sends a byte-identical version label when the same command repeats", async () => {
+    const packages = [{ id: packageId, kind: "project_root", parentPackageId: null, stableKey: "root" }];
+    const approvalPackages = [{
+      id: "approval-1",
+      status: "approved",
+      items: [{ targetKind: "decision_revision", revisionId: "decision-r1" }],
+    }];
+    const snapshot = buildBaselineSnapshot({
+      approvalPackages,
+      packageIds: [packageId],
+      previousBaselineId: null,
+    });
+    const overrides = { approvalPackages, packages, latestBaseline: null };
+
+    const first: Call[] = [];
+    await service(first, overrides).execute(
+      // Хелпер `command` даёт фиксированный commandId — именно то, что
+      // совпадает у повтора одной и той же команды.
+      command("publish_baseline", { snapshotToken: snapshot.token }),
+      "baseline-idempotency-1",
+    );
+    const second: Call[] = [];
+    await service(second, overrides).execute(
+      command("publish_baseline", { snapshotToken: snapshot.token }),
+      "baseline-idempotency-2",
+    );
+
+    const label = (calls: Call[]) => calls
+      .find((call) => call.name === "projectceo_api.publish_version")?.args.label;
+    expect(label(first)).toBe(label(second));
+    expect(String(label(first))).not.toMatch(/\d{4}-\d{2}-\d{2}T/);
+  });
+
+  /**
    * Граница приложения у guardrail модуля 3 (решение владельца 11.08).
    *
    * Существенно не только то, что команда отказывает, но и КОГДА: до первого

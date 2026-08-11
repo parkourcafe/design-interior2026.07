@@ -821,7 +821,13 @@ export class ProjectCeoCommandService {
             ? record(read.data.latestBaseline).graphVersionId as string
             : null,
           expectedStateRevision: scope.stateRevision,
-          label: `baseline ${new Date(this.dependencies.now?.().getTime() ?? Date.now()).toISOString()}`,
+          // Метка обязана быть детерминированной. Часы в ней ломали ровно то,
+          // ради чего существует ключ идемпотентности: `label` входит в
+          // request digest RPC, поэтому повтор той же команды после потери
+          // ответа давал ДРУГОЙ digest и получал `idempotency_conflict` вместо
+          // прежнего результата. Идентификатор команды и есть то, что у повтора
+          // совпадает по определению.
+          label: `baseline:${command.commandId}`,
           selectedRevisions: [],
           idempotencyKey: `${idempotencyKey}:version`,
         });

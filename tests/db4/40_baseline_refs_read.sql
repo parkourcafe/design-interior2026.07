@@ -24,13 +24,13 @@
 -- Результат чтения переносится через временную таблицу, а не через переменную
 -- psql: подстановка `:'var'` внутри `$$`-тела не работает, а держать чтение и
 -- сверку в одной транзакции нельзя — у них разные роли.
-create temp table db4_baseline_refs_read (v9 jsonb, v8 jsonb);
+create temp table db4_baseline_refs_read (v9 jsonb, v8 jsonb, v9_package jsonb);
 grant insert on db4_baseline_refs_read to authenticated;
 
 begin;
 set local role authenticated;
 set local request.jwt.claim.sub = '31111111-1111-4111-8111-111111111111';
-insert into db4_baseline_refs_read (v9, v8)
+insert into db4_baseline_refs_read (v9, v8, v9_package)
 select
   projectceo_read_api.get_project_workspace_read_v9(
     '41111111-1111-4111-8111-111111111111',
@@ -39,6 +39,13 @@ select
   projectceo_read_api.get_project_workspace_read_v8(
     '41111111-1111-4111-8111-111111111111',
     null
+  ),
+  -- То же чтение, но областью пакета: состав baseline описан ревизиями без
+  -- привязки к пакету, поэтому сузить его нельзя — и отдавать полный тому, кто
+  -- видит один пакет, тоже нельзя.
+  projectceo_read_api.get_project_workspace_read_v9(
+    '41111111-1111-4111-8111-111111111111',
+    '41111111-1111-4111-8111-111111111111'
   );
 commit;
 
@@ -46,11 +53,14 @@ do $baseline_refs_read$
 declare
   v_v9 jsonb;
   v_v8 jsonb;
+  v_v9_package jsonb;
   v_refs jsonb;
   v_expected jsonb;
   v_kind text;
 begin
-  select read.v9, read.v8 into v_v9, v_v8 from db4_baseline_refs_read read;
+  select read.v9, read.v8, read.v9_package
+    into v_v9, v_v8, v_v9_package
+  from db4_baseline_refs_read read;
   if v_v9 -> 'error' is not null and v_v9 -> 'error' <> 'null'::jsonb then
     raise exception 'DB4_BASELINE_REFS_READ_ERROR %', v_v9 -> 'error';
   end if;
@@ -99,6 +109,13 @@ begin
   -- v8 не трогали: поле появляется только в v9.
   if v_v8 #> '{data,latestBaseline,exactRevisionRefs}' is not null then
     raise exception 'DB4_BASELINE_REFS_LEAKED_INTO_V8';
+  end if;
+
+  -- Область пакета: состава нет вовсе. Первая редакция миграции отдавала здесь
+  -- полный состав baseline, то есть идентификаторы ревизий соседних пакетов
+  -- участнику, который имеет доступ к одному.
+  if v_v9_package #> '{data,latestBaseline,exactRevisionRefs}' is not null then
+    raise exception 'DB4_BASELINE_REFS_LEAKED_TO_PACKAGE_SCOPE';
   end if;
 end
 $baseline_refs_read$;
