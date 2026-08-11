@@ -142,6 +142,26 @@ describe("Telegram bridge surface matrix", () => {
     }
   });
 
+  it("keeps every bridge harness wired into the DB4 runner", () => {
+    // Апгрейд населённой базы живёт в отдельном скрипте, потому что ему нужен
+    // собственный кластер: prelude заводит роли Supabase на весь сервер.
+    // Отдельный файл легко забыть позвать — и он молча перестанет что-либо
+    // доказывать, оставаясь в репозитории как свидетельство обратного.
+    const runner = read("tests/db4/run.zsh");
+    expect(runner).toContain("run-telegram-upgrade.zsh");
+    const upgrade = read("tests/db4/run-telegram-upgrade.zsh");
+    for (const scenario of [
+      "45_telegram_bridge_upgrade_seed.sql",
+      "46_telegram_bridge_upgrade_assert.sql",
+    ]) {
+      expect(upgrade, scenario).toContain(scenario);
+    }
+    // Порядок — весь смысл прогона: живые строки заводятся ДО корректирующей
+    // миграции, иначе он повторял бы основной DB4 и ничего нового не говорил.
+    expect(upgrade.indexOf("45_telegram_bridge_upgrade_seed.sql"))
+      .toBeLessThan(upgrade.indexOf("46_telegram_bridge_upgrade_assert.sql"));
+  });
+
   it("introduces exactly one capability, and only for the project owner", () => {
     expect(TELEGRAM_BRIDGE_CAPABILITY).toBe("manage_project_integrations");
     // Реестр ролей один. Параллельный список — тот самый способ, каким права

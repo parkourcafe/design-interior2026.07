@@ -359,6 +359,57 @@ begin
 end
 $nothing_stored_before_notice$;
 
+-- Экран настроек ВИДИТ незавершённое подключение. Пока он его не видел, он
+-- показывал «чат не подключён» ровно тогда, когда чат уже занят этим самым
+-- проектом, — и предлагал подключиться заново, на что база отвечает отказом.
+begin;
+set local role authenticated;
+set local request.jwt.claim.sub = '31111111-1111-4111-8111-111111111111';
+select set_config(
+  'projectceo.db4_tg_state_pending',
+  remhaos_channel_api.get_project_channel_state(
+    '41111111-1111-4111-8111-111111111111'
+  ) -> 'data' #>> '{}',
+  false
+);
+commit;
+
+do $channel_state_sees_pending$
+declare
+  v_state jsonb := current_setting('projectceo.db4_tg_state_pending')::jsonb;
+begin
+  if v_state #>> '{binding,status}' is distinct from 'notice_pending' then
+    raise exception 'DB4_TG_STATE_HIDES_NOTICE_PENDING:%',
+      coalesce(v_state #>> '{binding,status}', 'null');
+  end if;
+  -- Приём — отдельный факт: связь есть, переписка ещё не сохраняется.
+  if v_state #>> '{binding,captureState}' is distinct from 'none' then
+    raise exception 'DB4_TG_STATE_CAPTURE_WRONG:%',
+      coalesce(v_state #>> '{binding,captureState}', 'null');
+  end if;
+end
+$channel_state_sees_pending$;
+
+-- И второе намерение поверх живой связи не выдаётся: ссылка, которая заведомо
+-- упрётся в занятый чат, — это ссылка, которая молча не работает.
+begin;
+set local role authenticated;
+set local request.jwt.claim.sub = '31111111-1111-4111-8111-111111111111';
+do $no_second_intent_over_pending$
+begin
+  begin
+    perform remhaos_channel_api.create_binding_intent(
+      '41111111-1111-4111-8111-111111111111',
+      pg_catalog.sha256(convert_to('db4-binding-nonce-over-pending', 'UTF8')),
+      600
+    );
+    raise exception 'DB4_TG_SECOND_INTENT_OVER_PENDING_BINDING';
+  exception when sqlstate 'P1109' then null;
+  end;
+end
+$no_second_intent_over_pending$;
+rollback;
+
 -- Уведомление опубликовано — только теперь связь активна и приём открыт.
 begin;
 set local role service_role;
@@ -407,6 +458,10 @@ begin
   end if;
   if v_state #>> '{binding,status}' is distinct from 'active' then
     raise exception 'DB4_TG_STATE_BINDING_WRONG:%', v_state #>> '{binding,status}';
+  end if;
+  if v_state #>> '{binding,captureState}' is distinct from 'full_after_notice' then
+    raise exception 'DB4_TG_STATE_CAPTURE_NOT_OPEN:%',
+      coalesce(v_state #>> '{binding,captureState}', 'null');
   end if;
   -- Экран показывает СОСТОЯНИЕ подключения, а не содержимое чата. Если сюда
   -- однажды попадёт текст переписки, упасть должно здесь.

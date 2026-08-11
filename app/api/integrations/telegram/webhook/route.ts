@@ -234,7 +234,16 @@ async function handleHandshake(
     });
     bindingId = activated.bindingId;
   } catch {
-    return ack("binding_rejected", requestId, {
+    // Отказ активации ещё не значит, что делать нечего. Самый частый его повод
+    // — потраченный секрет: рукопожатие уже прошло, связь создана, а
+    // уведомление не ушло. Человек, повторяющий `/start` в группе, делает ровно
+    // то, что нужно; отвечать ему отказом значило бы требовать новую ссылку
+    // там, где достаточно повторить публикацию.
+    //
+    // Одноразовость секрета при этом не трогается: ожидающая связь ищется по
+    // паре «бот + чат», а не по нему.
+    const settled = await settleNotice(event, port, bot, botInstanceId, requestId);
+    return settled ?? ack("binding_rejected", requestId, {
       updateId: event.updateId,
       chatId: event.chatId,
     });
@@ -315,6 +324,18 @@ async function settleNotice(
   }
   const initiatorIsChatAdmin = isChatAdministrator(initiatorMembership.result);
   const botIsChatAdmin = isChatAdministrator(botMembership.result);
+
+  // Порядок из A7 §6: сначала права, потом слова. Опубликовать уведомление и
+  // только потом узнать от базы «нельзя» значит оставить в чужой группе
+  // сообщение о сборе данных, которого не будет: люди прочитают обещание,
+  // которое никто не собирается выполнять. Связь при этом остаётся
+  // `notice_pending` и восстановима — вернут права, вернётся и попытка.
+  if (!initiatorIsChatAdmin || !botIsChatAdmin) {
+    return ack("binding_notice_pending", requestId, {
+      updateId: event.updateId,
+      chatId: event.chatId,
+    });
+  }
 
   // Юридическим закрытием 152-ФЗ это уведомление не является (A7 §1.11).
   const notice = await bot.sendMessage({

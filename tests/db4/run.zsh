@@ -84,6 +84,13 @@ PI_DB4_DATABASE="${database}" \
 PI_DB4_PASSWORD="${password}" \
   "${repo_root}/tests/db4/run-concurrency.zsh"
 
+# Апгрейд населённой базы — в собственном кластере: prelude заводит роли
+# Supabase на весь сервер, поэтому второй базы рядом с основной не хватит. Без
+# этого прогона обе ветки нормализации `20260811070000` не исполняются ни разу:
+# здесь база пустая, нормализовать в ней нечего, и ошибка в порядке шагов
+# миграции осталась бы невидимой до первой настоящей установки.
+PI_DB_IMAGE="${image}" "${repo_root}/tests/db4/run-telegram-upgrade.zsh"
+
 print -r -- "Restarting database for DB4 replay proof"
 docker restart "${container}" >/dev/null
 for attempt in {1..120}; do

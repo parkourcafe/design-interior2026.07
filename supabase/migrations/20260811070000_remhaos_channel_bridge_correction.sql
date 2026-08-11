@@ -1032,12 +1032,201 @@ end
 $function$;
 
 -- ---------------------------------------------------------------------------
+-- 7c. Человеческая сторона знает о состоянии «ждём уведомления»
+-- ---------------------------------------------------------------------------
+--
+-- Новое состояние, о котором молчит экран, — это состояние, которого для
+-- человека не существует. `get_project_channel_state` из `20260811050000`
+-- отбирает связи по списку `('pending','active','suspended')`, и
+-- `notice_pending` в него не входит: человек видел бы «чат не подключён» ровно
+-- тогда, когда чат уже занят его собственным проектом, жал бы «подключить»
+-- снова — и получал бы отказ. Экран, показывающий кнопку, на которую база
+-- отвечает «нет», хуже экрана, который молчит.
+--
+-- Старая миграция не переписывается: функция переопределяется здесь.
+
+create or replace function remhaos_channel_api.get_project_channel_state(
+  project_id uuid
+)
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $function$
+#variable_conflict use_variable
+declare
+  v_context record;
+  v_binding record;
+  v_identity_linked boolean;
+  v_can_manage boolean;
+begin
+  select * into v_context
+  from projectceo_foundation._authorize_project_human(project_id, 'view_project');
+
+  select b.status, b.capture_state, b.external_chat_type, b.activated_at,
+    b.status_reason, b.notice_version, b.notice_posted_at
+  into v_binding
+  from remhaos_channel.project_channel_bindings b
+  where b.project_id = project_id
+    and b.status in ('pending', 'notice_pending', 'active', 'suspended')
+  order by b.created_at desc
+  limit 1;
+
+  select exists (
+    select 1
+    from remhaos_channel.channel_identity_links cil
+    where cil.provider = 'telegram'
+      and cil.user_id = v_context.actor_user_id
+      and cil.revoked_at is null
+  ) into v_identity_linked;
+
+  -- Право подключать возвращается ЯВНО, а не выводится экраном из роли.
+  -- Экран, который сам догадывается о правах, рано или поздно предложит
+  -- кнопку, на которую база ответит отказом; а второй список прав в делевери —
+  -- ровно тот способ, каким слои расходятся незаметно.
+  select exists (
+    select 1
+    from projectceo_foundation.project_member_capabilities pc
+    where pc.project_id = project_id
+      and pc.user_id = v_context.actor_user_id
+      and pc.capability = 'manage_project_integrations'
+  ) into v_can_manage;
+
+  return remhaos_channel._envelope(jsonb_build_object(
+    'provider', 'telegram',
+    'identityLinked', v_identity_linked,
+    'canManage', v_can_manage,
+    'binding', case
+      when v_binding is null then null
+      else jsonb_build_object(
+        'status', v_binding.status,
+        -- Приём — отдельный факт от статуса, и экран обязан различать их так
+        -- же, как их различает база: «связь есть» и «переписка сохраняется» —
+        -- разные утверждения, и только второе касается участников чата.
+        'captureState', v_binding.capture_state,
+        'chatType', v_binding.external_chat_type,
+        'activatedAt', v_binding.activated_at,
+        'statusReason', v_binding.status_reason,
+        'noticeVersion', v_binding.notice_version,
+        'noticePostedAt', v_binding.notice_posted_at
+      )
+    end
+  ));
+end
+$function$;
+
+-- Второе намерение поверх живой связи не выдаётся.
+--
+-- Прежнее условие смотрело только на `active`, и владелец мог выпустить
+-- сколько угодно ссылок поверх связи, ждущей уведомления. Каждая из них
+-- упиралась бы в занятость уже в Telegram — то есть молча, без единого слова
+-- на экране, с которого её выдали.
+create or replace function remhaos_channel_api.create_binding_intent(
+  project_id uuid,
+  nonce_digest bytea,
+  ttl_seconds integer default 600
+)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $function$
+#variable_conflict use_variable
+declare
+  v_context record;
+  v_intent_id uuid;
+  v_linked boolean;
+begin
+  select * into v_context
+  from projectceo_foundation._authorize_project_human(
+    project_id, 'manage_project_integrations'
+  );
+  if nonce_digest is null or octet_length(nonce_digest) <> 32 then
+    perform projectceo_foundation._raise(
+      'P1111', 'validation_failed', '{"field":"nonceDigest"}'::jsonb
+    );
+  end if;
+  if ttl_seconds is null or ttl_seconds < 60 or ttl_seconds > 600 then
+    perform projectceo_foundation._raise(
+      'P1111', 'validation_failed', '{"field":"ttlSeconds"}'::jsonb
+    );
+  end if;
+
+  -- Порядок обязателен: сначала подтверждённая личность, потом подключение
+  -- группы. Иначе непонятно, чьё «добавил бота» мы приняли.
+  select exists (
+    select 1
+    from remhaos_channel.channel_identity_links cil
+    where cil.provider = 'telegram'
+      and cil.user_id = v_context.actor_user_id
+      and cil.revoked_at is null
+  ) into v_linked;
+  if not v_linked then
+    perform projectceo_foundation._raise(
+      'P1103', 'forbidden', '{"reason":"TELEGRAM_IDENTITY_NOT_LINKED"}'::jsonb
+    );
+  end if;
+
+  -- `notice_pending` встаёт в один ряд с `active`: связь, ждущая публикации
+  -- уведомления, — живая связь этого проекта, и вторая ему не положена.
+  if exists (
+    select 1
+    from remhaos_channel.project_channel_bindings b
+    where b.project_id = project_id
+      and b.status in ('pending', 'notice_pending', 'active')
+  ) then
+    perform projectceo_foundation._raise(
+      'P1109', 'scope_conflict', '{"reason":"PROJECT_ALREADY_BOUND"}'::jsonb
+    );
+  end if;
+
+  -- Псевдоним `i` обязателен. Без него `project_id = project_id` при
+  -- `#variable_conflict use_variable` — это параметр, сравнённый сам с собой,
+  -- то есть всегда истина: одно открытое подключение молча гасило бы
+  -- незавершённые подключения ВСЕХ остальных проектов владельца. Первая
+  -- редакция была написана именно так.
+  update remhaos_channel.channel_link_intents i
+  set revoked_at = statement_timestamp()
+  where i.actor_user_id = v_context.actor_user_id
+    and i.purpose = 'project_binding'
+    and i.project_id = project_id
+    and i.consumed_at is null
+    and i.revoked_at is null;
+
+  insert into remhaos_channel.channel_link_intents (
+    purpose, provider, nonce_digest, organization_id, project_id,
+    actor_user_id, expires_at
+  )
+  values (
+    'project_binding',
+    'telegram',
+    nonce_digest,
+    v_context.organization_id,
+    project_id,
+    v_context.actor_user_id,
+    statement_timestamp() + make_interval(secs => ttl_seconds)
+  )
+  returning intent_id into v_intent_id;
+
+  return remhaos_channel._envelope(jsonb_build_object(
+    'intentId', v_intent_id,
+    'expiresInSeconds', ttl_seconds
+  ));
+end
+$function$;
+
+-- ---------------------------------------------------------------------------
 -- 8. Права
 -- ---------------------------------------------------------------------------
 --
 -- Системные двери: только `service_role`, как и прежде. Человеку эти функции не
--- выдаются ни в одной среде, и человеческих дверей эта миграция не заводит
--- вовсе — она пересоздаёт системные.
+-- выдаются ни в одной среде.
+--
+-- Человеческие двери в списке ниже отсутствуют намеренно: `create_binding_intent`
+-- и `get_project_channel_state` переопределены через `create or replace`, а он
+-- сохраняет и владельца, и права. Перевыдавать их здесь значило бы завести
+-- второй источник истины о человеческом гранте рядом с `20260811050000`.
 
 do $own$
 declare

@@ -407,6 +407,10 @@ export const projectChannelStateSchema = z.object({
   binding: z
     .object({
       status: z.enum(["pending", "notice_pending", "active", "suspended"]),
+      // Приём — отдельный факт от статуса. Экран обязан различать «связь есть»
+      // и «переписка сохраняется» так же, как их различает база: второе
+      // касается участников чата, первое — нет.
+      captureState: z.enum(["none", "full_after_notice"]),
       chatType: z.string().nullable(),
       activatedAt: z.string().nullable(),
       statusReason: z.string().nullable(),

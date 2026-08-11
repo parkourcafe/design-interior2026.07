@@ -187,7 +187,14 @@ export function TelegramChannelPanel({ projectId }: { readonly projectId: string
             </div>
           ) : null}
 
-          {state.canManage && status === "active" ? (
+          {/*
+            Отключение доступно любой живой связи, а не только активной. Иначе
+            владелец, у которого уведомление так и не ушло, остаётся с чатом,
+            который занят, ничего не принимает и не отпускается: кнопки
+            «подключить» уже нет (и правильно), а кнопки «отключить» ещё нет.
+            `disconnect_project_channel` все эти состояния умеет.
+          */}
+          {state.canManage && status !== undefined ? (
             <button
               type="button"
               disabled={pending}
