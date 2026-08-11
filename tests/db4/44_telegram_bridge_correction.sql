@@ -14,6 +14,7 @@
 \set project_b '42222222-2222-4222-8222-222222222222'
 \set owner_a '31111111-1111-4111-8111-111111111111'
 \set owner_b '33333333-3333-4333-8333-333333333333'
+\set project_c '43333333-3333-4333-8333-333333333333'
 
 -- ─────────────────────────────────────────────────────────────────────────────
 -- 1. Один чат — один проект, даже через разных ботов
@@ -465,3 +466,294 @@ begin
   end if;
 end
 $nothing_after_disconnect$;
+
+-------------------------------------------------------------------------------
+-- 8. Одна живая связь: и на чат, и на проект
+-- ─────────────────────────────────────────────────────────────────────────────
+--
+-- Прежняя редакция считала занятым только `active`, поэтому поверх связи,
+-- ждущей публикации уведомления, заводилась вторая — на тот же чат другим
+-- проектом или на другой чат тем же проектом. Победитель определялся тем, кто
+-- первым добежит до финализации, а проигравший оставался жить и занимать
+-- ресурс, который ему уже не принадлежит.
+
+begin;
+set local role authenticated;
+set local request.jwt.claim.sub = :'owner_b';
+select remhaos_channel_api.create_binding_intent(
+  :'project_b', pg_catalog.sha256(convert_to('db4-live-b1', 'UTF8')), 600
+);
+commit;
+
+begin;
+set local role service_role;
+select remhaos_channel_api.activate_project_binding(
+  pg_catalog.sha256(convert_to('db4-live-b1', 'UTF8')),
+  777002, 'db4-bot', -101000, 'supergroup', 'notice-v1', true, true
+);
+commit;
+
+select binding_id::text as db4_live_binding
+from remhaos_channel.project_channel_bindings
+where external_chat_id = -101000 and status = 'notice_pending' \gset
+
+select set_config('projectceo.db4_live_binding', :'db4_live_binding', false);
+
+-- Второй проект на ТОТ ЖЕ чат другим ботом. Раньше проходило.
+begin;
+set local role authenticated;
+set local request.jwt.claim.sub = :'owner_a';
+select remhaos_channel_api.create_binding_intent(
+  :'project_c', pg_catalog.sha256(convert_to('db4-live-c1', 'UTF8')), 600
+);
+commit;
+
+begin;
+set local role service_role;
+do $chat_taken_by_pending$
+begin
+  begin
+    perform remhaos_channel_api.activate_project_binding(
+      pg_catalog.sha256(convert_to('db4-live-c1', 'UTF8')),
+      777001, 'db4-bot-second', -101000, 'supergroup', 'notice-v1', true, true
+    );
+    raise exception 'DB4_TGC_SECOND_LIVE_BINDING_ON_CHAT';
+  exception when sqlstate 'P1109' then null;
+  end;
+end
+$chat_taken_by_pending$;
+rollback;
+
+-- ТОТ ЖЕ проект на другой чат: у проекта уже есть живая связь.
+begin;
+set local role authenticated;
+set local request.jwt.claim.sub = :'owner_b';
+do $project_already_bound_intent$
+begin
+  begin
+    -- Литерал, а не переменная psql: внутрь dollar-quoted блока psql свои
+    -- переменные не подставляет, и `:'…'` уехал бы в сервер буквально.
+    perform remhaos_channel_api.create_binding_intent(
+      '42222222-2222-4222-8222-222222222222',
+      pg_catalog.sha256(convert_to('db4-live-b2', 'UTF8')), 600
+    );
+    raise exception 'DB4_TGC_SECOND_INTENT_OVER_LIVE_BINDING';
+  exception when sqlstate 'P1109' then null;
+  end;
+end
+$project_already_bound_intent$;
+rollback;
+
+-- И сама база не даст вставить вторую живую строку ни по чату, ни по проекту.
+do $indexes_hold$
+declare
+  v_org uuid;
+begin
+  select organization_id into v_org
+  from remhaos_channel.project_channel_bindings
+  where binding_id = current_setting('projectceo.db4_live_binding')::uuid;
+
+  begin
+    insert into remhaos_channel.project_channel_bindings (
+      organization_id, project_id, provider, bot_instance_id,
+      external_chat_id, external_chat_type, status, notice_version,
+      initiated_by_user_id
+    )
+    values (
+      v_org, '43333333-3333-4333-8333-333333333333', 'telegram', 'db4-bot-third',
+      -101000, 'supergroup', 'notice_pending', 'notice-v1',
+      '31111111-1111-4111-8111-111111111111'
+    );
+    raise exception 'DB4_TGC_CHAT_INDEX_ALLOWED_SECOND_LIVE';
+  exception when unique_violation then null;
+  end;
+
+  begin
+    insert into remhaos_channel.project_channel_bindings (
+      organization_id, project_id, provider, bot_instance_id,
+      external_chat_id, external_chat_type, status, notice_version,
+      initiated_by_user_id
+    )
+    select b.organization_id, b.project_id, 'telegram', 'db4-bot-third',
+      -101999, 'supergroup', 'notice_pending', 'notice-v1', b.initiated_by_user_id
+    from remhaos_channel.project_channel_bindings b
+    where b.binding_id = current_setting('projectceo.db4_live_binding')::uuid;
+    raise exception 'DB4_TGC_PROJECT_INDEX_ALLOWED_SECOND_LIVE';
+  exception when unique_violation then null;
+  end;
+end
+$indexes_hold$;
+
+-- Чат, занятый ожидающей связью ДРУГОГО бота, не выглядит свободным.
+do $held_by_other_bot$
+declare
+  v_data jsonb;
+begin
+  v_data := remhaos_channel_api.find_pending_notice_binding('db4-bot-second', -101000)
+    -> 'data';
+  if (v_data ->> 'pending')::boolean then
+    raise exception 'DB4_TGC_FOREIGN_BOT_GOT_PENDING_BINDING';
+  end if;
+  if (v_data ->> 'chatHeldByOtherBot') is distinct from 'true' then
+    raise exception 'DB4_TGC_CHAT_HELD_FLAG_MISSING:%', v_data;
+  end if;
+
+  -- А своему боту — ровно одна связь и ровно та.
+  v_data := remhaos_channel_api.find_pending_notice_binding('db4-bot', -101000)
+    -> 'data';
+  if not (v_data ->> 'pending')::boolean
+     or v_data ->> 'bindingId' is distinct from current_setting('projectceo.db4_live_binding') then
+    raise exception 'DB4_TGC_PENDING_LOOKUP_WRONG:%', v_data;
+  end if;
+end
+$held_by_other_bot$;
+
+-- ─────────────────────────────────────────────────────────────────────────────
+-- 9. Незавершённое подключение умеет закончиться
+-- ─────────────────────────────────────────────────────────────────────────────
+--
+-- Отказ, который повтор не лечит, обязан закрывать связь. Иначе она вечно
+-- занимает чат и проект: приём закрыт, уведомление повторяется на каждом
+-- сообщении и всякий раз отказывает, а владелец не может подключиться заново.
+
+begin;
+set local role service_role;
+do $terminate_validates$
+begin
+  begin
+    perform remhaos_channel_api.terminate_pending_binding(
+      current_setting('projectceo.db4_live_binding')::uuid, 'active', 'nope'
+    );
+    raise exception 'DB4_TGC_TERMINATE_ACCEPTED_BAD_DISPOSITION';
+  exception when sqlstate 'P1111' then null;
+  end;
+
+  begin
+    perform remhaos_channel_api.terminate_pending_binding(
+      '00000000-0000-4000-8000-000000000000'::uuid, 'suspended', 'nope'
+    );
+    raise exception 'DB4_TGC_TERMINATE_ACCEPTED_UNKNOWN_BINDING';
+  exception when sqlstate 'P1104' then null;
+  end;
+end
+$terminate_validates$;
+commit;
+
+begin;
+set local role service_role;
+do $terminate_pending$
+declare
+  v_first jsonb;
+  v_repeat jsonb;
+begin
+  v_first := remhaos_channel_api.terminate_pending_binding(
+    current_setting('projectceo.db4_live_binding')::uuid,
+    'suspended', 'bot_not_chat_admin'
+  ) -> 'data';
+  if not (v_first ->> 'terminated')::boolean
+     or v_first ->> 'status' is distinct from 'suspended' then
+    raise exception 'DB4_TGC_TERMINATE_DID_NOT_CLOSE:%', v_first;
+  end if;
+
+  -- Повтор безвреден и честен: закрывать больше нечего.
+  v_repeat := remhaos_channel_api.terminate_pending_binding(
+    current_setting('projectceo.db4_live_binding')::uuid,
+    'revoked', 'second_call'
+  ) -> 'data';
+  if (v_repeat ->> 'terminated')::boolean then
+    raise exception 'DB4_TGC_TERMINATE_REPEATED_AS_CHANGE:%', v_repeat;
+  end if;
+  if v_repeat ->> 'status' is distinct from 'suspended' then
+    raise exception 'DB4_TGC_TERMINATE_REPEAT_CHANGED_STATUS:%', v_repeat;
+  end if;
+end
+$terminate_pending$;
+commit;
+
+do $terminated_state$
+declare
+  v_status text;
+  v_capture text;
+  v_reason text;
+  v_activated timestamptz;
+begin
+  select b.status, b.capture_state, b.status_reason, b.activated_at
+  into v_status, v_capture, v_reason, v_activated
+  from remhaos_channel.project_channel_bindings b
+  where b.binding_id = current_setting('projectceo.db4_live_binding')::uuid;
+
+  if v_status is distinct from 'suspended'
+     or v_capture is distinct from 'none'
+     or v_activated is not null then
+    raise exception 'DB4_TGC_TERMINATED_SHAPE:%/%', v_status, v_capture;
+  end if;
+  if v_reason is distinct from 'bot_not_chat_admin' then
+    raise exception 'DB4_TGC_TERMINATED_REASON_LOST:%', coalesce(v_reason, 'null');
+  end if;
+end
+$terminated_state$;
+
+-- После закрытия: повторять нечего, принимать нечего.
+begin;
+set local role service_role;
+do $after_termination$
+declare
+  v_pending jsonb;
+  v_ingest jsonb;
+begin
+  v_pending := remhaos_channel_api.find_pending_notice_binding('db4-bot', -101000) -> 'data';
+  if (v_pending ->> 'pending')::boolean then
+    raise exception 'DB4_TGC_TERMINATED_STILL_PENDING';
+  end if;
+  if (v_pending ->> 'chatHeldByOtherBot') is not distinct from 'true' then
+    raise exception 'DB4_TGC_TERMINATED_STILL_HELD';
+  end if;
+
+  v_ingest := remhaos_channel_api.ingest_channel_update(
+    'db4-bot', 9501, -101000, 951, 'message', 777002, null, null, null,
+    '{"kind":"message","text":"после закрытия","attachmentCount":0}'::jsonb
+  ) -> 'data';
+  if (v_ingest ->> 'stored')::boolean then
+    raise exception 'DB4_TGC_CAPTURED_AFTER_TERMINATION';
+  end if;
+end
+$after_termination$;
+rollback;
+
+-- И владелец может подключиться заново: ни чат, ни проект больше не заняты.
+begin;
+set local role authenticated;
+set local request.jwt.claim.sub = :'owner_b';
+select remhaos_channel_api.create_binding_intent(
+  :'project_b', pg_catalog.sha256(convert_to('db4-live-b3', 'UTF8')), 600
+);
+commit;
+
+begin;
+set local role service_role;
+select remhaos_channel_api.activate_project_binding(
+  pg_catalog.sha256(convert_to('db4-live-b3', 'UTF8')),
+  777002, 'db4-bot', -101000, 'supergroup', 'notice-v1', true, true
+);
+commit;
+
+do $reconnect_after_termination$
+begin
+  if (
+    select count(*) from remhaos_channel.project_channel_bindings
+    where external_chat_id = -101000
+      and status in ('pending', 'notice_pending', 'active')
+  ) <> 1 then
+    raise exception 'DB4_TGC_RECONNECT_LEFT_MORE_THAN_ONE_LIVE';
+  end if;
+end
+$reconnect_after_termination$;
+
+-- Уборка: сценарий гонок ниже начинает с чистого проекта B.
+begin;
+set local role authenticated;
+set local request.jwt.claim.sub = :'owner_b';
+select remhaos_channel_api.disconnect_project_channel(:'project_b', 'db4-tgc-cleanup');
+commit;
+
+\echo DB4_TELEGRAM_BRIDGE_CORRECTION_OK

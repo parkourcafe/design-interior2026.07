@@ -55,7 +55,12 @@ function classify(errorCode: number, retryAfter: number | undefined): TelegramCa
       retryAfterSeconds: Math.min(Math.max(retryAfter ?? 30, 1), 3600),
     };
   }
-  if (errorCode === 403 || errorCode === 400) {
+  // 401 — недействительный токен бота. Повтор его не исправит и не должен
+  // создавать вид работы: ретраить `Unauthorized` значит долбиться в закрытую
+  // дверь чужим ключом, пока кто-нибудь не заметит тишину. Прежняя редакция
+  // относила 401 к общей ветке «попробуем ещё раз» — вместе с 500 и 502, у
+  // которых причина ровно противоположная.
+  if (errorCode === 403 || errorCode === 401 || errorCode === 400) {
     return { ok: false, failureCode: `tg_${errorCode}`, retryable: false, retryAfterSeconds: 0 };
   }
   return { ok: false, failureCode: `tg_${errorCode}`, retryable: true, retryAfterSeconds: 60 };

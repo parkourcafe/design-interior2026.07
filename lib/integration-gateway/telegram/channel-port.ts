@@ -98,18 +98,36 @@ const claimedNotificationSchema = z.object({
 
 export type ClaimedNotification = z.infer<typeof claimedNotificationSchema>;
 
-const pendingNoticeSchema = z.object({
-  pending: z.boolean(),
-  bindingId: z.string().optional(),
-  noticeVersion: z.string().optional(),
-  initiatorExternalUserId: z.number().nullable().optional(),
-});
+/**
+ * Ответ поиска ожидающей связи. Union, а не объект с необязательными полями:
+ * «связь есть» и «связи нет» несут разные наборы данных, и схема, принимающая
+ * обе формы разом, пропустила бы ответ без `bindingId` там, где он обязателен.
+ */
+const pendingNoticeSchema = z.discriminatedUnion("pending", [
+  z.object({
+    pending: z.literal(true),
+    bindingId: z.string().min(1),
+    noticeVersion: z.string(),
+    initiatorExternalUserId: z.number().int().nullable(),
+  }),
+  z.object({
+    pending: z.literal(false),
+    // Чат занят ожидающей связью ДРУГОГО экземпляра бота. Не «свободно»:
+    // заводить вторую связь поверх нельзя, и доделывать её тоже не нам.
+    chatHeldByOtherBot: z.boolean().optional(),
+  }),
+]);
 
 export interface PendingNoticeBinding {
   readonly bindingId: string;
   readonly noticeVersion: string;
   /** null — связь личности инициатора отозвана; финализация обязана отказать. */
   readonly initiatorExternalUserId: number | null;
+}
+
+export interface PendingNoticeLookup {
+  readonly binding: PendingNoticeBinding | null;
+  readonly chatHeldByOtherBot: boolean;
 }
 
 export interface IngestChannelUpdateInput {
@@ -193,8 +211,14 @@ export class TelegramSystemPort {
       initiator_is_chat_admin: input.initiatorIsChatAdmin,
       bot_is_chat_admin: input.botIsChatAdmin,
     });
+    // Нарушение контракта — это НЕ «ничего не изменилось». Свернув его в
+    // `changed: false`, порт сказал бы вызывающему «связь уже активна», и тот
+    // спокойно открыл бы приём переписки, которого база не открывала.
     const parsed = z.object({ changed: z.boolean() }).safeParse(data);
-    return { changed: parsed.success ? parsed.data.changed : false };
+    if (!parsed.success) {
+      throw new TelegramChannelRpcError("mark_channel_notice_posted", "shape_invalid");
+    }
+    return parsed.data;
   }
 
   /**
@@ -206,14 +230,24 @@ export class TelegramSystemPort {
    */
   async terminatePendingBinding(input: {
     readonly bindingId: string;
+    /**
+     * `suspended` — причина внешняя и поправимая (понизили, выкинули);
+     * `revoked` — полномочий больше нет вовсе. Оба освобождают чат и проект,
+     * но говорят человеку на экране разное.
+     */
+    readonly disposition: "suspended" | "revoked";
     readonly reason: string;
   }): Promise<{ readonly terminated: boolean }> {
     const data = await callChannelRpc(this.client, "terminate_pending_binding", {
       binding_id: input.bindingId,
+      disposition: input.disposition,
       reason: input.reason,
     });
     const parsed = z.object({ terminated: z.boolean() }).safeParse(data);
-    return { terminated: parsed.success ? parsed.data.terminated : false };
+    if (!parsed.success) {
+      throw new TelegramChannelRpcError("terminate_pending_binding", "shape_invalid");
+    }
+    return parsed.data;
   }
 
   /**
@@ -226,17 +260,31 @@ export class TelegramSystemPort {
   async findPendingNoticeBinding(input: {
     readonly botInstanceId: string;
     readonly chatId: number;
-  }): Promise<PendingNoticeBinding | null> {
+  }): Promise<PendingNoticeLookup> {
     const data = await callChannelRpc(this.client, "find_pending_notice_binding", {
       bot_instance_id: input.botInstanceId,
       external_chat_id: input.chatId,
     });
     const parsed = pendingNoticeSchema.safeParse(data);
-    if (!parsed.success || !parsed.data.pending) return null;
+    // Ответ не той формы — исключение, а не `null`. `null` здесь значит «чат
+    // свободен», и транспорт по нему пошёл бы заводить вторую связь поверх
+    // существующей: сломанный контракт превратился бы в нарушенный инвариант.
+    if (!parsed.success) {
+      throw new TelegramChannelRpcError("find_pending_notice_binding", "shape_invalid");
+    }
+    if (!parsed.data.pending) {
+      return {
+        binding: null,
+        chatHeldByOtherBot: parsed.data.chatHeldByOtherBot === true,
+      };
+    }
     return {
-      bindingId: parsed.data.bindingId ?? "",
-      noticeVersion: parsed.data.noticeVersion ?? "",
-      initiatorExternalUserId: parsed.data.initiatorExternalUserId ?? null,
+      binding: {
+        bindingId: parsed.data.bindingId,
+        noticeVersion: parsed.data.noticeVersion,
+        initiatorExternalUserId: parsed.data.initiatorExternalUserId,
+      },
+      chatHeldByOtherBot: false,
     };
   }
 

@@ -86,7 +86,8 @@ AP5 в этих прогонах **skipped** и о TG3 не доказывает
 | # | Action | cost_class | Human gate | Output |
 |---:|---|---|---|---|
 | 1 | link_telegram_identity | free_deterministic | вход в RemHaOS + одноразовый intent | ChannelIdentityLink |
-| 2 | bind_project_chat | free_deterministic | `manage_project_integrations` + admin группы | ProjectChannelBinding (`notice_pending` → `active` после уведомления) |
+| 2 | bind_project_chat | free_deterministic | `manage_project_integrations` + admin группы (инициатор И бот) | ProjectChannelBinding (`notice_pending` → `active` после уведомления) — ЕДИНСТВЕННАЯ живая связь чата и проекта |
+| 2a | terminate_pending_binding | free_deterministic | — (системный adapter; отказ, который повтор не лечит) | ProjectChannelBinding (`suspended`/`revoked`), чат и проект освобождены |
 | 3 | ingest_channel_update | free_deterministic | — (системный adapter) | ChannelEvent (+ ChannelAttachment) |
 | 4 | extract_candidate | metered_ai (C3) | — (система ничего не утверждает) | ProjectInboxCandidate (pending) |
 | 5 | review_candidate | free_deterministic | **человек в RemHaOS** | подтверждён / отклонён |

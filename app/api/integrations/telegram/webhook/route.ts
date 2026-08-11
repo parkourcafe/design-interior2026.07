@@ -19,7 +19,7 @@ import {
 import {
   TelegramChannelRpcError,
   TelegramSystemPort,
-  type PendingNoticeBinding,
+  type PendingNoticeLookup,
 } from "@/lib/integration-gateway/telegram/channel-port";
 import {
   extractBotUserId,
@@ -185,12 +185,30 @@ async function publishNoticeAndFinalize(
   bot: TelegramBotApi,
   requestId: string,
 ): Promise<Response> {
-  const terminate = async (reason: string): Promise<Response> => {
+  const terminate = async (
+    disposition: "suspended" | "revoked",
+    reason: string,
+  ): Promise<Response> => {
     // Постоянный отказ ЗАКАНЧИВАЕТ попытку. Без этого связь оставалась бы
     // `notice_pending` навсегда, а группа получала бы повтор уведомления на
     // каждом сообщении.
+    //
+    // Исход выбирается по природе причины: `suspended` — внешняя и поправимая
+    // (понизили, выкинули), `revoked` — полномочий больше нет вовсе. Оба
+    // освобождают чат и проект, но на экране это разные слова.
     try {
-      await port.terminatePendingBinding({ bindingId: pending.bindingId, reason });
+      const outcome = await port.terminatePendingBinding({
+        bindingId: pending.bindingId,
+        disposition,
+        reason,
+      });
+      // `terminated: false` — НЕ успех. База говорит «закрывать было нечего»:
+      // связь уже в другом состоянии, и наш вывод о ней устарел. Ответить
+      // «разобрались» значило бы закрепить решение, принятое по прошлому
+      // состоянию; 503 просит принести это же событие снова и перечитать.
+      if (!outcome.terminated) {
+        return retryLater("terminate_not_applied", requestId, event);
+      }
     } catch {
       // Терминализация не удалась — это наш сбой, и связь ещё жива.
       return retryLater("terminate_failed", requestId, event);
@@ -203,13 +221,18 @@ async function publishNoticeAndFinalize(
 
   if (pending.initiatorExternalUserId === null) {
     // Связь личности инициатора отозвана — восстановить нечем.
-    return terminate("initiator_identity_revoked");
+    return terminate("revoked", "initiator_identity_revoked");
   }
 
-  const botUserId = await resolveBotUserId(bot);
-  if (botUserId === null) {
-    return retryLater("bot_identity_lookup_failed", requestId, event);
+  const identity = await resolveBotUserId(bot);
+  if (identity.kind === "transient") {
+    return retryLater(`bot_identity_${identity.failureCode}`, requestId, event);
   }
+  if (identity.kind === "permanent") {
+    // Токен отозван или бот заблокирован. Связь ждёт того, чего уже не будет.
+    return terminate("suspended", "bot_identity_refused");
+  }
+  const botUserId = identity.botUserId;
 
   const [initiatorMembership, botMembership] = await Promise.all([
     bot.getChatMember({ chatId: event.chatId, userId: pending.initiatorExternalUserId }),
@@ -221,10 +244,10 @@ async function publishNoticeAndFinalize(
     }
   }
   if (!initiatorMembership.ok || !isChatAdministrator(initiatorMembership.result)) {
-    return terminate("initiator_not_chat_admin");
+    return terminate("suspended", "initiator_not_chat_admin");
   }
   if (!botMembership.ok || !isChatAdministrator(botMembership.result)) {
-    return terminate("bot_not_chat_admin");
+    return terminate("suspended", "bot_not_chat_admin");
   }
 
   // Юридическим закрытием 152-ФЗ это уведомление не является (A7 §1.11).
@@ -232,7 +255,7 @@ async function publishNoticeAndFinalize(
   if (!notice.ok) {
     return notice.retryable
       ? retryLater("notice_send_failed", requestId, event)
-      : terminate("notice_delivery_refused");
+      : terminate("suspended", "notice_delivery_refused");
   }
 
   try {
@@ -248,7 +271,7 @@ async function publishNoticeAndFinalize(
     if (!isPermanentRpcFailure(error)) {
       return retryLater("notice_finalize_failed", requestId, event);
     }
-    return terminate("finalization_refused");
+    return terminate("revoked", "finalization_refused");
   }
 
   return ack("binding_activated", requestId, {
@@ -258,9 +281,34 @@ async function publishNoticeAndFinalize(
 }
 
 /** Идентификатор бота в Telegram. Нужен, чтобы спросить о его собственных правах. */
-async function resolveBotUserId(bot: TelegramBotApi): Promise<number | null> {
+/**
+ * Кто сам бот — и ПОЧЕМУ не удалось узнать, если не удалось.
+ *
+ * Схлопывать оба вида отказа в `null` нельзя: `429` и `500` просят прийти
+ * снова, а `401` (токен отозван) и `403` повтором не лечатся никогда. Один
+ * ответ на оба означал бы либо вечный повтор на мёртвом токене, либо потерю
+ * события на живом.
+ */
+type BotIdentity =
+  | { readonly kind: "ok"; readonly botUserId: number }
+  | { readonly kind: "transient"; readonly failureCode: string }
+  | { readonly kind: "permanent"; readonly failureCode: string };
+
+async function resolveBotUserId(bot: TelegramBotApi): Promise<BotIdentity> {
   const identity = await bot.getMe();
-  return identity.ok ? extractBotUserId(identity.result) : null;
+  if (!identity.ok) {
+    return {
+      kind: identity.retryable ? "transient" : "permanent",
+      failureCode: identity.failureCode,
+    };
+  }
+  const botUserId = extractBotUserId(identity.result);
+  // Ответ принят, но формы не той: это наша поломка или изменившийся контракт,
+  // и повтор здесь уместен.
+  if (botUserId === null) {
+    return { kind: "transient", failureCode: "bot_identity_malformed" };
+  }
+  return { kind: "ok", botUserId };
 }
 
 /**
@@ -329,10 +377,19 @@ async function handleGroupHandshake(
     });
   }
 
-  const botUserId = await resolveBotUserId(bot);
-  if (botUserId === null) {
-    return retryLater("bot_identity_lookup_failed", requestId, event);
+  const identity = await resolveBotUserId(bot);
+  if (identity.kind === "transient") {
+    return retryLater(`bot_identity_${identity.failureCode}`, requestId, event);
   }
+  if (identity.kind === "permanent") {
+    // Связи ещё нет — терминализировать нечего, и создавать её нельзя: иначе
+    // остался бы осиротевший `notice_pending` под мёртвым токеном.
+    return ack("binding_rejected", requestId, {
+      updateId: event.updateId,
+      chatId: event.chatId,
+    });
+  }
+  const botUserId = identity.botUserId;
 
   const [initiatorMembership, botMembership] = await Promise.all([
     bot.getChatMember({ chatId: event.chatId, userId: event.senderId }),
@@ -481,9 +538,9 @@ export async function POST(request: Request) {
     //
     // Событие, потраченное на восстановление, НЕ сохраняется: участники группы
     // ещё не предупреждены (A7 §6).
-    let pending: PendingNoticeBinding | null;
+    let lookup: PendingNoticeLookup;
     try {
-      pending = await port.findPendingNoticeBinding({
+      lookup = await port.findPendingNoticeBinding({
         botInstanceId,
         chatId: event.chatId,
       });
@@ -491,8 +548,17 @@ export async function POST(request: Request) {
       return retryLater("notice_lookup_failed", requestId, event);
     }
 
-    if (pending !== null) {
-      return await publishNoticeAndFinalize(pending, event, port, bot, requestId);
+    if (lookup.chatHeldByOtherBot) {
+      // Чат занят ожидающей связью другого экземпляра бота. Ни доделывать, ни
+      // заводить свою: и то и другое нарушило бы «одна живая связь на чат».
+      return ack("binding_rejected", requestId, {
+        updateId: event.updateId,
+        chatId: event.chatId,
+      });
+    }
+
+    if (lookup.binding !== null) {
+      return await publishNoticeAndFinalize(lookup.binding, event, port, bot, requestId);
     }
 
     if (event.startPayload !== null) {

@@ -26,7 +26,10 @@ const RPC_STATE = {
   finalizeError: null as unknown,
   ingestResult: { stored: true, duplicate: false } as unknown,
   calls: [] as string[],
-  terminated: [] as { bindingId: string; reason: string }[],
+  terminated: [] as { bindingId: string; disposition: string; reason: string }[],
+  // Чат занят ожидающей связью ДРУГОГО экземпляра бота: не «свободно» и не
+  // «доделай сам».
+  chatHeldByOtherBot: false,
 };
 
 const BOT_STATE = {
@@ -46,7 +49,10 @@ vi.mock("@/lib/integration-gateway/telegram/channel-port", async () => {
     async findPendingNoticeBinding() {
       RPC_STATE.calls.push("find");
       if (RPC_STATE.findError) throw RPC_STATE.findError;
-      return RPC_STATE.pending;
+      return {
+        binding: RPC_STATE.pending,
+        chatHeldByOtherBot: RPC_STATE.chatHeldByOtherBot,
+      };
     }
     async activateProjectBinding() {
       RPC_STATE.calls.push("activate");
@@ -58,7 +64,9 @@ vi.mock("@/lib/integration-gateway/telegram/channel-port", async () => {
       if (RPC_STATE.finalizeError) throw RPC_STATE.finalizeError;
       return { changed: true };
     }
-    async terminatePendingBinding(input: { bindingId: string; reason: string }) {
+    async terminatePendingBinding(
+      input: { bindingId: string; disposition: string; reason: string },
+    ) {
       RPC_STATE.calls.push("terminate");
       RPC_STATE.terminated.push(input);
       return { terminated: true };
@@ -133,6 +141,7 @@ beforeEach(() => {
   vi.stubEnv("TELEGRAM_TEST_WEBHOOK_SECRET", SECRET);
   vi.stubEnv("TELEGRAM_TEST_BOT_USERNAME", "remhaos_test_bot");
   RPC_STATE.pending = null;
+  RPC_STATE.chatHeldByOtherBot = false;
   RPC_STATE.activateError = null;
   RPC_STATE.findError = null;
   RPC_STATE.finalizeError = null;
@@ -271,8 +280,14 @@ describe("Telegram webhook — permanent failure terminates the attempt", () => 
     expect(response.status).toBe(200);
     // Уведомление не отправлялось: права проверены ДО отправки.
     expect(BOT_STATE.sendCount).toBe(0);
+    // Исход выбирается по природе причины: понижение — внешнее и поправимое,
+    // поэтому `suspended`, а не `revoked`.
     expect(RPC_STATE.terminated).toEqual([
-      { bindingId: "binding-fresh", reason: "initiator_not_chat_admin" },
+      {
+        bindingId: "binding-fresh",
+        disposition: "suspended",
+        reason: "initiator_not_chat_admin",
+      },
     ]);
   });
 
