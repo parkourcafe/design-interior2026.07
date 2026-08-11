@@ -28,20 +28,33 @@ export function materializeReleaseArtifact(input: {
       + " системный воркер, и без доступа к базе шаг невыполним",
     );
   }
-  execFileSync(
-    "psql",
-    [
-      databaseUrl,
-      "-X",
-      "--set", "ON_ERROR_STOP=1",
-      "-v", `project_id=${input.projectId}`,
-      "-v", `version_id=${input.productionPackageVersionId}`,
-      "-v", `artifact_id=${input.artifactId}`,
-      // Ключ идемпотентности детерминированный: повтор шага обязан вернуть
-      // прежний артефакт, а не завести второй.
-      "-v", `idempotency_key=ap5-build-release-${input.artifactId}`,
-      "-f", resolve(process.cwd(), "tests/ap5/materialize-release-artifact.sql"),
-    ],
-    { stdio: "pipe", encoding: "utf8" },
-  );
+  try {
+    execFileSync(
+      "psql",
+      [
+        databaseUrl,
+        "-X",
+        "--set", "ON_ERROR_STOP=1",
+        "-v", `project_id=${input.projectId}`,
+        "-v", `version_id=${input.productionPackageVersionId}`,
+        "-v", `artifact_id=${input.artifactId}`,
+        // Ключ идемпотентности детерминированный: повтор шага обязан вернуть
+        // прежний артефакт, а не завести второй.
+        "-v", `idempotency_key=ap5-build-release-${input.artifactId}`,
+        "-f", resolve(process.cwd(), "tests/ap5/materialize-release-artifact.sql"),
+      ],
+      { stdio: "pipe", encoding: "utf8" },
+    );
+  } catch (error) {
+    // Без этого наружу выходит «Command failed: psql …» без единой строки от
+    // базы, а цена непонятного отказа здесь — сорок пять минут следующего
+    // прогона. Урок дефекта 3: отказ обязан называть себя сам.
+    const detail = error as { stderr?: string; stdout?: string; message?: string };
+    throw new Error(
+      "AP5: системная сборка артефакта выпуска не прошла.\n"
+      + `${detail.message ?? String(error)}\n`
+      + `stderr: ${detail.stderr ?? "(пусто)"}\n`
+      + `stdout: ${detail.stdout ?? "(пусто)"}`,
+    );
+  }
 }
