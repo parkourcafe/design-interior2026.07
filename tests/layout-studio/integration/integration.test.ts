@@ -232,6 +232,10 @@ describe("Layout Studio delivery/UI slice", () => {
       // подтверждения получения живут в продуктовой схеме, и сплошной отзыв по
       // схеме M4 их не касался. К Layout Studio отношения не имеет.
       "20260811020000_projectceo_m4_distribution_guardrail.sql",
+      // Системное чтение очереди артефактов выпуска — единственная новая
+      // поверхность воркерного этапа (DEC-030), права только у service role.
+      // К Layout Studio отношения не имеет.
+      "20260811030000_projectceo_release_artifact_worker_read.sql",
     ];
     const actual = readdirSync(join(repoRoot, "supabase/migrations"), { withFileTypes: true })
       .filter((entry) => entry.isFile())

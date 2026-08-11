@@ -213,7 +213,10 @@ begin
     ('projectceo_product_api.append_m2_workspace_revision(uuid,uuid,text,text,text,text,text,jsonb,text,bigint,text)'),
     ('projectceo_product_api.submit_m2_client_review(uuid,uuid,text,text,text,text,text,text,jsonb,text,integer,text,bigint,text)'),
     ('projectceo_product_api.review_m2_client_submission(uuid,uuid,text,text,text,text,text,text,bigint,text)'),
-    ('projectceo_product_api.publish_m2_m3_handoff(uuid,uuid,text,text,text,text,text,text,bigint,text)')
+    ('projectceo_product_api.publish_m2_m3_handoff(uuid,uuid,text,text,text,text,text,text,bigint,text)'),
+    -- Системное чтение очереди артефактов выпуска (20260811030000,
+    -- DEC-030): права только у service_role, проверка — сценарий 41.
+    ('projectceo_product_api.list_release_artifact_backlog(integer)')
   ) expected(signature)
   where to_regprocedure(expected.signature) is null
   limit 1;
@@ -227,8 +230,10 @@ begin
   where n.nspname = 'projectceo_product_api'
     and p.prokind = 'f';
   -- The layout migration retains one owner-only compatibility implementation
-  -- behind the public request-bound wrapper.
-  if v_count <> 21 then
+  -- behind the public request-bound wrapper. Число выросло до 22 с системным
+  -- чтением очереди артефактов выпуска (20260811030000): перепись существует
+  -- ровно затем, чтобы новая RPC в схеме не появлялась молча.
+  if v_count <> 22 then
     raise exception 'DB4_UNEXPECTED_RPC_COUNT:%', v_count;
   end if;
 

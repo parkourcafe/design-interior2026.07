@@ -165,8 +165,10 @@ guardrail-решением (`REMHAOS_GUARDRAIL_DECISION_M4_FLAG.md`), а не а
   плюс аудируемый DB-state). Матрица поверхности — `m4-surface.ts`, и всё, что в
   ней написано, проверяется тестами (`m4-surface-matrix.test.ts`, DB4 07 и 08).
 
-**M4 Worker Foundation / Increment 1.5 открыт решением владельца 11.08.2026**
-(DEC-030) в объёме **одного** системного воркера — Release Artifact Worker.
+**M4 Worker Foundation / Increment 1.5 открыт и построен 11.08.2026**
+(DEC-030) в объёме **одного** системного воркера — Release Artifact Worker
+(`npm run worker:release-artifacts`, отчёт
+`docs/product-intelligence/M4_INCREMENT_1_5_WORKER_REPORT_2026-08-11.md`).
 Основание — находка гейта 2: выдача опирается на артефакт выпуска, который
 собирает только система, то есть у инкремента 1 воркерная предпосылка всё-таки
 есть. Impact calculation, milestones, photo processing и handover **не

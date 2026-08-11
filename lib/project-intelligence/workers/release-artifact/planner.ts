@@ -1,0 +1,156 @@
+/**
+ * Планировщик системного воркера артефактов выпуска (DEC-030, инкремент 1.5).
+ *
+ * Здесь нет ни сети, ни базы — только детерминированный вывод: из очереди
+ * выпущенных версий без артефакта получаются задания со стабильными
+ * идентификаторами и ключами идемпотентности. Отделено намеренно: всё, на чём
+ * держатся «повтор не создаёт дубль» и «два запуска дают один артефакт»,
+ * проверяется юнит-тестом без стека.
+ *
+ * ЧТО ЗДЕСЬ НЕ ДЕЛАЕТСЯ. Ни расчёта влияния, ни вех, ни фото, ни сборки
+ * передачи — DEC-030 открывает ровно один воркер. Ни одной человеческой двери:
+ * воркер живёт системной identity и HTTP/RPC-доступа людям не создаёт.
+ */
+
+import { createHash } from "node:crypto";
+
+import { z } from "zod";
+
+import {
+  buildReleaseDescriptor,
+  type ReleaseDescriptor,
+} from "../../modules/package";
+
+const prefixedHash = z.string().regex(/^sha256:[0-9a-f]{64}$/);
+
+const exactRevisionRefsSchema = z.object({
+  sources: z.array(z.string()),
+  requirements: z.array(z.string()),
+  assumptions: z.array(z.string()),
+  decisions: z.array(z.string()),
+  selections: z.array(z.string()),
+}).strict();
+
+/** Строка очереди — ровно то, что отдаёт `list_release_artifact_backlog`. */
+export const releaseBacklogRowSchema = z.object({
+  organizationId: z.string().uuid(),
+  projectId: z.string().uuid(),
+  packageId: z.string().uuid(),
+  productionPackageVersionId: z.string().min(1).max(160),
+  versionNo: z.number().int().positive(),
+  previousVersionId: z.string().min(1).max(160).nullable(),
+  baselineId: z.string().min(1).max(160),
+  exactRevisionRefs: exactRevisionRefsSchema,
+  semanticHash: prefixedHash,
+  stateRevision: z.number().int().nonnegative(),
+}).strict();
+
+export const releaseBacklogEnvelopeSchema = z.object({
+  contractVersion: z.literal("project-ceo-release-worker/0.1"),
+  requestId: z.string().min(1),
+  data: z.array(releaseBacklogRowSchema),
+  error: z.null(),
+}).strict();
+
+export type ReleaseBacklogRow = z.infer<typeof releaseBacklogRowSchema>;
+
+export interface ReleaseArtifactWorkItem {
+  readonly projectId: string;
+  readonly productionPackageVersionId: string;
+  /** Снимок ревизии состояния на момент чтения очереди. */
+  readonly expectedStateRevision: number;
+  readonly artifactId: string;
+  readonly idempotencyKey: string;
+  readonly descriptor: ReleaseDescriptor;
+}
+
+export class ReleaseArtifactPlanError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "ReleaseArtifactPlanError";
+  }
+}
+
+/**
+ * Идентификатор артефакта. Детерминированный и по построению короткий.
+ *
+ * Почему не `release-artifact:<versionId>`: идентификатор версии сам по себе
+ * бывает до 160 символов, а у `artifactId` тот же предел — префикс переполнил
+ * бы его на длинных версиях, и воркер падал бы ровно там, где повтор обязан
+ * быть повтором. Хеш даёт фиксированную длину и ту же детерминированность.
+ *
+ * Организация в хеш входит вместе с проектом: идентификаторы версий уникальны
+ * внутри проекта, и без проекта два арендатора могли бы сойтись в одном
+ * значении.
+ *
+ * Разделитель — U+001F, и он выбран не случайно. Пробел мог бы встретиться
+ * внутри идентификатора версии (база требует лишь trim), а NUL представим в
+ * JavaScript, но не в PostgreSQL: тип `text` его не принимает вовсе, и
+ * SQL-сторона не смогла бы повторить эту деривацию. Повторить её надо —
+ * `tests/db4/run-concurrency.zsh` считает тот же идентификатор, чтобы гонка
+ * проверяла ровно то значение, которым ходит воркер.
+ */
+export function releaseArtifactId(row: {
+  readonly organizationId: string;
+  readonly projectId: string;
+  readonly productionPackageVersionId: string;
+}): string {
+  const digest = createHash("sha256")
+    .update(`${row.organizationId}\u001f${row.projectId}\u001f${row.productionPackageVersionId}`)
+    .digest("hex");
+  return `release-artifact:${digest.slice(0, 32)}`;
+}
+
+/**
+ * Ключ идемпотентности. Тоже детерминированный и НЕ включает ревизию
+ * состояния: повтор после потери ответа обязан попасть в тот же ключ, даже
+ * если состояние проекта успело сдвинуться.
+ */
+export function releaseArtifactIdempotencyKey(row: {
+  readonly productionPackageVersionId: string;
+}): string {
+  return `worker:release-artifact:${row.productionPackageVersionId}`;
+}
+
+/** Очередь → задания. Порядок сохраняется тем, в котором её отдала база. */
+export function planReleaseArtifactWork(
+  rows: readonly ReleaseBacklogRow[],
+): readonly ReleaseArtifactWorkItem[] {
+  const seen = new Set<string>();
+  return rows.map((row) => {
+    const key = `${row.projectId}\u001f${row.productionPackageVersionId}`;
+    if (seen.has(key)) {
+      // Дубль в очереди означал бы, что чтение отдало одну версию дважды.
+      // Молча его склеить — значит спрятать дефект источника.
+      throw new ReleaseArtifactPlanError(
+        `release artifact backlog returned ${row.productionPackageVersionId} twice`,
+      );
+    }
+    seen.add(key);
+    const descriptor = buildReleaseDescriptor({
+      productionPackage: {
+        id: row.productionPackageVersionId,
+        organizationId: row.organizationId,
+        projectId: row.projectId,
+        packageId: row.packageId,
+        baselineId: row.baselineId,
+        semanticHash: row.semanticHash as `sha256:${string}`,
+        exactRevisionRefs: row.exactRevisionRefs,
+      },
+      // P0 выпускает одно логическое содержимое; хеш самого содержимого и есть
+      // хеш версии — так его считает и RPC (`20260717101000`).
+      artifacts: [{
+        kind: "logical_json",
+        contentHash: row.semanticHash as `sha256:${string}`,
+      }],
+    });
+    return {
+      projectId: row.projectId,
+      productionPackageVersionId: row.productionPackageVersionId,
+      expectedStateRevision: row.stateRevision,
+      artifactId: releaseArtifactId(row),
+      idempotencyKey: releaseArtifactIdempotencyKey(row),
+      descriptor,
+    };
+  });
+}

@@ -588,6 +588,19 @@ export class ProjectBrainWorkerPostgresAdapter {
     );
   }
 
+  /**
+   * Очередь выпущенных версий без артефакта — системное чтение
+   * (`20260811030000`, права только у service role). Разбор конверта живёт в
+   * воркере: адаптер отвечает за границу с базой, а не за контракт очереди.
+   */
+  async listReleaseArtifactBacklog(input: {
+    readonly maxRows: number;
+  }): Promise<unknown> {
+    return callProductRpc(this.client, "list_release_artifact_backlog", {
+      max_rows: input.maxRows,
+    });
+  }
+
   async buildReleaseArtifact(input: {
     readonly projectId: string;
     readonly artifact: {

@@ -509,7 +509,23 @@ export function buildProductionPackageVersion(input: {
 }
 
 export function buildReleaseDescriptor(input: {
-  readonly productionPackage: ProductionPackageVersion;
+  /**
+   * Ровно те поля версии, которые входят в логическое содержимое артефакта.
+   * Сужено 11.08 (этап M4 Worker Foundation): системный воркер собирает версию
+   * из очереди, где нет ни `publishedAt`, ни `publishedBy`, — и не должен их
+   * выдумывать ради формы типа. Полный `ProductionPackageVersion` по-прежнему
+   * подходит структурно, поэтому прежние вызовы не менялись.
+   */
+  readonly productionPackage: Pick<
+    ProductionPackageVersion,
+    | "id"
+    | "organizationId"
+    | "projectId"
+    | "packageId"
+    | "baselineId"
+    | "semanticHash"
+    | "exactRevisionRefs"
+  >;
   readonly artifacts: readonly {
     readonly kind: "logical_json" | "pdf" | "xlsx" | "csv";
     readonly contentHash: `sha256:${string}`;
