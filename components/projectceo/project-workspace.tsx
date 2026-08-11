@@ -25,6 +25,7 @@ import { recordIdFromContent } from "./record-id";
 import { M2WorkflowPanel } from "./m2-workflow-panel";
 import { M2ClientReviewPanel } from "./m2-client-review-panel";
 import { M2M3ApprovedInputCard } from "./m2-m3-approved-input-card";
+import { TelegramChannelPanel } from "./telegram-channel-panel";
 
 const projectCeoRu = ru.projectCeo;
 
@@ -1533,6 +1534,15 @@ function ParticipantsView({ view }: { readonly view: ProjectWorkspaceView }) {
           })}
         </div>
       </section>
+
+      {/*
+        The chat bridge sits beside participants rather than inside a module:
+        connecting a chat is a question of project access, not of module 1, 2,
+        3 or 4. The panel fetches its own state through its own route and never
+        enters this workspace read port — A7 2.1 keeps Telegram code out of the
+        modules, and threading channel state through delivery would put it back.
+      */}
+      <TelegramChannelPanel projectId={view.project.id} />
     </div>
   );
 }
