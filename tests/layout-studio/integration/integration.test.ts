@@ -209,6 +209,25 @@ describe("Layout Studio delivery/UI slice", () => {
       // Продолжение auth-фикса 20260801120000: переписывает тела пяти функций
       // M2/M3 на request-claim. К Layout Studio отношения не имеет.
       "20260810040000_projectceo_m2_m3_request_claim_followup.sql",
+      // Дверь ревью источника в отданной схеме (projectceo_api.review_source) —
+      // починка дефекта, найденного гейтом AP5. К Layout Studio отношения не
+      // имеет.
+      "20260810050000_projectceo_source_review_door.sql",
+      // Чтение v8: ревизия для ревью не предлагается, пока её нет в графе
+      // утверждений. Тоже находка гейта AP5, к Layout Studio не относится.
+      "20260810060000_projectceo_source_review_target_requires_graph.sql",
+      // Guardrail модуля 4: отзыв прав на командные RPC у authenticated.
+      // К Layout Studio отношения не имеет.
+      "20260810070000_projectceo_m4_execution_guardrail.sql",
+      // Дверь публикации версии графа — предпосылка выхода M3.
+      // К Layout Studio отношения не имеет.
+      "20260810080000_projectceo_publish_version_door.sql",
+      // Состав опубликованного baseline в чтении v9 — предпосылка выпуска
+      // версии пакета. К Layout Studio отношения не имеет.
+      "20260810090000_projectceo_baseline_refs_read.sql",
+      // Guardrail модуля 3: отзыв прав на публикацию у authenticated.
+      // К Layout Studio отношения не имеет.
+      "20260811010000_projectceo_m3_publication_guardrail.sql",
     ];
     const actual = readdirSync(join(repoRoot, "supabase/migrations"), { withFileTypes: true })
       .filter((entry) => entry.isFile())

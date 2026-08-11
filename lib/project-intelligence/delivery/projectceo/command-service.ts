@@ -1,7 +1,6 @@
 import "server-only";
 
 import {
-  Db2HumanPostgresAdapter,
   FoundationPostgresAdapter,
   ProjectCeoM3HumanPostgresAdapter,
   ProjectCeoAuthenticatedReadPostgresAdapter,
@@ -20,7 +19,17 @@ import {
   type ProjectCeoCommand,
   type ProjectCeoCommandResponse,
 } from "./command-contract";
-import { isDocumentationModuleEnabled } from "./documentation-flag";
+import { DOCUMENTATION_PUBLICATION, isDocumentationModuleEnabled } from "./documentation-flag";
+import { EXECUTION_MODULE, isExecutionModuleEnabled } from "./execution-flag";
+import {
+  computeBaselineSemanticHash,
+  confirmBaselineSnapshot,
+} from "../../modules/decisions";
+import {
+  computeReleaseSemanticHash,
+  confirmReleaseSnapshot,
+  RELEASE_SCHEMA_VERSION,
+} from "../../modules/package/release-snapshot";
 
 type UnknownRecord = Readonly<Record<string, unknown>>;
 type CommandErrorCode =
@@ -41,14 +50,25 @@ const UNAVAILABLE = new Set<ProjectCeoCommand["kind"]>([
   "build_handover",
 ]);
 
-// Intake — поверхность модуля 3, поэтому она закрыта его флагом (A5 §4.2.2).
+// Guardrail модуля 4 от 10.08.2026. Проверка серверная и стоит до чтений и
+// записей: при выключенном модуле команда не доходит ни до одного RPC.
+// Список — из `execution-flag.ts`, где он же сверяется с контрактом
+// exhaustive-тестом: новая команда M4, не отнесённая ни к одному инкременту,
+// роняет CI, а не тихо проходит мимо запрета.
+
+// Поверхность модуля 3 — и приём, и выход — закрыта его флагом (A5 §4.2.2).
 // Проверка серверная и стоит до чтений и записей: при выключенном модуле
 // команда не доходит ни до одного RPC.
+//
+// Публикация добавлена сюда 11.08 по решению владельца. До этого флаг закрывал
+// только приём, а `publish_baseline` / `publish_release` не были закрыты ничем —
+// см. `DOCUMENTATION_PUBLICATION` (`documentation-flag.ts`).
 const DOCUMENTATION_MODULE = new Set<ProjectCeoCommand["kind"]>([
   "register_source",
   "review_source",
   "register_documentation_sheet",
   "attach_documentation_sheet_specifications",
+  ...DOCUMENTATION_PUBLICATION,
 ]);
 
 const MAX_INVITATION_TTL_MS = 30 * 24 * 60 * 60 * 1000;
@@ -144,6 +164,8 @@ export interface ProjectCeoCommandDependencies {
   readonly client: PostgresRpcClient;
   readonly tokenSecret?: string;
   readonly now?: () => Date;
+  /** Значение REMHAOS_EXECUTION_ENABLED; по умолчанию читается из окружения. */
+  readonly executionEnabled?: string;
   /** Значение REMHAOS_DOCUMENTATION_ENABLED; по умолчанию читается из окружения. */
   readonly documentationEnabled?: string;
 }
@@ -159,12 +181,10 @@ export class ProjectCeoCommandService {
   private readonly read: ProjectCeoAuthenticatedReadPostgresAdapter;
   private readonly product: ProjectBrainHumanPostgresAdapter;
   private readonly execution: ProjectCeoM4HumanPostgresAdapter;
-  private readonly db2: Db2HumanPostgresAdapter;
   private readonly m3: ProjectCeoM3HumanPostgresAdapter;
 
   constructor(private readonly dependencies: ProjectCeoCommandDependencies) {
     this.foundation = new FoundationPostgresAdapter(dependencies.client);
-    this.db2 = new Db2HumanPostgresAdapter(dependencies.client);
     this.m3 = new ProjectCeoM3HumanPostgresAdapter(dependencies.client);
     this.read = new ProjectCeoAuthenticatedReadPostgresAdapter(dependencies.client);
     this.product = new ProjectBrainHumanPostgresAdapter(dependencies.client);
@@ -224,6 +244,12 @@ export class ProjectCeoCommandService {
     if (
       DOCUMENTATION_MODULE.has(command.kind)
       && !isDocumentationModuleEnabled(this.dependencies.documentationEnabled)
+    ) {
+      return failure(requestId, "unavailable", "operation_unavailable");
+    }
+    if (
+      EXECUTION_MODULE.has(command.kind)
+      && !isExecutionModuleEnabled(this.dependencies.executionEnabled)
     ) {
       return failure(requestId, "unavailable", "operation_unavailable");
     }
@@ -311,14 +337,37 @@ export class ProjectCeoCommandService {
       }
       }
       if (command.kind === "review_source") {
-        // Отказ до всякой работы, и он контролируемый. Решение по источнику
-        // пишет `project_intelligence_api.review_claim`, а эта схема намеренно
-        // не отдана Data API (`supabase/config.toml`; `verify-runtime.mjs`
-        // требует от неё 406). PostgREST такой вызов не находит, ошибка не
-        // ложится ни на один SQLSTATE и превращалась в 500 — что AP5 и поймал.
-        // Открывать обратно вместе с тонкой RPC в уже отданной схеме, а до тех
-        // пор поверхность обязана честно говорить «недоступно».
-        return failure(requestId, "unavailable", "operation_unavailable");
+        // Этой команде продуктовая delivery-проекция не нужна вовсе — только
+        // источники из authenticated read. Полный context() стоил бы лишнего
+        // тяжёлого чтения на каждом клике ревью.
+        const scope = await this.scopeOnly(command.projectId);
+        const read = await this.read.getProjectWorkspaceRead({
+          projectId: command.projectId,
+          packageId: scope.accessScope === "package" ? scope.packageId ?? null : null,
+        });
+        if (read.error) {
+          throw new ProjectIntelligenceAdapterError(read.error.code, null);
+        }
+        const target = read.data.sources.find((source) => (
+          source.reviewTargetRevisionId === command.payload.targetRevisionId
+        ));
+        if (!target) return failure(requestId, "error", "not_found");
+        // Повторное решение по той же ревизии база отбивает уникальным
+        // ограничением human_reviews, а это уже 23505 без контролируемого кода.
+        // Отказываем здесь, чтобы наружу шёл scope_conflict, а не 500.
+        if (target.reviewStatus !== "pending") {
+          return failure(requestId, "error", "scope_conflict");
+        }
+        // Дверь в отданной схеме: projectceo_api.review_source →
+        // project_intelligence_api.review_claim (миграция 20260810050000).
+        return completed(requestId, await this.foundation.reviewSource({
+          projectId: command.projectId,
+          targetRevisionId: command.payload.targetRevisionId,
+          expectedRevisionId: command.payload.expectedRevisionId,
+          decision: command.payload.decision,
+          expectedStateRevision: read.stateRevision,
+          idempotencyKey,
+        }));
       }
       const { scope, delivery } = await this.context(command.projectId);
       if (command.kind === "submit_m2_client_review") {
@@ -653,27 +702,171 @@ export class ProjectCeoCommandService {
         }));
       }
       if (command.kind === "publish_release") {
-        // Организация и проект дескриптора обязаны совпадать с серверной
-        // областью запроса: дескриптор, говорящий о чужом проекте, — это
-        // сломанный клиент, а не другая публикация.
-        if (
-          command.payload.descriptor.projectId !== command.projectId
-          || command.payload.descriptor.organizationId !== scope.organizationId
-        ) {
-          return failure(requestId, "error", "scope_conflict");
+        // A′, вторая половина. Состав версии — это состав опубликованного
+        // baseline целиком, и выводится он здесь: клиент присылает только
+        // токен показанного. Организация и проект в хеш складываются из
+        // серверной области запроса, а не из тела команды, — подменить их
+        // клиенту больше нечем.
+        const read = await this.read.getProjectWorkspaceRead({
+          projectId: command.projectId,
+          packageId: scope.accessScope === "package" ? scope.packageId ?? null : null,
+        });
+        if (read.error) throw new ProjectIntelligenceAdapterError(read.error.code, null);
+        const baseline = record(read.data.latestBaseline);
+        const baselineId = typeof baseline.id === "string" ? baseline.id : null;
+        const rootPackageId = rows(read.data.packages)
+          .find((entry) => String(entry.kind ?? "") === "project_root")?.id;
+        if (!baselineId || typeof rootPackageId !== "string") {
+          return failure(requestId, "unavailable", "operation_unavailable");
         }
+        const refs = record(baseline.exactRevisionRefs);
+        const refGroup = (key: string): readonly string[] => (
+          Array.isArray(refs[key])
+            ? (refs[key] as unknown[]).filter((value): value is string => typeof value === "string")
+            : []
+        );
+        const compositionInput = {
+          packageId: rootPackageId,
+          baselineId,
+          previousVersionId: rows(read.data.packageVersions)
+            .filter((version) => version.packageId === rootPackageId)
+            .reduce<{ id: string | null; versionNo: number }>((latest, version) => {
+              const versionNo = Number(version.versionNo ?? 0);
+              return versionNo > latest.versionNo
+                ? { id: typeof version.id === "string" ? version.id : null, versionNo }
+                : latest;
+            }, { id: null, versionNo: 0 }).id,
+          baselineRefs: {
+            sources: refGroup("sources"),
+            requirements: refGroup("requirements"),
+            assumptions: refGroup("assumptions"),
+            decisions: refGroup("decisions"),
+            selections: refGroup("selections"),
+          },
+        };
+        let confirmation;
+        try {
+          confirmation = confirmReleaseSnapshot(compositionInput, command.payload.snapshotToken);
+        } catch {
+          // Состав, который RPC не примет (пустой baseline, негодный
+          // идентификатор). Это состояние проекта, а не ошибка запроса.
+          return failure(requestId, "unavailable", "operation_unavailable");
+        }
+        if (!confirmation.ok) return failure(requestId, "error", "stale_state");
+
+        const descriptor = {
+          id: `release:${command.commandId}`,
+          packageId: confirmation.composition.packageId,
+          baselineId: confirmation.composition.baselineId,
+          previousVersionId: confirmation.composition.previousVersionId,
+          exactRevisionRefs: confirmation.composition.exactRevisionRefs,
+          organizationId: scope.organizationId,
+          projectId: command.projectId,
+          schemaVersion: RELEASE_SCHEMA_VERSION,
+          semanticHash: computeReleaseSemanticHash({
+            organizationId: scope.organizationId,
+            projectId: command.projectId,
+            composition: confirmation.composition,
+          }),
+        };
         return completed(requestId, await this.product.publishProductionPackageVersion({
           projectId: command.projectId,
-          descriptor: command.payload.descriptor,
+          descriptor,
           expectedStateRevision: scope.stateRevision,
           idempotencyKey,
         }));
       }
       if (command.kind === "publish_baseline") {
+        // A′: полная server-owned заморозка. Состав выводится здесь, а клиент
+        // возвращает только токен из preview — публикуем ровно показанное или
+        // отказываем stale_state.
+        const read = await this.read.getProjectWorkspaceRead({
+          projectId: command.projectId,
+          packageId: scope.accessScope === "package" ? scope.packageId ?? null : null,
+        });
+        if (read.error) throw new ProjectIntelligenceAdapterError(read.error.code, null);
+        const packages = rows(read.data.packages).flatMap((entry) => {
+          const id = typeof entry.id === "string" ? entry.id : null;
+          return id ? [{
+            id,
+            kind: String(entry.kind ?? ""),
+            parentPackageId: typeof entry.parentPackageId === "string"
+              ? entry.parentPackageId
+              : null,
+            stableKey: String(entry.stableKey ?? ""),
+          }] : [];
+        });
+        const confirmation = confirmBaselineSnapshot({
+          approvalPackages: rows(read.data.approvalPackages).map((entry) => ({
+            id: String(entry.id ?? ""),
+            status: String(entry.status ?? ""),
+            items: rows(entry.items).map((item) => ({
+              targetKind: String(item.targetKind ?? ""),
+              revisionId: String(item.revisionId ?? ""),
+            })),
+          })),
+          packageIds: packages.map((entry) => entry.id),
+          previousBaselineId: typeof record(read.data.latestBaseline).id === "string"
+            ? record(read.data.latestBaseline).id as string
+            : null,
+        }, command.payload.snapshotToken);
+        if (!confirmation.ok) return failure(requestId, "error", "stale_state");
+
+        // Версия графа — предпосылка baseline, и её ещё нет: она рождается
+        // здесь, через дверь `20260810080000`. Идемпотентность производная от
+        // ключа команды, поэтому повтор запроса не создаёт вторую версию.
+        const version = await this.foundation.publishVersion({
+          projectId: command.projectId,
+          expectedLatestVersionId: typeof record(read.data.latestBaseline).graphVersionId === "string"
+            ? record(read.data.latestBaseline).graphVersionId as string
+            : null,
+          expectedStateRevision: scope.stateRevision,
+          // Метка обязана быть детерминированной. Часы в ней ломали ровно то,
+          // ради чего существует ключ идемпотентности: `label` входит в
+          // request digest RPC, поэтому повтор той же команды после потери
+          // ответа давал ДРУГОЙ digest и получал `idempotency_conflict` вместо
+          // прежнего результата. Идентификатор команды и есть то, что у повтора
+          // совпадает по определению.
+          label: `baseline:${command.commandId}`,
+          selectedRevisions: [],
+          idempotencyKey: `${idempotencyKey}:version`,
+        });
+        const versionId = record(record(version.result).version).id;
+        const graphVersionId = typeof versionId === "string" && versionId.length > 0
+          ? versionId
+          : null;
+        if (!graphVersionId) throw new ProjectIntelligenceAdapterError("internal_error", null);
+
+        const descriptor = {
+          id: `baseline:${command.commandId}`,
+          graphVersionId,
+          previousBaselineId: confirmation.composition.previousBaselineId,
+          packageIds: confirmation.composition.packageIds,
+          sourceRevisionIds: confirmation.composition.sourceRevisionIds,
+          requirementRevisionIds: confirmation.composition.requirementRevisionIds,
+          assumptionRevisionIds: confirmation.composition.assumptionRevisionIds,
+          decisionRevisionIds: confirmation.composition.decisionRevisionIds,
+          selectionRevisionIds: confirmation.composition.selectionRevisionIds,
+          semanticHash: computeBaselineSemanticHash({
+            organizationId: scope.organizationId,
+            projectId: command.projectId,
+            graphVersionId,
+            previousBaselineId: confirmation.composition.previousBaselineId,
+            packageIds: confirmation.composition.packageIds,
+            sourceRevisionIds: confirmation.composition.sourceRevisionIds,
+            requirementRevisionIds: confirmation.composition.requirementRevisionIds,
+            assumptionRevisionIds: confirmation.composition.assumptionRevisionIds,
+            decisionRevisionIds: confirmation.composition.decisionRevisionIds,
+            selectionRevisionIds: confirmation.composition.selectionRevisionIds,
+            approvalPackageIds: confirmation.composition.approvalPackageIds,
+            packages,
+          }),
+          approvalPackageIds: confirmation.composition.approvalPackageIds,
+        };
         return completed(requestId, await this.product.publishProjectBaseline({
           projectId: command.projectId,
-          descriptor: command.payload.descriptor,
-          expectedStateRevision: scope.stateRevision,
+          descriptor,
+          expectedStateRevision: version.stateRevision,
           idempotencyKey,
         }));
       }

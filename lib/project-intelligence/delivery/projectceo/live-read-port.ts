@@ -54,6 +54,9 @@ import { capabilitiesForRole, can } from "@/components/projectceo/role-policy";
 import { ru } from "@/lib/i18n/ru";
 import { reviewPackageCompleteness } from "../../modules/documentation";
 import { isDocumentationModuleEnabled } from "./documentation-flag";
+import { EXECUTION_MODULE, isExecutionModuleEnabled } from "./execution-flag";
+import { buildBaselineSnapshot } from "../../modules/decisions";
+import { buildReleaseSnapshot } from "../../modules/package/release-snapshot";
 import type { ProjectCeoVerifiedIdentity } from "./request-context";
 
 type UnknownRecord = Readonly<Record<string, unknown>>;
@@ -973,9 +976,11 @@ function operationStates(input: {
   readonly delivery: AuthenticatedProjectReadProjection;
   readonly m4: readonly ExecutionDeliveryEnvelope[];
   readonly documentationEnabled?: boolean;
+  readonly executionEnabled?: boolean;
 }): ProjectCeoOperationStates {
   const documentationEnabled = input.documentationEnabled
     ?? isDocumentationModuleEnabled();
+  const executionEnabled = input.executionEnabled ?? isExecutionModuleEnabled();
   const supports = (capability: Parameters<typeof can>[1]): ProjectCeoOperationState => (
     can(input.role, capability) ? { status: "available" } : unavailable("capability_missing")
   );
@@ -1005,9 +1010,79 @@ function operationStates(input: {
     (input.delivery.m3DocumentationHandoffs?.length ?? 0) > 0;
   const hasDocumentationSheet =
     (input.delivery.m3DocumentationSheets?.length ?? 0) > 0;
-  // Ревизия, ждущая решения, больше не ищется: пока команда review_source
-  // закрыта (см. ниже), предлагать по ней нечего, а вычислять цель действия,
-  // которого нет, — значит держать наготове обещание.
+  const pendingSourceRevisionId = nullableText(
+    input.delivery.sources.find((source) => (
+      source.reviewStatus === "pending"
+      && source.reviewTargetRevisionId !== null
+    ))?.reviewTargetRevisionId,
+  );
+  // Снапшот состава baseline: то же правило полноты, что применит команда, и
+  // тот же токен, который она потребует назад.
+  let baselineSnapshotToken: string | null = null;
+  try {
+    baselineSnapshotToken = buildBaselineSnapshot({
+      approvalPackages: rows(input.delivery.approvalPackages).map((entry) => ({
+        id: text(entry.id),
+        status: text(entry.status),
+        items: rows(entry.items).map((item) => ({
+          targetKind: text(item.targetKind),
+          revisionId: text(item.revisionId),
+        })),
+      })),
+      packageIds: rows(input.delivery.packages).flatMap((entry) => {
+        const id = nullableText(entry.id);
+        return id ? [id] : [];
+      }),
+      previousBaselineId: nullableText(record(input.delivery.latestBaseline).id),
+    }).token;
+  } catch {
+    baselineSnapshotToken = null;
+  }
+  // Снапшот версии пакета: тот же приём, что у baseline, шагом позже. Состав
+  // берётся из опубликованного baseline (чтение v9, `20260810090000`), а не из
+  // одобренного «сейчас» — версия обязана выражать замороженное, иначе RPC
+  // отказывает `PACKAGE_REF_NOT_IN_BASELINE`.
+  let releaseSnapshotToken: string | null = null;
+  const rootPackageId = nullableText(
+    rows(input.delivery.packages).find((entry) => text(entry.kind) === "project_root")?.id,
+  );
+  const latestBaselineRecord = record(input.delivery.latestBaseline);
+  const baselineRefsRecord = record(latestBaselineRecord.exactRevisionRefs);
+  const refGroup = (key: string): readonly string[] => (
+    Array.isArray(baselineRefsRecord[key])
+      ? (baselineRefsRecord[key] as unknown[]).flatMap((value) => {
+        const id = nullableText(value);
+        return id ? [id] : [];
+      })
+      : []
+  );
+  if (rootPackageId && latestBaseline) {
+    try {
+      releaseSnapshotToken = buildReleaseSnapshot({
+        packageId: rootPackageId,
+        baselineId: latestBaseline,
+        previousVersionId: packageVersions
+          .filter((version) => nullableText(version.packageId) === rootPackageId)
+          .reduce<{ id: string | null; versionNo: number }>((latest, version) => {
+            const versionNo = Number(version.versionNo ?? 0);
+            return versionNo > latest.versionNo
+              ? { id: nullableText(version.id), versionNo }
+              : latest;
+          }, { id: null, versionNo: 0 }).id,
+        baselineRefs: {
+          sources: refGroup("sources"),
+          requirements: refGroup("requirements"),
+          assumptions: refGroup("assumptions"),
+          decisions: refGroup("decisions"),
+          selections: refGroup("selections"),
+        },
+      }).token;
+    } catch {
+      // Пустой baseline или негодный идентификатор — действие не предлагается.
+      // Обещать выпуск, который RPC отвергнет, хуже, чем не предлагать его.
+      releaseSnapshotToken = null;
+    }
+  }
   const photoSourcePackageIds = new Set(
     input.delivery.sources.filter((source) => (
       source.availability === "materialized"
@@ -1047,7 +1122,7 @@ function operationStates(input: {
       }
     }
   }
-  return {
+  const states: ProjectCeoOperationStates = {
     create_invitation: can(input.role, "manage_access")
       ? { status: "available" }
       : unavailable("capability_missing"),
@@ -1064,17 +1139,17 @@ function operationStates(input: {
     // Решение по источнику пишется через review_claim, и RPC требует именно
     // capability review_claim — предлагать действие по review_source значило бы
     // обещать то, чего сервер не разрешит.
-    // Поверхность закрыта, пока решение по источнику некуда отправить.
-    // `review_claim` живёт в `project_intelligence_api` — схеме, которую
-    // окружение намеренно НЕ отдаёт Data API (`supabase/config.toml`), и
-    // `verify-runtime.mjs` требует, чтобы она отвечала 406. Значит вызов из
-    // браузера не доходит до RPC вовсе. Предлагать действие в таком состоянии
-    // значит обещать то, чего сервер не выполнит: AP5 получал на нём 500.
-    // Открыть обратно — только вместе с тонкой RPC в уже отданной схеме.
+    // Само решение уходит теперь через `projectceo_api.review_source` — тонкую
+    // дверь в уже отданной схеме (миграция `20260810050000`). До неё вызов шёл
+    // в `project_intelligence_api`, которую окружение намеренно не отдаёт Data
+    // API, не находился PostgREST и выходил наружу как 500: это поймал AP5.
     review_source: !documentationEnabled
       ? unavailable("module_disabled")
       : can(input.role, "review_claim") && can(input.role, "review_source")
-        ? unavailable("read_contract_pending")
+        ? pendingSourceRevisionId ? {
+            status: "available",
+            commandTargetId: pendingSourceRevisionId,
+          } : unavailable("prerequisite_missing")
         : unavailable("capability_missing"),
     // Лист регистрируется той же властью, что публикует вход M3 — это
     // проверит и сервер (prepare_client_handoff + роль owner/architect).
@@ -1122,10 +1197,37 @@ function operationStates(input: {
     review_selection: can(input.role, "review_selection")
       ? hasSubmittedApproval ? { status: "available" } : unavailable("prerequisite_missing")
       : unavailable("capability_missing"),
-    publish_baseline: unavailable("read_contract_pending"),
-    publish_release: can(input.role, "publish_release")
-      ? latestBaseline ? { status: "available" } : unavailable("prerequisite_missing")
-      : unavailable("capability_missing"),
+    // `read_contract_pending` здесь стоял до 10.08.2026 и означал честное «мы
+    // ещё не решили, откуда берётся дескриптор». Решение принято (A′): состав
+    // выводит сервер, клиент возвращает только снапшот-токен, и токен —
+    // `commandTargetId` этого действия.
+    //
+    // Ошибка сборки не роняет чтение и не превращается в обещание: если
+    // замораживать нечего или встретился неизвестный вид ревизии, действие
+    // просто не предлагается. Точную причину человек увидит при попытке
+    // подтверждения — контролируемым отказом, а не пустым экраном.
+    // Выход модуля 3 закрыт его же флагом (A5 §4.2.2). До 11.08 закрыт был
+    // только приём, и публикация оставалась предложенной при выключенном
+    // модуле — сильнейшая операция мимо собственного выключателя.
+    publish_baseline: !documentationEnabled
+      ? unavailable("module_disabled")
+      : can(input.role, "publish_baseline")
+        ? baselineSnapshotToken ? {
+            status: "available",
+            commandTargetId: baselineSnapshotToken,
+          } : unavailable("prerequisite_missing")
+        : unavailable("capability_missing"),
+    // A′ и здесь: поверхность выдаёт токен показанного состава, команда
+    // требует его назад. Без baseline или с пустым составом — честное
+    // `prerequisite_missing`, а не кнопка, которую отвергнет база.
+    publish_release: !documentationEnabled
+      ? unavailable("module_disabled")
+      : can(input.role, "publish_release")
+        ? releaseSnapshotToken ? {
+            status: "available",
+            commandTargetId: releaseSnapshotToken,
+          } : unavailable("prerequisite_missing")
+        : unavailable("capability_missing"),
     distribute_release: can(input.role, "distribute_release")
       ? distributableVersionId ? {
           status: "available",
@@ -1174,6 +1276,13 @@ function operationStates(input: {
       : unavailable("capability_missing"),
     build_handover: unavailable("worker_only"),
   };
+  if (executionEnabled) return states;
+  // Guardrail модуля 4: при выключенном флаге поверхность модуля не
+  // существует для пользователя. Причина именно `module_disabled`, а не
+  // `capability_missing` — роль тут ни при чём, закрыт весь модуль.
+  const disabled: Record<string, ProjectCeoOperationState> = { ...states };
+  for (const kind of EXECUTION_MODULE) disabled[kind] = unavailable("module_disabled");
+  return disabled as ProjectCeoOperationStates;
 }
 
 function onboarding(projectCount: number): OnboardingState {

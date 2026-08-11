@@ -20,6 +20,23 @@ export const AP5_ROLES = [
 
 export type Ap5RoleKey = (typeof AP5_ROLES)[number]["key"];
 
+/**
+ * Идентификаторы цепочки Kora. Живут здесь, а не в спеке, по двум причинам:
+ * шаг 6 одобряет ровно ту ревизию, которую создал шаг 5, и оба значения обязаны
+ * быть одним; и офлайновый гейт (`tests/projectceo-integration/
+ * ap5-chain-identifiers.test.ts`) обязан прогонять их через настоящий
+ * `projectCeoCommandSchema` — спеку Playwright из vitest не импортировать.
+ *
+ * Типы полей задаёт контракт команды (`command-contract.ts`), а не база:
+ * `nodeId` — свободный текст до 160 символов, а `revisionId` у create_decision
+ * — строго uuid («клиент генерирует UUID для новой ревизии»). База приняла бы
+ * и текст, но команда до неё не доходит: маршрут отклоняет payload раньше.
+ */
+export const AP5_SOURCE_NAME = "ap5-floor-1-zone-a-architectural";
+export const AP5_SOURCE_REVISION_ID = "ap5-source-revision-1";
+export const AP5_DECISION_NODE_ID = "ap5-decision-floor-1";
+export const AP5_DECISION_REVISION_ID = "a5d0c1c1-0000-4000-8000-000000000001";
+
 export const AP5_INVITED_ROLES = AP5_ROLES.filter(
   (role): role is Extract<typeof AP5_ROLES[number], { targetRole: string }> =>
     role.targetRole !== null,

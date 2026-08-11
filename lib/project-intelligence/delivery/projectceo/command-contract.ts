@@ -36,7 +36,6 @@ const claimStatus = z.enum(["extracted", "interpreted", "unknown", "human_origin
 // (миграция 20260717101000_projectceo_product_brain_operations.sql).
 const nodeId = z.string().trim().min(1).max(160);
 const claimRevisionId = z.string().trim().min(1).max(160);
-const revisionIdList = z.array(claimRevisionId).max(500);
 const commitM2Identifier = z.string().min(1).max(160)
   .refine((value) => value === value.trim(), "identifier_must_be_trimmed");
 const commitM2IdentifierList = z.array(commitM2Identifier).max(500);
@@ -161,19 +160,6 @@ export function sha256Hex(text: string): string {
 }
 
 const m2LayoutContent = z.unknown().refine(prevalidateM2Layout, "layout_content_invalid");
-const baselineDescriptor = z.object({
-  id: claimRevisionId,
-  graphVersionId: claimRevisionId,
-  previousBaselineId: claimRevisionId.nullable(),
-  packageIds: z.array(uuid).max(500),
-  sourceRevisionIds: revisionIdList,
-  requirementRevisionIds: revisionIdList,
-  assumptionRevisionIds: revisionIdList,
-  decisionRevisionIds: revisionIdList,
-  selectionRevisionIds: revisionIdList,
-  approvalPackageIds: revisionIdList,
-  semanticHash: z.string().regex(/^sha256:[0-9a-f]{64}$/i),
-}).strict();
 
 export const projectCeoCommandSchema = z.discriminatedUnion("kind", [
   projectSelector.extend({
@@ -459,7 +445,13 @@ export const projectCeoCommandSchema = z.discriminatedUnion("kind", [
   projectSelector.extend({
     contractVersion: z.literal(PROJECTCEO_COMMAND_CONTRACT_VERSION),
     kind: z.literal("publish_baseline"),
-    payload: z.object({ descriptor: baselineDescriptor }).strict(),
+    // A′: состав выводит сервер, клиент возвращает только снапшот-токен из
+    // preview. Дескриптор с клиента больше не принимается — иначе состав
+    // версии снова стал бы вводом пользователя, а правило полноты можно было
+    // бы обойти, послав неполный список мимо экрана.
+    payload: z.object({
+      snapshotToken: z.string().regex(/^sha256:[0-9a-f]{64}$/i),
+    }).strict(),
   }).strict(),
   projectSelector.extend({
     contractVersion: z.literal(PROJECTCEO_COMMAND_CONTRACT_VERSION),
@@ -652,24 +644,13 @@ export const projectCeoCommandSchema = z.discriminatedUnion("kind", [
   projectSelector.extend({
     contractVersion: z.literal(PROJECTCEO_COMMAND_CONTRACT_VERSION),
     kind: z.literal("publish_release"),
+    // A′, вторая половина: состав версии выводит сервер из опубликованного
+    // baseline, клиент возвращает снапшот-токен из preview. Дескриптор с
+    // клиента больше не принимается — иначе состав версии снова стал бы вводом
+    // пользователя, а полноту корневого пакета можно было бы обойти, послав
+    // урезанный список мимо экрана.
     payload: z.object({
-      descriptor: z.object({
-        id: claimRevisionId,
-        packageId: uuid,
-        baselineId: claimRevisionId,
-        previousVersionId: claimRevisionId.nullable(),
-        exactRevisionRefs: z.object({
-          sources: revisionIdList,
-          requirements: revisionIdList,
-          assumptions: revisionIdList,
-          decisions: revisionIdList,
-          selections: revisionIdList,
-        }).strict(),
-        organizationId: uuid,
-        projectId: uuid,
-        schemaVersion: z.literal("project-ceo-production-package/0.1"),
-        semanticHash: z.string().regex(/^sha256:[0-9a-f]{64}$/),
-      }).strict(),
+      snapshotToken: z.string().regex(/^sha256:[0-9a-f]{64}$/i),
     }).strict(),
   }).strict(),
   // Сборка и закрытие handover идут через отдельный worker-allowlist

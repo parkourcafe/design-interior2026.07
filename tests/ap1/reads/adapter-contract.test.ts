@@ -94,7 +94,7 @@ describe("AP1 authenticated read postgres adapter", () => {
     });
     expect(calls).toEqual([{
       schema: "projectceo_read_api",
-      functionName: "get_project_workspace_read_v7",
+      functionName: "get_project_workspace_read_v9",
       args: { project_id: projectId, package_id: packageId },
     }]);
     expect(JSON.stringify(calls)).not.toMatch(/actor|organization|role|recipient/i);

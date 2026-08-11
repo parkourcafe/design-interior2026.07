@@ -99,7 +99,7 @@ function changeCommand(target: string): ProjectCeoCommand {
 describe("ProjectCEO command service", () => {
   it("returns a typed unavailable result before any partial invitation write when the token secret is absent", async () => {
     const calls: { readonly functionName: string; readonly args: Readonly<Record<string, unknown>> }[] = [];
-    const service = new ProjectCeoCommandService({ client: fakeClient(calls) });
+    const service = new ProjectCeoCommandService({ client: fakeClient(calls), executionEnabled: "true" });
     const result = await service.execute({
       contractVersion: "projectceo-command/0.1",
       commandId: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
@@ -121,7 +121,7 @@ describe("ProjectCEO command service", () => {
 
   it("keeps a stable DB idempotency key for an exact HTTP retry", async () => {
     const calls: { readonly functionName: string; readonly args: Readonly<Record<string, unknown>> }[] = [];
-    const service = new ProjectCeoCommandService({ client: fakeClient(calls) });
+    const service = new ProjectCeoCommandService({ client: fakeClient(calls), executionEnabled: "true" });
     const first = await service.execute(changeCommand("package-a-v1"), "http-1");
     const retry = await service.execute(changeCommand("package-a-v1"), "http-2");
     expect(first.status).toBe("completed");
@@ -138,7 +138,7 @@ describe("ProjectCEO command service", () => {
 
   it("derives the exact package from the selected version and rejects a sibling/unknown target", async () => {
     const calls: { readonly functionName: string; readonly args: Readonly<Record<string, unknown>> }[] = [];
-    const service = new ProjectCeoCommandService({ client: fakeClient(calls) });
+    const service = new ProjectCeoCommandService({ client: fakeClient(calls), executionEnabled: "true" });
     const accepted = await service.execute(changeCommand("package-a-v1"), "accepted");
     expect(accepted.status).toBe("completed");
     expect(calls.find((call) => call.functionName === "projectceo_m4_api.submit_change_request")?.args)
@@ -171,6 +171,7 @@ describe("ProjectCEO command service", () => {
           stateRevision: 9,
         },
       ]),
+      executionEnabled: "true",
     });
     const result = await service.execute(changeCommand("package-a-v1"), "ambiguous");
     expect(result).toMatchObject({ status: "error", error: { code: "scope_conflict" } });

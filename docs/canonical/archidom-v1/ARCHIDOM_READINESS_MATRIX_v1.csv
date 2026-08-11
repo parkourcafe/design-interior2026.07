@@ -17,6 +17,6 @@ Integrations,P0 imports,UNKNOWN,DOC_TARGET,Charter ceiling,Repo proof missing,No
 Integrations,PII-heavy connectors,BLOCKED,OWNER_GATE,152-ФЗ open,Not authorized,Do not build,P3
 M2,Design workflow,NOT_PROVEN,DOC_TARGET,Charter/catalog,No code proof,Do not build,P2
 M3,Documentation workflow,NOT_PROVEN,DOC_TARGET,Charter/catalog,No code proof,Build per A5,P2
-M4,Execution workflow,TARGET_ONLY,DOC_TARGET,Charter/catalog,No implementation,Do not build,P3
+M4,Execution workflow,NOT_PROVEN,DOC_TARGET,Charter/catalog,Thin P0 in code no UI surface,Build per A6 — INCREMENT 1 ONLY,P2
 Repository,Reality reconciliation,BLOCKED,UNKNOWN,Branch/commit conflict,No full checkout proof,Mandatory Phase 0,P0
 Public,Truth/claims,BLOCKED,PRODUCTION_REPORTED,Prior SEO audit,Claims may exceed reality,Separate P0 cleanup,P0

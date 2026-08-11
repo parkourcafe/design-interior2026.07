@@ -2,7 +2,18 @@ import { createHash, randomUUID } from "node:crypto";
 
 import { expect, test, type APIRequestContext, type Browser } from "@playwright/test";
 
-import { ap5Env, readHandoff, storageStatePath, type Ap5RoleKey } from "./ap5-env";
+import { projectCeoCommandSchema } from "../../lib/project-intelligence/delivery/projectceo/command-contract";
+
+import {
+  ap5Env,
+  readHandoff,
+  storageStatePath,
+  AP5_DECISION_NODE_ID,
+  AP5_DECISION_REVISION_ID,
+  AP5_SOURCE_NAME,
+  AP5_SOURCE_REVISION_ID,
+  type Ap5RoleKey,
+} from "./ap5-env";
 
 const env = ap5Env();
 // Ленивое чтение: сборка списка тестов не должна зависеть от того,
@@ -12,9 +23,6 @@ function handoff() {
   cached ??= readHandoff();
   return cached;
 }
-
-const AP5_SOURCE_NAME = "ap5-floor-1-zone-a-architectural";
-const AP5_SOURCE_REVISION_ID = "ap5-source-revision-1";
 
 // Цепочка идёт одним состоянием проекта: каждый шаг опирается на предыдущий.
 test.describe.configure({ mode: "serial" });
@@ -43,15 +51,28 @@ async function command(
   kind: string,
   payload: Record<string, unknown>,
 ): Promise<CommandResult> {
+  const envelope = {
+    contractVersion: "projectceo-command/0.1",
+    kind,
+    projectId: handoff().projectId,
+    commandId: randomUUID(),
+    payload,
+  };
+  // Маршрут отклоняет несоответствие контракту как 400 validation_failed —
+  // ровно тем же кодом, что и отказ RPC на живом стеке. В прогоне 156 это
+  // стоило сессии: артефакт показывал 400 и не мог сказать, чей это отказ.
+  // Здесь дефект харнесса называет себя сам и не выдаёт себя за отказ сервера.
+  const contract = projectCeoCommandSchema.safeParse(envelope);
+  if (!contract.success) {
+    throw new Error(
+      `AP5: payload команды ${kind} нарушает контракт (дефект харнесса, не сервера): `
+      + JSON.stringify(contract.error.issues),
+    );
+  }
+
   const response = await request.post("/api/projectceo/commands", {
     headers: { Origin: env.appUrl, "Content-Type": "application/json" },
-    data: {
-      contractVersion: "projectceo-command/0.1",
-      kind,
-      projectId: handoff().projectId,
-      commandId: randomUUID(),
-      payload,
-    },
+    data: envelope,
   });
   return { status: response.status(), body: await response.json() };
 }
@@ -59,13 +80,18 @@ async function command(
 type Workspace = {
   readonly sources: readonly {
     readonly id: string;
+    readonly sourceRevisionId: string | null;
     readonly reviewTargetRevisionId: string | null;
     readonly reviewStatus: string;
   }[];
   readonly decisions: readonly { readonly revisionId: string; readonly claimStatus: string }[];
   readonly selections: readonly { readonly id: string; readonly decisionRevisionId: string }[];
   readonly participants: readonly { readonly role: string }[];
-  readonly operations: Record<string, { readonly status?: string; readonly reason?: string }>;
+  readonly operations: Record<string, {
+    readonly status?: string;
+    readonly reason?: string;
+    readonly commandTargetId?: string;
+  }>;
 };
 
 async function workspace(request: APIRequestContext): Promise<Workspace> {
@@ -121,41 +147,59 @@ test.describe("AP5 — цепочка Kora на живом стеке", () => {
   });
 
   /**
-   * Звено закрыто — и закрыто честно, что и проверяется.
+   * Звено, на котором гейт нашёл ДВА дефекта, сложенных друг на друга.
    *
-   * Решение по источнику пишет `project_intelligence_api.review_claim`, а эта
-   * схема намеренно не отдана Data API (`supabase/config.toml`;
-   * `verify-runtime.mjs` требует от неё 406). Раньше поверхность действие
-   * предлагала, вызов не находился PostgREST, и наружу выходил 500 — ровно это
-   * гейт и поймал в прогоне 09:42. Теперь и affordance, и команда говорят
-   * «недоступно», а 500 у пользователя больше нет.
+   * Первый — граница схем. Решение пишет
+   * `project_intelligence_api.review_claim`, а эта схема намеренно не отдана
+   * Data API (`supabase/config.toml`; `verify-runtime.mjs` требует от неё 406).
+   * Вызов не находился PostgREST, ошибка не ложилась ни на один SQLSTATE и
+   * выходила наружу как 500. Починено дверью `projectceo_api.review_source`
+   * (миграция `20260810050000`), и её поведение проверяет DB4-сценарий
+   * `tests/db4/37_source_review_door.sql`.
+   *
+   * Второй дефект был этим 500 закрыт и обнажился, когда дверь появилась:
+   * прогон стал отвечать 409 `stale_state`. Источник, заведённый человеком,
+   * попадает в инвентарь, но узлы графа утверждений создаёт воркерный
+   * `ingest_source_graph`. Чтение при этом отдавало `reviewTargetRevisionId`
+   * прямо из инвентаря — то есть поверхность предлагала отрецензировать
+   * ревизию, которой в графе нет, и `review_claim` честно отвечал
+   * `P1004 REVISION_STALE` с `currentRevisionId: null`.
+   *
+   * Починка — чтение v8 (`20260810060000`): цель ревью существует только тогда,
+   * когда ревизия есть в графе. Значит из браузера сегодня проверяется не
+   * успешное ревью (для него нужен воркерный ingest, см. «Чего он не
+   * доказывает»), а то, что поверхность больше не обещает невозможного.
    */
-  test("4. ревью источника закрыто до тонкой RPC и не обещает лишнего", async ({ browser }) => {
+  test("4. ревью источника не предлагается, пока ревизии нет в графе", async ({ browser }) => {
     const architect = await requestAs(browser, "designer");
     const view = await workspace(architect);
     const source = view.sources.at(0);
-    expect(source?.reviewTargetRevisionId).toBeTruthy();
+    expect(source?.sourceRevisionId).toBeTruthy();
 
+    // Источник в инвентаре есть, а ревизии в графе нет — цели для ревью тоже
+    // нет. Это и есть починка: раньше здесь лежал идентификатор из инвентаря.
+    expect(source?.reviewTargetRevisionId).toBeNull();
     expect(view.operations.review_source?.status).toBe("unavailable");
-    expect(view.operations.review_source?.reason).toBe("read_contract_pending");
+    expect(view.operations.review_source?.reason).toBe("prerequisite_missing");
 
+    // Если команду всё же послать в обход интерфейса — контролируемый отказ,
+    // а не 500 и не 409 из глубины базы.
     const result = await command(architect, "review_source", {
-      targetRevisionId: source!.reviewTargetRevisionId,
-      expectedRevisionId: source!.reviewTargetRevisionId,
+      targetRevisionId: AP5_SOURCE_REVISION_ID,
+      expectedRevisionId: AP5_SOURCE_REVISION_ID,
       decision: "confirmed",
     });
-    // Контролируемый отказ, а не 500: 409 operation_unavailable.
-    expect(result.status, JSON.stringify(result.body.error)).toBe(409);
-    expect(result.body.error?.code).toBe("operation_unavailable");
+    expect(result.status, JSON.stringify(result.body.error)).toBe(404);
+    expect(result.body.error?.code).toBe("not_found");
   });
 
   test("5. решение человеческого происхождения", async ({ browser }) => {
     const architect = await requestAs(browser, "designer");
-    const decisionRevisionId = randomUUID();
+    const decisionRevisionId = AP5_DECISION_REVISION_ID;
 
     const decision = await command(architect, "create_decision", {
       packageId: handoff().rootPackageId,
-      nodeId: "ap5-decision-floor-1",
+      nodeId: AP5_DECISION_NODE_ID,
       revisionId: decisionRevisionId,
       expectedRevisionId: null,
       // Только human_origin: ссылки на evidence рождаются в воркерном
@@ -175,6 +219,84 @@ test.describe("AP5 — цепочка Kora на живом стеке", () => {
 
     const view = await workspace(architect);
     expect(view.decisions.some((item) => item.revisionId === decisionRevisionId)).toBe(true);
+  });
+
+  /**
+   * Гейт 1 из A6 §6.1, первая половина: выход M3 через браузер.
+   *
+   * Всё, на что она опирается, собрано в этой сессии: дверь версии графа
+   * (`20260810080000`), правило полноты, снапшот-токен и оркестровка в
+   * команде. Клиент присылает только токен — состав выводит сервер.
+   */
+  test("6. выпуск версии: одобрение и публикация baseline из браузера", async ({ browser }) => {
+    const architect = await requestAs(browser, "designer");
+    const approvalPackageId = `ap5-approval-${randomUUID()}`;
+
+    const created = await command(architect, "create_approval_package", {
+      packageId: handoff().rootPackageId,
+      approvalPackageId,
+      items: [{
+        targetKind: "decision_revision",
+        entityId: AP5_DECISION_NODE_ID,
+        revisionId: AP5_DECISION_REVISION_ID,
+      }],
+    });
+    expect(created.status, JSON.stringify(created.body.error)).toBe(200);
+
+    const submitted = await command(architect, "submit_approval_package", {
+      approvalPackageId,
+      expectedStatus: "draft",
+    });
+    expect(submitted.status, JSON.stringify(submitted.body.error)).toBe(200);
+
+    const approved = await command(architect, "review_selection", {
+      approvalPackageId,
+      expectedStatus: "submitted",
+      decision: "approved",
+      reason: "AP5 authenticated browser chain",
+    });
+    expect(approved.status, JSON.stringify(approved.body.error)).toBe(200);
+
+    // Поверхность обязана предложить публикацию и выдать токен: именно его
+    // команда потребует назад, и именно он ловит гонку.
+    const view = await workspace(architect);
+    expect(view.operations.publish_baseline?.status).toBe("available");
+    const snapshotToken = view.operations.publish_baseline?.commandTargetId;
+    expect(snapshotToken).toBeTruthy();
+
+    const published = await command(architect, "publish_baseline", { snapshotToken });
+    expect(published.status, JSON.stringify(published.body.error)).toBe(200);
+
+    // Устаревший токен обязан быть отвергнут, а не опубликован повторно:
+    // после публикации состояние сдвинулось.
+    const stale = await command(architect, "publish_baseline", { snapshotToken });
+    expect(stale.status, JSON.stringify(stale.body.error)).toBe(409);
+  });
+
+  /**
+   * Гейт 1 из A6 §6.1, вторая половина: выпуск производственного пакета через
+   * браузер. Раньше здесь стоял `fixme` — контракт требовал от клиента полный
+   * дескриптор с собственным `semanticHash`, а собрать его из браузера было
+   * нечем. Лечение то же, что у baseline: состав выводит сервер из
+   * опубликованного baseline (чтение v9), клиент возвращает снапшот-токен.
+   */
+  test("7. выпуск пакета: производственная версия от baseline из браузера", async ({ browser }) => {
+    const architect = await requestAs(browser, "designer");
+
+    // Поверхность обязана предложить выпуск и выдать токен — тот же контракт,
+    // что и у baseline: без токена нажимать нечего.
+    const view = await workspace(architect);
+    expect(view.operations.publish_release?.status).toBe("available");
+    const snapshotToken = view.operations.publish_release?.commandTargetId;
+    expect(snapshotToken).toBeTruthy();
+
+    const published = await command(architect, "publish_release", { snapshotToken });
+    expect(published.status, JSON.stringify(published.body.error)).toBe(200);
+
+    // Повтор тем же токеном обязан быть отвергнут: версия сдвинула состояние,
+    // и второй выпуск выражал бы уже не то, что показывали.
+    const stale = await command(architect, "publish_release", { snapshotToken });
+    expect(stale.status, JSON.stringify(stale.body.error)).toBe(409);
   });
 
   /**
@@ -205,13 +327,33 @@ test.describe("AP5 — цепочка Kora на живом стеке", () => {
     expect(selection.status, JSON.stringify(selection.body.error)).toBe(200);
   });
 
-  test("6. закрытие передачи остаётся воркерной операцией и честно об этом говорит", async ({ browser }) => {
+  /**
+   * Ожидание менялось вместе с продуктом, и прогон 159 это поймал.
+   *
+   * До guardrail'а M4 `build_handover` был закрыт по одной причине — операция
+   * воркерная (`worker_only`). С 10.08 модуль исполнения закрыт флагом целиком
+   * (`REMHAOS_EXECUTION_ENABLED`, `execution-flag.ts`), и поверхность отвечает
+   * `module_disabled` — причина более сильная и более честная: закрыта не одна
+   * операция, а весь модуль, роль тут ни при чём.
+   *
+   * Флаг в прогоне намеренно НЕ включается: A6 §5.1 его не разрешает, и
+   * включить его здесь значило бы открыть поверхность M4 ради зелёного теста.
+   * Поэтому проверяется именно закрытость модуля — и то, что причина названа
+   * той, что есть.
+   */
+  test("8. модуль исполнения закрыт флагом, и поверхность говорит об этом прямо", async ({ browser }) => {
     const owner = await requestAs(browser, "owner");
     const operations = (await workspace(owner)).operations;
-    // Это не пропуск шага, а его результат: build_handover помечен worker_only
-    // на сервере, и браузер не должен делать вид, что закрывает передачу.
     expect(operations.build_handover?.status).toBe("unavailable");
-    expect(operations.build_handover?.reason).toBe("worker_only");
+    expect(operations.build_handover?.reason).toBe("module_disabled");
+
+    // Guardrail закрывает весь модуль, а не одну операцию: инкремент 1 из
+    // A6 §1.1 обязан быть закрыт той же причиной, иначе «закрыт модуль»
+    // означало бы «закрыта одна кнопка».
+    for (const kind of ["distribute_release", "acknowledge_release", "create_change"]) {
+      expect(operations[kind]?.status, kind).toBe("unavailable");
+      expect(operations[kind]?.reason, kind).toBe("module_disabled");
+    }
   });
 });
 

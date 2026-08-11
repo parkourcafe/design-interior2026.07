@@ -1,8 +1,9 @@
-import { describe, expect, it, vi } from "vitest";
+import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 
 vi.mock("server-only", () => ({}));
 import type { PostgresRpcClient } from "../../lib/project-intelligence/adapters/postgres";
 import { ProjectCeoLiveReadPort } from "../../lib/project-intelligence/delivery/projectceo/live-read-port";
+import { buildBaselineSnapshot } from "../../lib/project-intelligence/modules/decisions";
 
 const organizationId = "11111111-1111-4111-8111-111111111111";
 const projectId = "22222222-2222-4222-8222-222222222222";
@@ -29,7 +30,7 @@ function fakeClient(
       if (schemaName === "projectceo_api" && functionName === "list_projects") {
         return { data: foundation(projectEntries), error: null };
       }
-      if (schemaName === "projectceo_read_api" && functionName === "get_project_workspace_read_v7") {
+      if (schemaName === "projectceo_read_api" && functionName === "get_project_workspace_read_v9") {
         return { data: {
           contractVersion: "project-ceo-authenticated-read/0.1",
           requestId: "db:authenticated-read",
@@ -232,6 +233,27 @@ function executionWithPhotoDecision(decision: "accepted" | "rejected" | null) {
 }
 
 describe("ProjectCEO live DTO sanitizer", () => {
+  // Guardrail модуля 4 (10.08.2026) закрыт по умолчанию, а проверки ниже
+  // описывают поведение поверхности исполнения, когда модуль есть. Сам запрет
+  // проверяется отдельно — последним тестом файла и в
+  // tests/ap1/commands/execution-guardrail.test.ts.
+  const previousExecution = process.env.REMHAOS_EXECUTION_ENABLED;
+  // Модуль 3 включён: этот файл проверяет поверхность модуля, а не его
+  // выключатель. Выключателю посвящён отдельный тест в конце файла — иначе
+  // «поверхность работает» и «поверхность закрыта» проверялись бы одним
+  // прогоном и мешали бы друг другу.
+  const previousDocumentation = process.env.REMHAOS_DOCUMENTATION_ENABLED;
+  beforeAll(() => {
+    process.env.REMHAOS_EXECUTION_ENABLED = "true";
+    process.env.REMHAOS_DOCUMENTATION_ENABLED = "true";
+  });
+  afterAll(() => {
+    if (previousExecution === undefined) delete process.env.REMHAOS_EXECUTION_ENABLED;
+    else process.env.REMHAOS_EXECUTION_ENABLED = previousExecution;
+    if (previousDocumentation === undefined) delete process.env.REMHAOS_DOCUMENTATION_ENABLED;
+    else process.env.REMHAOS_DOCUMENTATION_ENABLED = previousDocumentation;
+  });
+
   it("fails closed for malformed nested v6 client-review submissions", async () => {
     const variant = (role: string, suffix: string): {
       role: string;
@@ -333,7 +355,7 @@ describe("ProjectCEO live DTO sanitizer", () => {
 
   // Intake M3 P0: поверхность открыта, но ровно по тем правам, которые
   // проверит сервер, и только когда есть что рецензировать.
-  it("offers source intake by capability, and never offers a review it cannot deliver", async () => {
+  it("offers source intake by capability and source review only for a pending revision", async () => {
     const previous = process.env.REMHAOS_DOCUMENTATION_ENABLED;
     process.env.REMHAOS_DOCUMENTATION_ENABLED = "true";
     try {
@@ -355,13 +377,22 @@ describe("ProjectCEO live DTO sanitizer", () => {
       { userId: "66666666-6666-4666-8666-666666666666", displayName: "Architect" },
     ).getProjectWorkspace({ projectId, requestId: "intake-architect" });
     expect(architect.data?.operations.register_source).toEqual({ status: "available" });
-    // Ревизия ждёт решения, право у роли есть — и всё равно не предлагаем.
-    // Решение пишет project_intelligence_api.review_claim, а эта схема не
-    // отдана Data API: вызов не доходит до RPC. Обещать действие, которое
-    // сервер не выполнит, нельзя — AP5 получал на нём 500.
     expect(architect.data?.operations.review_source).toEqual({
+      status: "available",
+      commandTargetId: "source-pending-r1",
+    });
+
+    // Всё уже отрецензировано — предлагать нечего.
+    const settled = await new ProjectCeoLiveReadPort(
+      fakeClient(
+        { sources: [{ ...pending, reviewStatus: "confirmed" }] },
+        [{ ...defaultProjectEntries[0], role: "architect" }],
+      ),
+      { userId: "66666666-6666-4666-8666-666666666666", displayName: "Architect" },
+    ).getProjectWorkspace({ projectId, requestId: "intake-settled" });
+    expect(settled.data?.operations.review_source).toEqual({
       status: "unavailable",
-      reason: "read_contract_pending",
+      reason: "prerequisite_missing",
     });
 
     // Строитель заводит источники, но решений по ним не принимает:
@@ -644,7 +675,7 @@ describe("ProjectCEO live DTO sanitizer", () => {
 
   it("fails closed when a required downstream read returns an error envelope", async () => {
     for (const functionName of [
-      "get_project_workspace_read_v7",
+      "get_project_workspace_read_v9",
       "list_project_access",
       "get_audit_timeline",
     ]) {
@@ -717,5 +748,138 @@ describe("ProjectCEO live DTO sanitizer", () => {
     }).getProjectWorkspace({ projectId, requestId: "project-org-conflict" });
     expect(result.data).toBeNull();
     expect(result.error?.code).toBe("scope_conflict");
+  });
+
+  it("hides the whole execution surface when the module flag is off", async () => {
+    // Вторая половина guardrail: команда отказывает, а поверхность обязана не
+    // предлагать. Причина именно `module_disabled` — роль тут ни при чём,
+    // закрыт весь модуль, и `capability_missing` соврало бы о причине.
+    process.env.REMHAOS_EXECUTION_ENABLED = "false";
+    try {
+      const result = await new ProjectCeoLiveReadPort(fakeClient(), {
+        userId: "66666666-6666-4666-8666-666666666666",
+        displayName: "Controlled user",
+      }).getProjectWorkspace({ projectId, requestId: "execution-disabled" });
+
+      for (const kind of [
+        "distribute_release",
+        "acknowledge_release",
+        "create_change",
+        "review_change_impact",
+        "upload_photo_evidence",
+        "review_photo_evidence",
+        "accept_milestone",
+        "build_handover",
+      ] as const) {
+        expect(result.data?.operations[kind], kind).toEqual({
+          status: "unavailable",
+          reason: "module_disabled",
+        });
+      }
+
+      // ...и ровно этот модуль, а не всё подряд: соседние поверхности живы.
+      expect(result.data?.operations.create_invitation).toEqual({ status: "available" });
+    } finally {
+      process.env.REMHAOS_EXECUTION_ENABLED = "true";
+    }
+  });
+
+  it("offers baseline publication with the very token the command will demand back", async () => {
+    // Замыкание петли preview → подтверждение. Токен, показанный чтением, и
+    // токен, который потребует команда, обязаны быть одним и тем же значением:
+    // разойдись они — публикация упиралась бы в stale_state на пустом месте.
+    const approvalPackages = [{
+      id: "approval-1",
+      status: "approved",
+      items: [{ targetKind: "decision_revision", revisionId: "decision-r1" }],
+    }];
+    const result = await new ProjectCeoLiveReadPort(fakeClient({
+      approvalPackages,
+      packages: [{ id: packageId, kind: "work_package", name: "Architecture", status: "active" }],
+      latestBaseline: null,
+    }), {
+      userId: "66666666-6666-4666-8666-666666666666",
+      displayName: "Owner",
+    }).getProjectWorkspace({ projectId, requestId: "baseline-preview" });
+
+    const expected = buildBaselineSnapshot({
+      approvalPackages,
+      packageIds: [packageId],
+      previousBaselineId: null,
+    }).token;
+
+    expect(result.data?.operations.publish_baseline).toEqual({
+      status: "available",
+      commandTargetId: expected,
+    });
+  });
+
+  it("does not offer baseline publication when there is nothing approved to freeze", async () => {
+    // Раньше здесь стоял read_contract_pending — «не решили, откуда дескриптор».
+    // Решение принято, и отказ стал предметным: замораживать нечего.
+    const result = await new ProjectCeoLiveReadPort(fakeClient({
+      approvalPackages: [],
+    }), {
+      userId: "66666666-6666-4666-8666-666666666666",
+      displayName: "Owner",
+    }).getProjectWorkspace({ projectId, requestId: "baseline-nothing" });
+
+    expect(result.data?.operations.publish_baseline).toEqual({
+      status: "unavailable",
+      reason: "prerequisite_missing",
+    });
+  });
+
+  /**
+   * Граница приложения у guardrail модуля 3 (решение владельца 11.08).
+   *
+   * До него флаг закрывал только приём, а публикация оставалась предложенной
+   * при выключенном модуле. Проверяется именно `module_disabled`, а не
+   * `capability_missing` и не `prerequisite_missing`: роль и предпосылки тут ни
+   * при чём — закрыт весь модуль, и поверхность обязана называть настоящую
+   * причину.
+   *
+   * Состав входа взят такой, при котором публикация была бы ДОСТУПНА при
+   * включённом модуле — иначе тест проходил бы и без guardrail, по отсутствию
+   * предпосылок.
+   */
+  it("closes publication with the module flag, not merely by capability", async () => {
+    const previous = process.env.REMHAOS_DOCUMENTATION_ENABLED;
+    process.env.REMHAOS_DOCUMENTATION_ENABLED = "false";
+    try {
+      const result = await new ProjectCeoLiveReadPort(fakeClient({
+        approvalPackages: [{
+          id: "approval-1",
+          status: "approved",
+          items: [{ targetKind: "decision_revision", revisionId: "decision-r1" }],
+        }],
+        packages: [{ id: packageId, kind: "project_root", name: "Root", status: "active" }],
+        latestBaseline: {
+          id: "baseline-v1",
+          exactRevisionRefs: {
+            sources: [],
+            requirements: [],
+            assumptions: [],
+            decisions: ["decision-r1"],
+            selections: [],
+          },
+        },
+      }), {
+        userId: "66666666-6666-4666-8666-666666666666",
+        displayName: "Owner",
+      }).getProjectWorkspace({ projectId, requestId: "m3-guardrail" });
+
+      expect(result.data?.operations.publish_baseline).toEqual({
+        status: "unavailable",
+        reason: "module_disabled",
+      });
+      expect(result.data?.operations.publish_release).toEqual({
+        status: "unavailable",
+        reason: "module_disabled",
+      });
+    } finally {
+      if (previous === undefined) delete process.env.REMHAOS_DOCUMENTATION_ENABLED;
+      else process.env.REMHAOS_DOCUMENTATION_ENABLED = previous;
+    }
   });
 });

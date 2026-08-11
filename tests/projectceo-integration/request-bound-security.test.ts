@@ -235,41 +235,43 @@ describe("ProjectCEO request-bound security", () => {
     }).success).toBe(false);
   });
 
-  it("accepts only a bounded publish_baseline descriptor", () => {
+  it("accepts only a snapshot token for publish_baseline, never a descriptor", () => {
+    // A′ (10.08.2026): состав версии выводит сервер. Дескриптор с клиента
+    // больше не принимается — иначе правило полноты обходилось бы посылкой
+    // неполного списка мимо экрана, а база такой baseline примет молча.
     const valid = {
       contractVersion: "projectceo-command/0.1",
       commandId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
       kind: "publish_baseline",
       projectId: userId,
+      payload: { snapshotToken: `sha256:${"a".repeat(64)}` },
+    };
+    expect(projectCeoCommandSchema.safeParse(valid).success).toBe(true);
+
+    // Токен не любой строки: формат тот же, что у семантического хеша.
+    expect(projectCeoCommandSchema.safeParse({
+      ...valid,
+      payload: { snapshotToken: "sha256:not-a-hash" },
+    }).success).toBe(false);
+
+    // И главное: старый путь закрыт схемой, а не только сервисом.
+    expect(projectCeoCommandSchema.safeParse({
+      ...valid,
       payload: {
+        snapshotToken: `sha256:${"a".repeat(64)}`,
         descriptor: {
           id: "baseline-v1",
           graphVersionId: "graph-v1",
           previousBaselineId: null,
           packageIds: ["bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb"],
-          sourceRevisionIds: ["source-r1"],
+          sourceRevisionIds: [],
           requirementRevisionIds: [],
           assumptionRevisionIds: [],
           decisionRevisionIds: ["decision-r1"],
-          selectionRevisionIds: ["selection-r1"],
+          selectionRevisionIds: [],
           approvalPackageIds: ["approval-1"],
           semanticHash: `sha256:${"a".repeat(64)}`,
         },
-      },
-    };
-    expect(projectCeoCommandSchema.safeParse(valid).success).toBe(true);
-    expect(projectCeoCommandSchema.safeParse({
-      ...valid,
-      payload: {
-        ...valid.payload,
-        descriptor: { ...valid.payload.descriptor, packageIds: ["not-a-uuid"] },
-      },
-    }).success).toBe(false);
-    expect(projectCeoCommandSchema.safeParse({
-      ...valid,
-      payload: {
-        ...valid.payload,
-        descriptor: { ...valid.payload.descriptor, semanticHash: "sha256:not-a-hash" },
       },
     }).success).toBe(false);
   });

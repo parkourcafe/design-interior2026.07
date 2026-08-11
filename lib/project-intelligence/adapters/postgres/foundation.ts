@@ -86,6 +86,61 @@ export interface ProjectDeliveryProjection {
 export class FoundationPostgresAdapter {
   constructor(private readonly client: PostgresRpcClient) {}
 
+  /**
+   * Решение по источнику. Идёт через тонкую дверь `projectceo_api.review_source`
+   * (миграция 20260810050000), а не напрямую в `project_intelligence_api`:
+   * та схема не отдана Data API, и прямой вызов из приложения не находится
+   * PostgREST. Дверь ничего не расширяет — `security invoker`, авторизация
+   * остаётся во внутренней `review_claim`.
+   */
+  async reviewSource(input: {
+    readonly projectId: string;
+    readonly targetRevisionId: string;
+    readonly expectedRevisionId: string;
+    readonly expectedStateRevision: number;
+    readonly decision: "confirmed" | "rejected";
+    readonly idempotencyKey: string;
+  }): Promise<CommandMutation<unknown>> {
+    return parseCommandMutation<unknown>(
+      await callRpc(this.client, "projectceo_api", "review_source", {
+        project_id: input.projectId,
+        target_revision_id: input.targetRevisionId,
+        expected_revision_id: input.expectedRevisionId,
+        expected_state_revision: input.expectedStateRevision,
+        decision: input.decision,
+        idempotency_key: input.idempotencyKey,
+      }),
+    );
+  }
+
+  /**
+   * Дверь публикации версии графа (`20260810080000`).
+   *
+   * Версия — предпосылка baseline: `publish_project_baseline` требует строку
+   * `project_intelligence.project_versions`. Сама операция живёт в приватной
+   * `project_intelligence_api`, не отданной Data API, поэтому вызов идёт через
+   * делегирующую функцию в `projectceo_api`. Прав она не добавляет.
+   */
+  async publishVersion(input: {
+    readonly projectId: string;
+    readonly expectedLatestVersionId: string | null;
+    readonly expectedStateRevision: number;
+    readonly label: string;
+    readonly selectedRevisions: readonly unknown[];
+    readonly idempotencyKey: string;
+  }): Promise<CommandMutation<unknown>> {
+    return parseCommandMutation<unknown>(
+      await callRpc(this.client, "projectceo_api", "publish_version", {
+        project_id: input.projectId,
+        expected_latest_version_id: input.expectedLatestVersionId,
+        expected_state_revision: input.expectedStateRevision,
+        label: input.label,
+        selected_revisions: input.selectedRevisions,
+        idempotency_key: input.idempotencyKey,
+      }),
+    );
+  }
+
   async enrollOrganizationProject(input: {
     readonly projectId: string;
     readonly idempotencyKey: string;

@@ -316,6 +316,78 @@ function OverviewView({
               <dd className="mt-1 break-all font-mono text-xs">{shortHash(view.baseline.semanticHash)}</dd>
             </div>
           </dl>
+
+          {/*
+            Baseline publication (A'). The button sends only the snapshot token
+            from the projection: the server derives the composition, and it
+            cannot be picked by hand — otherwise the completeness rule could be
+            bypassed around the screen. The token is what makes the confirmation
+            honest: if the project state moved between the preview and the
+            click, the command answers stale_state instead of publishing
+            something other than what the person saw.
+          */}
+          {view.operations.publish_baseline.status === "available"
+            && view.operations.publish_baseline.commandTargetId ? (
+              <div className="mt-4 space-y-2">
+                <ProjectCeoCommandButton
+                  command={{
+                    contractVersion: PROJECTCEO_COMMAND_CONTRACT_VERSION,
+                    kind: "publish_baseline",
+                    projectId: view.project.id,
+                    payload: {
+                      snapshotToken: view.operations.publish_baseline.commandTargetId,
+                    },
+                  }}
+                  className="btn-primary w-full"
+                  confirmation={projectCeoRu.workspace.overview.publishBaselineConfirm}
+                >
+                  {projectCeoRu.workspace.overview.publishBaseline}
+                </ProjectCeoCommandButton>
+                <p className="text-xs text-muted">
+                  {projectCeoRu.workspace.overview.publishBaselineHint}
+                </p>
+              </div>
+            ) : view.operations.publish_baseline.status === "unavailable"
+              && view.operations.publish_baseline.reason === "prerequisite_missing" ? (
+                <p className="mt-4 text-xs text-muted">
+                  {projectCeoRu.workspace.overview.publishBaselineNothing}
+                </p>
+              ) : null}
+
+          {/*
+            Release publication — the same A' shape one step later. The package
+            version expresses the published baseline in full, so there is no
+            composition to choose here either: the button carries the snapshot
+            token and nothing else, and a state that moved between the preview
+            and the click is refused rather than published.
+          */}
+          {view.operations.publish_release.status === "available"
+            && view.operations.publish_release.commandTargetId ? (
+              <div className="mt-4 space-y-2 border-t border-line pt-4">
+                <ProjectCeoCommandButton
+                  command={{
+                    contractVersion: PROJECTCEO_COMMAND_CONTRACT_VERSION,
+                    kind: "publish_release",
+                    projectId: view.project.id,
+                    payload: {
+                      snapshotToken: view.operations.publish_release.commandTargetId,
+                    },
+                  }}
+                  className="btn-primary w-full"
+                  confirmation={projectCeoRu.workspace.overview.publishReleaseConfirm}
+                >
+                  {projectCeoRu.workspace.overview.publishRelease}
+                </ProjectCeoCommandButton>
+                <p className="text-xs text-muted">
+                  {projectCeoRu.workspace.overview.publishReleaseHint}
+                </p>
+              </div>
+            ) : view.operations.publish_release.status === "unavailable"
+              && view.operations.publish_release.reason === "prerequisite_missing" ? (
+                <p className="mt-4 border-t border-line pt-4 text-xs text-muted">
+                  {projectCeoRu.workspace.overview.publishReleaseNothing}
+                </p>
+              ) : null}
         </section>
 
         <section className="rounded-2xl border border-line bg-white p-5 shadow-sm">

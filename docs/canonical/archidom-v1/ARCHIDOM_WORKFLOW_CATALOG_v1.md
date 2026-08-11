@@ -43,7 +43,7 @@ Approved decisions → drawing set → QA/conflicts → specifications → issue
 
 ## WF-M4-001 · Issued Package to Stage Acceptance
 
-**Статус:** CATALOG_ONLY / NOT AUTHORIZED
+**Статус:** PARTIALLY AUTHORIZED BY A6 — INCREMENT 1 ONLY (`distribute_release`, `acknowledge_release`, `create_change`); stage acceptance NOT authorized
 
 Issued baseline → site tasks → RFI/deviation → change/substitution → inspection → evidence → acceptance.
 

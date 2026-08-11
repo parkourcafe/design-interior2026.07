@@ -52,6 +52,9 @@ done
 
 for sql in \
   "${repo_root}/tests/db3/20_foundation_operations.sql" \
+  "${repo_root}/tests/db4/05_m3_publication_guardrail.sql" \
+  "${repo_root}/tests/db4/06_m3_surface_classification.sql" \
+  "${repo_root}/tests/ap1/environment/enable-m3-publication.sql" \
   "${repo_root}/tests/db4/10_schema_security.sql" \
   "${repo_root}/tests/db4/20_product_operations.sql" \
   "${repo_root}/tests/db4/30_m2_expansion_operations.sql" \
@@ -60,7 +63,11 @@ for sql in \
   "${repo_root}/tests/db4/33_m2_client_review_m3_handoff_operations.sql" \
   "${repo_root}/tests/db4/34_m3_documentation_sheet_operations.sql" \
   "${repo_root}/tests/db4/35_m3_documentation_read_operations.sql" \
-  "${repo_root}/tests/db4/36_m2_layout_document_v02_validation.sql"; do
+  "${repo_root}/tests/db4/36_m2_layout_document_v02_validation.sql" \
+  "${repo_root}/tests/db4/37_source_review_door.sql" \
+  "${repo_root}/tests/db4/38_m4_execution_guardrail.sql" \
+  "${repo_root}/tests/db4/39_publish_version_door.sql" \
+  "${repo_root}/tests/db4/40_baseline_refs_read.sql"; do
   print -r -- "Running ${sql:t}"
   run_file "${sql}"
 done

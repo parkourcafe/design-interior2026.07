@@ -78,3 +78,4 @@
 - Rate-limit на публичные server routes — **реализован** (`lib/rate-limit.ts`, таблица `rate_limits`, миграция 0005; лимиты по IP на `auth/register`, `client/create`, `intake/submit`; fail-open). Активируется после применения миграции 0005. **Остаётся:** капча на регистрацию до широкого запуска.
 - Retry/backoff вокруг LLM-вызова помимо repair-retry.
 - Индексы под частые запросы (designer_id, intake_token, public_token) — базовые заведены в миграции.
+- M3 Production Hardening: обязательные до внешнего production-пилота M3 пункты внешнего ревью #79 (чтения при выключенном модуле, архивная проекция, sourceRevisionIds, транзакционность version+baseline, replay-тесты, orchestration-дверь вместо сырых descriptor-RPC) — детально в `docs/product-intelligence/M3_PRODUCTION_HARDENING_BACKLOG.md`. Не блокирует M4.
