@@ -20,12 +20,52 @@ const repoRoot = process.cwd();
 const read = (path: string): string => readFileSync(join(repoRoot, path), "utf8");
 const squash = (value: string): string => value.replace(/\s+/g, "");
 
-const operations = read(
+/**
+ * Поверхность моста растёт миграциями, и матрица обязана расти вместе с ней.
+ * Списки собираются из ВСЕХ операционных миграций сразу: сверка с одной,
+ * пока существуют две, — это ровно тот способ, каким guardrail отчитывается об
+ * успехе, проверив половину.
+ */
+const OPERATION_MIGRATIONS = [
   "supabase/migrations/20260811050000_remhaos_channel_bridge_operations.sql",
-);
+  "supabase/migrations/20260811060000_remhaos_channel_bridge_inbox.sql",
+] as const;
+
+const DB4_SCENARIOS = [
+  "tests/db4/42_telegram_bridge_boundary.sql",
+  "tests/db4/43_telegram_inbox_vertical.sql",
+] as const;
+
+const operationSources = OPERATION_MIGRATIONS.map(read);
+const operations = operationSources.join("\n");
 const foundation = read(
   "supabase/migrations/20260811040000_remhaos_channel_bridge_foundation.sql",
 );
+
+/**
+ * Куски гранта — по одному на миграцию, чтобы стороны не слипались.
+ *
+ * Якоря С ДВОЕТОЧИЕМ. Без него `-- Системные двери` совпадает ещё и с
+ * заголовком раздела ОПРЕДЕЛЕНИЙ функций, который стоит намного выше грантов:
+ * срез начинался оттуда и втягивал в «системную» половину весь человеческий
+ * грант. Первая редакция была написана именно так и падала на
+ * `create_identity_link_intent` — падала верно.
+ */
+const HUMAN_ANCHOR = "-- Человеческие двери:";
+const SYSTEM_ANCHOR = "-- Системные двери:";
+
+function grantSections(marker: "human" | "system"): string {
+  return operationSources
+    .map((source) => {
+      const from = source.indexOf(marker === "human" ? HUMAN_ANCHOR : SYSTEM_ANCHOR);
+      if (from < 0) return "";
+      const until = marker === "human"
+        ? source.indexOf(SYSTEM_ANCHOR, from)
+        : source.indexOf("do $guard$", from);
+      return source.slice(from, until < 0 ? source.length : until);
+    })
+    .join("\n");
+}
 
 describe("Telegram bridge flag", () => {
   it("treats an absent variable as closed, and only the literal string as open", () => {
@@ -74,14 +114,8 @@ describe("Telegram bridge surface matrix", () => {
   });
 
   it("matches the migration grant for grant, in both directions", () => {
-    const humanGrant = operations.slice(
-      operations.indexOf("-- Человеческие двери: авторизация внутри"),
-      operations.indexOf("-- Системные двери: только воркер"),
-    );
-    const systemGrant = operations.slice(
-      operations.indexOf("-- Системные двери: только воркер"),
-      operations.indexOf("do $guard$"),
-    );
+    const humanGrant = grantSections("human");
+    const systemGrant = grantSections("system");
 
     for (const signature of TELEGRAM_BRIDGE_HUMAN_SIGNATURES) {
       expect(squash(humanGrant), signature).toContain(squash(signature));
@@ -94,12 +128,12 @@ describe("Telegram bridge surface matrix", () => {
     }
   });
 
-  it("keeps the DB4 scenario mirroring the system half of the matrix", () => {
+  it("keeps the DB4 scenarios mirroring the system half of the matrix", () => {
     // SQL не импортирует TypeScript, поэтому списка два. Разойдись они —
     // сценарий проверял бы не ту поверхность, которую описывает матрица.
-    const scenario = read("tests/db4/42_telegram_bridge_boundary.sql");
+    const scenarios = squash(DB4_SCENARIOS.map(read).join("\n"));
     for (const signature of TELEGRAM_BRIDGE_SYSTEM_SIGNATURES) {
-      expect(squash(scenario), signature).toContain(squash(signature));
+      expect(scenarios, signature).toContain(squash(signature));
     }
   });
 

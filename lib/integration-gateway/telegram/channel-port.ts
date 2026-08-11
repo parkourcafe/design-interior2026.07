@@ -4,6 +4,7 @@ import type {
   PostgresBytea,
   PostgresRpcClient,
 } from "@/lib/project-intelligence/adapters/postgres";
+import { claimedEventSchema, type ClaimedChannelEvent } from "./extraction/runner";
 
 /**
  * Порты к схеме `remhaos_channel_api`. Два класса, а не один, и это главное в
@@ -184,7 +185,7 @@ export class TelegramSystemPort {
     readonly templateVersion: string;
     readonly payload: Readonly<Record<string, unknown>>;
     readonly idempotencyKey: string;
-  }): Promise<{ readonly queued: boolean }> {
+  }): Promise<{ readonly queued: boolean; readonly reason: string | null }> {
     const data = await callChannelRpc(this.client, "enqueue_notification", {
       project_id: input.projectId,
       source_kind: input.sourceKind,
@@ -193,8 +194,14 @@ export class TelegramSystemPort {
       payload: input.payload,
       idempotency_key: input.idempotencyKey,
     });
-    const parsed = z.object({ queued: z.boolean() }).safeParse(data);
-    return { queued: parsed.success ? parsed.data.queued : false };
+    // Причина возвращается наружу, а не сворачивается в `queued: false`.
+    // «Связь отозвали, пока строился хвост» и «уже стояло в очереди» — разные
+    // события, и счётчик, который их складывает, ничего не считает.
+    const parsed = z
+      .object({ queued: z.boolean(), reason: z.string().optional() })
+      .safeParse(data);
+    if (!parsed.success) return { queued: false, reason: "shape_invalid" };
+    return { queued: parsed.data.queued, reason: parsed.data.reason ?? null };
   }
 
   async claimNotificationBatch(input: {
@@ -230,7 +237,78 @@ export class TelegramSystemPort {
       retry_after_seconds: input.retryAfterSeconds,
     });
   }
+
+  // ── Разбор канала: сообщение → кандидат ───────────────────────────────────
+
+  async claimChannelEvents(input: {
+    readonly maxRows: number;
+    readonly leaseSeconds: number;
+  }): Promise<readonly ClaimedChannelEvent[]> {
+    const data = await callChannelRpc(this.client, "claim_channel_events", {
+      max_rows: input.maxRows,
+      lease_seconds: input.leaseSeconds,
+    });
+    const parsed = z.array(claimedEventSchema).safeParse(data ?? []);
+    return parsed.success ? parsed.data : [];
+  }
+
+  async recordInboxCandidate(input: {
+    readonly eventId: string;
+    readonly candidateKind: string;
+    readonly origin: "rule" | "ai";
+    readonly extractionSchemaVersion: string;
+    readonly summary: string;
+    readonly confidence: string | null;
+  }): Promise<{ readonly created: boolean }> {
+    const data = await callChannelRpc(this.client, "record_inbox_candidate", {
+      event_id: input.eventId,
+      candidate_kind: input.candidateKind,
+      origin: input.origin,
+      extraction_schema_version: input.extractionSchemaVersion,
+      summary: input.summary,
+      confidence: input.confidence,
+      // Модель не называется, потому что её здесь нет: классификатор
+      // детерминированный. Пустое поле честнее выдуманного имени.
+      extraction_model: null,
+    });
+    const parsed = z.object({ created: z.boolean() }).safeParse(data);
+    return { created: parsed.success ? parsed.data.created : false };
+  }
+
+  async completeChannelEvent(input: {
+    readonly eventId: string;
+    readonly outcome: "processed" | "ignored" | "failed";
+    readonly failureCode: string | null;
+  }): Promise<void> {
+    await callChannelRpc(this.client, "complete_channel_event", {
+      event_id: input.eventId,
+      outcome: input.outcome,
+      failure_code: input.failureCode,
+    });
+  }
+
+  // ── Проектор уведомлений: читает состояние M4, не трогает его команды ─────
+
+  async listDistributionNotificationBacklog(input: {
+    readonly maxRows: number;
+  }): Promise<readonly DistributionBacklogItem[]> {
+    const data = await callChannelRpc(
+      this.client,
+      "list_distribution_notification_backlog",
+      { max_rows: input.maxRows },
+    );
+    const parsed = z.array(distributionBacklogSchema).safeParse(data ?? []);
+    return parsed.success ? parsed.data : [];
+  }
 }
+
+const distributionBacklogSchema = z.object({
+  projectId: z.string(),
+  distributionId: z.string(),
+  versionLabel: z.string().nullable(),
+});
+
+export type DistributionBacklogItem = z.infer<typeof distributionBacklogSchema>;
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Человеческая сторона: экран настроек проекта
@@ -298,5 +376,74 @@ export class TelegramHumanPort {
       project_id: input.projectId,
       reason: input.reason,
     });
+  }
+}
+
+export const inboxCandidateSchema = z.object({
+  candidateId: z.string(),
+  candidateKind: z.enum([
+    "question",
+    "decision_candidate",
+    "change_request_candidate",
+    "risk_candidate",
+    "general_note",
+    "ignored",
+  ]),
+  origin: z.enum(["ai", "rule", "human"]),
+  summary: z.string(),
+  confidence: z.enum(["low", "medium", "high"]).nullable(),
+  status: z.enum(["pending", "confirmed", "rejected", "superseded"]),
+  createdAt: z.string(),
+  resultingEntityKind: z.string().nullable(),
+  resultingEntityId: z.string().nullable(),
+});
+
+export const projectInboxSchema = z.object({
+  canReview: z.boolean(),
+  candidates: z.array(inboxCandidateSchema),
+});
+
+export type ProjectInbox = z.infer<typeof projectInboxSchema>;
+export type InboxCandidate = z.infer<typeof inboxCandidateSchema>;
+
+/**
+ * Третий порт, а не метод в одном из двух прежних. Причина та же, по которой
+ * системный и человеческий разведены: Inbox — человеческая поверхность, и
+ * держать её рядом с приёмом сообщений значило бы однажды позвать её из
+ * транспорта.
+ */
+export class TelegramInboxPort {
+  constructor(private readonly client: PostgresRpcClient) {}
+
+  async listProjectInbox(projectId: string): Promise<ProjectInbox> {
+    const data = await callChannelRpc(this.client, "list_project_inbox", {
+      project_id: projectId,
+    });
+    const parsed = projectInboxSchema.safeParse(data);
+    if (!parsed.success) {
+      throw new TelegramChannelRpcError("list_project_inbox", "shape_invalid");
+    }
+    return parsed.data;
+  }
+
+  async reviewInboxCandidate(input: {
+    readonly projectId: string;
+    readonly candidateId: string;
+    readonly decision: "confirm" | "reject";
+    readonly resultingEntityKind: string | null;
+    readonly resultingEntityId: string | null;
+  }): Promise<{ readonly status: string }> {
+    const data = await callChannelRpc(this.client, "review_inbox_candidate", {
+      project_id: input.projectId,
+      candidate_id: input.candidateId,
+      decision: input.decision,
+      resulting_entity_kind: input.resultingEntityKind,
+      resulting_entity_id: input.resultingEntityId,
+    });
+    const parsed = z.object({ status: z.string() }).safeParse(data);
+    if (!parsed.success) {
+      throw new TelegramChannelRpcError("review_inbox_candidate", "shape_invalid");
+    }
+    return parsed.data;
   }
 }

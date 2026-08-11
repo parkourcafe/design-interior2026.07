@@ -24,7 +24,8 @@
     "fetch:media": "node scripts/fetch-landing-media.mjs",
     "provision:ap1": "tsx scripts/provision-ap1-users.ts",
     "worker:release-artifacts": "tsx scripts/run-release-artifact-worker.ts",
-    "bridge:telegram-notifications": "tsx scripts/run-telegram-notifications.ts"
+    "bridge:telegram-notifications": "tsx scripts/run-telegram-notifications.ts",
+    "bridge:telegram-workers": "tsx scripts/run-telegram-bridge-workers.ts"
   },
   "dependencies": {
     "@capacitor/core": "^8.4.2",

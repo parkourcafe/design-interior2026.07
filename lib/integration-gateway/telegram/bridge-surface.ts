@@ -123,6 +123,55 @@ export const TELEGRAM_BRIDGE_SURFACE: readonly TelegramBridgeRpc[] = [
     audience: "system",
     capability: null,
   },
+  // ── Вертикаль M3 → M4 (миграция 20260811060000) ──────────────────────────
+  {
+    schema: "remhaos_channel_api",
+    name: "claim_channel_events",
+    signature: "remhaos_channel_api.claim_channel_events(integer, integer)",
+    audience: "system",
+    capability: null,
+  },
+  {
+    schema: "remhaos_channel_api",
+    name: "record_inbox_candidate",
+    signature:
+      "remhaos_channel_api.record_inbox_candidate(uuid, text, text, text, text, text, text)",
+    audience: "system",
+    capability: null,
+  },
+  {
+    schema: "remhaos_channel_api",
+    name: "complete_channel_event",
+    signature: "remhaos_channel_api.complete_channel_event(uuid, text, text)",
+    audience: "system",
+    capability: null,
+  },
+  {
+    schema: "remhaos_channel_api",
+    name: "list_distribution_notification_backlog",
+    signature:
+      "remhaos_channel_api.list_distribution_notification_backlog(integer)",
+    audience: "system",
+    capability: null,
+  },
+  {
+    schema: "remhaos_channel_api",
+    name: "list_project_inbox",
+    signature: "remhaos_channel_api.list_project_inbox(uuid, integer)",
+    audience: "human",
+    capability: "view_project",
+  },
+  {
+    schema: "remhaos_channel_api",
+    name: "review_inbox_candidate",
+    signature:
+      "remhaos_channel_api.review_inbox_candidate(uuid, uuid, text, text, text)",
+    audience: "human",
+    // Решение по кандидату — то же право, что и на разбор входящего
+    // источника: строитель и заказчик его не имеют, дизайнер и архитектор
+    // имеют. Новой capability мост не вводит: их и так уже двадцать одна.
+    capability: "review_source",
+  },
 ];
 
 /** Приватная схема моста. Data API её не видит и видеть не должен. */
