@@ -26,6 +26,7 @@ import { M2WorkflowPanel } from "./m2-workflow-panel";
 import { M2ClientReviewPanel } from "./m2-client-review-panel";
 import { M2M3ApprovedInputCard } from "./m2-m3-approved-input-card";
 import { TelegramChannelPanel } from "./telegram-channel-panel";
+import { TelegramInboxPanel } from "./telegram-inbox-panel";
 
 const projectCeoRu = ru.projectCeo;
 
@@ -1446,6 +1447,15 @@ function ChangesView({
           </article>
         ))}
       </section>
+
+      {/*
+        Project Inbox sits on the changes tab because that is where the first
+        vertical lands: a builder's message becomes a change candidate, and a
+        human turns it into a change with the module's own command. The panel
+        hides itself when the bridge is off, rather than showing an empty list —
+        an empty list would promise a channel that is not there.
+      */}
+      <TelegramInboxPanel projectId={view.project.id} />
     </div>
   );
 }

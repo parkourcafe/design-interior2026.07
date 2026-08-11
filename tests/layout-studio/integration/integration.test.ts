@@ -240,6 +240,9 @@ describe("Layout Studio delivery/UI slice", () => {
       // схема, RLS deny-by-default. К Layout Studio отношения не имеет.
       "20260811040000_remhaos_channel_bridge_foundation.sql",
       "20260811050000_remhaos_channel_bridge_operations.sql",
+      // Вертикаль Telegram → Project Inbox (A7 §1.8). К Layout Studio
+      // отношения не имеет.
+      "20260811060000_remhaos_channel_bridge_inbox.sql",
     ];
     const actual = readdirSync(join(repoRoot, "supabase/migrations"), { withFileTypes: true })
       .filter((entry) => entry.isFile())
