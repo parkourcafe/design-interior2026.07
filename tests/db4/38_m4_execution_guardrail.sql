@@ -10,25 +10,51 @@
 --
 -- Миграция `20260810070000` закрывает эту границу. Сценарий доказывает, что
 -- закрытие настоящее, а не декларация, и что оно не задело чтение.
+--
+-- ГДЕ СТОИТ ЭТОТ СЦЕНАРИЙ И ЧТО ЭТО МЕНЯЕТ (11.08). Он идёт ПОСЛЕ
+-- `enable-m4-increment-1.sql`, то есть наблюдает среду, где инкремент 1 открыт
+-- намеренно. Поэтому утверждение здесь не «закрыто всё», а «открыто ровно то,
+-- что открыла среда, и ни одной функцией больше». Состояние по умолчанию —
+-- закрыто всё — проверяет `07_m4_execution_boundary.sql`, который стоит до
+-- включения.
 
 do $db4_m4_guardrail$
 declare
   v_reachable text;
+  v_closed text;
   v_count integer;
 begin
-  -- 1. Ни одна команда модуля не достижима ролью `authenticated`.
-  --    Проверка сплошная: перечислять имена бессмысленно — именно ручной
-  --    перечень и подвёл при подготовке миграции, пропустив пять
-  --    `replay_*`-обёрток.
+  -- 1. Достижимо ролью `authenticated` ровно то, что открыл инкремент 1, плюс
+  --    читающая RPC. Проверка сплошная по схеме: перечислять закрытое
+  --    бессмысленно — именно ручной перечень и подвёл при подготовке миграции,
+  --    пропустив пять `replay_*`-обёрток.
   select p.proname into v_reachable
   from pg_catalog.pg_proc p
   join pg_catalog.pg_namespace n on n.oid = p.pronamespace
   where n.nspname = 'projectceo_m4_api'
-    and p.proname <> 'get_execution_delivery'
+    and p.proname <> all (array[
+      'get_execution_delivery',
+      'submit_change_request',
+      'replay_submit_change_request'
+    ])
     and pg_catalog.has_function_privilege('authenticated', p.oid, 'EXECUTE')
   limit 1;
   if v_reachable is not null then
     raise exception 'DB4_M4_COMMAND_REACHABLE_BY_AUTHENTICATED:%', v_reachable;
+  end if;
+
+  -- 1а. И обратно: включение обязано было сработать. Инкремент 1, закрытый
+  --     после явного включения, означал бы, что среда лжёт о своём состоянии, —
+  --     и гейт 2 в такой среде доказывал бы не то, что думает.
+  select signature into v_closed
+  from unnest(array[
+    'projectceo_m4_api.submit_change_request(uuid, uuid, text, text, text, text, bigint, integer, bigint, text)',
+    'projectceo_m4_api.replay_submit_change_request(uuid, uuid, text, text, text, text, bigint, integer, text)'
+  ]) signature
+  where not pg_catalog.has_function_privilege('authenticated', signature, 'EXECUTE')
+  limit 1;
+  if v_closed is not null then
+    raise exception 'DB4_M4_INCREMENT_1_NOT_OPEN:%', v_closed;
   end if;
 
   -- 2. Ровно одно исключение — читающая RPC рабочего пространства. Без неё

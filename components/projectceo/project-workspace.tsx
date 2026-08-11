@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useMemo, useRef, useState } from "react";
 import { ru } from "@/lib/i18n/ru";
 import type {
+  ProjectCeoOperationState,
   ProjectCeoRole,
   ProjectCeoTab,
   ProjectWorkspaceView,
@@ -41,6 +42,23 @@ function formatDate(value: string | null): string {
 function shortHash(value: string | null): string {
   if (!value) return projectCeoRu.common.dash;
   return `${value.slice(0, 15)}…${value.slice(-8)}`;
+}
+
+/**
+ * The stated reason for a closed action, in words a person can act on. Shared
+ * because it is needed in several places, and saying "unavailable" where the
+ * truth is "this part of the module is not open yet" is a refusal without a
+ * reason — repeated in three places instead of one.
+ */
+function operationReason(operation: ProjectCeoOperationState): string {
+  if (operation.status === "available") return "";
+  if (operation.reason === "increment_not_authorized") {
+    return projectCeoRu.common.incrementNotAuthorized;
+  }
+  if (operation.reason === "module_disabled") {
+    return projectCeoRu.workspace.sources.moduleDisabled;
+  }
+  return projectCeoRu.common.commandUnavailable;
 }
 
 function sourceTone(source: SourceRegistryItem) {
@@ -474,7 +492,9 @@ function OverviewView({
           </div>
           {mayUploadPhoto && <PhotoEvidenceForm view={view} />}
           {mayUploadPhoto && view.operations.upload_photo_evidence.status !== "available" && (
-            <p className="mt-2 text-xs text-muted">{projectCeoRu.common.commandUnavailable}</p>
+            <p className="mt-2 text-xs text-muted">
+              {operationReason(view.operations.upload_photo_evidence)}
+            </p>
           )}
         </section>
       </div>
@@ -1342,7 +1362,7 @@ function ChangesView({
         </button>
         {!mayCreate && <p className="mt-3 text-xs text-muted">{projectCeoRu.workspace.changes.noCreateCapability}</p>}
         {mayCreate && changeOperation.status !== "available" && (
-          <p className="mt-3 text-xs text-muted">{projectCeoRu.common.commandUnavailable}</p>
+          <p className="mt-3 text-xs text-muted">{operationReason(changeOperation)}</p>
         )}
         {submitState === "error" && <p className="mt-3 text-xs text-red-700">{projectCeoRu.common.commandUnavailable}</p>}
       </form>

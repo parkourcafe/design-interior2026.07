@@ -14,9 +14,10 @@ function input(overrides: Partial<BaselineCompositionInput> = {}): BaselineCompo
     approvalPackages: [{
       id: "approval-1",
       status: "approved",
+      createdAt: "2026-08-01T10:00:00.000Z",
       items: [
-        { targetKind: "decision_revision", revisionId: "decision-r1" },
-        { targetKind: "selection_revision", revisionId: "selection-r1" },
+        { targetKind: "decision_revision", entityId: "decision-a", revisionId: "decision-r1" },
+        { targetKind: "selection_revision", entityId: "selection-a", revisionId: "selection-r1" },
       ],
     }],
     packageIds: [PACKAGE_A],
@@ -40,9 +41,10 @@ describe("baseline snapshot — preview and confirm cannot disagree", () => {
       approvalPackages: [{
         id: "approval-1",
         status: "approved",
+        createdAt: "2026-08-01T10:00:00.000Z",
         items: [
-          { targetKind: "selection_revision", revisionId: "selection-r1" },
-          { targetKind: "decision_revision", revisionId: "decision-r1" },
+          { targetKind: "selection_revision", entityId: "selection-a", revisionId: "selection-r1" },
+          { targetKind: "decision_revision", entityId: "decision-a", revisionId: "decision-r1" },
         ],
       }],
     })).token;
@@ -61,7 +63,12 @@ describe("baseline snapshot — preview and confirm cannot disagree", () => {
         {
           id: "approval-2",
           status: "approved",
-          items: [{ targetKind: "decision_revision", revisionId: "decision-r2" }],
+          createdAt: "2026-08-02T10:00:00.000Z",
+          items: [{
+            targetKind: "decision_revision",
+            entityId: "decision-b",
+            revisionId: "decision-r2",
+          }],
         },
       ],
     }],
@@ -69,10 +76,11 @@ describe("baseline snapshot — preview and confirm cannot disagree", () => {
       approvalPackages: [{
         id: "approval-1",
         status: "approved",
+        createdAt: "2026-08-01T10:00:00.000Z",
         items: [
-          { targetKind: "decision_revision", revisionId: "decision-r1" },
-          { targetKind: "selection_revision", revisionId: "selection-r1" },
-          { targetKind: "requirement_revision", revisionId: "requirement-r1" },
+          { targetKind: "decision_revision", entityId: "decision-a", revisionId: "decision-r1" },
+          { targetKind: "selection_revision", entityId: "selection-a", revisionId: "selection-r1" },
+          { targetKind: "requirement_revision", entityId: "requirement-a", revisionId: "requirement-r1" },
         ],
       }],
     }],
@@ -103,7 +111,12 @@ describe("baseline snapshot — preview and confirm cannot disagree", () => {
       approvalPackages: [{
         id: "approval-1",
         status: "approved",
-        items: [{ targetKind: "constraint_revision", revisionId: "constraint-r1" }],
+        createdAt: "2026-08-01T10:00:00.000Z",
+        items: [{
+          targetKind: "constraint_revision",
+          entityId: "constraint-a",
+          revisionId: "constraint-r1",
+        }],
       }],
     }), base)).toThrow(/unknown targetKind/);
   });

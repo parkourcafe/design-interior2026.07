@@ -228,6 +228,10 @@ describe("Layout Studio delivery/UI slice", () => {
       // Guardrail модуля 3: отзыв прав на публикацию у authenticated.
       // К Layout Studio отношения не имеет.
       "20260811010000_projectceo_m3_publication_guardrail.sql",
+      // Guardrail модуля 4, вторая половина: командные RPC выдачи и
+      // подтверждения получения живут в продуктовой схеме, и сплошной отзыв по
+      // схеме M4 их не касался. К Layout Studio отношения не имеет.
+      "20260811020000_projectceo_m4_distribution_guardrail.sql",
     ];
     const actual = readdirSync(join(repoRoot, "supabase/migrations"), { withFileTypes: true })
       .filter((entry) => entry.isFile())

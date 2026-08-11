@@ -54,7 +54,11 @@ import { capabilitiesForRole, can } from "@/components/projectceo/role-policy";
 import { ru } from "@/lib/i18n/ru";
 import { reviewPackageCompleteness } from "../../modules/documentation";
 import { isDocumentationModuleEnabled } from "./documentation-flag";
-import { EXECUTION_MODULE, isExecutionModuleEnabled } from "./execution-flag";
+import {
+  EXECUTION_INCREMENT_2_COMMANDS,
+  EXECUTION_MODULE,
+  isExecutionModuleEnabled,
+} from "./execution-flag";
 import { buildBaselineSnapshot } from "../../modules/decisions";
 import { buildReleaseSnapshot } from "../../modules/package/release-snapshot";
 import type { ProjectCeoVerifiedIdentity } from "./request-context";
@@ -1024,8 +1028,10 @@ function operationStates(input: {
       approvalPackages: rows(input.delivery.approvalPackages).map((entry) => ({
         id: text(entry.id),
         status: text(entry.status),
+        createdAt: text(entry.createdAt),
         items: rows(entry.items).map((item) => ({
           targetKind: text(item.targetKind),
+          entityId: text(item.entityId),
           revisionId: text(item.revisionId),
         })),
       })),
@@ -1276,13 +1282,24 @@ function operationStates(input: {
       : unavailable("capability_missing"),
     build_handover: unavailable("worker_only"),
   };
-  if (executionEnabled) return states;
   // Guardrail модуля 4: при выключенном флаге поверхность модуля не
   // существует для пользователя. Причина именно `module_disabled`, а не
   // `capability_missing` — роль тут ни при чём, закрыт весь модуль.
-  const disabled: Record<string, ProjectCeoOperationState> = { ...states };
-  for (const kind of EXECUTION_MODULE) disabled[kind] = unavailable("module_disabled");
-  return disabled as ProjectCeoOperationStates;
+  if (!executionEnabled) {
+    const disabled: Record<string, ProjectCeoOperationState> = { ...states };
+    for (const kind of EXECUTION_MODULE) disabled[kind] = unavailable("module_disabled");
+    return disabled as ProjectCeoOperationStates;
+  }
+  // Модуль включён — но открыт только инкремент 1 (A6 §1.1, DEC-025). Пять
+  // команд инкремента 2 не авторизованы ничем, и предлагать их нельзя даже
+  // тогда, когда предпосылки для них однажды появятся: сервер их отклонит
+  // (`command-service.ts`), а поверхность не обещает того, чего сервер не
+  // выполнит (A6 §4.2.5).
+  const authorized: Record<string, ProjectCeoOperationState> = { ...states };
+  for (const kind of EXECUTION_INCREMENT_2_COMMANDS) {
+    authorized[kind] = unavailable("increment_not_authorized");
+  }
+  return authorized as ProjectCeoOperationStates;
 }
 
 function onboarding(projectCount: number): OnboardingState {

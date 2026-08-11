@@ -54,8 +54,15 @@ for migration in "${repo_root}"/supabase/migrations/*.sql(N); do
   run_file "${migration}"
 done
 
+# Модули 3 и 4 закрыты в базе по умолчанию (guardrail'ы 20260811010000 и
+# 20260811020000), а сценарии ниже публикуют baseline, выдают пакет и
+# подтверждают получение из-под роли authenticated. Харнесс — одноразовая среда,
+# где модули открыты намеренно; без двух строк включения он падал бы на
+# insufficient_privilege, то есть проверял бы не то, ради чего написан.
 for sql in \
   "${repo_root}/tests/db3/20_foundation_operations.sql" \
+  "${repo_root}/tests/ap1/environment/enable-m3-publication.sql" \
+  "${repo_root}/tests/ap1/environment/enable-m4-increment-1.sql" \
   "${repo_root}/tests/db4/20_product_operations.sql" \
   "${repo_root}/tests/db5/20_execution_operations.sql" \
   "${repo_root}/tests/ap1/reads/10_schema_security.sql" \

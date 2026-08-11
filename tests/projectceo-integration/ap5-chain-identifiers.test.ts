@@ -6,6 +6,7 @@ import { projectCeoCommandSchema } from "../../lib/project-intelligence/delivery
 import {
   AP5_DECISION_NODE_ID,
   AP5_DECISION_REVISION_ID,
+  AP5_DECISION_REVISION_ID_2,
   AP5_SOURCE_NAME,
   AP5_SOURCE_REVISION_ID,
 } from "../ap5/ap5-env";
@@ -93,6 +94,62 @@ describe("AP5 chain identifiers satisfy the command contract", () => {
         entityId: AP5_DECISION_NODE_ID,
         revisionId: AP5_DECISION_REVISION_ID,
       }],
+    })).toBeNull();
+  });
+
+  // Звенья гейта 2. Payload здесь собирается из значений, которые прогон берёт
+  // из проекции (идентификатор версии пакета, получатель, идентификатор
+  // выдачи), поэтому проверяются их ФОРМЫ: версия пакета — свободный текст,
+  // получатель и выдача — uuid. Ошибка формы в спеке стоила бы сорока пяти
+  // минут прогона и выглядела бы как отказ сервера.
+  it("9. distribute_release addresses a text version id and a uuid recipient", () => {
+    expect(parse("distribute_release", {
+      productionPackageVersionId: "package-ap5-root-v1",
+      recipientUserId: "44444444-4444-4444-8444-444444444444",
+    })).toBeNull();
+  });
+
+  it("10. acknowledge_release addresses the distribution by uuid", () => {
+    expect(parse("acknowledge_release", {
+      distributionId: "55555555-5555-4555-8555-555555555555",
+    })).toBeNull();
+  });
+
+  it("11. the revised decision keeps the node and replaces the revision", () => {
+    // Заявка на изменение требует расхождения между baseline, а расхождение —
+    // это ОДНА сущность с РАЗНЫМИ ревизиями. Ошибка здесь (новый nodeId вместо
+    // новой ревизии) дала бы `NO_CHANGE_ROOTS` на живом стеке.
+    expect(AP5_DECISION_REVISION_ID_2).not.toBe(AP5_DECISION_REVISION_ID);
+    expect(parse("create_decision", {
+      packageId: rootPackageId,
+      nodeId: AP5_DECISION_NODE_ID,
+      revisionId: AP5_DECISION_REVISION_ID_2,
+      expectedRevisionId: AP5_DECISION_REVISION_ID,
+      claimStatus: "human_origin",
+      title: "AP5 decision (revised)",
+      resolution: "AP5 chain decision revised from an authenticated architect session.",
+      areaNodeId: null,
+      decisionStatus: "confirmed",
+      evidence: [],
+      reason: "AP5 authenticated browser chain — revision for the change request",
+    })).toBeNull();
+  });
+
+  it("11. create_change carries integer deltas and the previous version id", () => {
+    expect(parse("create_change", {
+      reason: "AP5: на объекте вскрылось расхождение с выпущенной редакцией",
+      fromProductionPackageVersionId: "package-ap5-root-v1",
+      deltaCostRub: 0,
+      deltaDays: 0,
+    })).toBeNull();
+  });
+
+  // Шаг 8 посылает заведомо закрытую команду инкремента 2 и ждёт отказа
+  // сервера. Отказ обязан быть по неавторизованному инкременту, а не по
+  // контракту, — иначе шаг доказывал бы работу валидатора, а не запрета.
+  it("8. the increment 2 probe is contract-valid, so its refusal is the module's", () => {
+    expect(parse("accept_milestone", {
+      milestoneId: "a5d0c1c1-0000-4000-8000-00000000dead",
     })).toBeNull();
   });
 
