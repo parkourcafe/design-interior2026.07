@@ -6,6 +6,7 @@ import { projectCeoCommandSchema } from "../../lib/project-intelligence/delivery
 import {
   AP5_DECISION_NODE_ID,
   AP5_DECISION_REVISION_ID,
+  AP5_DECISION_REVISION_ID_2,
   AP5_SOURCE_NAME,
   AP5_SOURCE_REVISION_ID,
 } from "../ap5/ap5-env";
@@ -111,6 +112,26 @@ describe("AP5 chain identifiers satisfy the command contract", () => {
   it("10. acknowledge_release addresses the distribution by uuid", () => {
     expect(parse("acknowledge_release", {
       distributionId: "55555555-5555-4555-8555-555555555555",
+    })).toBeNull();
+  });
+
+  it("11. the revised decision keeps the node and replaces the revision", () => {
+    // Заявка на изменение требует расхождения между baseline, а расхождение —
+    // это ОДНА сущность с РАЗНЫМИ ревизиями. Ошибка здесь (новый nodeId вместо
+    // новой ревизии) дала бы `NO_CHANGE_ROOTS` на живом стеке.
+    expect(AP5_DECISION_REVISION_ID_2).not.toBe(AP5_DECISION_REVISION_ID);
+    expect(parse("create_decision", {
+      packageId: rootPackageId,
+      nodeId: AP5_DECISION_NODE_ID,
+      revisionId: AP5_DECISION_REVISION_ID_2,
+      expectedRevisionId: AP5_DECISION_REVISION_ID,
+      claimStatus: "human_origin",
+      title: "AP5 decision (revised)",
+      resolution: "AP5 chain decision revised from an authenticated architect session.",
+      areaNodeId: null,
+      decisionStatus: "confirmed",
+      evidence: [],
+      reason: "AP5 authenticated browser chain — revision for the change request",
     })).toBeNull();
   });
 

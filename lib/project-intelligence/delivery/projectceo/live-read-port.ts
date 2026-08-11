@@ -1028,8 +1028,10 @@ function operationStates(input: {
       approvalPackages: rows(input.delivery.approvalPackages).map((entry) => ({
         id: text(entry.id),
         status: text(entry.status),
+        createdAt: text(entry.createdAt),
         items: rows(entry.items).map((item) => ({
           targetKind: text(item.targetKind),
+          entityId: text(item.entityId),
           revisionId: text(item.revisionId),
         })),
       })),

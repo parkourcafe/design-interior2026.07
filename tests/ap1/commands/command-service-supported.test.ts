@@ -735,9 +735,10 @@ describe("AP1 supported human commands", () => {
     const approvalPackages = [{
       id: "approval-1",
       status: "approved",
+      createdAt: "2026-07-18T00:00:00.000Z",
       items: [
-        { targetKind: "decision_revision", revisionId: "decision-r1" },
-        { targetKind: "selection_revision", revisionId: "selection-r1" },
+        { targetKind: "decision_revision", entityId: "decision-a", revisionId: "decision-r1" },
+        { targetKind: "selection_revision", entityId: "selection-a", revisionId: "selection-r1" },
       ],
     }];
     const packages = [{
@@ -792,7 +793,12 @@ describe("AP1 supported human commands", () => {
       approvalPackages: [{
         id: "approval-1",
         status: "approved",
-        items: [{ targetKind: "decision_revision", revisionId: "decision-r1" }],
+        createdAt: "2026-07-18T00:00:00.000Z",
+        items: [{
+          targetKind: "decision_revision",
+          entityId: "decision-a",
+          revisionId: "decision-r1",
+        }],
       }],
       packageIds: [packageId],
       previousBaselineId: null,
@@ -803,9 +809,13 @@ describe("AP1 supported human commands", () => {
       approvalPackages: [{
         id: "approval-1",
         status: "approved",
+        createdAt: "2026-07-18T00:00:00.000Z",
         items: [
-          { targetKind: "decision_revision", revisionId: "decision-r1" },
-          { targetKind: "decision_revision", revisionId: "decision-r2" },
+          // Состояние сдвинулось: одобрили ВТОРУЮ сущность. Именно вторую, а не
+          // вторую ревизию первой: с 11.08 повторное одобрение той же сущности
+          // состав не расширяет — побеждает поздняя ревизия.
+          { targetKind: "decision_revision", entityId: "decision-a", revisionId: "decision-r1" },
+          { targetKind: "decision_revision", entityId: "decision-b", revisionId: "decision-r2" },
         ],
       }],
       packages: [{ id: packageId, kind: "project_root", parentPackageId: null, stableKey: "root" }],
@@ -1111,7 +1121,12 @@ describe("AP1 supported human commands", () => {
     const approvalPackages = [{
       id: "approval-1",
       status: "approved",
-      items: [{ targetKind: "decision_revision", revisionId: "decision-r1" }],
+      createdAt: "2026-07-18T00:00:00.000Z",
+      items: [{
+        targetKind: "decision_revision",
+        entityId: "decision-a",
+        revisionId: "decision-r1",
+      }],
     }];
     const snapshot = buildBaselineSnapshot({
       approvalPackages,

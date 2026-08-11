@@ -782,7 +782,12 @@ describe("ProjectCEO live DTO sanitizer", () => {
     const approvalPackages = [{
       id: "approval-1",
       status: "approved",
-      items: [{ targetKind: "decision_revision", revisionId: "decision-r1" }],
+      createdAt: "2026-07-18T00:00:00.000Z",
+      items: [{
+        targetKind: "decision_revision",
+        entityId: "decision-a",
+        revisionId: "decision-r1",
+      }],
     }];
     const result = await new ProjectCeoLiveReadPort(fakeClient({
       approvalPackages,

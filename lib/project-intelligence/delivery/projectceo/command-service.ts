@@ -813,8 +813,10 @@ export class ProjectCeoCommandService {
           approvalPackages: rows(read.data.approvalPackages).map((entry) => ({
             id: String(entry.id ?? ""),
             status: String(entry.status ?? ""),
+            createdAt: String(entry.createdAt ?? ""),
             items: rows(entry.items).map((item) => ({
               targetKind: String(item.targetKind ?? ""),
+              entityId: String(item.entityId ?? ""),
               revisionId: String(item.revisionId ?? ""),
             })),
           })),

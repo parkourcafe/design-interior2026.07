@@ -22,6 +22,29 @@
  * не пропуск.** Молчаливо выброшенный элемент и есть тот самый неполный
  * baseline, который база пропустит. Ошибка на смешанном проекте, где воркер
  * завёл вид, которого сборщик не знает, лучше тихой потери.
+ *
+ * ОДНА СУЩНОСТЬ — ОДНА РЕВИЗИЯ (правка 11.08, найдена гейтом 2). Первая
+ * редакция складывала ревизии всех одобренных пакетов в одно множество. Пока
+ * baseline в проекте один, это незаметно. Как только решение пересматривают и
+ * одобряют заново, в состав попадают ОБЕ ревизии одного узла — и старая, и
+ * новая. База такой дескриптор отвергает: `publish_project_baseline` требует,
+ * чтобы каждая ревизия входила в публикуемую версию графа
+ * (`BASELINE_REVISION_NOT_IN_GRAPH_VERSION`), а версия содержит только текущие
+ * ревизии узлов. То есть второй baseline, отличающийся от первого, не
+ * публиковался вовсе — а без второго baseline невозможна заявка на изменение
+ * (`NO_CHANGE_ROOTS`), то есть весь смысл модуля 4.
+ *
+ * Поэтому состав берёт по одной ревизии на сущность — из САМОГО ПОЗДНЕГО
+ * одобрившего её пакета. Это не отступление от правила полноты, а его
+ * уточнение: замораживается утверждённое состояние, а не история утверждений.
+ *
+ * ЧТО ЭТО НЕ ЧИНИТ. Если решение пересмотрели, но новую ревизию не одобрили,
+ * последняя одобренная ревизия окажется устаревшей, и база откажет тем же
+ * `BASELINE_REVISION_NOT_IN_GRAPH_VERSION` — уже честно, потому что
+ * замораживать действительно нечего. Поверхность при этом всё ещё предложит
+ * публикацию: сборщик не знает текущих ревизий графа. Названо в backlog, а не
+ * починено здесь, — гейт 1 доказан на текущем поведении, и трогать его состав
+ * ради несвязанного случая опаснее, чем оставить остаток названным.
  */
 
 /** Виды, которые RPC принимает в дескрипторе (`20260717101000`, строки 2053–2062). */
@@ -44,8 +67,17 @@ export class BaselineCompositionError extends Error {
 export interface ApprovalPackageForBaseline {
   readonly id: string;
   readonly status: string;
+  /**
+   * Момент создания пакета — из проекции чтения (`approval.created_at`).
+   * Нужен, чтобы решить, какое из двух одобрений одной сущности новее.
+   * Обязателен: правило «побеждает последнее» без порядка не правило, а
+   * случайность, а из состава считается хеш.
+   */
+  readonly createdAt: string;
   readonly items: readonly {
     readonly targetKind: string;
+    /** Идентификатор сущности (узла), а не ревизии. */
+    readonly entityId: string;
     readonly revisionId: string;
   }[];
 }
@@ -76,12 +108,14 @@ export interface BaselineComposition {
   readonly previousBaselineId: string | null;
 }
 
+function compareCodePoints(left: string, right: string): number {
+  return left < right ? -1 : left > right ? 1 : 0;
+}
+
 function sortedUnique(values: Iterable<string>): readonly string[] {
   // Порядок и дедупликация — как у хеша: по кодовым точкам. Расхождение здесь
   // дало бы `BASELINE_SEMANTIC_HASH_MISMATCH` уже после отправки.
-  return [...new Set(values)].sort((left, right) => (
-    left < right ? -1 : left > right ? 1 : 0
-  ));
+  return [...new Set(values)].sort(compareCodePoints);
 }
 
 /**
@@ -105,7 +139,26 @@ export function composeBaseline(input: BaselineCompositionInput): BaselineCompos
     selectionRevisionIds: new Set(),
   };
 
-  for (const pkg of approved) {
+  // Порядок одобрения: старые сначала, поздние перезаписывают. Тай-брейк по
+  // идентификатору пакета — два одобрения одной миллисекунды не имеют права
+  // давать два разных состава, из состава считается хеш.
+  const ordered = [...approved].sort((left, right) => (
+    left.createdAt === right.createdAt
+      ? compareCodePoints(left.id, right.id)
+      : compareCodePoints(left.createdAt, right.createdAt)
+  ));
+
+  // Одна сущность — одна ревизия. Ключ составной: один и тот же узел не может
+  // быть одновременно решением и выбором, но склеивать их в один ключ значило
+  // бы решать это молча.
+  const latest = new Map<string, { field: BaselineRevisionField; revisionId: string }>();
+  for (const pkg of ordered) {
+    if (!pkg.createdAt) {
+      throw new BaselineCompositionError(
+        `baseline composition: approval package ${pkg.id} carries no createdAt; `
+        + "the winner between two approvals of one entity would be undefined",
+      );
+    }
     for (const item of pkg.items) {
       const field = TARGET_KIND_TO_FIELD[item.targetKind as keyof typeof TARGET_KIND_TO_FIELD];
       if (!field) {
@@ -122,9 +175,19 @@ export function composeBaseline(input: BaselineCompositionInput): BaselineCompos
           `baseline composition: empty revisionId in approval package ${pkg.id}`,
         );
       }
-      buckets[field].add(item.revisionId);
+      if (!item.entityId) {
+        throw new BaselineCompositionError(
+          `baseline composition: empty entityId in approval package ${pkg.id}; `
+          + "without it a re-approved entity would be frozen twice",
+        );
+      }
+      latest.set(`${item.targetKind} ${item.entityId}`, {
+        field,
+        revisionId: item.revisionId,
+      });
     }
   }
+  for (const { field, revisionId } of latest.values()) buckets[field].add(revisionId);
 
   const totalRevisions = Object.values(buckets)
     .reduce((sum, bucket) => sum + bucket.size, 0);

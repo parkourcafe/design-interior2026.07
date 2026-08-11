@@ -10,6 +10,7 @@ import {
   storageStatePath,
   AP5_DECISION_NODE_ID,
   AP5_DECISION_REVISION_ID,
+  AP5_DECISION_REVISION_ID_2,
   AP5_RELEASE_ARTIFACT_ID,
   AP5_SOURCE_NAME,
   AP5_SOURCE_REVISION_ID,
@@ -451,12 +452,64 @@ test.describe("AP5 — цепочка Kora на живом стеке", () => {
    * Гейт 2, звено 3: заявка на изменение.
    *
    * Предпосылка заявки — расхождение: выпущенная версия пакета собрана по
-   * baseline, который больше не последний. Поэтому архитектор публикует
-   * baseline V2 (тем же путём A′, что и на шаге 6), и только после этого
-   * строитель видит, что работает по устаревшей редакции, и заводит заявку.
+   * baseline, который больше не последний, И новый baseline обязан ОТЛИЧАТЬСЯ.
+   * `submit_change_request` строит корни изменения из пар «одна сущность,
+   * разные ревизии» и без единого корня отвечает `NO_CHANGE_ROOTS`. Поэтому
+   * шаг не просто публикует baseline второй раз, а проводит настоящий
+   * пересмотр: новая ревизия решения → новый approval package → одобрение →
+   * baseline V2.
+   *
+   * Прогон 193 нашёл здесь дефект сборщика состава, из-за которого этот путь
+   * не работал вовсе: baseline замораживал ВСЕ одобренные ревизии, включая
+   * заменённые, и база отвергала дескриптор
+   * (`BASELINE_REVISION_NOT_IN_GRAPH_VERSION`). Починка — «одна ревизия на
+   * сущность, побеждает поздняя» (`baseline-composition.ts`).
    */
   test("11. заявка на изменение от строителя по устаревшей редакции", async ({ browser }) => {
     const architect = await requestAs(browser, "designer");
+
+    // Пересмотр решения: тот же узел, новая ревизия поверх прежней.
+    const revised = await command(architect, "create_decision", {
+      packageId: handoff().rootPackageId,
+      nodeId: AP5_DECISION_NODE_ID,
+      revisionId: AP5_DECISION_REVISION_ID_2,
+      expectedRevisionId: AP5_DECISION_REVISION_ID,
+      claimStatus: "human_origin",
+      title: "AP5 decision (revised)",
+      resolution: "AP5 chain decision revised from an authenticated architect session.",
+      areaNodeId: null,
+      decisionStatus: "confirmed",
+      evidence: [],
+      reason: "AP5 authenticated browser chain — revision for the change request",
+    });
+    expect(revised.status, JSON.stringify(revised.body.error)).toBe(200);
+
+    const approvalPackageId = `ap5-approval-${randomUUID()}`;
+    const created = await command(architect, "create_approval_package", {
+      packageId: handoff().rootPackageId,
+      approvalPackageId,
+      items: [{
+        targetKind: "decision_revision",
+        entityId: AP5_DECISION_NODE_ID,
+        revisionId: AP5_DECISION_REVISION_ID_2,
+      }],
+    });
+    expect(created.status, JSON.stringify(created.body.error)).toBe(200);
+
+    const submitted = await command(architect, "submit_approval_package", {
+      approvalPackageId,
+      expectedStatus: "draft",
+    });
+    expect(submitted.status, JSON.stringify(submitted.body.error)).toBe(200);
+
+    const approved = await command(architect, "review_selection", {
+      approvalPackageId,
+      expectedStatus: "submitted",
+      decision: "approved",
+      reason: "AP5 authenticated browser chain",
+    });
+    expect(approved.status, JSON.stringify(approved.body.error)).toBe(200);
+
     const beforeSecondBaseline = await workspace(architect);
     expect(beforeSecondBaseline.operations.publish_baseline?.status).toBe("available");
     const snapshotToken = beforeSecondBaseline.operations.publish_baseline?.commandTargetId;
