@@ -67,6 +67,9 @@ done
 #        нельзя закрыть без подтверждения архитектора;
 #   27 — заявка для гонки расчёта: фиксируется (не откатывается), потому что
 #        конкурентные сессии видят только зафиксированные данные;
+#   29 — DEC-034: точная граница 5000/5001, приоритет лимита над глубиной на
+#        совмещённом срезе, исчезновение из очереди воркера — на управляемых
+#        фикстурах, откатывается целиком;
 #   90 — доказать, что после всего этого закрытое так и осталось закрытым.
 for sql in \
   "${repo_root}/tests/db5/05_default_deny_before.sql" \
@@ -80,7 +83,8 @@ for sql in \
   "${repo_root}/tests/db5/20_execution_operations.sql" \
   "${repo_root}/tests/db5/26_impact_policy_benchmark.sql" \
   "${repo_root}/tests/db5/27_impact_concurrency_fixture.sql" \
-  "${repo_root}/tests/db5/28_v1_production_switch.sql"; do
+  "${repo_root}/tests/db5/28_v1_production_switch.sql" \
+  "${repo_root}/tests/db5/29_impact_coverage_dec034.sql"; do
   print -r -- "Running ${sql:t}"
   run_file "${sql}"
 done

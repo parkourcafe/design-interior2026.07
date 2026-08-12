@@ -315,14 +315,17 @@ begin
 end
 $bench_measure$;
 
--- 5. Лимит 5000 — не декларация, и не отказ. Звезда шириной 6000 обязана его
---    пробить в настоящей RPC, и после этого прогон обязан СУЩЕСТВОВАТЬ:
---    5000 сохранённых карточек и признак неполноты (OWNER DECISION 12.08.2026).
+-- 5. Лимит 5000 — durable terminal `blocked_result_limit` (DEC-034, коррекция
+--    над PR #94 поверх DEC-033 LOCKED). Звезда шириной 6000 обязана его
+--    пробить в настоящей RPC, и после этого НИЧЕГО не сохраняется:
+--    `returnedImpactCount = 0`, `knownImpactCountLowerBound = maxImpacts + 1`.
 --
---    Прежняя редакция требовала здесь отказа. Отказ был честнее молчаливого
---    усечения, но означал, что заявка с широким влиянием не получает анализа
---    вовсе. Теперь проверяется третье поведение: сохранить найденное и сказать
---    правду о том, что оно неполное.
+--    Промежуточная редакция (PR #94, `20260812020000`) сохраняла первые 5000
+--    карточек с признаком неполноты — DEC-033 это прямо запрещает: первые
+--    5000 не показываются как частичный результат ни при каком раскладе.
+--    Точная граница 5000/5001 и приоритет лимита проверяются исчерпывающе на
+--    управляемых фикстурах в `29_impact_coverage_dec034.sql`; здесь —
+--    регрессия на РЕАЛЬНОМ широком графе benchmark.
 do $bench_limit$
 declare
   v_response jsonb;
@@ -339,23 +342,30 @@ begin
   );
 
   -- Признаки обязаны быть в ЛОГИЧЕСКОМ РЕЗУЛЬТАТЕ команды, а не только в
-  -- таблице: повтор по ключу вернёт именно его, и без них повтор выглядел бы
-  -- полнее оригинала.
-  if (v_response #>> '{result,isTruncated}') is distinct from 'true' then
-    raise exception 'DB5_IMPACT_LIMIT_NOT_FLAGGED_IN_RESULT:%',
-      v_response #>> '{result,isTruncated}';
+  -- таблице: повтор по ключу вернёт именно его.
+  if (v_response #>> '{result,coverageStatus}') is distinct from 'blocked_result_limit' then
+    raise exception 'DB5_IMPACT_LIMIT_WRONG_COVERAGE_STATUS:%',
+      v_response #>> '{result,coverageStatus}';
   end if;
-  if (v_response #>> '{result,truncationReason}') is distinct from 'result_limit' then
+  if (v_response #>> '{result,cutoffReason}') is distinct from 'result_limit' then
     raise exception 'DB5_IMPACT_LIMIT_WRONG_REASON:%',
-      v_response #>> '{result,truncationReason}';
+      v_response #>> '{result,cutoffReason}';
   end if;
-  if (v_response #>> '{result,impactCount}')::integer <> v_max_impacts then
+  if (v_response #>> '{result,returnedImpactCount}')::integer <> 0 then
     raise exception 'DB5_IMPACT_LIMIT_COUNT_UNEXPECTED:%',
+      v_response #>> '{result,returnedImpactCount}';
+  end if;
+  if (v_response #>> '{result,knownImpactCountLowerBound}')::integer <> v_max_impacts + 1 then
+    raise exception 'DB5_IMPACT_LIMIT_LOWER_BOUND_UNEXPECTED:%',
+      v_response #>> '{result,knownImpactCountLowerBound}';
+  end if;
+  if (v_response #>> '{result,impactCount}')::integer <> 0 then
+    raise exception 'DB5_IMPACT_LIMIT_IMPACT_COUNT_NOT_ZERO:%',
       v_response #>> '{result,impactCount}';
   end if;
 
-  select run.is_truncated, run.truncation_reason,
-         run.calculated_depth, run.policy_max_depth
+  select run.coverage_status, run.cutoff_reason, run.returned_impact_count,
+         run.known_impact_count_lower_bound, run.has_more_beyond_depth
   into v_run
   from projectceo_m4.impact_runs run
   where run.project_id = '41111111-1111-4111-8111-111111111111'
@@ -363,29 +373,22 @@ begin
   if not found then
     raise exception 'DB5_IMPACT_LIMIT_RUN_NOT_SAVED';
   end if;
-  if not v_run.is_truncated
-     or v_run.truncation_reason is distinct from 'result_limit' then
-    raise exception 'DB5_IMPACT_LIMIT_ROW_NOT_FLAGGED:%/%',
-      v_run.is_truncated, v_run.truncation_reason;
-  end if;
-  -- Звезда лежит целиком на расстоянии 1: достигнутая глубина обязана это
-  -- показать, а не повторить границу политики.
-  if v_run.calculated_depth <> 1 then
-    raise exception 'DB5_IMPACT_LIMIT_DEPTH_UNEXPECTED:%', v_run.calculated_depth;
-  end if;
-  if v_run.policy_max_depth
-     <> (projectceo_m4._impact_policy() ->> 'maxDepth')::integer then
-    raise exception 'DB5_IMPACT_LIMIT_POLICY_DEPTH_UNEXPECTED:%',
-      v_run.policy_max_depth;
+  if v_run.coverage_status is distinct from 'blocked_result_limit'
+     or v_run.cutoff_reason is distinct from 'result_limit'
+     or v_run.returned_impact_count <> 0
+     or v_run.known_impact_count_lower_bound <> v_max_impacts + 1
+     or v_run.has_more_beyond_depth is distinct from true then
+    raise exception 'DB5_IMPACT_LIMIT_ROW_SHAPE_UNEXPECTED:%/%/%/%/%',
+      v_run.coverage_status, v_run.cutoff_reason, v_run.returned_impact_count,
+      v_run.known_impact_count_lower_bound, v_run.has_more_beyond_depth;
   end if;
 
-  -- Сохранено ровно столько, сколько разрешает политика: ни больше (лимит не
-  -- сработал бы), ни меньше (потеряли бы найденное сверх среза).
+  -- Ничего не сохранено — ни одной строки, не 5000 усечённых.
   select count(*) into v_stored
   from projectceo_m4.impacts impact
   where impact.project_id = '41111111-1111-4111-8111-111111111111'
     and impact.change_request_id = 'b0000000-0000-4000-8000-00000000057a'::uuid;
-  if v_stored <> v_max_impacts then
+  if v_stored <> 0 then
     raise exception 'DB5_IMPACT_LIMIT_STORED_COUNT:%', v_stored;
   end if;
 end
@@ -448,11 +451,15 @@ $bench_policy_bound$;
 
 -- 7. Частичный прогон РАССМАТРИВАЕТСЯ, но САМ НЕ ЗАКРЫВАЕТСЯ.
 --
---    Это вторая половина решения владельца от 12.08.2026 и единственная, из-за
---    которой частичный результат безопаснее отказа: карточки настоящие и их
---    можно разобрать, но «рассмотрено всё» на усечённом прогоне означало бы,
---    что человек видел всё влияние. Он видел часть. Снять это может только
---    явное подтверждение архитектора — с именем, временем и причиной.
+--    DEC-034 (коррекция над PR #94 поверх DEC-033 LOCKED): человеческого
+--    override в V1 не существует. Карточки настоящие и их можно разобрать —
+--    но «рассмотрено всё показанное» (`allReturnedImpactsReviewed`) и «обход
+--    завершён» (`coverageComplete`) СОЗНАТЕЛЬНО разведены, и никакое действие
+--    человека не переводит partial_depth в complete.
+--    `acknowledge_impact_truncation` (PR #94) закрыта навсегда — этот сценарий
+--    её не вызывает вовсе, а не проверяет её отсутствие отдельно (это делают
+--    `05_default_deny_before.sql` / `90_default_deny_after.sql` /
+--    `28_v1_production_switch.sql`).
 --
 --    Проверяется на цепочке из пункта 6.
 
@@ -506,7 +513,6 @@ declare
   v_state bigint := current_setting('projectceo.gate_state')::bigint;
   v_impact_id text;
   v_response jsonb;
-  v_last_all_reviewed boolean;
   v_reviewed integer := 0;
 begin
   if v_impacts is null or jsonb_array_length(v_impacts) = 0 then
@@ -528,60 +534,43 @@ begin
       'db5-bench-review-' || v_impact_id
     );
     v_state := (v_response ->> 'stateRevision')::bigint;
-    v_last_all_reviewed := (v_response #>> '{result,allImpactsReviewed}')::boolean;
     v_reviewed := v_reviewed + 1;
   end loop;
 
-  -- Каждая карточка рассмотрена — и всё равно не закрыто.
-  if (v_response #>> '{result,everyImpactReviewed}') is distinct from 'true' then
-    raise exception 'DB5_IMPACT_GATE_EVERY_IMPACT_NOT_REVIEWED:%',
-      v_response #>> '{result,everyImpactReviewed}';
+  -- Каждая ВОЗВРАЩЁННАЯ карточка рассмотрена (DEC-034:
+  -- `allReturnedImpactsReviewed`) — и всё равно не закрыто, потому что обход
+  -- не исчерпан (`coverageComplete=false`). Конъюнкция обоих
+  -- (`impactReviewComplete`) — единственное поле, которое значит «действительно
+  -- закончено», и оно тоже `false`. Человеческого действия, которое сделало
+  -- бы его `true` на partial_depth, не существует — это и есть DEC-033/034 в
+  -- одном присваивании.
+  if (v_response #>> '{result,allReturnedImpactsReviewed}') is distinct from 'true' then
+    raise exception 'DB5_IMPACT_GATE_NOT_ALL_RETURNED_REVIEWED:%',
+      v_response #>> '{result,allReturnedImpactsReviewed}';
   end if;
-  if v_last_all_reviewed then
-    raise exception 'DB5_TRUNCATED_RUN_CLOSED_WITHOUT_ACKNOWLEDGEMENT';
+  if (v_response #>> '{result,coverageComplete}') is distinct from 'false' then
+    raise exception 'DB5_PARTIAL_RUN_COVERAGE_FALSELY_COMPLETE:%',
+      v_response #>> '{result,coverageComplete}';
   end if;
-
-  -- Подтверждение снимает ровно это препятствие.
-  v_response := projectceo_m4_api.acknowledge_impact_truncation(
-    '41111111-1111-4111-8111-111111111111',
-    v_run_id,
-    'Архитектор принимает неполноту: глубже политики влияние не рассматривается',
-    v_state,
-    'db5-bench-ack-truncation'
-  );
-  v_state := (v_response ->> 'stateRevision')::bigint;
-  if (v_response #>> '{result,allImpactsReviewed}') is distinct from 'true' then
-    raise exception 'DB5_ACKNOWLEDGEMENT_DID_NOT_CLOSE_RUN:%',
-      v_response #>> '{result,allImpactsReviewed}';
+  if (v_response #>> '{result,impactReviewComplete}') is distinct from 'false' then
+    raise exception 'DB5_PARTIAL_RUN_REVIEW_FALSELY_COMPLETE:%',
+      v_response #>> '{result,impactReviewComplete}';
   end if;
 
-  -- Второе подтверждение не добавило бы решения, но добавило бы вопрос, какое
-  -- из двух действующее.
+  -- `acknowledge_impact_truncation` не существует как путь вперёд (DEC-034):
+  -- она навсегда недоступна даже этой роли, собранной специально для
+  -- позитивной цепочки инкремента 2 (`06_execution_test_role.sql`).
   begin
     perform projectceo_m4_api.acknowledge_impact_truncation(
       '41111111-1111-4111-8111-111111111111',
       v_run_id,
-      'Повторное подтверждение',
+      'Попытка вызвать закрытую дверь',
       v_state,
-      'db5-bench-ack-truncation-again'
+      'db5-bench-no-such-door'
     );
-    raise exception 'DB5_DOUBLE_ACKNOWLEDGEMENT_ALLOWED';
-  exception when sqlstate 'P1110' then null;
-  end;
-
-  -- 8. Подтверждать нечего там, где ничего не усечено: подпись под неполнотой
-  --    полного прогона была бы подписью под утверждением, которого никто не
-  --    делал. Прогон золотого проекта из `20_execution_operations.sql` полон.
-  begin
-    perform projectceo_m4_api.acknowledge_impact_truncation(
-      '41111111-1111-4111-8111-111111111111',
-      current_setting('projectceo.gate_complete_run')::uuid,
-      'Подтверждение полного прогона',
-      v_state,
-      'db5-bench-ack-complete-run'
-    );
-    raise exception 'DB5_ACKNOWLEDGED_A_COMPLETE_RUN';
-  exception when sqlstate 'P1110' then null;
+    raise exception 'DB5_TRUNCATION_ACK_STILL_CALLABLE';
+  exception
+    when insufficient_privilege then null;
   end;
 end
 $bench_review_gate$;

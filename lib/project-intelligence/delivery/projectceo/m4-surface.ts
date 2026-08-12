@@ -168,20 +168,25 @@ export const M4_SURFACE: readonly M4SurfaceRow[] = [
     ],
   },
   {
-    // Подтверждение неполноты. Инкрементом A6 не классифицировалась вовсе —
-    // команды тогда не существовало; относится к V1 и открыта тем же
-    // решением владельца, что и рассмотрение.
+    // DEC-034 (OWNER CONTINUE 12.08.2026, поверх DEC-033 LOCKED): PR #94
+    // открыла эту дверь тем же GO, что `review_change_impact` — DEC-033
+    // запрещает human override усечённого прогона в V1, поэтому дверь
+    // закрыта НАВСЕГДА, не «пока не открыта окружением». `closure` отражает
+    // фактическое состояние базы: `revoke` стоит в постоянной миграции
+    // (`20260813010000`) и не снимается ни одним GO и ни одним переключателем
+    // production — `onState` использует то же значение, что и закрытые V2/V3,
+    // потому что для вызывающего эта дверь неотличима от них.
     command: "acknowledge_impact_truncation",
     increment: 2,
     offState: "module_disabled",
-    onState: "precondition_driven",
+    onState: "increment_not_authorized",
     rpcs: [
       {
         schema: "projectceo_m4_api",
         name: "acknowledge_impact_truncation",
         signature: "projectceo_m4_api.acknowledge_impact_truncation(uuid, uuid, text, bigint, text)",
         sharing: "m4_only",
-        closure: "enabled_by_environment_script",
+        closure: "revoked_from_authenticated",
       },
     ],
   },

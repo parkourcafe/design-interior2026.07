@@ -804,7 +804,7 @@ begin
         current_setting('projectceo.db5_impact_run_id')::uuid
       and run.coverage_status = 'complete'
       and run.policy_version = 'project-ceo-impact-policy/0.1'
-      and run.max_depth = 7
+      and run.max_depth = 8
       and run.max_impacts = 5000
       and run.returned_impact_count = 1
       and run.known_impact_count_lower_bound = 1

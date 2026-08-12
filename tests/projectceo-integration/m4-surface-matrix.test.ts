@@ -17,6 +17,7 @@ import {
   EXECUTION_INCREMENT_2,
   EXECUTION_MODULE,
   EXECUTION_NOT_AUTHORIZED_COMMANDS,
+  EXECUTION_PERMANENTLY_CLOSED,
   EXECUTION_V1_IMPACT,
 } from "../../lib/project-intelligence/delivery/projectceo/execution-flag";
 
@@ -39,9 +40,15 @@ describe("M4 surface matrix", () => {
       .toEqual([...EXECUTION_INCREMENT_1].sort());
     // Во втором инкременте живут и команды, которых A6 не классифицировал
     // вовсе: `acknowledge_impact_truncation` появилась вместе с решением об
-    // усечении и относится к тому же неавторизованному-по-A6 ярусу.
+    // усечении (PR #94) и осталась в той же строке матрицы — но DEC-034
+    // закрыла её НАВСЕГДА, поэтому она больше не элемент `EXECUTION_V1_IMPACT`
+    // (открытого множества), а элемент `EXECUTION_PERMANENTLY_CLOSED`.
     expect(M4_SURFACE.filter((row) => row.increment === 2).map((row) => row.command).sort())
-      .toEqual([...new Set([...EXECUTION_INCREMENT_2, ...EXECUTION_V1_IMPACT])].sort());
+      .toEqual([...new Set([
+        ...EXECUTION_INCREMENT_2,
+        ...EXECUTION_V1_IMPACT,
+        ...EXECUTION_PERMANENTLY_CLOSED,
+      ])].sort());
   });
 
   /**
@@ -79,8 +86,9 @@ describe("M4 surface matrix", () => {
       (entry) => EXECUTION_NOT_AUTHORIZED_COMMANDS.has(entry.command),
     );
     // Список не должен опустеть незаметно: пустой фильтр прошёл бы молча и
-    // перестал бы что-либо охранять.
-    expect(closed.length).toBe(4);
+    // перестал бы что-либо охранять. Было 4 (четыре команды V2/V3) — DEC-034
+    // добавила пятую: `acknowledge_impact_truncation`, закрытую навсегда.
+    expect(closed.length).toBe(5);
     for (const row of closed) {
       for (const rpc of row.rpcs) {
         expect(rpc.closure, rpc.signature).toBe("revoked_from_authenticated");
@@ -118,15 +126,17 @@ describe("M4 surface matrix", () => {
   });
 
   /**
-   * Скриптов среды два, и каждый обязан открывать ровно свой набор. Общий
-   * список здесь не годился бы: скрипт V1, открывший заодно инкремент 1, прошёл
-   * бы такую проверку молча.
+   * Скриптов среды два. `enable-m4-v1-impact.sql` открывает ровно свой набор.
+   * `enable-m4-increment-1.sql` открывает СВОЙ набор ПЛЮС набор V1 Impact —
+   * это осознанное решение (три отдельных комментария в самом файле), не
+   * недосмотр: инкремент 1 самодостаточен для сред, которые поднимают только
+   * его, а порядок применения обоих скриптов при этом не становится частью
+   * контракта (`enable-m4-v1-impact.sql` перегранчивает то же самое
+   * идемпотентно). Направление проверки поэтому одностороннее: V1-скрипт не
+   * имеет права открыть инкремент 1, обратное — не нарушение.
    */
-  it.each([
-    ["tests/ap1/environment/enable-m4-increment-1.sql", M4_INCREMENT_1_SIGNATURES],
-    ["tests/ap1/environment/enable-m4-v1-impact.sql", M4_V1_IMPACT_SIGNATURES],
-  ] as const)("keeps %s opening exactly its own signatures", (path, expected) => {
-    const enable = read(path);
+  it("keeps enable-m4-v1-impact.sql opening exactly its own signatures", () => {
+    const enable = read("tests/ap1/environment/enable-m4-v1-impact.sql");
     const grantBlock = enable.slice(
       enable.indexOf("grant execute on function"),
       enable.indexOf("to authenticated;"),
@@ -135,40 +145,63 @@ describe("M4 surface matrix", () => {
       .split("\n")
       .map((line) => line.trim().replace(/,$/, ""))
       .filter((line) => line.includes("(") && line.includes(".") && !line.startsWith("--"));
+    expect(M4_V1_IMPACT_SIGNATURES.length).toBeGreaterThan(0);
+    expect(granted.length).toBe(M4_V1_IMPACT_SIGNATURES.length);
+    for (const signature of M4_V1_IMPACT_SIGNATURES) {
+      expect(squash(grantBlock), signature).toContain(squash(signature));
+    }
+    for (const signature of M4_REVOKED_SIGNATURES) {
+      expect(squash(grantBlock), signature).not.toContain(squash(signature));
+    }
+    for (const signature of M4_INCREMENT_1_SIGNATURES) {
+      expect(squash(grantBlock), signature).not.toContain(squash(signature));
+    }
+  });
+
+  it("keeps enable-m4-increment-1.sql opening its own signatures plus V1 Impact, and nothing else", () => {
+    const enable = read("tests/ap1/environment/enable-m4-increment-1.sql");
+    const grantBlock = enable.slice(
+      enable.indexOf("grant execute on function"),
+      enable.indexOf("to authenticated;"),
+    );
+    const granted = grantBlock
+      .split("\n")
+      .map((line) => line.trim().replace(/,$/, ""))
+      .filter((line) => line.includes("(") && line.includes(".") && !line.startsWith("--"));
+    const expected = [...M4_INCREMENT_1_SIGNATURES, ...M4_V1_IMPACT_SIGNATURES];
     expect(expected.length).toBeGreaterThan(0);
     expect(granted.length).toBe(expected.length);
     for (const signature of expected) {
       expect(squash(grantBlock), signature).toContain(squash(signature));
     }
-    // Ни одна отозванная навсегда сигнатура не имеет права оказаться в гранте.
     for (const signature of M4_REVOKED_SIGNATURES) {
-      expect(squash(grantBlock), signature).not.toContain(squash(signature));
-    }
-    // И ни один скрипт не открывает чужой набор.
-    const foreign = path.includes("increment-1")
-      ? M4_V1_IMPACT_SIGNATURES
-      : M4_INCREMENT_1_SIGNATURES;
-    for (const signature of foreign) {
       expect(squash(grantBlock), signature).not.toContain(squash(signature));
     }
   });
 
   /**
-   * Производственный выключатель (DEC-033) открывает вертикаль по собственному
-   * списку сигнатур, живущему в миграции. Разойдись он с матрицей — и
-   * включение в production открыло бы не то, что вертикаль: меньше — и
+   * Производственный выключатель (DEC-033/034) открывает вертикаль по
+   * собственному списку сигнатур, живущему в базе. Разойдись он с матрицей —
+   * и включение в production открыло бы не то, что вертикаль: меньше — и
    * архитектор упрётся в отозванное право на живом проекте, больше — и
    * откроется команда, которой никто не разрешал.
+   *
+   * Читает НЕ исходную (`20260812030000`, неизменяемую), а корректирующую
+   * миграцию (`20260813010000`, DEC-034): `_v1_impact_signatures()`
+   * переопределена там (`create or replace function`) — список сократился с
+   * трёх дверей до двух, `acknowledge_impact_truncation` больше не входит.
+   * Читать исходный файл значило бы проверять текст, а не фактическое
+   * поведение живой базы.
    *
    * Скрипт среды такой же список уже сверяет (выше). Здесь тот же контроль для
    * механизма, которым открывают по-настоящему.
    */
-  it("keeps the production switch opening exactly the V1 signatures", () => {
+  it("keeps the production switch opening exactly the corrected V1 signatures", () => {
     const migration = read(
-      "supabase/migrations/20260812030000_projectceo_m4_v1_production_switch.sql",
+      "supabase/migrations/20260813010000_projectceo_m4_v1_impact_dec034_correction.sql",
     );
     const definition = migration.slice(
-      migration.indexOf("create function projectceo_m4._v1_impact_signatures()"),
+      migration.indexOf("create or replace function projectceo_m4._v1_impact_signatures()"),
     );
     const listBlock = definition.slice(
       definition.indexOf("select array["),

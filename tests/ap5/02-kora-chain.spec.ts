@@ -401,26 +401,28 @@ test.describe("AP5 — цепочка Kora на живом стеке", () => {
 
     // Четыре команды вертикалей V2 и V3 не авторизованы ничем, и причина обязана
     // называть именно это, а не отсутствие предпосылок: предпосылки тут ни при
-    // чём, их не открывал ни один документ.
+    // чём, их не открывал ни один документ. `acknowledge_impact_truncation`
+    // (DEC-034, поверх DEC-033 LOCKED) сюда же: PR #94 её авторизовал тем же GO,
+    // что `review_change_impact`, но человеческого override усечённого прогона
+    // в V1 не существует — дверь закрыта навсегда, той же причиной, что V2/V3.
     for (const kind of [
       "upload_photo_evidence",
       "review_photo_evidence",
       "accept_milestone",
       "build_handover",
+      "acknowledge_impact_truncation",
     ]) {
       expect(operations[kind]?.status, kind).toBe("unavailable");
       expect(operations[kind]?.reason, kind).toBe("increment_not_authorized");
     }
 
-    // А вот команды вертикали V1 с 12.08.2026 АВТОРИЗОВАНЫ, и их недоступность
+    // А вот `review_change_impact` с 12.08.2026 АВТОРИЗОВАНА, и её недоступность
     // здесь — другого рода: прогона влияния ещё нет (звено 12 его создаст).
     // Разница в причине и есть предмет проверки: назвать открытую команду
     // «неавторизованной» значило бы соврать о состоянии продукта ровно так же,
     // как назвать закрытую «недостающей предпосылкой».
-    for (const kind of ["review_change_impact", "acknowledge_impact_truncation"]) {
-      expect(operations[kind]?.status, kind).toBe("unavailable");
-      expect(operations[kind]?.reason, kind).toBe("prerequisite_missing");
-    }
+    expect(operations.review_change_impact?.status).toBe("unavailable");
+    expect(operations.review_change_impact?.reason).toBe("prerequisite_missing");
 
     // Поверхность — половина запрета. Вторая половина в том, что команда,
     // посланная в обход интерфейса, отклоняется сервером до единого чтения и
@@ -669,7 +671,14 @@ test.describe("AP5 — цепочка Kora на живом стеке", () => {
     // Результат возвращается КЛИЕНТУ, а не только оседает в базе.
     expect(reviewed.body.result?.disposition).toBe("resolved");
     expect(reviewed.body.result?.impactId).toBe(pending!.impactId);
-    expect(reviewed.body.result?.allImpactsReviewed).toBe(true);
+    // DEC-034: все ВОЗВРАЩЁННЫЕ карточки рассмотрены И обход исчерпан
+    // (золотой граф Kora даёт `complete`, не `partial_depth`) — только тогда
+    // `impactReviewComplete` действительно значит «закончено». Человеческого
+    // подтверждения неполноты (`acknowledge_impact_truncation`) в этой цепочке
+    // не требуется и не существует — см. п. 8 ниже.
+    expect(reviewed.body.result?.allReturnedImpactsReviewed).toBe(true);
+    expect(reviewed.body.result?.coverageComplete).toBe(true);
+    expect(reviewed.body.result?.impactReviewComplete).toBe(true);
     expect(reviewed.body.result?.everyImpactReviewed).toBe(true);
     expect(reviewed.body.result?.isTruncated).toBe(false);
 
@@ -712,16 +721,19 @@ test.describe("AP5 — цепочка Kora на живом стеке", () => {
       unchanged.impacts.find((impact) => impact.impactId === pending!.impactId)?.disposition,
     ).toBe("resolved");
 
-    // 8. НЕДОПУСТИМАЯ ОПЕРАЦИЯ ОТКЛОНЯЕТСЯ: подтверждать неполноту полного
-    //    прогона нечего, и сервер это говорит сам.
+    // 8. ДВЕРЬ ПОДТВЕРЖДЕНИЯ НЕПОЛНОТЫ НЕДОСТУПНА НАВСЕГДА (DEC-034, поверх
+    //    DEC-033 LOCKED). Человеческого override в V1 не существует: попытка
+    //    вызвать её отклоняется командным сервисом ДО обращения к базе — тем
+    //    же кодом, что закрытые V2/V3, не «неверный ввод» и не «нет
+    //    предпосылки». Заявленная предпосылка (валидный `impactRunId` живой,
+    //    рассмотренной сессией архитектора) сама по себе НЕ делает дверь
+    //    доступной — она закрыта авторизацией, не отсутствием повода.
     const acknowledged = await command(architect, "acknowledge_impact_truncation", {
       impactRunId: change!.impactRunId!,
-      reason: "AP5: подтверждение неполноты полного прогона",
+      reason: "AP5: попытка вызвать закрытую дверь подтверждения неполноты",
     });
-    expect(acknowledged.status).toBe(400);
-    // Тот же суженный код: база говорит `IMPACT_NOT_TRUNCATED`, клиент видит
-    // `validation_failed`.
-    expect(acknowledged.body.error?.code).toBe("validation_failed");
+    expect(acknowledged.status, JSON.stringify(acknowledged.body.error)).toBe(409);
+    expect(acknowledged.body.error?.code).toBe("operation_unavailable");
 
     // 9. Второй проход воркера не заводит второго прогона и не трогает
     //    рассмотренное.

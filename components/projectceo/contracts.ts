@@ -426,33 +426,6 @@ export interface ParticipantView {
   readonly status: "active" | "invited" | "revoked";
 }
 
-/**
- * Покрытие обхода влияния (DEC-033). `null`, пока прогона ещё нет
- * (`status === "submitted"`) — до расчёта покрытия не существует, а не
- * «неизвестно».
- *
- * `coverageComplete` — обход исчерпан (`coverageStatus === "complete"`).
- * `allReturnedImpactsReviewed` — просмотрены все ВОЗВРАЩЁННЫЕ карточки; для
- * partial_depth/blocked это НЕ означает «анализ завершён». `impactReviewComplete`
- * — конъюнкция обоих; только оно означает «ревью влияния действительно
- * закончено». Старое `allImpactsReviewed` намеренно не возвращается — оно не
- * различало эти два состояния и на partial/blocked молча читалось бы как
- * «всё».
- */
-export interface ChangeImpactCoverageView {
-  readonly coverageStatus: "complete" | "partial_depth" | "blocked_result_limit";
-  readonly cutoffReason: "depth_boundary" | "result_limit" | null;
-  readonly hasMoreBeyondDepth: boolean;
-  readonly knownImpactCountLowerBound: number;
-  readonly maxDepth: number;
-  readonly maxImpacts: number;
-  readonly policyVersion: string;
-  readonly returnedImpactCount: number;
-  readonly allReturnedImpactsReviewed: boolean;
-  readonly coverageComplete: boolean;
-  readonly impactReviewComplete: boolean;
-}
-
 export interface ChangeRequestView {
   readonly id: string;
   readonly title: string;
@@ -472,13 +445,28 @@ export interface ChangeRequestView {
   readonly impactRunId: string | null;
   readonly impactTruncated: boolean;
   readonly impactTruncationReason: "depth_limit" | "result_limit" | null;
-  readonly impactTruncationAcknowledged: boolean;
   readonly impactCalculatedDepth: number | null;
   readonly impactPolicyMaxDepth: number | null;
-  /** Truly closed: every card reviewed AND the incompleteness acknowledged. */
+  /**
+   * DEC-034 coverage contract (correction over PR #94's truncation-as-data
+   * model). `null` until a run exists. `coverageStatus === null` never means
+   * "complete" — the caller must check for `null` explicitly before reading
+   * any of these.
+   */
+  readonly coverageStatus: "complete" | "partial_depth" | "blocked_result_limit" | null;
+  readonly cutoffReason: "depth_boundary" | "result_limit" | null;
+  readonly hasMoreBeyondDepth: boolean;
+  readonly knownImpactCountLowerBound: number | null;
+  readonly returnedImpactCount: number | null;
+  readonly policyVersion: string | null;
+  readonly maxImpacts: number | null;
+  /** All RETURNED cards reviewed — vacuously true when returnedImpactCount is 0. */
+  readonly allReturnedImpactsReviewed: boolean;
+  /** The walk itself is exhausted (`coverageStatus === "complete"`). */
+  readonly coverageComplete: boolean;
+  /** `allReturnedImpactsReviewed AND coverageComplete` — no human override. */
   readonly impactReviewComplete: boolean;
   readonly reason: string;
-  readonly coverage: ChangeImpactCoverageView | null;
   readonly impacts: readonly {
     readonly impactRunId: string;
     readonly impactId: string;

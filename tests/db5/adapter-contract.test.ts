@@ -118,7 +118,7 @@ describe("ProjectCEO M4 postgres adapter", () => {
     const calls: RpcCall[] = [];
     const adapter = new ProjectCeoM4HumanPostgresAdapter(
       clientReturning({
-        contractVersion: "project-ceo-m4-delivery/0.2",
+        contractVersion: "project-ceo-m4-delivery/0.1",
         requestId: "db:request",
         data: {
           changeRequests: [],
@@ -184,33 +184,30 @@ describe("ProjectCEO M4 postgres adapter", () => {
     expect(JSON.stringify(calls)).not.toMatch(/max_depth|max_impacts/);
   });
 
-  it("lists the impact backlog without a caller-supplied row limit by default", async () => {
+  it("lists the impact backlog with the caller's row limit and passes the raw envelope through", async () => {
     const calls: RpcCall[] = [];
+    const envelope = {
+      contractVersion: "project-ceo-impact-worker/0.1",
+      requestId: "db:request",
+      policy: {
+        version: "project-ceo-impact-policy/0.1",
+        maxDepth: 7,
+        maxImpacts: 5000,
+      },
+      data: [],
+      error: null,
+    };
     const adapter = new ProjectCeoM4WorkerPostgresAdapter(
-      clientReturning({
-        contractVersion: "project-ceo-impact-worker/0.1",
-        requestId: "db:request",
-        policy: {
-          version: "project-ceo-impact-policy/0.1",
-          maxDepth: 7,
-          maxImpacts: 5000,
-        },
-        data: [],
-        error: null,
-      }, calls),
+      clientReturning(envelope, calls),
     );
 
-    const backlog = await adapter.listChangeImpactBacklog();
+    const backlog = await adapter.listChangeImpactBacklog({ maxRows: 100 });
 
-    expect(backlog.policy).toEqual({
-      version: "project-ceo-impact-policy/0.1",
-      maxDepth: 7,
-      maxImpacts: 5000,
-    });
+    expect(backlog).toEqual(envelope);
     expect(calls).toEqual([{
       schema: "projectceo_m4_api",
       functionName: "list_change_impact_backlog",
-      args: {},
+      args: { max_rows: 100 },
     }]);
   });
 });

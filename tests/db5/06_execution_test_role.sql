@@ -22,7 +22,7 @@
 --   2. её нет ни в одной миграции, поэтому в постоянной схеме она не
 --      появляется (проверяется статически в `static-boundary.test.ts`
 --      сканированием всех файлов `supabase/migrations/`);
---   3. у неё нет членства ни в одну сторону, семь явных грантов на функции и
+--   3. у неё нет членства ни в одну сторону, шесть явных грантов на функции и
 --      ноль табличных прав — то есть даже при доступе она не сильнее, чем
 --      описано ниже.
 --
@@ -45,22 +45,22 @@ create role pi_db5_execution_tester
 
 grant usage on schema projectceo_m4_api to pi_db5_execution_tester;
 
--- Минимально необходимое: ровно семь человеческих RPC, которые вызывает
--- позитивная цепочка. Седьмая — `acknowledge_impact_truncation`: без неё
--- усечённый прогон нечем закрыть, и сценарий усечения проверял бы только
--- половину решения владельца.
+-- Минимально необходимое: ровно шесть человеческих RPC, которые вызывает
+-- позитивная цепочка.
 --
 -- `submit_change_request` сюда не входит — он инкремента 1 и вызывается ролью
 -- `authenticated`, как в жизни. `replay_*` не входят —
 -- цепочка их не зовёт. Воркерные RPC не входят — они системные.
+-- `acknowledge_impact_truncation` не входит НИКОГДА (DEC-034, поверх решения
+-- владельца от 12.08.2026): human override усечённого прогона в V1 не
+-- существует — рассмотреть найденное не значит «подтвердить неполноту».
 grant execute on function
   projectceo_m4_api.review_change_impact(uuid, uuid, text, text, text, bigint, text),
   projectceo_m4_api.define_milestone(uuid, uuid, text, text, jsonb, bigint, text),
   projectceo_m4_api.register_photo_evidence(uuid, uuid, text, text, text, timestamptz, text, bigint, text),
   projectceo_m4_api.review_photo_evidence(uuid, uuid, text, text, bigint, text),
   projectceo_m4_api.accept_milestone(uuid, uuid, bigint, text),
-  projectceo_m4_api.register_handover_document(uuid, uuid, text, text, text, text, bigint, text),
-  projectceo_m4_api.acknowledge_impact_truncation(uuid, uuid, text, bigint, text)
+  projectceo_m4_api.register_handover_document(uuid, uuid, text, text, text, text, bigint, text)
   to pi_db5_execution_tester;
 
 do $db5_test_role_isolation$
@@ -110,7 +110,7 @@ begin
     raise exception 'DB5_TEST_ROLE_NOT_ISOLATED:%', v_problem;
   end if;
 
-  -- 3. Явных грантов на функции — ровно семь, и ровно те. Утверждение именно
+  -- 3. Явных грантов на функции — ровно шесть, и ровно те. Утверждение именно
   --    про ЯВНЫЕ записи в ACL, а не про «доступ только к шести функциям во всей
   --    базе»: право, доставшееся через `PUBLIC`, здесь не считается, и
   --    `has_function_privilege` для такой функции вернул бы true. Поэтому
@@ -130,8 +130,7 @@ begin
       namespace.nspname <> 'projectceo_m4_api'
       or procedure.proname not in (
         'review_change_impact', 'define_milestone', 'register_photo_evidence',
-        'review_photo_evidence', 'accept_milestone', 'register_handover_document',
-        'acknowledge_impact_truncation'
+        'review_photo_evidence', 'accept_milestone', 'register_handover_document'
       )
     )
   limit 1;
@@ -146,7 +145,7 @@ begin
     pg_catalog.acldefault('f'::"char", procedure.proowner)
   )) acl
   where acl.grantee = v_role.oid;
-  if v_count <> 7 then
+  if v_count <> 6 then
     raise exception 'DB5_TEST_ROLE_EXPLICIT_FUNCTION_ACL_COUNT:%', v_count;
   end if;
 
@@ -186,12 +185,16 @@ begin
 
   -- 6. Роль не достаёт до воркерных RPC и до инкремента 1. Тестовая роль —
   --    это человек с правами инкремента 2, а не универсальный ключ.
+  --    `acknowledge_impact_truncation` — навсегда закрытая дверь (DEC-034):
+  --    даже эта роль, собранная специально для позитивной цепочки инкремента
+  --    2, её не получает.
   select signature into v_problem
   from unnest(array[
     'projectceo_m4_api.calculate_change_impact(uuid, uuid, integer, bigint, text)',
     'projectceo_m4_api.build_construction_handover(uuid, uuid, text, bigint, text)',
     'projectceo_m4_api.submit_change_request(uuid, uuid, text, text, text, text, bigint, integer, bigint, text)',
-    'projectceo_product_api.distribute_release_request_bound(uuid, text, uuid, bigint, text)'
+    'projectceo_product_api.distribute_release_request_bound(uuid, text, uuid, bigint, text)',
+    'projectceo_m4_api.acknowledge_impact_truncation(uuid, uuid, text, bigint, text)'
   ]) signature
   where pg_catalog.has_function_privilege(
     'pi_db5_execution_tester', signature, 'EXECUTE'
@@ -211,7 +214,9 @@ begin
     'projectceo_m4_api.register_photo_evidence(uuid, uuid, text, text, text, timestamptz, text, bigint, text)',
     'projectceo_m4_api.review_photo_evidence(uuid, uuid, text, text, bigint, text)',
     'projectceo_m4_api.accept_milestone(uuid, uuid, bigint, text)',
-    'projectceo_m4_api.register_handover_document(uuid, uuid, text, text, text, text, bigint, text)'
+    'projectceo_m4_api.register_handover_document(uuid, uuid, text, text, text, text, bigint, text)',
+    -- DEC-034: закрыта навсегда, ни при каком состоянии окружения.
+    'projectceo_m4_api.acknowledge_impact_truncation(uuid, uuid, text, bigint, text)'
   ]) signature
   where pg_catalog.has_function_privilege(role_name, signature, 'EXECUTE')
   limit 1;

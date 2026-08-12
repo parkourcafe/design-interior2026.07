@@ -218,44 +218,66 @@ production. Итоговое состояние этапа — `M4_RELEASE_WORKE
 Прикладные команды, воркеры, реальный source intake и браузерное E2E **не
 построены**. Постоянные гранты не изменены.
 
-**V1 Impact открыт и построен 12.08.2026** (DEC-033 LOCKED, OWNER GO
-«АВТОНОМНО ЗАВЕРШИТЬ REMHAOS M4 V1 IMPACT», поверх DEC-032). Единственная
-системная дверь расчёта — `calculate_change_impact_policy_bound`; глубина и
-лимит — ЗАФИКСИРОВАННАЯ серверная политика (`maxDepth = 7`, `maxImpacts =
-5000`, версия `project-ceo-impact-policy/0.1`), вызывающий их не передаёт и
-повлиять на них не может. Три durable terminal исхода: `complete` (обход
-исчерпан в границе глубины), `partial_depth` (упёрся в глубину —
-`hasMoreBeyondDepth`/`cutoffReason='depth_boundary'`/
-`knownImpactCountLowerBound = returnedImpactCount + 1`), `blocked_result_
-limit` (найдено больше 5000 — ни одно влияние не сохраняется,
-`returnedImpactCount = 0`, `knownImpactCountLowerBound = 5001`); при
-совмещённом срабатывании глубины и лимита побеждает лимит, без зонда глубины
-и без второго полного обхода. Старое булево `allImpactsReviewed` разделено на
-`allReturnedImpactsReviewed` / `coverageComplete` / `impactReviewComplete =
-allReturnedImpactsReviewed AND coverageComplete` — просмотреть все ПОКАЗАННЫЕ
-карточки не значит «анализ завершён» для partial/blocked. `review_change_
-impact` перешёл из закрытого множества V2/V3 в инкремент 1.
+**V1 Impact открыт 12.08.2026 (DEC-033 LOCKED, PR #94/#96) и скорректирован
+тем же днём (DEC-034 LOCKED, OWNER CONTINUE «ЗАВЕРШИТЬ СУЩЕСТВУЮЩИЙ V1»,
+поверх DEC-032).** Единственная системная дверь расчёта —
+`calculate_change_impact_policy_bound`; глубина и лимит — ЗАФИКСИРОВАННАЯ
+серверная политика (`maxDepth = 8`, `maxImpacts = 5000`, версия
+`project-ceo-impact-policy/0.1`), вызывающий их не передаёт и повлиять на них
+не может. Сырая `calculate_change_impact` (произвольная глубина от
+вызывающего) продолжает существовать как внутренний примитив, вызываемый
+обёрткой под `security definer`, но закрыта даже для `service_role` — доступ
+снаружи только через policy-bound дверь.
 
-Полный воркер построен (`lib/project-intelligence/workers/change-impact/`,
-`npm run worker:change-impact`) с durable operator failure: таблица
-`impact_worker_failures` плюс `record_change_impact_worker_failure` (bounded
-retry, dead-letter на пятой попытке по умолчанию) и `redrive_change_impact_
-worker_failure` (операторская дверь возврата из dead-letter, не автосброс);
-один испорченный элемент очереди не блокирует остальные. Доказательство —
-`tests/db5/26_impact_policy_benchmark.sql` (детерминированность, честный
-сигнал усечения, время на реальной RPC) и `tests/db5/27_impact_coverage_
-outcomes.sql` (полная матрица трёх исходов на управляемых фикстурах, точные
-границы 5000/5001, приоритет лимита, digest/replay, append-only
-неизменяемость, поглощение одного яда очередью, dead-letter и redrive,
-partial после ревью всех показанных карточек остаётся неполным, blocked
-исчезает из очереди) — оба на PostgreSQL 16 и 17, плюс отдельные parallel-
-worker и restart/replay пробы для V1 Impact в `run-concurrency.zsh` /
-`30_restart_replay.sql`. AP5 звенья 12–13 (`tests/ap5/02-kora-chain.spec.ts`):
-настоящий воркер (не мост) считает влияние заявки звена 11, АРХИТЕКТОР
-ОТДЕЛЬНОЙ аутентифицированной сессией рассматривает результат, а прямой
-HTTP-вызов Data API живого проекта тем же anon key, каким ходит браузер,
-подтверждает недостижимость воркерной двери в обход приложения. Итоговое
-состояние этапа — `M4_V1_IMPACT_PROVEN`.
+Три durable terminal исхода: `complete` (обход исчерпан в границе глубины),
+`partial_depth` (упёрся в глубину — `hasMoreBeyondDepth`/
+`cutoffReason='depth_boundary'`/`knownImpactCountLowerBound =
+returnedImpactCount + 1`), `blocked_result_limit` (найдено больше 5000 — ни
+одно влияние не сохраняется, `returnedImpactCount = 0`,
+`knownImpactCountLowerBound = 5001`); при совмещённом срабатывании глубины и
+лимита побеждает лимит, без зонда глубины и без второго полного обхода.
+Старое булево `allImpactsReviewed` разделено на `allReturnedImpactsReviewed`
+/ `coverageComplete` / `impactReviewComplete = allReturnedImpactsReviewed AND
+coverageComplete` — просмотреть все ПОКАЗАННЫЕ карточки не значит «анализ
+завершён» для partial/blocked, и человеческого способа обойти это нет.
+`review_change_impact` перешёл из закрытого множества V2/V3 в инкремент 1.
+
+**Что исправила DEC-034.** PR #94 (`20260812020000`) заменил прежний отказ
+при превышении лимита на «truncate-and-keep»: сохранял первые 5000 карточек с
+признаком неполноты и открывал третью человеческую дверь
+(`acknowledge_impact_truncation`) для подтверждения незавершённости — оба
+решения прямо противоречили DEC-033 («первые 5000 не показываются как
+частичный результат ни при каком раскладе», «human override запрещён»).
+Коррекция — ОДНА аддитивная миграция (`20260813010000`) поверх неизменяемых
+`20260812010000/020000/030000`: `create or replace function` на
+`calculate_change_impact` (при превышении лимита результат обнуляется до
+вставки, короткое замыкание до зонда глубины), `review_change_impact` (без
+шлюза подтверждения), `get_execution_delivery` (отдаёт точный контракт
+покрытия) и `projectceo_m4._v1_impact_signatures()` (список дверей
+production-переключателя сократился с трёх до двух — та же точка правит и
+открытие, и закрытие). `acknowledge_impact_truncation` закрыта явным
+`revoke` на каждом уровне и не возвращается ни одним состоянием
+production-переключателя DEC-033. Старые колонки (`is_truncated`,
+`truncation_reason`, `calculated_depth`, `policy_max_depth`) не удалены —
+новые добавлены рядом, инвариант трёх исходов закреплён CHECK-констрейнтом.
+
+Доказательство — оба на PostgreSQL 16 и 17: `tests/db5/26_impact_policy_
+benchmark.sql` (детерминированность, честный сигнал усечения, время на
+реальной RPC, регрессия blocked_result_limit на реальном широком графе, без
+ручного подтверждения) и `tests/db5/29_impact_coverage_dec034.sql` (точная
+граница — ровно 5000 не блокирует, ровно 5001 блокирует терминально,
+приоритет лимита на графе, одновременно широком и глубоком, персистентность
+на таблицах, исчезновение из очереди воркера) — плюс parallel-worker
+(`27_impact_concurrency_fixture.sql` + `run-concurrency.zsh`) и restart/replay
+(`30_restart_replay.sql`) пробы, и production-переключатель
+(`28_v1_production_switch.sql`: ровно две двери, третья недостижима ни при
+каком состоянии). AP5 звено 12 (`tests/ap5/02-kora-chain.spec.ts`): настоящий
+воркер (`npm run worker:change-impact`, не мост) считает влияние заявки звена
+11, АРХИТЕКТОР ОТДЕЛЬНОЙ аутентифицированной сессией рассматривает результат
+и видит `allReturnedImpactsReviewed`/`coverageComplete`/`impactReviewComplete`,
+а попытка вызвать `acknowledge_impact_truncation` отклоняется
+`operation_unavailable` до обращения к базе. Итоговое состояние этапа —
+`M4_V1_IMPACT_PROVEN`.
 
 Расширенный платный M4 из Charter (WBS, schedule, split estimate, procurement,
 Change Order) остаётся целевым состоянием и **A6 его не открывает**: не раньше

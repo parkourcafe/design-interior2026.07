@@ -75,9 +75,18 @@ export const EXECUTION_INCREMENT_2 = [
  */
 export const EXECUTION_V1_IMPACT = [
   "review_change_impact",
-  // Подтверждение неполноты прогона. Открыто тем же GO и тем же решением
-  // владельца об усечении: без него усечённый прогон невозможно закрыть, то
-  // есть открытая `review_change_impact` вела бы в тупик.
+] as const;
+
+/**
+ * DEC-034 (OWNER CONTINUE 12.08.2026, поверх DEC-033 LOCKED): закрыта
+ * НАВСЕГДА, не «пока не авторизована». PR #94 открыл её тем же GO, что
+ * `review_change_impact` — DEC-033 запрещает human override усечённого
+ * прогона в V1: рассмотреть найденное не значит «анализ завершён», и
+ * подтверждать это некому. Отдельный список, а не элемент
+ * `EXECUTION_V1_IMPACT`: эта команда в принципе не тот же класс, что
+ * `review_change_impact` — включение флага или GO её не касается никогда.
+ */
+export const EXECUTION_PERMANENTLY_CLOSED = [
   "acknowledge_impact_truncation",
 ] as const;
 
@@ -88,11 +97,10 @@ export const EXECUTION_V1_IMPACT = [
 export const EXECUTION_MODULE: ReadonlySet<ProjectCeoCommand["kind"]> = new Set([
   ...EXECUTION_INCREMENT_1,
   ...EXECUTION_INCREMENT_2,
-  // V1 добавил команду, которой в классификации A6 не было вовсе
-  // (`acknowledge_impact_truncation`). Без этой строки она не попадала бы под
-  // флаг модуля — то есть жила бы при выключенном M4, чего не должно быть ни
-  // у одной команды модуля. Множество, поэтому пересечение безвредно.
   ...EXECUTION_V1_IMPACT,
+  // Навсегда закрытая команда остаётся М4-командой ради флага: выключенный
+  // модуль закрывает и её тоже, просто это не единственная причина закрытия.
+  ...EXECUTION_PERMANENTLY_CLOSED,
 ] as readonly ProjectCeoCommand["kind"][]);
 
 /** Открыто подписью A6. Живёт только при включённом флаге. */
@@ -111,14 +119,17 @@ export const EXECUTION_V1_IMPACT_COMMANDS: ReadonlySet<ProjectCeoCommand["kind"]
  * последующий GO, и до отдельного решения о своих вертикалях они обязаны
  * оставаться закрытыми даже там, где модуль намеренно открыт. Поэтому проверка
  * отдельная и стоит до флага: иначе «включить M4» означало бы «включить и то,
- * что никто не разрешал».
+ * что никто не разрешал». `acknowledge_impact_truncation` (DEC-034) входит
+ * сюда же тем же списком, тем же кодом ответа: у неё нет отдельного статуса —
+ * она так же навсегда недоступна, как V2/V3.
  *
  * Множество выводится вычитанием, а не переписывается руками: пока это был
  * второй список рядом с первым, открытие одной команды означало правку в двух
  * местах — и расхождение между ними никто бы не заметил.
  */
 export const EXECUTION_NOT_AUTHORIZED_COMMANDS: ReadonlySet<ProjectCeoCommand["kind"]> =
-  new Set(
-    (EXECUTION_INCREMENT_2 as readonly ProjectCeoCommand["kind"][])
+  new Set([
+    ...(EXECUTION_INCREMENT_2 as readonly ProjectCeoCommand["kind"][])
       .filter((kind) => !EXECUTION_V1_IMPACT_COMMANDS.has(kind)),
-  );
+    ...EXECUTION_PERMANENTLY_CLOSED,
+  ] as readonly ProjectCeoCommand["kind"][]);

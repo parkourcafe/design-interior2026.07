@@ -259,6 +259,11 @@ describe("Layout Studio delivery/UI slice", () => {
       // основанием. Применение миграции ничего не открывает. К Layout Studio
       // отношения не имеет.
       "20260812030000_projectceo_m4_v1_production_switch.sql",
+      // DEC-034 (OWNER CONTINUE 12.08.2026): аддитивная коррекция контракта
+      // покрытия V1 Impact поверх PR #94 — blocked_result_limit больше не
+      // сохраняет найденное, acknowledge_impact_truncation закрыта навсегда.
+      // К Layout Studio отношения не имеет.
+      "20260813010000_projectceo_m4_v1_impact_dec034_correction.sql",
     ];
     const actual = readdirSync(join(repoRoot, "supabase/migrations"), { withFileTypes: true })
       .filter((entry) => entry.isFile())
