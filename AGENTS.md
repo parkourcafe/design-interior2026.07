@@ -130,11 +130,14 @@ Decisions/Selections/Approvals реализованы (PR #66), редактор
 
 **M4 Execution Workspace открыт подписанным Addendum A6 от 10.08.2026**
 (`docs/canonical/remhaos-v1/REMHAOS_ADDENDUM_A6_M4_OPENING.md`, DEC-025) —
-**только в объёме инкремента 1**: `distribute_release`, `acknowledge_release`,
-`create_change`. Остальные пять команд модуля — `review_change_impact`,
+**в объёме инкремента 1**: `distribute_release`, `acknowledge_release`,
+`create_change`. С 12.08.2026 (DEC-033, см. ниже «V1 Impact») к ним добавлен
+`review_change_impact` — расчёт остаётся воркерным, но его ревью человеком
+теперь тоже инкремент 1. Остальные четыре команды модуля —
 `upload_photo_evidence`, `review_photo_evidence`, `accept_milestone`,
-`build_handover` — **закрыты**. Вход в модуль — **только** подтверждённая выдача
-Released Production Package, обходов не строится.
+`build_handover` — **закрыты** (V2/V3, `NOT AUTHORIZED`). Вход в модуль —
+**только** подтверждённая выдача Released Production Package, обходов не
+строится.
 
 **Целевой человеческий контракт модуля — десять команд (DEC-032 LOCKED,**
 `docs/canonical/remhaos-v1/REMHAOS_A6_CLARIFICATION_M4_EXECUTION_LAYER_2026-08-12.md`**).**
@@ -145,18 +148,24 @@ Released Production Package, обходов не строится.
 воркерному плану — это неверно. `build_handover` уточнён как человеческий запрос
 **необратимой** финализации, порождающий durable build request; воркер не
 закрывает версию по одному лишь наличию `warranty` и принятых вех.
-`calculate_change_impact` и `build_construction_handover` остаются **worker-only**
-и в число десяти команд НЕ входят. Требование A6 §5.1 — тест, роняющий CI при
-неучтённой команде — сохраняется и сверяется с числом 10; подгонять ожидание без
-ссылки на уточнение запрещено. Подписанный A6 не переписывается.
+Расчёт влияния и `build_construction_handover` остаются **worker-only**
+и в число десяти команд НЕ входят — ревью расчёта человеком (`review_change_
+impact`) в счёт входит, сам расчёт нет. С 12.08.2026 (DEC-033) единственная
+системная дверь расчёта — `calculate_change_impact_policy_bound`; прежняя
+дверь с произвольной глубиной от вызывающего (`calculate_change_impact`)
+закрыта даже для `service_role` — см. «V1 Impact» ниже. Требование A6 §5.1 —
+тест, роняющий CI при неучтённой команде — сохраняется и сверяется с числом
+10; подгонять ожидание без ссылки на уточнение запрещено. Подписанный A6 не
+переписывается.
 
-**Что из этого разрешено строить: НИЧЕГО, кроме уже исполненного E0R.**
-Уточнение фиксирует целевую архитектуру, а не разрешение на реализацию.
-**V1 (Impact), V2 (Field Evidence) и V3 (Handover) — `NOT AUTHORIZED`** до
-отдельного **M4 IMPLEMENTATION GO** владельца. До него три новые команды в
-контракте приложения не появляются, воркеры расчёта влияния и сборки архива не
-строятся, права инкремента 2 не выдаются ни одной PostgREST-роли ни в одной
-среде, а поверхность инкремента 2 продолжает отдавать
+**Что из этого разрешено строить: E0R и, с 12.08.2026, V1 (Impact) — DEC-033
+LOCKED, см. ниже.** Уточнение фиксирует целевую архитектуру; отдельные OWNER
+GO авторизуют реализацию по частям. **V2 (Field Evidence) и V3 (Handover) —
+по-прежнему `NOT AUTHORIZED`** до отдельного **M4 IMPLEMENTATION GO**
+владельца. До него команды `upload_photo_evidence`, `review_photo_evidence`,
+`accept_milestone`, `build_handover` в контракте приложения недостижимы,
+воркеры вех и сборки архива передачи не строятся, права V2/V3 не выдаются ни
+одной PostgREST-роли ни в одной среде, а поверхность V2/V3 продолжает отдавать
 `increment_not_authorized`.
 
 Порядок жёсткий: код начинается после гейта 1 (`publish_baseline →
@@ -208,6 +217,45 @@ production. Итоговое состояние этапа — `M4_RELEASE_WORKE
 контейнера, отсутствующая в миграциях и не состоящая ни в одном членстве.
 Прикладные команды, воркеры, реальный source intake и браузерное E2E **не
 построены**. Постоянные гранты не изменены.
+
+**V1 Impact открыт и построен 12.08.2026** (DEC-033 LOCKED, OWNER GO
+«АВТОНОМНО ЗАВЕРШИТЬ REMHAOS M4 V1 IMPACT», поверх DEC-032). Единственная
+системная дверь расчёта — `calculate_change_impact_policy_bound`; глубина и
+лимит — ЗАФИКСИРОВАННАЯ серверная политика (`maxDepth = 7`, `maxImpacts =
+5000`, версия `project-ceo-impact-policy/0.1`), вызывающий их не передаёт и
+повлиять на них не может. Три durable terminal исхода: `complete` (обход
+исчерпан в границе глубины), `partial_depth` (упёрся в глубину —
+`hasMoreBeyondDepth`/`cutoffReason='depth_boundary'`/
+`knownImpactCountLowerBound = returnedImpactCount + 1`), `blocked_result_
+limit` (найдено больше 5000 — ни одно влияние не сохраняется,
+`returnedImpactCount = 0`, `knownImpactCountLowerBound = 5001`); при
+совмещённом срабатывании глубины и лимита побеждает лимит, без зонда глубины
+и без второго полного обхода. Старое булево `allImpactsReviewed` разделено на
+`allReturnedImpactsReviewed` / `coverageComplete` / `impactReviewComplete =
+allReturnedImpactsReviewed AND coverageComplete` — просмотреть все ПОКАЗАННЫЕ
+карточки не значит «анализ завершён» для partial/blocked. `review_change_
+impact` перешёл из закрытого множества V2/V3 в инкремент 1.
+
+Полный воркер построен (`lib/project-intelligence/workers/change-impact/`,
+`npm run worker:change-impact`) с durable operator failure: таблица
+`impact_worker_failures` плюс `record_change_impact_worker_failure` (bounded
+retry, dead-letter на пятой попытке по умолчанию) и `redrive_change_impact_
+worker_failure` (операторская дверь возврата из dead-letter, не автосброс);
+один испорченный элемент очереди не блокирует остальные. Доказательство —
+`tests/db5/26_impact_policy_benchmark.sql` (детерминированность, честный
+сигнал усечения, время на реальной RPC) и `tests/db5/27_impact_coverage_
+outcomes.sql` (полная матрица трёх исходов на управляемых фикстурах, точные
+границы 5000/5001, приоритет лимита, digest/replay, append-only
+неизменяемость, поглощение одного яда очередью, dead-letter и redrive,
+partial после ревью всех показанных карточек остаётся неполным, blocked
+исчезает из очереди) — оба на PostgreSQL 16 и 17, плюс отдельные parallel-
+worker и restart/replay пробы для V1 Impact в `run-concurrency.zsh` /
+`30_restart_replay.sql`. AP5 звенья 12–13 (`tests/ap5/02-kora-chain.spec.ts`):
+настоящий воркер (не мост) считает влияние заявки звена 11, АРХИТЕКТОР
+ОТДЕЛЬНОЙ аутентифицированной сессией рассматривает результат, а прямой
+HTTP-вызов Data API живого проекта тем же anon key, каким ходит браузер,
+подтверждает недостижимость воркерной двери в обход приложения. Итоговое
+состояние этапа — `M4_V1_IMPACT_PROVEN`.
 
 Расширенный платный M4 из Charter (WBS, schedule, split estimate, procurement,
 Change Order) остаётся целевым состоянием и **A6 его не открывает**: не раньше
