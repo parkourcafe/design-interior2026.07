@@ -11,12 +11,14 @@ import {
   AP5_DECISION_NODE_ID,
   AP5_DECISION_REVISION_ID,
   AP5_DECISION_REVISION_ID_2,
+  AP5_DEPENDENT_SOURCE_ID,
   AP5_SOURCE_NAME,
   AP5_SOURCE_REVISION_ID,
   type Ap5RoleKey,
 } from "./ap5-env";
 import { runReleaseArtifactWorker } from "./release-worker";
 import { runChangeImpactWorker } from "./change-impact-worker";
+import { ingestDependentNode } from "./dependent-node";
 
 const env = ap5Env();
 // Ленивое чтение: сборка списка тестов не должна зависеть от того,
@@ -246,6 +248,31 @@ test.describe("AP5 — цепочка Kora на живом стеке", () => {
 
     const view = await workspace(architect);
     expect(view.decisions.some((item) => item.revisionId === decisionRevisionId)).toBe(true);
+  });
+
+  /**
+   * 5б. Узел, ЗАВИСЯЩИЙ от решения.
+   *
+   * Без него влияние изменения пусто по построению: обход идёт по обратным
+   * рёбрам, а в цепочке от решения не зависел ни один узел. Шаг создаёт ровно
+   * одно ребро `spec --depends_on--> decision` — минимум, дающий ровно одну
+   * карточку.
+   *
+   * Стоит ДО публикации baseline намеренно: `publish_baseline` снимает версию
+   * графа целиком, и ребро, добавленное после снимка, в целевую версию не
+   * попадёт.
+   *
+   * Отступление, ограниченное собой: у `ingest_source_graph` нет HTTP-двери,
+   * поэтому вызов идёт RPC — но ТОКЕНОМ архитектора, не service role (у неё
+   * этой функции нет вовсе). См. `tests/ap5/dependent-node.ts`.
+   */
+  test("5б. в графе появляется узел, зависящий от решения", async () => {
+    const ingested = await ingestDependentNode();
+    expect(ingested.sourceId).toBe(AP5_DEPENDENT_SOURCE_ID);
+    expect(ingested.ingestionId).toBeTruthy();
+    // Что ребро действительно построено и действительно обратное, доказывает
+    // шаг 12: без него прогон влияния снова получился бы пустым. Проверять это
+    // здесь запросом в обход продукта значило бы доказывать не тот путь.
   });
 
   /**
@@ -577,78 +604,117 @@ test.describe("AP5 — цепочка Kora на живом стеке", () => {
   });
 
   /**
-   * 12. Влияние изменения: заявка → системный расчёт → рассмотрение человеком.
+   * 12. Влияние изменения: заявка → системный расчёт → рассмотрение
+   *     архитектором. Полная цепочка.
    *
-   * Звено воспроизводит форму шага 9: изменение создаёт человек браузером,
-   * влияние считает СИСТЕМА своим процессом, рассматривает снова человек своей
-   * сессией. Человеческой двери к расчёту нет и не будет — `impactRunId`
-   * рождается только в воркерном контуре.
+   * Форма звена 9, но с человеком на обоих концах: изменение создаёт человек
+   * браузером (шаг 11), влияние считает СИСТЕМА своим процессом, а разбирает
+   * снова человек — архитектор своей сессией через публичный маршрут команд.
    *
-   * До 12.08.2026 это звено стояло пропуском по двум причинам сразу: воркера
-   * не существовало, а команда не была авторизована. Обе сняты — воркер
-   * построен (V1 Impact), команда открыта отдельным M4 IMPLEMENTATION GO.
+   * Непустым прогон стал благодаря шагу 5б: ребро
+   * `spec --depends_on--> decision` даёт ровно одну карточку. До него звено
+   * закрывалось пропуском не потому, что было запрещено, а потому что
+   * рассматривать было нечего — и это выяснил прогон, а не рассуждение.
    */
-  /**
-   * 12. Влияние изменения: заявка → СИСТЕМНЫЙ расчёт → прогон, привязанный к
-   *     заявке.
-   *
-   * Половина, которой раньше не существовало вовсе. Изменение создаёт человек
-   * браузером (шаг 11), влияние считает система своим процессом — тем самым,
-   * что пойдёт в продукт, а не psql-мостом, изображающим его.
-   *
-   * ЧЕГО ЗДЕСЬ НЕТ И ПОЧЕМУ. Рассмотрения архитектором. Прогон в этой цепочке
-   * получается ПУСТЫМ, и это свойство фикстуры, а не дефект: влияние идёт по
-   * обратным рёбрам графа, а в цепочке AP5 от изменённого решения не зависит
-   * ни один узел — единственное звено, которое такую зависимость создало бы
-   * (шаг 5а, выбор с привязкой к площади), само стоит пропуском до появления
-   * ingest. Рассматривать нечего, поэтому рассмотрение вынесено отдельным
-   * пропуском ниже, со своей причиной.
-   *
-   * Это выяснилось прогоном, а не рассуждением: первая редакция шага требовала
-   * непустого влияния и упала на `воркер не создал прогон влияния ни для одной
-   * заявки`.
-   */
-  test("12. влияние изменения: воркер считает и привязывает прогон к заявке", async ({ browser }) => {
+  test("12. влияние изменения: воркер считает, архитектор рассматривает", async ({ browser }) => {
     const architect = await requestAs(browser, "designer");
 
-    // До расчёта рассматривать нечего, и поверхность обязана это признавать, а
-    // не предлагать действие, которое сервер отклонит.
+    // 1. До расчёта рассматривать нечего, и поверхность признаёт это причиной
+    //    предпосылки, а не авторизации.
     const beforeWorker = await workspace(architect);
     expect(beforeWorker.operations.review_change_impact?.status).toBe("unavailable");
-    expect(beforeWorker.operations.review_change_impact?.reason)
-      .toBe("prerequisite_missing");
-    const changeBefore = beforeWorker.changes.find((entry) => entry.impactRunId !== null);
-    expect(changeBefore, "прогон влияния существует до запуска воркера").toBeFalsy();
+    expect(beforeWorker.operations.review_change_impact?.reason).toBe("prerequisite_missing");
+    expect(beforeWorker.changes.find((entry) => entry.impactRunId !== null)).toBeFalsy();
 
-    // Очередь воркер находит сам: идентификатора заявки ему не передаётся.
+    // 2. Очередь воркер находит сам: идентификатора заявки ему не передаётся.
     const report = runChangeImpactWorker();
     expect(report.scanned).toBeGreaterThan(0);
-    expect(report.calculated + report.alreadyPresent).toBeGreaterThan(0);
-    // Граф этой цепочки мал: усечения быть не должно, и `needsAttention`
-    // здесь — сигнал о настоящей проблеме, а не ожидаемый исход.
+    expect(report.calculated).toBeGreaterThan(0);
     expect(report.calculatedTruncated).toBe(0);
     expect(report.needsAttention).toBe(0);
-    // Глубину выбрала политика, а не вызывающий.
     expect(report.policy.maxDepth).toBeGreaterThan(0);
 
-    // Прогон существует, привязан к заявке и виден человеку в рабочем
-    // пространстве — проверяется через тот же вью, что видит браузер.
+    // 3. КАРТОЧКА СУЩЕСТВУЕТ ДО РАССМОТРЕНИЯ. Прогон непустой, привязан к
+    //    заявке, не усечён и не закрыт.
     const afterWorker = await workspace(architect);
     const change = afterWorker.changes.find((entry) => entry.impactRunId !== null);
     expect(change, "воркер не привязал прогон влияния ни к одной заявке").toBeTruthy();
+    // Ровно одна: шаг 5б создаёт ровно одно обратное ребро. Проверка на
+    // точное число, а не «больше нуля», — иначе лишняя связь, появившаяся
+    // однажды, прошла бы незамеченной вместе с изменившимся смыслом звена.
+    expect(change!.impactCount).toBe(1);
     expect(change!.impactTruncated).toBe(false);
-    // Пустой прогон закрыт по построению: нерассмотренных карточек нет и
-    // неполноты нет. Это честный `true`, а не отчёт о работе, которой не было.
-    expect(change!.impactCount).toBe(0);
-    expect(change!.impactReviewComplete).toBe(true);
+    expect(change!.impactReviewComplete).toBe(false);
+    expect(change!.reviewedImpactCount).toBe(0);
 
-    // Второй проход не заводит второго прогона — идемпотентность воркера на
-    // живом стеке, а не в модели.
+    const pending = change!.impacts.find((impact) => impact.disposition === null);
+    expect(pending, "у непустого прогона нет ни одной нерассмотренной карточки").toBeTruthy();
+
+    // 4. АРХИТЕКТОР ИМЕЕТ ПРАВО ЕЁ РАССМОТРЕТЬ — поверхность предлагает
+    //    действие и указывает ровно ту карточку.
+    expect(afterWorker.operations.review_change_impact?.status).toBe("available");
+    expect(afterWorker.operations.review_change_impact?.commandTargetId)
+      .toBe(pending!.impactId);
+
+    // 5. РАССМОТРЕНИЕ МЕНЯЕТ СОСТОЯНИЕ. Публичный маршрут команд, сессия
+    //    архитектора, никакого service role.
+    const reviewed = await command(architect, "review_change_impact", {
+      impactRunId: pending!.impactRunId,
+      impactId: pending!.impactId,
+      disposition: "resolved",
+      reason: "AP5: влияние разобрано архитектором в своей сессии",
+    });
+    expect(reviewed.status, JSON.stringify(reviewed.body.error)).toBe(200);
+    expect(reviewed.body.status).toBe("completed");
+    // Результат возвращается КЛИЕНТУ, а не только оседает в базе.
+    expect(reviewed.body.result?.disposition).toBe("resolved");
+    expect(reviewed.body.result?.impactId).toBe(pending!.impactId);
+    expect(reviewed.body.result?.allImpactsReviewed).toBe(true);
+    expect(reviewed.body.result?.everyImpactReviewed).toBe(true);
+    expect(reviewed.body.result?.isTruncated).toBe(false);
+
+    // 6. КЛИЕНТ ПОЛУЧАЕТ ФАКТИЧЕСКИЙ РЕЗУЛЬТАТ: то же самое видно в чтении
+    //    рабочего пространства, а не только в ответе команды.
+    const afterReview = await workspace(architect);
+    const reviewedChange = afterReview.changes.find((entry) => entry.id === change!.id);
+    expect(reviewedChange!.reviewedImpactCount).toBe(reviewedChange!.impactCount);
+    expect(reviewedChange!.impactReviewComplete).toBe(true);
+    expect(
+      reviewedChange!.impacts.find((impact) => impact.impactId === pending!.impactId)?.disposition,
+    ).toBe("resolved");
+    // Нерассмотренных карточек не осталось — поверхность снова закрыта по
+    // предпосылке, а не по авторизации.
+    expect(afterReview.operations.review_change_impact?.status).toBe("unavailable");
+    expect(afterReview.operations.review_change_impact?.reason).toBe("prerequisite_missing");
+
+    // 7. ПОВТОРНАЯ ОПЕРАЦИЯ ОТКЛОНЯЕТСЯ. Второе решение по той же карточке — не
+    //    повтор команды (ключ идемпотентности другой), а попытка пересмотреть
+    //    уже принятое.
+    const twice = await command(architect, "review_change_impact", {
+      impactRunId: pending!.impactRunId,
+      impactId: pending!.impactId,
+      disposition: "accepted",
+      reason: "AP5: повторное решение по уже рассмотренной карточке",
+    });
+    expect(twice.status).toBe(400);
+    expect(twice.body.error?.code).toBe("unsupported_source");
+
+    // 8. НЕДОПУСТИМАЯ ОПЕРАЦИЯ ОТКЛОНЯЕТСЯ: подтверждать неполноту полного
+    //    прогона нечего, и сервер это говорит сам.
+    const acknowledged = await command(architect, "acknowledge_impact_truncation", {
+      impactRunId: change!.impactRunId!,
+      reason: "AP5: подтверждение неполноты полного прогона",
+    });
+    expect(acknowledged.status).toBe(400);
+    expect(acknowledged.body.error?.code).toBe("unsupported_source");
+
+    // 9. Второй проход воркера не заводит второго прогона и не трогает
+    //    рассмотренное.
     const second = runChangeImpactWorker();
     expect(second.calculated).toBe(0);
     const afterSecond = await workspace(architect);
-    expect(afterSecond.changes.filter((entry) => entry.impactRunId !== null).length)
-      .toBe(afterWorker.changes.filter((entry) => entry.impactRunId !== null).length);
+    expect(afterSecond.changes.find((entry) => entry.id === change!.id)!.impactReviewComplete)
+      .toBe(true);
   });
 });
 
@@ -665,22 +731,11 @@ test.describe("AP5 — ещё не покрытые звенья", () => {
   //   * «ProductionPackageVersion V1 → распространение и подтверждение» —
   //     шаги 7, 9 и 10 (гейт 1 и гейт 2);
   //   * заявка на изменение — шаг 11;
-  //   * системный расчёт влияния и привязка прогона к заявке — шаг 12
-  //     (V1 Impact, 12.08.2026). Пропуск стоял по двум причинам сразу: воркера
-  //     расчёта не существовало, а команда не была авторизована. Сняты обе.
-  test.fixme(
-    "рассмотрение влияния архитектором",
-    // Команда АВТОРИЗОВАНА (M4 IMPLEMENTATION GO на V1) и прогон в цепочке
-    // теперь есть — но он пустой: влияние идёт по обратным рёбрам графа, а от
-    // изменённого решения в этой цепочке не зависит ни один узел. Единственное
-    // звено, создающее такую зависимость, — шаг 5а (выбор с привязкой к
-    // площади), и оно само ждёт ingest. Рассматривать нечего, поэтому звено не
-    // «не разрешено», а «нечему быть рассмотренным».
-    //
-    // Что закроет: узел, зависящий от изменённого решения, в графе цепочки.
-    // Тогда прогон получит карточки, и рассмотрение станет доказуемым.
-    () => {},
-  );
+  //   * влияние изменения целиком — шаг 12 (V1 Impact, 12.08.2026): системный
+  //     расчёт И рассмотрение архитектором. Пропуск стоял по трём причинам
+  //     подряд: воркера не существовало, команда не была авторизована, а
+  //     прогон получался пустым. Сняты все три — последнюю снял шаг 5б, узел
+  //     графа, зависящий от изменённого решения.
   test.fixme(
     "фотодоказательство и приёмка вехи",
     // upload_photo_evidence требует существующего milestoneId; вех в проекте
