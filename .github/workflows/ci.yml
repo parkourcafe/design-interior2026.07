@@ -19,6 +19,67 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  # Что именно изменила ветка. Нужно ровно одному потребителю — AP5, который
+  # обязан подниматься сам, когда тронут модуль 4 V1, и не зависеть от того,
+  # вспомнил ли человек навесить метку.
+  #
+  # Метка остаётся как ДОПОЛНИТЕЛЬНЫЙ способ позвать прогон руками, а не как
+  # единственный. Разница принципиальная: забытая метка раньше означала, что
+  # изменение V1 уезжает в main, ни разу не пройдя через браузер.
+  scope:
+    name: change scope
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      m4_v1: ${{ steps.detect.outputs.m4_v1 }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # Полная история: без неё нет ни базы сравнения, ни merge-base.
+          fetch-depth: 0
+      - id: detect
+        env:
+          BASE_SHA: ${{ github.event_name == 'pull_request' && github.event.pull_request.base.sha || github.event.before }}
+          HEAD_SHA: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          base="${BASE_SHA}"
+          # Первый push в новую ветку не имеет предшественника (нули), и
+          # ссылка на удалённый коммит может не существовать локально. В обоих
+          # случаях сравниваем с общим предком main — это честная база для
+          # ветки и не заставляет гонять AP5 на каждом первом коммите.
+          if [ -z "${base}" ] || [ "${base}" = "0000000000000000000000000000000000000000" ] \
+            || ! git cat-file -e "${base}^{commit}" 2>/dev/null; then
+            base="$(git merge-base origin/main "${HEAD_SHA}" || true)"
+          fi
+          if [ -z "${base}" ]; then
+            # Базы нет вообще — считаем, что тронуто всё. Пропущенный прогон
+            # хуже лишнего.
+            echo "m4_v1=true" >> "${GITHUB_OUTPUT}"
+            echo "no comparison base; assuming M4 V1 changed"
+            exit 0
+          fi
+          changed="$(git diff --name-only "${base}" "${HEAD_SHA}")"
+          echo "${changed}"
+          # Поверхность вертикали V1: миграции модуля 4, воркер расчёта,
+          # прикладные контракты ProjectCEO, маршрут команд, рабочее
+          # пространство, скрипты включения и сам харнесс AP5.
+          if printf '%s\n' "${changed}" | grep -qE \
+            -e '^supabase/migrations/[0-9]+_projectceo_m4_' \
+            -e '^lib/project-intelligence/workers/change-impact/' \
+            -e '^lib/project-intelligence/delivery/projectceo/' \
+            -e '^lib/project-intelligence/adapters/postgres/execution\.ts$' \
+            -e '^scripts/run-change-impact-worker\.ts$' \
+            -e '^components/projectceo/project-workspace\.tsx$' \
+            -e '^app/api/projectceo/commands/' \
+            -e '^tests/ap1/environment/enable-m4-' \
+            -e '^tests/ap5/' \
+            -e '^\.github/workflows/ci\.yml$'; then
+            echo "m4_v1=true" >> "${GITHUB_OUTPUT}"
+          else
+            echo "m4_v1=false" >> "${GITHUB_OUTPUT}"
+          fi
+
   gates:
     name: lint / typecheck / test / build
     runs-on: ubuntu-latest
@@ -93,8 +154,14 @@ jobs:
   # отдельных аутентифицированных сессий. Санитизированный харнесс
   # /projectceo-qa/[role] его не заменяет (AP1_RUNBOOK §5).
   #
-  # Не в каждом push: поднимает весь Supabase, идёт ~15 минут. Запускается
-  # вручную (workflow_dispatch) или по метке `ap5` на PR.
+  # Не в каждом push: поднимает весь Supabase, идёт ~15 минут. Поднимается
+  # САМ, когда изменение трогает вертикаль V1 модуля 4 (job `scope`), и
+  # дополнительно — вручную (workflow_dispatch) или по метке `ap5`.
+  #
+  # Автоматический запуск появился вместе с production-открытием V1: пока
+  # вертикаль жила за выключенным флагом, забытая метка стоила только
+  # непроверенного коммита. С открытой вертикалью тот же забытый прогон стоит
+  # непроверенного изменения у живых пользователей.
   #
   # Гейт блокирующий. Первым прогоном он нашёл реальный дефект (ревью источника
   # отвечало 500 из-за границы схем), дефект закрыт миграцией
@@ -107,8 +174,10 @@ jobs:
   # ломается путь, который сегодня работает.
   ap5:
     name: AP5 authenticated browser matrix
+    needs: scope
     if: >-
       github.event_name == 'workflow_dispatch'
+      || needs.scope.outputs.m4_v1 == 'true'
       || contains(github.event.pull_request.labels.*.name, 'ap5')
     runs-on: ubuntu-latest
     timeout-minutes: 45

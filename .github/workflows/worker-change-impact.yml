@@ -1,0 +1,119 @@
+name: change-impact worker
+
+# Что запускает обработку очереди в production.
+#
+# ДО ЭТОГО ФАЙЛА — ничего. `npm run worker:change-impact` существовал как
+# команда, которую кто-то когда-то наберёт руками. Для вертикали, где человек
+# ждёт результата расчёта, чтобы его рассмотреть, «наберёт руками» означает,
+# что заявка висит непосчитанной ровно до тех пор, пока о ней не вспомнят.
+#
+# ПОЧЕМУ РАСПИСАНИЕ, А НЕ HTTP. Воркер ходит service role — идентичностью,
+# которая обходит RLS. Дать ей HTTP-маршрут значит завести в приложении дверь,
+# охраняемую только заголовком: одна ошибка в проверке секрета, и обход RLS
+# доступен извне. У расписания этой поверхности нет вовсе: ключ живёт в
+# секретах прогона, наружу не смотрит никто.
+#
+# ПОЧЕМУ НЕ VERCEL CRON. Тот же довод плюс второй: Vercel Cron вызывает
+# маршрут задеплоенного приложения, то есть сначала пришлось бы завести этот
+# маршрут. Отвергнутая альтернатива записана здесь, а не забыта.
+#
+# ВЫКЛЮЧЕН ПО УМОЛЧАНИЮ. Пока переменная репозитория
+# `REMHAOS_M4_V1_PRODUCTION_ENABLED` не равна строке `true`, задание не делает
+# ничего. Слияние этого файла не начинает ходить в production — включение
+# остаётся отдельным действием владельца, как и открытие прав в базе.
+
+on:
+  schedule:
+    # Каждые 15 минут: столько заявка на изменение может ждать расчёта, не
+    # ломая работу архитектора. Меньше — лишние прогоны на пустой очереди,
+    # больше — человек успевает открыть карточку раньше системы.
+    - cron: "*/15 * * * *"
+  workflow_dispatch:
+
+# Два прохода одновременно не нужны и вредны: они дадут гонку, которую база
+# разрешит правильно (один прогон, один результат), но лог станет нечитаемым.
+concurrency:
+  group: worker-change-impact
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  pass:
+    name: production queue pass
+    if: vars.REMHAOS_M4_V1_PRODUCTION_ENABLED == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    # Окружение GitHub со своими секретами: production-ключ не лежит в общем
+    # наборе секретов репозитория и не виден прогонам форков.
+    environment: production
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+
+      # Отсутствующий секрет обязан назвать себя сам. Без этой проверки
+      # воркер падал бы в `requiredEnv` с той же ошибкой, но на шаге, где её
+      # легко принять за отказ базы.
+      - name: Verify the production credentials are present
+        env:
+          SUPABASE_URL: ${{ secrets.PRODUCTION_SUPABASE_URL }}
+          SERVICE_ROLE_KEY: ${{ secrets.PRODUCTION_SUPABASE_SERVICE_ROLE_KEY }}
+        run: |
+          set -euo pipefail
+          missing=""
+          [ -n "${SUPABASE_URL}" ] || missing="${missing} PRODUCTION_SUPABASE_URL"
+          [ -n "${SERVICE_ROLE_KEY}" ] || missing="${missing} PRODUCTION_SUPABASE_SERVICE_ROLE_KEY"
+          if [ -n "${missing}" ]; then
+            echo "Не заданы секреты окружения production:${missing}" >&2
+            exit 1
+          fi
+
+      # Один проход по очереди. Ненулевой код возврата означает, что проход
+      # оставил работу человеку: частичный прогон или неразрешимый baseline.
+      # Красное задание — и есть уведомление; отдельного канала мониторинга у
+      # проекта нет, и выдумывать его здесь не нужно.
+      - name: One pass over the change-impact queue
+        id: pass
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.PRODUCTION_SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.PRODUCTION_SUPABASE_SERVICE_ROLE_KEY }}
+          IMPACT_WORKER_MAX_ROWS: ${{ vars.IMPACT_WORKER_MAX_ROWS || '100' }}
+        run: |
+          set -euo pipefail
+          # Отчёт печатается всегда, в том числе на пустой очереди, и обязан
+          # сохраниться даже когда проход закончился ненулевым кодом.
+          set +e
+          npm run --silent worker:change-impact > "${RUNNER_TEMP}/pass.json"
+          status=$?
+          set -e
+          cat "${RUNNER_TEMP}/pass.json"
+          exit "${status}"
+
+      # Итог прохода виден на странице прогона, а не только в логе: в отчёте
+      # нет ни имён, ни контактов, ни текста причины изменения — только
+      # идентификаторы и счётчики.
+      - name: Publish the pass to the run summary
+        if: always()
+        run: |
+          set -euo pipefail
+          {
+            echo '## change-impact — один проход'
+            echo
+            echo '```json'
+            cat "${RUNNER_TEMP}/pass.json" 2>/dev/null || echo '{"error":"проход не дошёл до отчёта"}'
+            echo '```'
+          } >> "${GITHUB_STEP_SUMMARY}"
+
+      - name: Explain a non-zero pass
+        if: failure() && steps.pass.outcome == 'failure'
+        run: |
+          {
+            echo
+            echo 'Проход оставил работу человеку. Разбор — в'
+            echo '`M4_V1_PRODUCTION_RUNBOOK.md`, раздел «Что делать с красным проходом».'
+          } >> "${GITHUB_STEP_SUMMARY}"
