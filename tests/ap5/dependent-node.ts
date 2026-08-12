@@ -59,9 +59,13 @@ export async function ingestDependentNode(): Promise<DependentNodeResult> {
   }[] }).data.find((entry) => entry.projectId === handoff.projectId);
   if (!scope) throw new Error("AP5: архитектор не видит проект цепочки");
 
+  // `payload.sourceId` обязателен и обязан совпадать с источником: ingest
+  // сверяет привязку ревизии к источнику и отвечает
+  // `SOURCE_REVISION_BINDING_INVALID`, если её нет. Первая редакция этого
+  // шага её и не имела — прогон AP5 назвал причину сам.
   const payload = {
-    kind: "specification",
-    title: "AP5 dependent specification",
+    schemaVersion: "project-ceo/source-metadata/0.1",
+    sourceId: AP5_DEPENDENT_SOURCE_ID,
     dependsOn: AP5_DECISION_NODE_ID,
   };
   const checksumHex = createHash("sha256").update(AP5_DEPENDENT_SOURCE_ID).digest("hex");
