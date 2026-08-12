@@ -34,8 +34,11 @@ state=$(psql_exec db5-concurrency-state "
   where project_id = '${project}'
 ")
 
+# Роль та же, что у остальных вызовов инкремента 2 в `20_execution_operations`:
+# `authenticated` эти RPC не видит и не должен, а конкурентность проверяется на
+# том же пути, что и одиночный вызов, иначе она проверяла бы другой путь.
 call="begin;
-set local role authenticated;
+set local role pi_db5_execution_tester;
 set local request.jwt.claim.sub =
   '31111111-1111-4111-8111-111111111111';
 select projectceo_m4_api.define_milestone(

@@ -55,6 +55,40 @@ jobs:
           PI_DB_IMAGE: ${{ matrix.image }}
         run: zsh tests/db4/run.zsh
 
+  # DB5 — исполнение модуля 4 целиком: заявка на изменение, воркерный расчёт
+  # влияния, ревью, веха, фотодоказательство, приёмка, документ передачи и
+  # сборка архива.
+  #
+  # Задание существует потому, что харнесс без гейта гарантий не даёт. DB5 был
+  # зелёным на `e74f4b3` (`MASTER_EXECUTION_PLAN` §2.3), не стоял ни в одном
+  # обязательном прогоне и молча покраснел, когда guardrail модуля 3 отозвал у
+  # `authenticated` публикацию baseline. Обнаружилось это только при подготовке
+  # решения по execution layer — то есть спустя недели.
+  #
+  # Запрет прогон не снимает: инкремент 2 остаётся закрытым для `anon`,
+  # `authenticated` и `service_role` до и после цепочки
+  # (`05_default_deny_before.sql`, `90_default_deny_after.sql`), а человеческие
+  # RPC инкремента 2 вызывает отдельная `nologin`-роль, живущая только внутри
+  # одноразового контейнера.
+  execution_database:
+    name: DB5 on ${{ matrix.image }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        image: [postgres:16-alpine, postgres:17-alpine]
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install zsh and ripgrep
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends zsh ripgrep
+      - name: Default-deny, M4 execution chain, concurrency and restart replay
+        env:
+          PI_DB_IMAGE: ${{ matrix.image }}
+        run: zsh tests/db5/run.zsh
+
   # AP5 — browser matrix на НАСТОЯЩЕМ стеке: Auth, PostgREST, RLS, пять
   # отдельных аутентифицированных сессий. Санитизированный харнесс
   # /projectceo-qa/[role] его не заменяет (AP1_RUNBOOK §5).

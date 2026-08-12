@@ -1,5 +1,24 @@
 \set ON_ERROR_STOP on
 
+-- Роли в этом сценарии выбраны не по удобству, а по границе модуля.
+--
+--   * `authenticated` — M2/M3 и инкремент 1 (`submit_change_request`,
+--     публикация, чтение `get_execution_delivery`). Ровно то, что скрипты
+--     среды открывают в непроизводственном стенде;
+--   * `pi_db5_execution_tester` — человеческие RPC инкремента 2. Отдельная
+--     `nologin`-роль, заведённая `06_execution_test_role.sql` внутри
+--     одноразового контейнера. `authenticated` для этих RPC закрыт навсегда, и
+--     открывать его ради прогона нельзя: доказательство работы движка не
+--     должно стоить снятия запрета;
+--   * `service_role` — только воркерные `calculate_change_impact` и
+--     `build_construction_handover`. Человеческих операций у неё нет, и
+--     `10_schema_security.sql` роняет прогон, если появятся.
+--
+-- Идентичность человека при этом одна и та же во всех трёх случаях:
+-- `request.jwt.claim.sub`. Роль базы решает, можно ли ВЫЗВАТЬ функцию;
+-- кто вызвал — по-прежнему решает `_authorize_package_human` по членству и
+-- capability.
+
 -- Extend the DB4 golden project with one revision replacement and one
 -- downstream deliverable so M4 can prove bounded deterministic impact.
 begin;
@@ -794,7 +813,7 @@ where project_id = '41111111-1111-4111-8111-111111111111'
 \gset db5_
 
 begin;
-set local role authenticated;
+set local role pi_db5_execution_tester;
 set local request.jwt.claim.sub =
   '31111111-1111-4111-8111-111111111111';
 select projectceo_m4_api.review_change_impact(
@@ -831,7 +850,7 @@ where project_id = '41111111-1111-4111-8111-111111111111'
 \gset db5_
 
 begin;
-set local role authenticated;
+set local role pi_db5_execution_tester;
 set local request.jwt.claim.sub =
   '31111111-1111-4111-8111-111111111111';
 select (
@@ -854,7 +873,7 @@ where project_id = '41111111-1111-4111-8111-111111111111'
 \gset db5_
 
 begin;
-set local role authenticated;
+set local role pi_db5_execution_tester;
 set local request.jwt.claim.sub =
   '31111111-1111-4111-8111-111111111111';
 select (
@@ -890,7 +909,7 @@ select set_config(
 );
 
 begin;
-set local role authenticated;
+set local role pi_db5_execution_tester;
 set local request.jwt.claim.sub =
   '31111111-1111-4111-8111-111111111111';
 do $milestone_before_photo_review$
@@ -910,7 +929,7 @@ $milestone_before_photo_review$;
 rollback;
 
 begin;
-set local role authenticated;
+set local role pi_db5_execution_tester;
 set local request.jwt.claim.sub =
   '31111111-1111-4111-8111-111111111111';
 select projectceo_m4_api.review_photo_evidence(
@@ -929,7 +948,7 @@ where project_id = '41111111-1111-4111-8111-111111111111'
 \gset db5_
 
 begin;
-set local role authenticated;
+set local role pi_db5_execution_tester;
 set local request.jwt.claim.sub =
   '31111111-1111-4111-8111-111111111111';
 select projectceo_m4_api.accept_milestone(
@@ -952,7 +971,7 @@ select set_config(
 );
 
 begin;
-set local role authenticated;
+set local role pi_db5_execution_tester;
 set local request.jwt.claim.sub =
   '31111111-1111-4111-8111-111111111111';
 do $accepted_milestone_photo_stream_closed$
@@ -977,7 +996,7 @@ $accepted_milestone_photo_stream_closed$;
 rollback;
 
 begin;
-set local role authenticated;
+set local role pi_db5_execution_tester;
 set local request.jwt.claim.sub =
   '31111111-1111-4111-8111-111111111111';
 select projectceo_m4_api.register_handover_document(
@@ -1182,7 +1201,7 @@ from project_intelligence.project_workflows
 where project_id = '41111111-1111-4111-8111-111111111111';
 
 begin;
-set local role authenticated;
+set local role pi_db5_execution_tester;
 set local request.jwt.claim.sub =
   '31111111-1111-4111-8111-111111111111';
 do $closed_version_rejected$
@@ -1287,7 +1306,7 @@ select set_config(
 );
 
 begin;
-set local role authenticated;
+set local role pi_db5_execution_tester;
 set local request.jwt.claim.sub =
   '31111111-1111-4111-8111-111111111111';
 set local projectceo.product_test_fail_after_domain = 'on';
