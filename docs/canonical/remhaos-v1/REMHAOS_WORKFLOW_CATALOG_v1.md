@@ -57,23 +57,40 @@ Issued baseline → site tasks → RFI/deviation → change/substitution → ins
 **Owner module:** ни один — горизонтальный адаптер `Integration Gateway →
 Messaging`. Доменные модули остаются единственным официальным входом.
 
-**Состояние на 11.08.2026:** TG1, TG2 и TG3 закрыты кодом и доказаны DB4 на
-PostgreSQL 16 и 17. TG4 (настоящий бот, настоящая группа) не проводился —
-внешних учётных данных нет, статус `TG4_BLOCKED_EXTERNAL_CREDENTIALS`.
-Формулировка «staging proven» до реального прогона не применяется.
+**Состояние гейтов на 11.08.2026 — единая редакция для обоих брендов.**
 
-**Шаг 4 в P0 без LLM.** Классификатор детерминированный, `origin = 'rule'`.
-Схема кандидата уже различает `rule` и `ai`, поэтому появление модели позже не
-меняет ни контракта, ни границы: человек в обоих случаях видит, откуда взялось
-предложение, и утверждает сам. Оценка `metered_ai` остаётся верной для будущей
-редакции шага, а не для нынешней.
+| Гейт | Статус |
+|---|---|
+| TG0 | PASS |
+| TG1 | **REOPENED** — до принятия C1 Foundation Correction |
+| TG2 | **REOPENED** |
+| TG3 | **NOT PROVEN** |
+| TG4 | BLOCKED_EXTERNAL_CREDENTIALS |
+| production | disabled |
+| M4 Increment 2 | closed |
+
+Что из прежних формулировок было неверно и снято:
+
+- «TG1/TG2/TG3 proven» — не соответствовало коду;
+- «TG3 доказан DB4» — DB4 доказывает контракт базы и не доказывает вертикаль:
+  в слитом коде **нет вызова `create_change`**, а браузерного прогона не было;
+- «P0 окончательно работает без LLM» — правил недостаточно, обязательное
+  извлечение через существующую абстракцию `lib/llm/provider.ts` строится в C3;
+- «rule classifier заменяет extraction worker» — не заменяет: правила остаются
+  **необязательным дешёвым префильтром**;
+- «binding сразу active» — связь рождается `notice_pending` и становится
+  `active` только после публикации уведомления участникам.
+
+AP5 в этих прогонах **skipped** и о TG3 не доказывает ничего. Вертикаль M3 → M4
+ниже описана как **целевая**, а не как достигнутая.
 
 | # | Action | cost_class | Human gate | Output |
 |---:|---|---|---|---|
 | 1 | link_telegram_identity | free_deterministic | вход в RemHaOS + одноразовый intent | ChannelIdentityLink |
-| 2 | bind_project_chat | free_deterministic | `manage_project_integrations` + admin группы | ProjectChannelBinding (active) |
+| 2 | bind_project_chat | free_deterministic | `manage_project_integrations` + admin группы (инициатор И бот) | ProjectChannelBinding (`notice_pending` → `active` после уведомления) — ЕДИНСТВЕННАЯ живая связь чата и проекта |
+| 2a | terminate_pending_binding | free_deterministic | — (системный adapter; отказ, который повтор не лечит) | ProjectChannelBinding (`suspended`/`revoked`), чат и проект освобождены |
 | 3 | ingest_channel_update | free_deterministic | — (системный adapter) | ChannelEvent (+ ChannelAttachment) |
-| 4 | extract_candidate | free_deterministic в P0 | — (система ничего не утверждает) | ProjectInboxCandidate (pending) |
+| 4 | extract_candidate | metered_ai (C3) | — (система ничего не утверждает) | ProjectInboxCandidate (pending) |
 | 5 | review_candidate | free_deterministic | **человек в RemHaOS** | подтверждён / отклонён |
 | 6 | существующая команда модуля | по модулю | человеческая сессия | ChangeRequest и др. официальные объекты |
 | 7 | notify_release_distributed | free_deterministic | — (исходящее уведомление) | сообщение в чат + защищённый deep link |

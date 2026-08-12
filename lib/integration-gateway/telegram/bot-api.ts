@@ -55,7 +55,12 @@ function classify(errorCode: number, retryAfter: number | undefined): TelegramCa
       retryAfterSeconds: Math.min(Math.max(retryAfter ?? 30, 1), 3600),
     };
   }
-  if (errorCode === 403 || errorCode === 400) {
+  // 401 — недействительный токен бота. Повтор его не исправит и не должен
+  // создавать вид работы: ретраить `Unauthorized` значит долбиться в закрытую
+  // дверь чужим ключом, пока кто-нибудь не заметит тишину. Прежняя редакция
+  // относила 401 к общей ветке «попробуем ещё раз» — вместе с 500 и 502, у
+  // которых причина ровно противоположная.
+  if (errorCode === 403 || errorCode === 401 || errorCode === 400) {
     return { ok: false, failureCode: `tg_${errorCode}`, retryable: false, retryAfterSeconds: 0 };
   }
   return { ok: false, failureCode: `tg_${errorCode}`, retryable: true, retryAfterSeconds: 60 };
@@ -140,6 +145,16 @@ export class TelegramBotApi {
       user_id: input.userId,
     });
   }
+
+  /**
+   * Кто сам бот. Нужен ровно для одного вопроса — администратор ли он в этой
+   * группе: privacy mode включён глобально, и бот без прав администратора не
+   * увидит переписку. Связь, созданная в таком чате, была бы связью, которая
+   * ничего не принимает, а человек узнал бы об этом только по тишине.
+   */
+  async getMe(): Promise<TelegramCallOutcome> {
+    return this.call("getMe", {});
+  }
 }
 
 const CHAT_MEMBER_SCHEMA = z.object({ status: z.string() });
@@ -149,6 +164,12 @@ export function isChatAdministrator(result: unknown): boolean {
   const parsed = CHAT_MEMBER_SCHEMA.safeParse(result);
   if (!parsed.success) return false;
   return parsed.data.status === "creator" || parsed.data.status === "administrator";
+}
+
+/** Числовой идентификатор бота из ответа `getMe`. */
+export function extractBotUserId(result: unknown): number | null {
+  const parsed = z.object({ id: z.number().int().positive() }).safeParse(result);
+  return parsed.success ? parsed.data.id : null;
 }
 
 export function extractSentMessageId(result: unknown): number | null {

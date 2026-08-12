@@ -29,11 +29,16 @@ const squash = (value: string): string => value.replace(/\s+/g, "");
 const OPERATION_MIGRATIONS = [
   "supabase/migrations/20260811050000_remhaos_channel_bridge_operations.sql",
   "supabase/migrations/20260811060000_remhaos_channel_bridge_inbox.sql",
+  // Исправление фундамента (CORRECTIVE GO 11.08.2026): часть системных дверей
+  // здесь пересоздана с новой сигнатурой, и грант живёт вместе с ними. Список,
+  // не включающий эту миграцию, сверял бы матрицу с уже неверной половиной.
+  "supabase/migrations/20260811070000_remhaos_channel_bridge_correction.sql",
 ] as const;
 
 const DB4_SCENARIOS = [
   "tests/db4/42_telegram_bridge_boundary.sql",
   "tests/db4/43_telegram_inbox_vertical.sql",
+  "tests/db4/44_telegram_bridge_correction.sql",
 ] as const;
 
 const operationSources = OPERATION_MIGRATIONS.map(read);
@@ -135,6 +140,39 @@ describe("Telegram bridge surface matrix", () => {
     for (const signature of TELEGRAM_BRIDGE_SYSTEM_SIGNATURES) {
       expect(scenarios, signature).toContain(squash(signature));
     }
+  });
+
+  it("keeps every bridge harness wired into the DB4 runner", () => {
+    // Апгрейд населённой базы живёт в отдельном скрипте, потому что ему нужен
+    // собственный кластер: prelude заводит роли Supabase на весь сервер.
+    // Отдельный файл легко забыть позвать — и он молча перестанет что-либо
+    // доказывать, оставаясь в репозитории как свидетельство обратного.
+    const runner = read("tests/db4/run.zsh");
+    expect(runner).toContain("run-telegram-concurrency.zsh");
+    expect(runner).toContain("run-telegram-upgrade.zsh");
+    expect(runner).toContain("47_telegram_pending_ambiguity.sql");
+
+    // Гонки обязаны доказывать ожидание на НАСТОЯЩЕМ замке, а не одновременный
+    // подход к старту: сессия удерживает транзакцию открытой, и пересечение
+    // подтверждается строкой `granted = false` в `pg_locks` на том же ключе.
+    const races = read("tests/db4/run-telegram-concurrency.zsh");
+    expect(races).toContain("pg_locks");
+    expect(races).toContain("not granted");
+    expect(races).toContain("DB4_TGC_REAL_LOCK_CONTENDED");
+    // `sleep` допустим только как шаг опроса внутри ожидания условия — в
+    // качестве синхронизации он означал бы «наверное, успели».
+    expect(races).not.toMatch(/^\s*sleep\s/m);
+    const upgrade = read("tests/db4/run-telegram-upgrade.zsh");
+    for (const scenario of [
+      "45_telegram_bridge_upgrade_seed.sql",
+      "46_telegram_bridge_upgrade_assert.sql",
+    ]) {
+      expect(upgrade, scenario).toContain(scenario);
+    }
+    // Порядок — весь смысл прогона: живые строки заводятся ДО корректирующей
+    // миграции, иначе он повторял бы основной DB4 и ничего нового не говорил.
+    expect(upgrade.indexOf("45_telegram_bridge_upgrade_seed.sql"))
+      .toBeLessThan(upgrade.indexOf("46_telegram_bridge_upgrade_assert.sql"));
   });
 
   it("introduces exactly one capability, and only for the project owner", () => {
