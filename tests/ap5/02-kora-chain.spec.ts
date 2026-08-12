@@ -367,12 +367,14 @@ test.describe("AP5 — цепочка Kora на живом стеке", () => {
    * называть именно это. Сказать `module_disabled` при включённом модуле
    * значило бы соврать о состоянии системы.
    */
-  test("8. модуль включён, но инкремент 2 закрыт — и назван своей причиной", async ({ browser }) => {
+  test("8. модуль включён, но неавторизованное закрыто — и названо своей причиной", async ({ browser }) => {
     const owner = await requestAs(browser, "owner");
     const operations = (await workspace(owner)).operations;
 
+    // Четыре команды вертикалей V2 и V3 не авторизованы ничем, и причина обязана
+    // называть именно это, а не отсутствие предпосылок: предпосылки тут ни при
+    // чём, их не открывал ни один документ.
     for (const kind of [
-      "review_change_impact",
       "upload_photo_evidence",
       "review_photo_evidence",
       "accept_milestone",
@@ -380,6 +382,16 @@ test.describe("AP5 — цепочка Kora на живом стеке", () => {
     ]) {
       expect(operations[kind]?.status, kind).toBe("unavailable");
       expect(operations[kind]?.reason, kind).toBe("increment_not_authorized");
+    }
+
+    // А вот команды вертикали V1 с 12.08.2026 АВТОРИЗОВАНЫ, и их недоступность
+    // здесь — другого рода: прогона влияния ещё нет (звено 12 его создаст).
+    // Разница в причине и есть предмет проверки: назвать открытую команду
+    // «неавторизованной» значило бы соврать о состоянии продукта ровно так же,
+    // как назвать закрытую «недостающей предпосылкой».
+    for (const kind of ["review_change_impact", "acknowledge_impact_truncation"]) {
+      expect(operations[kind]?.status, kind).toBe("unavailable");
+      expect(operations[kind]?.reason, kind).toBe("prerequisite_missing");
     }
 
     // Поверхность — половина запрета. Вторая половина в том, что команда,
