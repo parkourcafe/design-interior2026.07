@@ -67,14 +67,14 @@ function revisionFor(
   title: string,
   bindingSourceId?: string,
 ): RevisionSpec {
-  // Полезная нагрузка несёт nodeId — иначе много ревизий с одинаковым `{}`
-  // получили бы одинаковый digest, а «разное содержимое» перестало бы быть
-  // правдой. Для узла, несущего привязку источника (`kind: 'source'`),
-  // payload ОБЯЗАН содержать `sourceId`, совпадающий с `source.sourceId`:
+  // Для узла, несущего привязку источника (`kind: 'source'`), payload обязан
+  // содержать `schemaVersion` и `sourceId`, совпадающий с `source.sourceId`:
   // `ingest_source_graph` сверяет их и отвечает `SOURCE_REVISION_BINDING_INVALID`,
   // если полезная нагрузка ревизии этого не подтверждает (проверено на живом
-  // стеке — без этого поля привязка не проходит ни при какой форме остального).
-  const payload = bindingSourceId ? { nodeId, sourceId: bindingSourceId } : { nodeId };
+  // стеке и в provision-kora.ts, 287–290 — без этих полей привязка не проходит).
+  const payload = bindingSourceId
+    ? { schemaVersion: "project-ceo/source-metadata/0.1", sourceId: bindingSourceId }
+    : { schemaVersion: "project-ceo/source-metadata/0.1" };
   return {
     revisionId,
     nodeId,
