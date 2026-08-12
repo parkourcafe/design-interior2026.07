@@ -50,7 +50,11 @@ interface Call {
   readonly args: Readonly<Record<string, unknown>>;
 }
 
-/** Отказ в той форме, в какой его отдаёт `_raise`: причина живёт в DETAIL. */
+/**
+ * Отказ в той форме, в какой его отдаёт `_raise`: причина живёт в DETAIL.
+ * `P1110` — «переход невозможен» (например, прогон уже посчитан), `P1111` —
+ * отказ валидации.
+ */
 function refusal(reason: string, sqlstate = "P1111") {
   return {
     code: sqlstate,
@@ -69,6 +73,7 @@ function fakeClient(
   options: {
     readonly rows?: readonly ChangeImpactBacklogRow[];
     readonly failWith?: { readonly code: string; readonly message: string; readonly details?: string };
+    readonly truncation?: "depth_limit" | "result_limit";
     readonly store?: Set<string>;
   } = {},
 ): PostgresRpcClient {
@@ -92,7 +97,11 @@ function fakeClient(
               operation: "calculate_change_impact",
               replay,
               stateRevision: 10,
-              result: { impactRunId: "impact-run-1" },
+              result: {
+                id: "impact-run-1",
+                isTruncated: options.truncation !== undefined,
+                truncationReason: options.truncation ?? null,
+              },
             },
             error: null,
           };
@@ -206,7 +215,9 @@ describe("change impact worker — a single pass", () => {
    */
   it("reads IMPACT_ALREADY_CALCULATED as done", async () => {
     const result = await runChangeImpactWorker({
-      client: fakeClient([], { failWith: refusal("IMPACT_ALREADY_CALCULATED") }),
+      client: fakeClient([], {
+        failWith: refusal("IMPACT_ALREADY_CALCULATED", "P1110"),
+      }),
     });
     expect(result).toMatchObject({ alreadyPresent: 1, needsAttention: 0 });
   });
@@ -223,21 +234,42 @@ describe("change impact worker — a single pass", () => {
   });
 });
 
-describe("change impact worker — refusals stay visible", () => {
-  it("counts a depth truncation as needing a human", async () => {
+describe("change impact worker — an incomplete run still needs a human", () => {
+  /**
+   * Решение владельца от 12.08.2026: граница больше не отказ, а частичный
+   * результат с признаком. Для воркера это НЕ «посчитано и свободен»: закрыть
+   * такой прогон без подтверждения архитектора нельзя, значит человек нужен, и
+   * проход обязан это назвать.
+   */
+  it("counts a depth-truncated run as needing a human", async () => {
     const result = await runChangeImpactWorker({
-      client: fakeClient([], { failWith: refusal("IMPACT_DEPTH_TRUNCATED") }),
+      client: fakeClient([], { truncation: "depth_limit" }),
     });
-    expect(result).toMatchObject({ depthTruncated: 1, calculated: 0 });
-    // Заявка осталась без прогона и сама его не получит — это не «уже готово».
-    expect(result.needsAttention).toBe(1);
+    expect(result).toMatchObject({
+      scanned: 1,
+      calculated: 0,
+      calculatedTruncated: 1,
+      needsAttention: 1,
+    });
+    expect(result.items[0]?.truncationReason).toBe("depth_limit");
   });
 
-  it("counts an impact wider than the run limit as needing a human", async () => {
+  it("counts a result-limited run the same way", async () => {
     const result = await runChangeImpactWorker({
-      client: fakeClient([], { failWith: refusal("IMPACT_RESULT_LIMIT_EXCEEDED") }),
+      client: fakeClient([], { truncation: "result_limit" }),
     });
-    expect(result).toMatchObject({ limitExceeded: 1, needsAttention: 1 });
+    expect(result).toMatchObject({ calculatedTruncated: 1, needsAttention: 1 });
+    expect(result.items[0]?.truncationReason).toBe("result_limit");
+  });
+
+  it("leaves a complete run out of the attention count", async () => {
+    const result = await runChangeImpactWorker({ client: fakeClient([]) });
+    expect(result).toMatchObject({
+      calculated: 1,
+      calculatedTruncated: 0,
+      needsAttention: 0,
+    });
+    expect(result.items[0]?.truncationReason).toBeNull();
   });
 
   /**
@@ -277,14 +309,14 @@ describe("change impact worker — refusals stay visible", () => {
             };
           }
           if (args.change_request_id === changeRequestId) {
-            return { data: null, error: refusal("IMPACT_DEPTH_TRUNCATED") };
+            return { data: null, error: { code: "P1104", message: "not_found" } };
           }
           return {
             data: {
               operation: "calculate_change_impact",
               replay: false,
               stateRevision: 10,
-              result: { impactRunId: "impact-run-2" },
+              result: { id: "impact-run-2", isTruncated: false, truncationReason: null },
             },
             error: null,
           };
@@ -293,7 +325,7 @@ describe("change impact worker — refusals stay visible", () => {
     } as unknown as PostgresRpcClient;
 
     const result = await runChangeImpactWorker({ client });
-    expect(result).toMatchObject({ scanned: 2, calculated: 1, depthTruncated: 1 });
+    expect(result).toMatchObject({ scanned: 2, calculated: 1, unresolved: 1 });
   });
 
   it("fails loudly when the backlog envelope breaks its contract", async () => {

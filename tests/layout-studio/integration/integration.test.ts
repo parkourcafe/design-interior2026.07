@@ -251,6 +251,9 @@ describe("Layout Studio delivery/UI slice", () => {
       // (DEC-032, OWNER M4 IMPLEMENTATION GO на V1). Права только у
       // `service_role`. К Layout Studio отношения не имеет.
       "20260812010000_projectceo_m4_impact_worker_read.sql",
+      // Усечение расчёта влияния становится данными вместо отказа (решение
+      // владельца 12.08.2026). К Layout Studio отношения не имеет.
+      "20260812020000_projectceo_m4_impact_truncation.sql",
     ];
     const actual = readdirSync(join(repoRoot, "supabase/migrations"), { withFileTypes: true })
       .filter((entry) => entry.isFile())

@@ -168,6 +168,24 @@ export const M4_SURFACE: readonly M4SurfaceRow[] = [
     ],
   },
   {
+    // Подтверждение неполноты. Инкрементом A6 не классифицировалась вовсе —
+    // команды тогда не существовало; относится к V1 и открыта тем же
+    // решением владельца, что и рассмотрение.
+    command: "acknowledge_impact_truncation",
+    increment: 2,
+    offState: "module_disabled",
+    onState: "precondition_driven",
+    rpcs: [
+      {
+        schema: "projectceo_m4_api",
+        name: "acknowledge_impact_truncation",
+        signature: "projectceo_m4_api.acknowledge_impact_truncation(uuid, uuid, text, bigint, text)",
+        sharing: "m4_only",
+        closure: "enabled_by_environment_script",
+      },
+    ],
+  },
+  {
     command: "upload_photo_evidence",
     increment: 2,
     offState: "module_disabled",

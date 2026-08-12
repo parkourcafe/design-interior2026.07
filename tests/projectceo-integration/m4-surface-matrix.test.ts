@@ -37,8 +37,11 @@ describe("M4 surface matrix", () => {
     expect([...M4_SURFACE_COMMANDS].sort()).toEqual([...EXECUTION_MODULE].sort());
     expect(M4_SURFACE.filter((row) => row.increment === 1).map((row) => row.command).sort())
       .toEqual([...EXECUTION_INCREMENT_1].sort());
+    // Во втором инкременте живут и команды, которых A6 не классифицировал
+    // вовсе: `acknowledge_impact_truncation` появилась вместе с решением об
+    // усечении и относится к тому же неавторизованному-по-A6 ярусу.
     expect(M4_SURFACE.filter((row) => row.increment === 2).map((row) => row.command).sort())
-      .toEqual([...EXECUTION_INCREMENT_2].sort());
+      .toEqual([...new Set([...EXECUTION_INCREMENT_2, ...EXECUTION_V1_IMPACT])].sort());
   });
 
   /**

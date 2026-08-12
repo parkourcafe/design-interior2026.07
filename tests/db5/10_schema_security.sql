@@ -152,7 +152,10 @@ begin
     -- V1 Impact (OWNER M4 IMPLEMENTATION GO 12.08.2026): две воркерные
     -- двери расчёта влияния. Человеческих команд у них нет.
     ('projectceo_m4_api.calculate_change_impact_policy_bound(uuid,uuid,bigint,text)'),
-    ('projectceo_m4_api.list_change_impact_backlog(integer)')
+    ('projectceo_m4_api.list_change_impact_backlog(integer)'),
+    -- Подтверждение неполноты прогона архитектором (OWNER DECISION 12.08.2026
+    -- об усечении, п. 3). Человеческая RPC; права выдаёт только скрипт среды.
+    ('projectceo_m4_api.acknowledge_impact_truncation(uuid,uuid,text,bigint,text)')
   ) expected(signature)
   where to_regprocedure(expected.signature) is null
   limit 1;
@@ -170,8 +173,11 @@ begin
   -- `replay_*` (`20260718124958`). Стало 17: V1 Impact добавил
   -- `calculate_change_impact_policy_bound` и `list_change_impact_backlog`
   -- (`20260812010000`, OWNER M4 IMPLEMENTATION GO на V1 от 12.08.2026 поверх
-  -- DEC-032). Восемнадцатая функция без нового решения обязана уронить прогон.
-  if v_count <> 17 then
+  -- DEC-032). Стало 18: решение владельца об усечении от 12.08.2026 добавило
+  -- `acknowledge_impact_truncation` (`20260812020000`) — без неё усечённый
+  -- прогон был бы тупиком, который нельзя закрыть никогда. Девятнадцатая
+  -- функция без нового решения обязана уронить прогон.
+  if v_count <> 18 then
     raise exception 'DB5_UNEXPECTED_RPC_COUNT:%', v_count;
   end if;
 

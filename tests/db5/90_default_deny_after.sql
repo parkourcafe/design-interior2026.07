@@ -5,8 +5,8 @@
 -- Позитивная цепочка прошла целиком — значит движок инкремента 2 работает. Это
 -- половина доказательства. Вторая половина в том, что доказали мы его НЕ ценой
 -- открытия: `anon`, `authenticated` и `service_role` не получили ни одного
--- права инкремента 2, а тестовая роль не разрослась за пределы выданных шести
--- функций.
+-- неавторизованного права, а тестовая роль не разрослась за пределы выданных
+-- семи функций.
 --
 -- Проверка стоит в конце намеренно. Между `06_...` и этим файлом успели
 -- отработать все сценарии, конкурентный прогон и перезапуск базы: если бы
@@ -53,7 +53,8 @@ begin
   from unnest(array['anon', 'service_role']) role_name
   cross join unnest(array[
     'projectceo_m4_api.review_change_impact(uuid, uuid, text, text, text, bigint, text)',
-    'projectceo_m4_api.replay_review_change_impact(uuid, uuid, text, text, text, text)'
+    'projectceo_m4_api.replay_review_change_impact(uuid, uuid, text, text, text, text)',
+    'projectceo_m4_api.acknowledge_impact_truncation(uuid, uuid, text, bigint, text)'
   ]) signature
   where pg_catalog.has_function_privilege(role_name, signature, 'EXECUTE')
   limit 1;
@@ -64,7 +65,8 @@ begin
   select signature into v_missing
   from unnest(array[
     'projectceo_m4_api.review_change_impact(uuid, uuid, text, text, text, bigint, text)',
-    'projectceo_m4_api.replay_review_change_impact(uuid, uuid, text, text, text, text)'
+    'projectceo_m4_api.replay_review_change_impact(uuid, uuid, text, text, text, text)',
+    'projectceo_m4_api.acknowledge_impact_truncation(uuid, uuid, text, bigint, text)'
   ]) signature
   where not pg_catalog.has_function_privilege('authenticated', signature, 'EXECUTE')
   limit 1;
@@ -73,7 +75,7 @@ begin
   end if;
 
   -- 2. Поверхность `authenticated` в схеме модуля исчерпывающая, а не
-  --    выборочная: ровно пять функций — инкремент 1 и его replay-обёртка,
+  --    выборочная: ровно шесть функций — инкремент 1 и его replay-обёртка,
   --    читающая RPC рабочего пространства и две двери V1, открытые скриптами
   --    среды. Проверка по счётчику ловит и то, чего сегодня нет: функция,
   --    добавленная в схему завтра и выданная по недосмотру, уронит прогон.
@@ -87,7 +89,8 @@ begin
       'submit_change_request', 'replay_submit_change_request',
       'get_execution_delivery',
       -- Открыты GO на V1 (`enable-m4-v1-impact.sql`).
-      'review_change_impact', 'replay_review_change_impact'
+      'review_change_impact', 'replay_review_change_impact',
+      'acknowledge_impact_truncation'
     )
   limit 1;
   if v_reachable is not null then
@@ -140,9 +143,11 @@ begin
     raise exception 'DB5_ANON_REACHED_MODULE:%', v_reachable;
   end if;
 
-  -- 5. Тестовая роль не разрослась: те же шесть ЯВНЫХ грантов на функции и ни
-  --    одного табличного. Счётчик говорит про записи ACL, а не про то, сколько
-  --    функций роль вообще способна вызвать.
+  -- 5. Тестовая роль не разрослась: те же семь ЯВНЫХ грантов на функции и ни
+  --    одного табличного. Седьмой появился вместе с подтверждением неполноты
+  --    прогона (`acknowledge_impact_truncation`, решение об усечении 12.08).
+  --    Счётчик говорит про записи ACL, а не про то, сколько функций роль
+  --    вообще способна вызвать.
   select oid into v_role_oid
   from pg_catalog.pg_roles
   where rolname = 'pi_db5_execution_tester';
@@ -157,7 +162,7 @@ begin
     pg_catalog.acldefault('f'::"char", procedure.proowner)
   )) acl
   where acl.grantee = v_role_oid;
-  if v_count <> 6 then
+  if v_count <> 7 then
     raise exception 'DB5_TEST_ROLE_EXPLICIT_FUNCTION_ACL_COUNT_AFTER_RUN:%', v_count;
   end if;
 

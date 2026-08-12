@@ -102,9 +102,13 @@ describe("M4 execution guardrail", () => {
       "Команда добавлена или удалена в командном контракте. Отнесите её к "
       + "инкременту 1, инкременту 2 или к «не модуль 4» в execution-flag.ts, "
       + "затем обновите это число.",
-    ).toBe(32);
+    ).toBe(33);
 
-    const declared = [...EXECUTION_INCREMENT_1, ...EXECUTION_INCREMENT_2];
+    const declared = [...new Set([
+      ...EXECUTION_INCREMENT_1,
+      ...EXECUTION_INCREMENT_2,
+      ...EXECUTION_V1_IMPACT,
+    ])];
     // Каждая классифицированная команда действительно существует в контракте:
     // опечатка в имени иначе тихо выключила бы запрет для настоящей команды.
     for (const kind of declared) {
@@ -113,7 +117,10 @@ describe("M4 execution guardrail", () => {
     // Инкременты не пересекаются и вместе покрывают модуль целиком.
     expect(new Set(declared).size).toBe(declared.length);
     expect(EXECUTION_MODULE.size).toBe(declared.length);
-    expect(declared.length).toBe(8);
+    // Было 8 — три команды инкремента 1 и пять инкремента 2. Стало 9:
+    // решение владельца об усечении от 12.08.2026 добавило
+    // `acknowledge_impact_truncation`, которой в классификации A6 не было.
+    expect(declared.length).toBe(9);
   });
 
   /**

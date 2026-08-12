@@ -786,6 +786,23 @@ function m4Views(envelopes: readonly ExecutionDeliveryEnvelope[]): {
         requestedAt: timestamp(request.requestedAt),
         impactCount: impacts.length,
         reviewedImpactCount: reviewed,
+        impactRunId,
+        impactTruncated: impactRun?.isTruncated === true,
+        impactTruncationReason: impactRun?.truncationReason === "depth_limit"
+          || impactRun?.truncationReason === "result_limit"
+          ? impactRun.truncationReason
+          : null,
+        impactTruncationAcknowledged: impactRun?.truncationAcknowledged === true,
+        impactCalculatedDepth: typeof impactRun?.calculatedDepth === "number"
+          ? impactRun.calculatedDepth
+          : null,
+        impactPolicyMaxDepth: typeof impactRun?.policyMaxDepth === "number"
+          ? impactRun.policyMaxDepth
+          : null,
+        // Признак приходит из базы, а не собирается здесь: считать его заново
+        // в интерфейсе значило бы завести второй источник истины о том, что
+        // считается завершённым.
+        impactReviewComplete: impactRun?.reviewComplete === true,
         reason: text(request.reason, copy.common.dash),
         impacts: impactRunId ? impacts.flatMap((impact) => {
           const impactId = nullableText(impact.id);
@@ -1007,6 +1024,10 @@ function operationStates(input: {
     ))?.productionPackageVersionId,
   );
   let unreviewedImpactId: string | null = null;
+  // Прогон, у которого неполнота ещё не подтверждена. Предпосылка команды
+  // подтверждения — именно он, а не нерассмотренная карточка: подтверждать
+  // можно и после того, как разобраны все.
+  let unacknowledgedTruncatedRunId: string | null = null;
   let uploadMilestoneId: string | null = null;
   let undecidedPhotoId: string | null = null;
   let acceptableMilestoneId: string | null = null;
@@ -1098,6 +1119,9 @@ function operationStates(input: {
   );
   for (const envelope of input.m4) {
     for (const run of envelope.data.impactRuns) {
+      if (run.isTruncated === true && run.truncationAcknowledged !== true) {
+        unacknowledgedTruncatedRunId ??= nullableText(run.id);
+      }
       for (const impact of rows(run.impacts)) {
         if (!nullableText(impact.disposition)) {
           unreviewedImpactId ??= nullableText(impact.id);
@@ -1260,6 +1284,16 @@ function operationStates(input: {
       ? unreviewedImpactId ? {
           status: "available",
           commandTargetId: unreviewedImpactId,
+        } : unavailable("prerequisite_missing")
+      : unavailable("capability_missing"),
+    // Подтверждает тот же человек и по той же capability: это продолжение
+    // рассмотрения, а не отдельное полномочие. Предпосылка — существование
+    // усечённого неподтверждённого прогона; на полном прогоне подтверждать
+    // нечего, и сервер такой вызов отклоняет (`IMPACT_NOT_TRUNCATED`).
+    acknowledge_impact_truncation: can(input.role, "review_change_impact")
+      ? unacknowledgedTruncatedRunId ? {
+          status: "available",
+          commandTargetId: unacknowledgedTruncatedRunId,
         } : unavailable("prerequisite_missing")
       : unavailable("capability_missing"),
     upload_photo_evidence: can(input.role, "upload_photo_evidence")

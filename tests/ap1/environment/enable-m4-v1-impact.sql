@@ -12,8 +12,10 @@
 -- `REMHAOS_A6_CLARIFICATION_M4_EXECUTION_LAYER_2026-08-12.md` §5. До него ни
 -- одна команда инкремента 2 не открывалась ни в одной среде.
 --
--- Открывается РОВНО одна команда — рассмотрение готового прогона влияния — и
--- обе её двери (прямая и повторная). Четыре оставшиеся команды инкремента 2
+-- Открываются РОВНО две команды вертикали: рассмотрение готового прогона
+-- влияния (обе двери, прямая и повторная) и подтверждение его неполноты.
+--
+-- Четыре оставшиеся команды инкремента 2
 -- (`upload_photo_evidence`, `review_photo_evidence`, `accept_milestone`,
 -- `build_handover`) этот скрипт не открывает: их вертикали V2 и V3 остаются
 -- `NOT AUTHORIZED`.
@@ -45,7 +47,11 @@ begin;
 
 grant execute on function
   projectceo_m4_api.review_change_impact(uuid, uuid, text, text, text, bigint, text),
-  projectceo_m4_api.replay_review_change_impact(uuid, uuid, text, text, text, text)
+  projectceo_m4_api.replay_review_change_impact(uuid, uuid, text, text, text, text),
+  -- Подтверждение неполноты прогона (решение владельца об усечении от
+  -- 12.08.2026). Без него усечённый прогон нельзя закрыть, то есть открытая
+  -- `review_change_impact` вела бы в тупик.
+  projectceo_m4_api.acknowledge_impact_truncation(uuid, uuid, text, bigint, text)
   to authenticated;
 
 do $enabled$
@@ -56,7 +62,8 @@ begin
   select signature into v_missing
   from unnest(array[
     'projectceo_m4_api.review_change_impact(uuid, uuid, text, text, text, bigint, text)',
-    'projectceo_m4_api.replay_review_change_impact(uuid, uuid, text, text, text, text)'
+    'projectceo_m4_api.replay_review_change_impact(uuid, uuid, text, text, text, text)',
+    'projectceo_m4_api.acknowledge_impact_truncation(uuid, uuid, text, bigint, text)'
   ]) signature
   where not pg_catalog.has_function_privilege('authenticated', signature, 'EXECUTE')
   limit 1;

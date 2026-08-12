@@ -39,7 +39,8 @@ begin
       -- Открыты `enable-m4-v1-impact.sql` по GO на вертикаль V1 от 12.08.2026.
       -- Сценарий стоит после него, поэтому наблюдает среду с открытым V1.
       'review_change_impact',
-      'replay_review_change_impact'
+      'replay_review_change_impact',
+      'acknowledge_impact_truncation'
     ])
     and pg_catalog.has_function_privilege('authenticated', p.oid, 'EXECUTE')
   limit 1;

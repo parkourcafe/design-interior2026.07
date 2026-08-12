@@ -75,6 +75,10 @@ export const EXECUTION_INCREMENT_2 = [
  */
 export const EXECUTION_V1_IMPACT = [
   "review_change_impact",
+  // Подтверждение неполноты прогона. Открыто тем же GO и тем же решением
+  // владельца об усечении: без него усечённый прогон невозможно закрыть, то
+  // есть открытая `review_change_impact` вела бы в тупик.
+  "acknowledge_impact_truncation",
 ] as const;
 
 /**
@@ -84,6 +88,11 @@ export const EXECUTION_V1_IMPACT = [
 export const EXECUTION_MODULE: ReadonlySet<ProjectCeoCommand["kind"]> = new Set([
   ...EXECUTION_INCREMENT_1,
   ...EXECUTION_INCREMENT_2,
+  // V1 добавил команду, которой в классификации A6 не было вовсе
+  // (`acknowledge_impact_truncation`). Без этой строки она не попадала бы под
+  // флаг модуля — то есть жила бы при выключенном M4, чего не должно быть ни
+  // у одной команды модуля. Множество, поэтому пересечение безвредно.
+  ...EXECUTION_V1_IMPACT,
 ] as readonly ProjectCeoCommand["kind"][]);
 
 /** Открыто подписью A6. Живёт только при включённом флаге. */

@@ -14,11 +14,11 @@
 // Идентичность — только service role: обе RPC (очередь и расчёт) выданы
 // `service_role` и никому больше.
 //
-// КОД ВОЗВРАТА. Ненулевой, если проход оставил заявки без прогона по отказу
-// (усечение по глубине, превышение лимита, неразрешимый baseline). Такие
-// заявки сами прогон не получат — их обязан увидеть человек, а не следующий
-// проход. Гонка (`stale_state`) и «уже готово» кодом возврата не считаются:
-// это нормальные исходы, и следующий проход их доберёт.
+// КОД ВОЗВРАТА. Ненулевой, если проход оставил работу человеку: частичный
+// прогон (его нельзя закрыть без подтверждения архитектора) или неразрешимый
+// baseline. Следующий проход этого не доберёт — нужен человек. Гонка
+// (`stale_state`) и «уже готово» кодом возврата не считаются: это нормальные
+// исходы, и следующий проход их доберёт сам.
 
 import { config } from "dotenv";
 import { createClient } from "@supabase/supabase-js";
@@ -55,10 +55,9 @@ async function main(): Promise<void> {
     policy: result.policy,
     scanned: result.scanned,
     calculated: result.calculated,
+    calculatedTruncated: result.calculatedTruncated,
     alreadyPresent: result.alreadyPresent,
     staleState: result.staleState,
-    depthTruncated: result.depthTruncated,
-    limitExceeded: result.limitExceeded,
     unresolved: result.unresolved,
     needsAttention: result.needsAttention,
     // Идентификаторы проектов и заявок — не PII; имён, контактов и текста

@@ -40,7 +40,9 @@ declare
     'projectceo_m4_api.replay_review_photo_evidence(uuid, uuid, text, text, text)',
     'projectceo_m4_api.accept_milestone(uuid, uuid, bigint, text)',
     'projectceo_m4_api.replay_accept_milestone(uuid, uuid, text)',
-    'projectceo_m4_api.build_construction_handover(uuid, uuid, text, bigint, text)'
+    'projectceo_m4_api.build_construction_handover(uuid, uuid, text, bigint, text)',
+    -- Подтверждение неполноты прогона (решение владельца об усечении 12.08).
+    'projectceo_m4_api.acknowledge_impact_truncation(uuid, uuid, text, bigint, text)'
   ];
   -- Функции схемы, у которых человеческой команды нет вовсе.
   v_non_commands text[] := array[

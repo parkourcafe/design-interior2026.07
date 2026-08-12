@@ -19,11 +19,14 @@
  *     `IMPACT_ALREADY_CALCULATED`, либо `idempotency_conflict` — оба исхода для
  *     воркера успех, а не ошибка.
  *   * **Пустая очередь — no-op.** Ни одного вызова записи.
- *   * **Отказ не тонет.** Три исхода — усечение по глубине, превышение лимита и
- *     неразрешимый baseline — означают, что заявка НИКОГДА не получит прогон
- *     сама. Они считаются отдельно и поднимаются в отчёт: молча положить их
- *     рядом с «уже готово» значило бы отчитаться об успехе прохода, после
- *     которого рассматривать по-прежнему нечего.
+ *   * **Неполнота не тонет.** С решением владельца от 12.08.2026 расчёт больше
+ *     не отказывается при достижении границы: он сохраняет частичный результат
+ *     и помечает его (`isTruncated`, `truncationReason`). Такой прогон
+ *     рассматривать можно, но ЗАКРЫТЬ нельзя без подтверждения архитектора —
+ *     значит человек всё равно нужен, и воркер обязан это назвать. Он и
+ *     неразрешимый baseline считаются отдельно и поднимаются в отчёт: молча
+ *     положить их рядом с «уже готово» значило бы отчитаться об успехе
+ *     прохода, после которого работа человека всё ещё требуется.
  *
  * ЧЕГО ЗДЕСЬ НЕТ. Ни вех, ни фото, ни сборки передачи: V1 открывает один
  * воркер. Ни одного HTTP-маршрута — воркер запускается процессом, а не
@@ -44,27 +47,28 @@ import {
 } from "./planner";
 
 export type ChangeImpactOutcome =
-  /** Влияние посчитано этим вызовом. */
+  /** Влияние посчитано этим вызовом целиком. */
   | "calculated"
+  /**
+   * Влияние посчитано, но частично: обход упёрся в глубину политики или в
+   * лимит результата. Прогон существует и рассматривается, однако закрыть его
+   * без подтверждения архитектора нельзя.
+   */
+  | "calculated_truncated"
   /** Прогон уже существовал — его сделал прошлый проход или сосед. */
   | "already_present"
   /** Состояние проекта сдвинулось между чтением очереди и расчётом. */
   | "stale_state"
-  /** Отказ: на глубину политики результат был бы усечён (нужен человек). */
-  | "depth_truncated"
-  /** Отказ: влияние шире лимита прогона (нужен человек). */
-  | "limit_exceeded"
   /** Отказ: baseline заявки не разрешается (нужен человек). */
   | "unresolved";
 
 /**
- * Исходы, после которых заявка остаётся без прогона и сама его не получит.
- * Перечислены явно, а не «всё, что не успех»: новый исход обязан попасть сюда
- * осознанно, а не унаследовать чужую трактовку.
+ * Исходы, после которых работа человека всё ещё требуется. Перечислены явно, а
+ * не «всё, что не успех»: новый исход обязан попасть сюда осознанно, а не
+ * унаследовать чужую трактовку.
  */
 const NEEDS_ATTENTION: ReadonlySet<ChangeImpactOutcome> = new Set([
-  "depth_truncated",
-  "limit_exceeded",
+  "calculated_truncated",
   "unresolved",
 ]);
 
@@ -73,18 +77,19 @@ export interface ChangeImpactRunResult {
   readonly policy: ImpactPolicy;
   readonly scanned: number;
   readonly calculated: number;
+  readonly calculatedTruncated: number;
   readonly alreadyPresent: number;
   readonly staleState: number;
-  readonly depthTruncated: number;
-  readonly limitExceeded: number;
   readonly unresolved: number;
-  /** Сумма трёх отказов — то, из-за чего проход нельзя назвать чистым. */
+  /** То, из-за чего проход нельзя назвать закрывшим работу. */
   readonly needsAttention: number;
   readonly items: readonly {
     readonly projectId: string;
     readonly changeRequestId: string;
     readonly rootCount: number;
     readonly outcome: ChangeImpactOutcome;
+    /** Причина неполноты, если прогон частичный. */
+    readonly truncationReason: "depth_limit" | "result_limit" | null;
   }[];
 }
 
@@ -126,21 +131,29 @@ function outcomeFromError(error: unknown): ChangeImpactOutcome | null {
   // Заявка есть, а её baseline не разрешается. Очередь такие строки намеренно
   // не фильтрует — иначе сломанная заявка не всплыла бы никогда.
   if (error.code === "not_found") return "unresolved";
-  if (error.code === "validation_failed") {
-    // Один `P1111` несёт три разных исхода, поэтому решает причина, а не код.
-    if (error.reason === "IMPACT_ALREADY_CALCULATED") return "already_present";
-    if (error.reason === "IMPACT_DEPTH_TRUNCATED") return "depth_truncated";
-    if (error.reason === "IMPACT_RESULT_LIMIT_EXCEEDED") return "limit_exceeded";
-    // Незнакомая причина отказа — не «нормальный исход». Пусть падает.
-    return null;
+  // Сосед успел записать прогон между чтением очереди и расчётом. База поднимает
+  // это как `P1110 invalid_transition`, а `mapRpcError` переводит `P1110` в
+  // `unsupported_source` — историческое соответствие в `errors.ts`. Проверяется
+  // фактический код, а не то, как отказ называется в SQL: разойдись они, тест
+  // прошёл бы на выдуманном коде.
+  if (error.code === "unsupported_source"
+    && error.reason === "IMPACT_ALREADY_CALCULATED") {
+    return "already_present";
   }
+  // Незнакомый отказ — не «нормальный исход». Пусть падает: воркер, тихо
+  // считающий незнакомую ошибку успехом, отчитается о работе, которой не было.
   return null;
+}
+
+interface OneResult {
+  readonly outcome: ChangeImpactOutcome;
+  readonly truncationReason: "depth_limit" | "result_limit" | null;
 }
 
 async function calculateOne(
   worker: ProjectCeoM4WorkerPostgresAdapter,
   item: ChangeImpactWorkItem,
-): Promise<ChangeImpactOutcome> {
+): Promise<OneResult> {
   try {
     const mutation = await worker.calculateChangeImpactPolicyBound({
       projectId: item.projectId,
@@ -149,11 +162,21 @@ async function calculateOne(
       idempotencyKey: item.idempotencyKey,
     });
     // Повтор по тому же ключу приходит как `replay` и второго прогона не
-    // создаёт.
-    return mutation.replay ? "already_present" : "calculated";
+    // создаёт. Признаки неполноты в повторе те же — они входят в логический
+    // результат команды, а не приписываются к строке после.
+    const truncationReason = mutation.result.isTruncated
+      ? mutation.result.truncationReason
+      : null;
+    if (mutation.replay) {
+      return { outcome: "already_present", truncationReason };
+    }
+    return {
+      outcome: mutation.result.isTruncated ? "calculated_truncated" : "calculated",
+      truncationReason,
+    };
   } catch (error) {
     const outcome = outcomeFromError(error);
-    if (outcome) return outcome;
+    if (outcome) return { outcome, truncationReason: null };
     throw error;
   }
 }
@@ -175,12 +198,13 @@ export async function runChangeImpactWorker(
 
   const items: ChangeImpactRunResult["items"][number][] = [];
   for (const item of plan) {
-    const outcome = await calculateOne(worker, item);
+    const one = await calculateOne(worker, item);
     items.push({
       projectId: item.projectId,
       changeRequestId: item.changeRequestId,
       rootCount: item.rootCount,
-      outcome,
+      outcome: one.outcome,
+      truncationReason: one.truncationReason,
     });
   }
 
@@ -191,10 +215,9 @@ export async function runChangeImpactWorker(
     policy,
     scanned: plan.length,
     calculated: count("calculated"),
+    calculatedTruncated: count("calculated_truncated"),
     alreadyPresent: count("already_present"),
     staleState: count("stale_state"),
-    depthTruncated: count("depth_truncated"),
-    limitExceeded: count("limit_exceeded"),
     unresolved: count("unresolved"),
     needsAttention: items.filter((entry) => NEEDS_ATTENTION.has(entry.outcome)).length,
     items,
