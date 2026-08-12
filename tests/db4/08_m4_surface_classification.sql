@@ -31,9 +31,11 @@ declare
     'projectceo_product_api.acknowledge_release(uuid, uuid, text, bigint, text)',
     'projectceo_m4_api.submit_change_request(uuid, uuid, text, text, text, text, bigint, integer, bigint, text)',
     'projectceo_m4_api.replay_submit_change_request(uuid, uuid, text, text, text, text, bigint, integer, text)',
-    -- Инкремент 2 (не открыт ничем).
+    -- V1 Impact (DEC-033): ревью уже посчитанного влияния — тоже инкремент 1,
+    -- закрыт по умолчанию до явного включения среды, как и остальное выше.
     'projectceo_m4_api.review_change_impact(uuid, uuid, text, text, text, bigint, text)',
     'projectceo_m4_api.replay_review_change_impact(uuid, uuid, text, text, text, text)',
+    -- V2/V3 (не открыты ничем).
     'projectceo_m4_api.register_photo_evidence(uuid, uuid, text, text, text, timestamptz, text, bigint, text)',
     'projectceo_m4_api.replay_register_photo_evidence(uuid, uuid, text, text, text, timestamptz, text, text)',
     'projectceo_m4_api.review_photo_evidence(uuid, uuid, text, text, bigint, text)',
@@ -51,7 +53,10 @@ declare
     -- V1 Impact: воркерные двери расчёта. Человеческой команды у них нет и не
     -- будет — расчёт влияния делает система (DEC-032 §3).
     'calculate_change_impact_policy_bound',
-    'list_change_impact_backlog'
+    'list_change_impact_backlog',
+    -- V1 Impact: durable operator failure поверх воркерной двери расчёта.
+    'record_change_impact_worker_failure',
+    'redrive_change_impact_worker_failure'
   ];
 begin
   -- 1. Каждая сигнатура матрицы существует. `to_regprocedure` возвращает null

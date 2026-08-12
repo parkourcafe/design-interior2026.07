@@ -1597,6 +1597,15 @@ export const ru = {
         afterReview: "после review",
         humanDispositions: "Human dispositions",
         noReviewCapability: "Роль видит влияние, но не утверждает disposition.",
+        // DEC-033: покрытие обхода влияния. Формулировки намеренно не говорят
+        // «завершено» там, где обход не исчерпан — рассмотреть все показанные
+        // карточки и «проанализировать всё» не одно и то же.
+        coveragePartialWarning:
+          "Показаны найденные влияния. Анализ ограничен глубиной и не является полным.",
+        coverageReviewedCount: (reviewed: number, total: number) =>
+          `Рассмотрено найденных влияний ${reviewed}/${total}`,
+        coverageBlockedWarning: (knownImpactCountLowerBound: number) =>
+          `Обнаружено не менее ${knownImpactCountLowerBound} влияния. Сузьте изменение.`,
         impactAction: {
           accepted: "Принять влияние",
           resolved: "Отметить решённым",

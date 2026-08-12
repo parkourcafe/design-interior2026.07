@@ -106,3 +106,151 @@ if [[ "${result}" != "${expected_state}|1|1" ]]; then
 fi
 
 print -r -- "DB5_CONCURRENCY_OK"
+
+# ─────────────────────────────────────────────────────────────────────────────
+# V1 Impact (DEC-033): два параллельных прохода воркера на ОДНОЙ ещё не
+# посчитанной заявке обязаны дать ОДИН исход. Фикстура — своя отдельная
+# ChangeRequest (не золотая: та уже посчитана в `20_execution_operations.sql`)
+# на минимальном графе в один шаг, построенная тем же приёмом, что и в
+# `26_...`/`27_...` (`session_replication_role = replica`, реальный
+# `proposed_baseline_id` золотого проекта — RPC резолвит его в момент вызова).
+impact_org=$(psql_exec db5-concurrency-impact-org "
+  select cr.organization_id::text
+  from projectceo_m4.change_requests cr
+  where cr.project_id = '${project}'
+  order by cr.requested_at
+  limit 1
+")
+impact_graph_version=$(psql_exec db5-concurrency-impact-graph "
+  select pb.graph_version_id
+  from projectceo_m4.change_requests cr
+  join projectceo_product.project_baselines pb
+    on pb.organization_id = cr.organization_id
+   and pb.project_id = cr.project_id
+   and pb.baseline_id = cr.proposed_baseline_id
+  where cr.project_id = '${project}'
+  order by cr.requested_at
+  limit 1
+")
+impact_to_baseline=$(psql_exec db5-concurrency-impact-baseline "
+  select cr.proposed_baseline_id
+  from projectceo_m4.change_requests cr
+  where cr.project_id = '${project}'
+  order by cr.requested_at
+  limit 1
+")
+impact_from_version=$(psql_exec db5-concurrency-impact-version "
+  select cr.from_production_package_version_id
+  from projectceo_m4.change_requests cr
+  where cr.project_id = '${project}'
+  order by cr.requested_at
+  limit 1
+")
+
+psql_exec db5-concurrency-impact-fixture "
+begin;
+set local session_replication_role = replica;
+insert into project_intelligence.graph_nodes (
+  organization_id, project_id, node_id, kind, stable_key, current_revision_id
+) values
+  ('${impact_org}', '${project}', 'concur-impact-root', 'deliverable', 'concur-impact:root', 'rev-concur-impact-root'),
+  ('${impact_org}', '${project}', 'concur-impact-leaf', 'deliverable', 'concur-impact:leaf', 'rev-concur-impact-leaf');
+insert into project_intelligence.version_nodes (
+  organization_id, project_id, version_id, node_id, revision_id
+) values
+  ('${impact_org}', '${project}', '${impact_graph_version}', 'concur-impact-root', 'rev-concur-impact-root'),
+  ('${impact_org}', '${project}', '${impact_graph_version}', 'concur-impact-leaf', 'rev-concur-impact-leaf');
+insert into project_intelligence.graph_edges (
+  organization_id, project_id, edge_id, from_node_id, to_node_id, relation
+) values (
+  '${impact_org}', '${project}', 'concur-impact-edge',
+  'concur-impact-leaf', 'concur-impact-root', 'depends_on'
+);
+insert into project_intelligence.version_edges (
+  organization_id, project_id, version_id, edge_id
+) values ('${impact_org}', '${project}', '${impact_graph_version}', 'concur-impact-edge');
+insert into projectceo_m4.change_requests (
+  organization_id, project_id, change_request_id, package_id,
+  from_baseline_id, proposed_baseline_id, from_production_package_version_id,
+  protected_reason, reason_digest, initiator_role, delta_cost_rub, delta_days,
+  requested_by_user_id
+) values (
+  '${impact_org}', '${project}', 'd0000000-0000-4000-8000-000000000001', '${package}',
+  'concur-impact-baseline', '${impact_to_baseline}', '${impact_from_version}',
+  'concurrency impact request',
+  pg_catalog.sha256(convert_to('concurrency impact request', 'UTF8')),
+  'architect', 0, 0, '31111111-1111-4111-8111-111111111111'
+);
+insert into projectceo_m4.change_request_roots (
+  organization_id, project_id, change_request_id, package_id,
+  from_baseline_id, proposed_baseline_id, target_kind, node_id,
+  from_revision_id, to_revision_id
+) values (
+  '${impact_org}', '${project}', 'd0000000-0000-4000-8000-000000000001', '${package}',
+  'concur-impact-baseline', '${impact_to_baseline}', 'decision_revision',
+  'concur-impact-root', 'rev-concur-impact-root-from', 'rev-concur-impact-root'
+);
+commit;
+analyze project_intelligence.graph_edges;
+analyze project_intelligence.graph_nodes;
+"
+
+impact_state=$(psql_exec db5-concurrency-impact-state "
+  select state_revision
+  from project_intelligence.project_workflows
+  where project_id = '${project}'
+")
+
+# Воркерная дверь — `service_role`, не человеческая тестовая роль: гонка
+# проверяется на том же пути, каким её реально вызовет воркер.
+impact_call="begin;
+set local role service_role;
+select projectceo_m4_api.calculate_change_impact_policy_bound(
+  '${project}',
+  'd0000000-0000-4000-8000-000000000001'::uuid,
+  ${impact_state},
+  'db5-concurrent-impact'
+);
+commit;"
+
+set +e
+psql_exec db5-impact-a "${impact_call}" >"${tmpdir}/impact-a.out" 2>&1 &
+pid_a=$!
+psql_exec db5-impact-b "${impact_call}" >"${tmpdir}/impact-b.out" 2>&1 &
+pid_b=$!
+wait "${pid_a}"; status_a=$?
+wait "${pid_b}"; status_b=$?
+set -e
+
+if [[ "${status_a}" != "0" || "${status_b}" != "0" ]]; then
+  print -u2 -r -- "Concurrent M4 impact calculation failed"
+  sed -n '1,160p' "${tmpdir}/impact-a.out" >&2
+  sed -n '1,160p' "${tmpdir}/impact-b.out" >&2
+  exit 1
+fi
+
+if [[ $(
+  (rg -o '"replay": false' "${tmpdir}/impact-a.out" "${tmpdir}/impact-b.out" || true) \
+    | wc -l | tr -d ' '
+) != "1" ]] || [[ $(
+  (rg -o '"replay": true' "${tmpdir}/impact-a.out" "${tmpdir}/impact-b.out" || true) \
+    | wc -l | tr -d ' '
+) != "1" ]]; then
+  print -u2 -r -- "Concurrent M4 impact replay contract failed"
+  sed -n '1,160p' "${tmpdir}/impact-a.out" >&2
+  sed -n '1,160p' "${tmpdir}/impact-b.out" >&2
+  exit 1
+fi
+
+impact_runs_count=$(psql_exec db5-impact-concurrency-assert "
+  select count(*)::text
+  from projectceo_m4.impact_runs run
+  where run.project_id = '${project}'
+    and run.change_request_id = 'd0000000-0000-4000-8000-000000000001'
+")
+if [[ "${impact_runs_count}" != "1" ]]; then
+  print -u2 -r -- "Concurrent M4 impact run duplicated: ${impact_runs_count}"
+  exit 1
+fi
+
+print -r -- "DB5_IMPACT_CONCURRENCY_OK"

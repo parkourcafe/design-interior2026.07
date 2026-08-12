@@ -426,6 +426,33 @@ export interface ParticipantView {
   readonly status: "active" | "invited" | "revoked";
 }
 
+/**
+ * Покрытие обхода влияния (DEC-033). `null`, пока прогона ещё нет
+ * (`status === "submitted"`) — до расчёта покрытия не существует, а не
+ * «неизвестно».
+ *
+ * `coverageComplete` — обход исчерпан (`coverageStatus === "complete"`).
+ * `allReturnedImpactsReviewed` — просмотрены все ВОЗВРАЩЁННЫЕ карточки; для
+ * partial_depth/blocked это НЕ означает «анализ завершён». `impactReviewComplete`
+ * — конъюнкция обоих; только оно означает «ревью влияния действительно
+ * закончено». Старое `allImpactsReviewed` намеренно не возвращается — оно не
+ * различало эти два состояния и на partial/blocked молча читалось бы как
+ * «всё».
+ */
+export interface ChangeImpactCoverageView {
+  readonly coverageStatus: "complete" | "partial_depth" | "blocked_result_limit";
+  readonly cutoffReason: "depth_boundary" | "result_limit" | null;
+  readonly hasMoreBeyondDepth: boolean;
+  readonly knownImpactCountLowerBound: number;
+  readonly maxDepth: number;
+  readonly maxImpacts: number;
+  readonly policyVersion: string;
+  readonly returnedImpactCount: number;
+  readonly allReturnedImpactsReviewed: boolean;
+  readonly coverageComplete: boolean;
+  readonly impactReviewComplete: boolean;
+}
+
 export interface ChangeRequestView {
   readonly id: string;
   readonly title: string;
@@ -438,6 +465,7 @@ export interface ChangeRequestView {
   readonly impactCount: number;
   readonly reviewedImpactCount: number;
   readonly reason: string;
+  readonly coverage: ChangeImpactCoverageView | null;
   readonly impacts: readonly {
     readonly impactRunId: string;
     readonly impactId: string;

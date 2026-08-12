@@ -438,6 +438,21 @@ const changes: readonly ChangeRequestView[] = [
     impactCount: 3,
     reviewedImpactCount: 2,
     reason: fixtureRu.change.reason,
+    // Demonstrates partial_depth (DEC-033): not everything was found, and
+    // that stays visible even after every shown card has been reviewed.
+    coverage: {
+      coverageStatus: "partial_depth",
+      cutoffReason: "depth_boundary",
+      hasMoreBeyondDepth: true,
+      knownImpactCountLowerBound: 4,
+      maxDepth: 7,
+      maxImpacts: 5000,
+      policyVersion: "project-ceo-impact-policy/0.1",
+      returnedImpactCount: 3,
+      allReturnedImpactsReviewed: false,
+      coverageComplete: false,
+      impactReviewComplete: false,
+    },
     impacts: [
       {
         impactRunId: "88888888-8888-4888-8888-888888888888",

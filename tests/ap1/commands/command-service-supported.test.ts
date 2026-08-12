@@ -40,7 +40,7 @@ function mutation(operation: string, result: Readonly<Record<string, unknown>>, 
 
 function executionDelivery() {
   return {
-    contractVersion: "project-ceo-m4-delivery/0.1",
+    contractVersion: "project-ceo-m4-delivery/0.2",
     requestId: "db:m4",
     data: {
       changeRequests: [],
@@ -463,9 +463,16 @@ describe("AP1 supported human commands", () => {
       deltaCostRub: 0,
       deltaDays: 0,
     }),
-    // Четыре команды инкремента 2 ушли отсюда 11.08: их не открывает ни один
-    // подписанный документ (A6 §1.1), и сервис отклоняет их до чтений и
-    // записей. Проверка их закрытости — ниже, в блоке про инкремент 2.
+    // V1 Impact (DEC-033, OWNER GO 12.08.2026): ревью уже посчитанного влияния
+    // вернулось сюда 12.08 — воркерный контур, которого ей не хватало, теперь
+    // есть (`calculate_change_impact_policy_bound`). Остальные четыре команды
+    // V2/V3 по-прежнему закрыты; проверка их закрытости — ниже.
+    command("review_change_impact", {
+      impactRunId,
+      impactId: "impact-1",
+      disposition: "resolved",
+      reason: "Влияние проверено человеком",
+    }),
   ])("keeps the accepted human command $kind request-bound", async (input) => {
     const calls: Call[] = [];
     const subject = service(calls);
@@ -843,17 +850,12 @@ describe("AP1 supported human commands", () => {
     expect(calls).toEqual([]);
   });
 
-  // Инкремент 2 модуля 4 закрыт НЕЗАВИСИМО от флага. Здесь модуль включён
+  // V2/V3 модуля 4 закрыты НЕЗАВИСИМО от флага. Здесь модуль включён
   // (`service()` передаёт executionEnabled = "true"), и всё равно каждая из
-  // пяти команд обязана отказать до единого чтения и записи: A6 §1.1 их не
-  // открывал, а включение модуля не имеет права открывать неавторизованное.
+  // четырёх команд обязана отказать до единого чтения и записи: A6 §1.1 их не
+  // открывал, DEC-033 не расширяет открытие сверх ревью влияния, а включение
+  // модуля не имеет права открывать неавторизованное.
   it.each([
-    command("review_change_impact", {
-      impactRunId,
-      impactId: "impact-1",
-      disposition: "resolved",
-      reason: "Влияние проверено человеком",
-    }),
     command("upload_photo_evidence", {
       milestoneId,
       areaNodeId: "area-1",
@@ -870,7 +872,7 @@ describe("AP1 supported human commands", () => {
     command("accept_milestone", { milestoneId }),
     command("build_handover", {}),
   ])(
-    "keeps the unauthorized increment 2 command $kind closed with the module enabled",
+    "keeps the unauthorized V2/V3 command $kind closed with the module enabled",
     async (input) => {
       const calls: Call[] = [];
       const result = await service(calls).execute(input, `increment2-${input.kind}`);

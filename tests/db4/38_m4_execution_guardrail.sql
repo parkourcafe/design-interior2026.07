@@ -11,8 +11,9 @@
 -- Миграция `20260810070000` закрывает эту границу. Сценарий доказывает, что
 -- закрытие настоящее, а не декларация, и что оно не задело чтение.
 --
--- ГДЕ СТОИТ ЭТОТ СЦЕНАРИЙ И ЧТО ЭТО МЕНЯЕТ (11.08). Он идёт ПОСЛЕ
--- `enable-m4-increment-1.sql`, то есть наблюдает среду, где инкремент 1 открыт
+-- ГДЕ СТОИТ ЭТОТ СЦЕНАРИЙ И ЧТО ЭТО МЕНЯЕТ (11.08, затем 12.08 — V1 Impact,
+-- DEC-033). Он идёт ПОСЛЕ `enable-m4-increment-1.sql`, то есть наблюдает
+-- среду, где инкремент 1 (и, с 12.08, V1 Impact поверх него) открыт
 -- намеренно. Поэтому утверждение здесь не «закрыто всё», а «открыто ровно то,
 -- что открыла среда, и ни одной функцией больше». Состояние по умолчанию —
 -- закрыто всё — проверяет `07_m4_execution_boundary.sql`, который стоит до
@@ -35,7 +36,11 @@ begin
     and p.proname <> all (array[
       'get_execution_delivery',
       'submit_change_request',
-      'replay_submit_change_request'
+      'replay_submit_change_request',
+      -- V1 Impact (DEC-033, OWNER GO 12.08.2026): ревью уже посчитанного
+      -- влияния — тоже инкремент 1, открывается той же средой.
+      'review_change_impact',
+      'replay_review_change_impact'
     ])
     and pg_catalog.has_function_privilege('authenticated', p.oid, 'EXECUTE')
   limit 1;
@@ -49,7 +54,9 @@ begin
   select signature into v_closed
   from unnest(array[
     'projectceo_m4_api.submit_change_request(uuid, uuid, text, text, text, text, bigint, integer, bigint, text)',
-    'projectceo_m4_api.replay_submit_change_request(uuid, uuid, text, text, text, text, bigint, integer, text)'
+    'projectceo_m4_api.replay_submit_change_request(uuid, uuid, text, text, text, text, bigint, integer, text)',
+    'projectceo_m4_api.review_change_impact(uuid, uuid, text, text, text, bigint, text)',
+    'projectceo_m4_api.replay_review_change_impact(uuid, uuid, text, text, text, text)'
   ]) signature
   where not pg_catalog.has_function_privilege('authenticated', signature, 'EXECUTE')
   limit 1;
@@ -67,10 +74,14 @@ begin
     raise exception 'DB4_M4_DELIVERY_READ_LOST';
   end if;
 
-  -- 3. Запрет именно на `authenticated`. Воркерные функции — расчёт влияния и
-  --    сборка передачи — выданы `service_role` (`20260717103000`, второй блок
-  --    grant), и guardrail их не касается: он закрывает человеческую
-  --    поверхность, а не контур расчётов.
+  -- 3. Запрет именно на `authenticated`. Воркерные функции — сборка передачи
+  --    и V1 Impact (расчёт влияния policy-bound, очередь, durable operator
+  --    failure и redrive) — выданы `service_role`
+  --    (`20260717103000` / `20260812010000`), и guardrail их не касается: он
+  --    закрывает человеческую поверхность, а не контур расчётов. Прежняя
+  --    дверь расчёта с произвольной глубиной от вызывающего
+  --    (`calculate_change_impact`) закрыта DEC-033 даже для `service_role` —
+  --    её в этом счёте больше нет намеренно.
   --
   --    Проверено при написании сценария: у `pi_worker_executor` прав на эту
   --    схему нет и не было — воркер ходит под `service_role`. Assertion писался
@@ -80,10 +91,22 @@ begin
   from pg_catalog.pg_proc p
   join pg_catalog.pg_namespace n on n.oid = p.pronamespace
   where n.nspname = 'projectceo_m4_api'
-    and p.proname in ('calculate_change_impact', 'build_construction_handover')
+    and p.proname in (
+      'build_construction_handover',
+      'calculate_change_impact_policy_bound', 'list_change_impact_backlog',
+      'record_change_impact_worker_failure', 'redrive_change_impact_worker_failure'
+    )
     and pg_catalog.has_function_privilege('service_role', p.oid, 'EXECUTE');
-  if v_count <> 2 then
+  if v_count <> 5 then
     raise exception 'DB4_M4_WORKER_PATH_BROKEN:%', v_count;
+  end if;
+
+  if pg_catalog.has_function_privilege(
+    'service_role',
+    'projectceo_m4_api.calculate_change_impact(uuid, uuid, integer, bigint, text)',
+    'EXECUTE'
+  ) then
+    raise exception 'DB4_M4_RAW_IMPACT_RPC_REACHABLE_BY_SERVICE_ROLE';
   end if;
 
   -- 4. Схема остаётся отданной Data API — ради пункта 2. Если её однажды

@@ -60,10 +60,14 @@ done
 #   05 — доказать, что закрыто ВСЁ, включая инкремент 1 и публикацию M3;
 #   enable-* — открыть ровно то, что скрипты одноразовой среды открывают в
 #              DB4 и AP1, и ни строкой больше (инкремент 2 они не трогают);
-#   06 — завести отдельную `nologin`-роль для человеческих RPC инкремента 2;
+#   06 — завести отдельную `nologin`-роль для человеческих RPC V2/V3;
 #   10/20 — контракт схемы и позитивная цепочка;
-#   26 — benchmark политики обхода: он выбирает `maxDepth` и проверяет, что
-#        усечение, лимит и время не остались декларацией;
+#   26 — benchmark политики обхода V1 Impact: детерминированность, честный
+#        сигнал усечения, приемлемое время — на уже ЗАФИКСИРОВАННЫХ DEC-033
+#        параметрах, не подбор числа;
+#   27 — полная матрица исходов V1 Impact (complete/partial_depth/
+#        blocked_result_limit), digest/replay, неизменяемость, durable
+#        operator failure и redrive;
 #   90 — доказать, что после всего этого закрытое так и осталось закрытым.
 for sql in \
   "${repo_root}/tests/db5/05_default_deny_before.sql" \
@@ -74,7 +78,8 @@ for sql in \
   "${repo_root}/tests/db4/20_product_operations.sql" \
   "${repo_root}/tests/db5/10_schema_security.sql" \
   "${repo_root}/tests/db5/20_execution_operations.sql" \
-  "${repo_root}/tests/db5/26_impact_policy_benchmark.sql"; do
+  "${repo_root}/tests/db5/26_impact_policy_benchmark.sql" \
+  "${repo_root}/tests/db5/27_impact_coverage_outcomes.sql"; do
   print -r -- "Running ${sql:t}"
   run_file "${sql}"
 done

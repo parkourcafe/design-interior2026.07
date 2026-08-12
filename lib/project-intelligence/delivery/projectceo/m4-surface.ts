@@ -142,24 +142,27 @@ export const M4_SURFACE: readonly M4SurfaceRow[] = [
     ],
   },
   {
+    // V1 Impact (DEC-033, OWNER GO 12.08.2026): ревью уже посчитанного влияния
+    // переходит в инкремент 1. Сам расчёт — воркерная операция без человеческой
+    // команды (см. `M4_NON_COMMAND_FUNCTIONS`); эта строка — только про ревью.
     command: "review_change_impact",
-    increment: 2,
+    increment: 1,
     offState: "module_disabled",
-    onState: "increment_not_authorized",
+    onState: "precondition_driven",
     rpcs: [
       {
         schema: "projectceo_m4_api",
         name: "review_change_impact",
         signature: "projectceo_m4_api.review_change_impact(uuid, uuid, text, text, text, bigint, text)",
         sharing: "m4_only",
-        closure: "revoked_from_authenticated",
+        closure: "enabled_by_environment_script",
       },
       {
         schema: "projectceo_m4_api",
         name: "replay_review_change_impact",
         signature: "projectceo_m4_api.replay_review_change_impact(uuid, uuid, text, text, text, text)",
         sharing: "m4_only",
-        closure: "revoked_from_authenticated",
+        closure: "enabled_by_environment_script",
       },
     ],
   },
@@ -257,12 +260,24 @@ export const M4_SURFACE: readonly M4SurfaceRow[] = [
  * «команда, которую забыли внести в матрицу».
  */
 export const M4_NON_COMMAND_FUNCTIONS: readonly string[] = [
+  // Прежняя дверь расчёта с произвольной глубиной от вызывающего. DEC-033
+  // закрыла её execute даже для `service_role`; функция физически осталась в
+  // схеме (уже слитая миграция неизменяема), поэтому классификация тоже
+  // остаётся — как недостижимая никем не-команда.
   "calculate_change_impact",
   "define_milestone",
   "register_handover_document",
   // Единственная функция схемы, доступная человеческой сессии: без неё
   // рабочее пространство перестанет читаться (см. `20260810070000`).
   "get_execution_delivery",
+  // V1 Impact (DEC-033): воркерные двери расчёта и очереди. Человеческой
+  // команды у них нет и не будет — расчёт делает система, не пользователь.
+  "calculate_change_impact_policy_bound",
+  "list_change_impact_backlog",
+  // V1 Impact: durable operator failure поверх воркерной двери расчёта —
+  // bounded retry и redrive из dead-letter. Тоже без человеческой команды.
+  "record_change_impact_worker_failure",
+  "redrive_change_impact_worker_failure",
 ];
 
 /** Команды модуля — производная от матрицы, а не второй список рядом с ней. */

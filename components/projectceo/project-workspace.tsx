@@ -1402,12 +1402,32 @@ function ChangesView({
                 <p className="mt-1 font-medium">{change.toBaseline ?? projectCeoRu.workspace.changes.afterReview}</p>
               </div>
             </div>
+            {change.coverage && change.coverage.coverageStatus === "blocked_result_limit" && (
+              <p className="mt-4 rounded-lg border border-amber-300 bg-amber-50 p-3 text-xs font-medium text-amber-900">
+                {projectCeoRu.workspace.changes.coverageBlockedWarning(
+                  change.coverage.knownImpactCountLowerBound,
+                )}
+              </p>
+            )}
             {change.impactCount > 0 && (
               <div className="mt-4">
+                {change.coverage?.coverageStatus === "partial_depth" && (
+                  <p className="mb-2 rounded-lg border border-amber-300 bg-amber-50 p-3 text-xs font-medium text-amber-900">
+                    {projectCeoRu.workspace.changes.coveragePartialWarning}
+                  </p>
+                )}
                 <div className="flex items-center justify-between text-xs text-muted">
                   <span>{projectCeoRu.workspace.changes.humanDispositions}</span>
                   <span>{change.reviewedImpactCount}/{change.impactCount}</span>
                 </div>
+                {change.coverage?.coverageStatus === "partial_depth" && (
+                  <p className="mt-1 text-xs text-muted">
+                    {projectCeoRu.workspace.changes.coverageReviewedCount(
+                      change.reviewedImpactCount,
+                      change.impactCount,
+                    )}
+                  </p>
+                )}
                 <div className="mt-2 h-2 rounded-full bg-line">
                   <div
                     className="h-2 rounded-full bg-accent"

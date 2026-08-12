@@ -90,6 +90,14 @@ describe("ProjectCEO RU pilot workflow projection", () => {
       impactCount: 3,
       reviewedImpactCount: 2,
     });
+    // DEC-033: partial_depth не даёт результату читаться как «анализ
+    // завершён», даже когда позже рассмотрены все показанные карточки.
+    expect(result.data?.changes[0]?.coverage).toMatchObject({
+      coverageStatus: "partial_depth",
+      hasMoreBeyondDepth: true,
+      coverageComplete: false,
+      impactReviewComplete: false,
+    });
   });
 
   it("includes photo milestone evidence and handover readiness without inventing completion", async () => {

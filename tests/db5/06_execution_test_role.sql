@@ -3,11 +3,13 @@
 -- E0R, шаг 3: отдельная тестовая роль для позитивной цепочки инкремента 2.
 --
 -- ЗАЧЕМ ОНА, А НЕ `authenticated`. Позитивная цепочка обязана вызвать
--- человеческие RPC инкремента 2, а `authenticated` для них закрыт навсегда:
+-- человеческие RPC V2/V3, а `authenticated` для них закрыт навсегда:
 -- `20260810070000` отзывает их по схеме, `enable-m4-increment-1.sql` намеренно
--- НЕ возвращает и падает `PROJECTCEO_M4_INCREMENT_2_LEAKED`, если бы вернул.
+-- НЕ возвращает и падает `PROJECTCEO_M4_V2_V3_LEAKED`, если бы вернул.
 -- Открыть их `authenticated` ради прогона значило бы доказать работу движка,
--- сняв ровно тот запрет, ради которого guardrail'ы написаны.
+-- сняв ровно тот запрет, ради которого guardrail'ы написаны. `review_change_
+-- impact` сюда не входит: DEC-033 открыл его `authenticated` как V1, и
+-- позитивная цепочка зовёт его под этой ролью — как в жизни.
 --
 -- ЗАЧЕМ ОНА, А НЕ `service_role`. Это человеческие операции. Системная роль их
 -- не имеет и иметь не должна — `10_schema_security.sql` роняет прогон
@@ -22,7 +24,7 @@
 --   2. её нет ни в одной миграции, поэтому в постоянной схеме она не
 --      появляется (проверяется статически в `static-boundary.test.ts`
 --      сканированием всех файлов `supabase/migrations/`);
---   3. у неё нет членства ни в одну сторону, шесть явных грантов на функции и
+--   3. у неё нет членства ни в одну сторону, пять явных грантов на функции и
 --      ноль табличных прав — то есть даже при доступе она не сильнее, чем
 --      описано ниже.
 --
@@ -45,12 +47,13 @@ create role pi_db5_execution_tester
 
 grant usage on schema projectceo_m4_api to pi_db5_execution_tester;
 
--- Минимально необходимое: ровно шесть человеческих RPC, которые вызывает
+-- Минимально необходимое: ровно пять человеческих RPC V2/V3, которые вызывает
 -- позитивная цепочка. `submit_change_request` сюда не входит — он инкремента 1
--- и вызывается ролью `authenticated`, как в жизни. `replay_*` не входят —
--- цепочка их не зовёт. Воркерные RPC не входят — они системные.
+-- и вызывается ролью `authenticated`, как в жизни. `review_change_impact`
+-- сюда не входит по той же причине: DEC-033 сделал его V1, и цепочка зовёт
+-- его под `authenticated`. `replay_*` не входят — цепочка их не зовёт.
+-- Воркерные RPC не входят — они системные.
 grant execute on function
-  projectceo_m4_api.review_change_impact(uuid, uuid, text, text, text, bigint, text),
   projectceo_m4_api.define_milestone(uuid, uuid, text, text, jsonb, bigint, text),
   projectceo_m4_api.register_photo_evidence(uuid, uuid, text, text, text, timestamptz, text, bigint, text),
   projectceo_m4_api.review_photo_evidence(uuid, uuid, text, text, bigint, text),
@@ -105,8 +108,8 @@ begin
     raise exception 'DB5_TEST_ROLE_NOT_ISOLATED:%', v_problem;
   end if;
 
-  -- 3. Явных грантов на функции — ровно шесть, и ровно те. Утверждение именно
-  --    про ЯВНЫЕ записи в ACL, а не про «доступ только к шести функциям во всей
+  -- 3. Явных грантов на функции — ровно пять, и ровно те. Утверждение именно
+  --    про ЯВНЫЕ записи в ACL, а не про «доступ только к пяти функциям во всей
   --    базе»: право, доставшееся через `PUBLIC`, здесь не считается, и
   --    `has_function_privilege` для такой функции вернул бы true. Поэтому
   --    считаются записи ACL, а недостижимость всего остального обеспечивается
@@ -124,7 +127,7 @@ begin
     and (
       namespace.nspname <> 'projectceo_m4_api'
       or procedure.proname not in (
-        'review_change_impact', 'define_milestone', 'register_photo_evidence',
+        'define_milestone', 'register_photo_evidence',
         'review_photo_evidence', 'accept_milestone', 'register_handover_document'
       )
     )
@@ -140,7 +143,7 @@ begin
     pg_catalog.acldefault('f'::"char", procedure.proowner)
   )) acl
   where acl.grantee = v_role.oid;
-  if v_count <> 6 then
+  if v_count <> 5 then
     raise exception 'DB5_TEST_ROLE_EXPLICIT_FUNCTION_ACL_COUNT:%', v_count;
   end if;
 
@@ -178,11 +181,16 @@ begin
     raise exception 'DB5_TEST_ROLE_UNEXPECTED_TABLE_GRANT:%', v_problem;
   end if;
 
-  -- 6. Роль не достаёт до воркерных RPC и до инкремента 1. Тестовая роль —
-  --    это человек с правами инкремента 2, а не универсальный ключ.
+  -- 6. Роль не достаёт до воркерных RPC (старой закрытой двери и обеих новых
+  --    policy-bound по DEC-033) и до инкремента 1. Тестовая роль — это
+  --    человек с правами V2/V3, а не универсальный ключ.
   select signature into v_problem
   from unnest(array[
     'projectceo_m4_api.calculate_change_impact(uuid, uuid, integer, bigint, text)',
+    'projectceo_m4_api.calculate_change_impact_policy_bound(uuid, uuid, bigint, text)',
+    'projectceo_m4_api.list_change_impact_backlog(integer)',
+    'projectceo_m4_api.record_change_impact_worker_failure(uuid, uuid, text, integer)',
+    'projectceo_m4_api.redrive_change_impact_worker_failure(uuid, uuid)',
     'projectceo_m4_api.build_construction_handover(uuid, uuid, text, bigint, text)',
     'projectceo_m4_api.submit_change_request(uuid, uuid, text, text, text, text, bigint, integer, bigint, text)',
     'projectceo_product_api.distribute_release_request_bound(uuid, text, uuid, bigint, text)'
@@ -197,11 +205,12 @@ begin
 
   -- 7. Открытие тестовой роли не имеет права задеть PostgREST-роли. Проверка
   --    стоит здесь, а не только в `90_...`, потому что ошибиться легче всего в
-  --    момент выдачи прав.
+  --    момент выдачи прав. `review_change_impact` сюда не входит: это V1,
+  --    DEC-033 открыл его `authenticated` намеренно, и это проверяется
+  --    отдельно, положительно, в `90_default_deny_after.sql`.
   select format('%s:%s', role_name, signature) into v_problem
   from unnest(array['anon', 'authenticated', 'service_role']) role_name
   cross join unnest(array[
-    'projectceo_m4_api.review_change_impact(uuid, uuid, text, text, text, bigint, text)',
     'projectceo_m4_api.define_milestone(uuid, uuid, text, text, jsonb, bigint, text)',
     'projectceo_m4_api.register_photo_evidence(uuid, uuid, text, text, text, timestamptz, text, bigint, text)',
     'projectceo_m4_api.review_photo_evidence(uuid, uuid, text, text, bigint, text)',
@@ -211,7 +220,7 @@ begin
   where pg_catalog.has_function_privilege(role_name, signature, 'EXECUTE')
   limit 1;
   if v_problem is not null then
-    raise exception 'DB5_INCREMENT_2_LEAKED_TO_POSTGREST_ROLE:%', v_problem;
+    raise exception 'DB5_V2_V3_LEAKED_TO_POSTGREST_ROLE:%', v_problem;
   end if;
 end
 $db5_test_role_isolation$;

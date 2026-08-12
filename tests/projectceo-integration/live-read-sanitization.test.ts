@@ -39,7 +39,7 @@ function fakeClient(
             decisions: [],
             distributionSummary: [],
             executionPackages: [{
-              contractVersion: "project-ceo-m4-delivery/0.1",
+              contractVersion: "project-ceo-m4-delivery/0.2",
               requestId: "db:m4",
               data: {
                 changeRequests: [],
@@ -147,7 +147,7 @@ function fakeClient(
       }
       if (schemaName === "projectceo_m4_api" && functionName === "get_execution_delivery") {
         return { data: {
-          contractVersion: "project-ceo-m4-delivery/0.1",
+          contractVersion: "project-ceo-m4-delivery/0.2",
           requestId: "db:m4",
           data: {
             changeRequests: [],
@@ -205,7 +205,7 @@ function failingEnvelopeClient(functionToFail: string): PostgresRpcClient {
 
 function executionWithPhotoDecision(decision: "accepted" | "rejected" | null) {
   return [{
-    contractVersion: "project-ceo-m4-delivery/0.1",
+    contractVersion: "project-ceo-m4-delivery/0.2",
     requestId: `db:m4:${decision ?? "undecided"}`,
     data: {
       changeRequests: [],

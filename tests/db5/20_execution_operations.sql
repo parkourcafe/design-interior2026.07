@@ -2,17 +2,19 @@
 
 -- Роли в этом сценарии выбраны не по удобству, а по границе модуля.
 --
---   * `authenticated` — M2/M3 и инкремент 1 (`submit_change_request`,
---     публикация, чтение `get_execution_delivery`). Ровно то, что скрипты
---     среды открывают в непроизводственном стенде;
---   * `pi_db5_execution_tester` — человеческие RPC инкремента 2. Отдельная
+--   * `authenticated` — M2/M3, инкремент 1 (`submit_change_request`,
+--     публикация, чтение `get_execution_delivery`) и V1 Impact
+--     (`review_change_impact` — DEC-033 открыл его этой роли явно). Ровно то,
+--     что скрипты среды открывают в непроизводственном стенде;
+--   * `pi_db5_execution_tester` — человеческие RPC V2/V3. Отдельная
 --     `nologin`-роль, заведённая `06_execution_test_role.sql` внутри
 --     одноразового контейнера. `authenticated` для этих RPC закрыт навсегда, и
 --     открывать его ради прогона нельзя: доказательство работы движка не
 --     должно стоить снятия запрета;
---   * `service_role` — только воркерные `calculate_change_impact` и
---     `build_construction_handover`. Человеческих операций у неё нет, и
---     `10_schema_security.sql` роняет прогон, если появятся.
+--   * `service_role` — только воркерные `calculate_change_impact_policy_bound`,
+--     `list_change_impact_backlog` и `build_construction_handover`.
+--     Человеческих операций у неё нет, и `10_schema_security.sql` роняет
+--     прогон, если появятся.
 --
 -- Идентичность человека при этом одна и та же во всех трёх случаях:
 -- `request.jwt.claim.sub`. Роль базы решает, можно ли ВЫЗВАТЬ функцию;
@@ -736,32 +738,17 @@ select set_config(
   false
 );
 
-begin;
-set local role service_role;
-do $impact_depth_bounds$
-begin
-  begin
-    perform projectceo_m4_api.calculate_change_impact(
-      '41111111-1111-4111-8111-111111111111',
-      current_setting('projectceo.db5_change_request_id')::uuid,
-      0,
-      current_setting('projectceo.db5_current_state')::bigint,
-      'db5-impact-depth-zero'
-    );
-    raise exception 'DB5_INVALID_IMPACT_DEPTH_ALLOWED';
-  exception when sqlstate 'P1111' then null;
-  end;
-end
-$impact_depth_bounds$;
-rollback;
-
+-- V1 Impact (DEC-033): глубина и лимит больше не аргументы вызывающего —
+-- политика фиксирована сервером (`_impact_policy()`), поэтому теста
+-- «недопустимая глубина от вызывающего» здесь больше нет как класса: его
+-- заменяет проверка §26/27, что дверь с аргументом `max_depth` вообще
+-- недостижима (`DB5_RAW_IMPACT_RPC_REACHABLE_BY_SERVICE_ROLE`).
 begin;
 set local role service_role;
 select (
-  projectceo_m4_api.calculate_change_impact(
+  projectceo_m4_api.calculate_change_impact_policy_bound(
     '41111111-1111-4111-8111-111111111111',
     :'db5_change_request_id'::uuid,
-    3,
     :'db5_state_revision'::bigint,
     'db5-calculate-impact'
   ) #>> '{result,id}'
@@ -782,6 +769,10 @@ select set_config(
   false
 );
 
+-- Малый золотой граф исчерпывается на первом же соседе: единственный исход —
+-- complete. Полная матрица complete/partial_depth/blocked_result_limit
+-- проверяется отдельно, на специально построенных графах
+-- (`27_impact_coverage_outcomes.sql`), где размер и форма графа управляемы.
 do $impact_contract$
 begin
   if (
@@ -804,6 +795,24 @@ begin
   ) then
     raise exception 'DB5_BOUNDED_IMPACT_INVALID';
   end if;
+
+  if not exists (
+    select 1
+    from projectceo_m4.impact_runs run
+    where run.project_id = '41111111-1111-4111-8111-111111111111'
+      and run.impact_run_id =
+        current_setting('projectceo.db5_impact_run_id')::uuid
+      and run.coverage_status = 'complete'
+      and run.policy_version = 'project-ceo-impact-policy/0.1'
+      and run.max_depth = 7
+      and run.max_impacts = 5000
+      and run.returned_impact_count = 1
+      and run.known_impact_count_lower_bound = 1
+      and run.has_more_beyond_depth = false
+      and run.cutoff_reason is null
+  ) then
+    raise exception 'DB5_IMPACT_COVERAGE_SHAPE_INVALID';
+  end if;
 end
 $impact_contract$;
 
@@ -813,7 +822,7 @@ where project_id = '41111111-1111-4111-8111-111111111111'
 \gset db5_
 
 begin;
-set local role pi_db5_execution_tester;
+set local role authenticated;
 set local request.jwt.claim.sub =
   '31111111-1111-4111-8111-111111111111';
 select projectceo_m4_api.review_change_impact(

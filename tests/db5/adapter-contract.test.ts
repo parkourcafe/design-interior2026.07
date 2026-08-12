@@ -103,10 +103,12 @@ describe("ProjectCEO M4 postgres adapter", () => {
     expect("submitChangeRequest" in human).toBe(true);
     expect("reviewChangeImpact" in human).toBe(true);
     expect("acceptMilestone" in human).toBe(true);
-    expect("calculateChangeImpact" in human).toBe(false);
+    expect("calculateChangeImpactPolicyBound" in human).toBe(false);
+    expect("listChangeImpactBacklog" in human).toBe(false);
     expect("buildConstructionHandover" in human).toBe(false);
 
-    expect("calculateChangeImpact" in worker).toBe(true);
+    expect("calculateChangeImpactPolicyBound" in worker).toBe(true);
+    expect("listChangeImpactBacklog" in worker).toBe(true);
     expect("buildConstructionHandover" in worker).toBe(true);
     expect("submitChangeRequest" in worker).toBe(false);
     expect("reviewPhotoEvidence" in worker).toBe(false);
@@ -116,7 +118,7 @@ describe("ProjectCEO M4 postgres adapter", () => {
     const calls: RpcCall[] = [];
     const adapter = new ProjectCeoM4HumanPostgresAdapter(
       clientReturning({
-        contractVersion: "project-ceo-m4-delivery/0.1",
+        contractVersion: "project-ceo-m4-delivery/0.2",
         requestId: "db:request",
         data: {
           changeRequests: [],
@@ -151,7 +153,7 @@ describe("ProjectCEO M4 postgres adapter", () => {
     }]);
   });
 
-  it("maps worker impact traversal with an explicit bounded depth", async () => {
+  it("maps worker impact traversal without a caller-supplied depth (DEC-033: policy-bound)", async () => {
     const calls: RpcCall[] = [];
     const adapter = new ProjectCeoM4WorkerPostgresAdapter(
       clientReturning({
@@ -162,24 +164,53 @@ describe("ProjectCEO M4 postgres adapter", () => {
       }, calls),
     );
 
-    await adapter.calculateChangeImpact({
+    await adapter.calculateChangeImpactPolicyBound({
       projectId: "project",
       changeRequestId: "change-request",
-      maxDepth: 8,
       expectedStateRevision: 11,
       idempotencyKey: "impact-run-1",
     });
 
     expect(calls).toEqual([{
       schema: "projectceo_m4_api",
-      functionName: "calculate_change_impact",
+      functionName: "calculate_change_impact_policy_bound",
       args: {
         project_id: "project",
         change_request_id: "change-request",
-        max_depth: 8,
         expected_state_revision: 11,
         idempotency_key: "impact-run-1",
       },
+    }]);
+    expect(JSON.stringify(calls)).not.toMatch(/max_depth|max_impacts/);
+  });
+
+  it("lists the impact backlog without a caller-supplied row limit by default", async () => {
+    const calls: RpcCall[] = [];
+    const adapter = new ProjectCeoM4WorkerPostgresAdapter(
+      clientReturning({
+        contractVersion: "project-ceo-impact-worker/0.1",
+        requestId: "db:request",
+        policy: {
+          version: "project-ceo-impact-policy/0.1",
+          maxDepth: 7,
+          maxImpacts: 5000,
+        },
+        data: [],
+        error: null,
+      }, calls),
+    );
+
+    const backlog = await adapter.listChangeImpactBacklog();
+
+    expect(backlog.policy).toEqual({
+      version: "project-ceo-impact-policy/0.1",
+      maxDepth: 7,
+      maxImpacts: 5000,
+    });
+    expect(calls).toEqual([{
+      schema: "projectceo_m4_api",
+      functionName: "list_change_impact_backlog",
+      args: {},
     }]);
   });
 });

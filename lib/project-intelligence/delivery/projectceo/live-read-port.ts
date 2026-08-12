@@ -17,6 +17,7 @@ import {
   type ApprovalPackageView,
   type AuditEventView,
   type BaselineSummary,
+  type ChangeImpactCoverageView,
   type ChangeRequestView,
   type DecisionView,
   type EvidenceView,
@@ -756,6 +757,49 @@ function historyViews(value: unknown): readonly AuditEventView[] {
   }));
 }
 
+/**
+ * Покрытие обхода влияния (DEC-033) из проекции `impactRuns[]`. `null`, если
+ * поле покрытия отсутствует в ответе — прогон посчитан старым контрактом
+ * (`/0.1`) или запись повреждена; тогда честнее не показывать статус вовсе,
+ * чем угадать его.
+ */
+function impactCoverageView(
+  run: UnknownRecord,
+  reviewedCount: number,
+  totalCount: number,
+): ChangeImpactCoverageView | null {
+  const coverageStatus = run.coverageStatus;
+  if (
+    coverageStatus !== "complete"
+    && coverageStatus !== "partial_depth"
+    && coverageStatus !== "blocked_result_limit"
+  ) {
+    return null;
+  }
+  const cutoffReasonRaw = run.cutoffReason;
+  const cutoffReason = cutoffReasonRaw === "depth_boundary" || cutoffReasonRaw === "result_limit"
+    ? cutoffReasonRaw
+    : null;
+  const coverageComplete = coverageStatus === "complete";
+  // Ноль возвращённых карточек (blocked_result_limit) значит «нечего
+  // рассматривать», и это истинно вакуумно — так же, как считает сама RPC
+  // `review_change_impact` (`not exists (unreviewed)` на пустом множестве).
+  const allReturnedImpactsReviewed = reviewedCount === totalCount;
+  return {
+    coverageStatus,
+    cutoffReason,
+    hasMoreBeyondDepth: run.hasMoreBeyondDepth === true,
+    knownImpactCountLowerBound: integer(run.knownImpactCountLowerBound),
+    maxDepth: integer(run.maxDepth),
+    maxImpacts: integer(run.maxImpacts),
+    policyVersion: text(run.policyVersion),
+    returnedImpactCount: integer(run.returnedImpactCount),
+    allReturnedImpactsReviewed,
+    coverageComplete,
+    impactReviewComplete: allReturnedImpactsReviewed && coverageComplete,
+  };
+}
+
 function m4Views(envelopes: readonly ExecutionDeliveryEnvelope[]): {
   readonly changes: readonly ChangeRequestView[];
   readonly milestones: readonly PhotoMilestoneView[];
@@ -787,6 +831,7 @@ function m4Views(envelopes: readonly ExecutionDeliveryEnvelope[]): {
         impactCount: impacts.length,
         reviewedImpactCount: reviewed,
         reason: text(request.reason, copy.common.dash),
+        coverage: impactRun ? impactCoverageView(impactRun, reviewed, impacts.length) : null,
         impacts: impactRunId ? impacts.flatMap((impact) => {
           const impactId = nullableText(impact.id);
           if (!impactId) return [];
@@ -1290,11 +1335,11 @@ function operationStates(input: {
     for (const kind of EXECUTION_MODULE) disabled[kind] = unavailable("module_disabled");
     return disabled as ProjectCeoOperationStates;
   }
-  // Модуль включён — но открыт только инкремент 1 (A6 §1.1, DEC-025). Пять
-  // команд инкремента 2 не авторизованы ничем, и предлагать их нельзя даже
-  // тогда, когда предпосылки для них однажды появятся: сервер их отклонит
-  // (`command-service.ts`), а поверхность не обещает того, чего сервер не
-  // выполнит (A6 §4.2.5).
+  // Модуль включён — но открыт только инкремент 1 (A6 §1.1, DEC-025) и, поверх
+  // него, ревью влияния (DEC-033). Четыре команды V2/V3 не авторизованы
+  // ничем, и предлагать их нельзя даже тогда, когда предпосылки для них
+  // однажды появятся: сервер их отклонит (`command-service.ts`), а
+  // поверхность не обещает того, чего сервер не выполнит (A6 §4.2.5).
   const authorized: Record<string, ProjectCeoOperationState> = { ...states };
   for (const kind of EXECUTION_INCREMENT_2_COMMANDS) {
     authorized[kind] = unavailable("increment_not_authorized");
