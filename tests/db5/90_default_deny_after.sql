@@ -19,13 +19,17 @@ declare
   v_count bigint;
   v_role_oid oid;
 begin
-  -- 1. Десять человеческих RPC инкремента 2 по-прежнему недоступны всем трём
-  --    PostgREST-ролям — тот же список, что в `05_default_deny_before.sql`.
+  -- 1. Восемь человеческих RPC, не открытых никем, по-прежнему недоступны всем
+  --    трём PostgREST-ролям.
+  --
+  --    Список короче, чем в `05_default_deny_before.sql`, ровно на две двери
+  --    `review_change_impact`: их открывает `enable-m4-v1-impact.sql` по GO на
+  --    вертикаль V1 от 12.08.2026. Они не выпали из-под проверки — они
+  --    проверяются ниже, отдельным пунктом и строже: закрыты для `anon` и
+  --    `service_role`, открыты ровно для `authenticated`.
   select format('%s:%s', role_name, signature) into v_reachable
   from unnest(array['anon', 'authenticated', 'service_role']) role_name
   cross join unnest(array[
-    'projectceo_m4_api.review_change_impact(uuid, uuid, text, text, text, bigint, text)',
-    'projectceo_m4_api.replay_review_change_impact(uuid, uuid, text, text, text, text)',
     'projectceo_m4_api.register_photo_evidence(uuid, uuid, text, text, text, timestamptz, text, bigint, text)',
     'projectceo_m4_api.replay_register_photo_evidence(uuid, uuid, text, text, text, timestamptz, text, text)',
     'projectceo_m4_api.review_photo_evidence(uuid, uuid, text, text, bigint, text)',
@@ -41,11 +45,38 @@ begin
     raise exception 'DB5_INCREMENT_2_REACHABLE_AFTER_RUN:%', v_reachable;
   end if;
 
+  -- 1b. Две двери V1 открыты РОВНО человеческой сессии. Открытие вертикали не
+  --     имеет права протечь ни в публичную роль, ни в системную: `anon` — это
+  --     интернет, а `service_role` — это воркер, который влияние считает, но
+  --     не рассматривает.
+  select format('%s:%s', role_name, signature) into v_reachable
+  from unnest(array['anon', 'service_role']) role_name
+  cross join unnest(array[
+    'projectceo_m4_api.review_change_impact(uuid, uuid, text, text, text, bigint, text)',
+    'projectceo_m4_api.replay_review_change_impact(uuid, uuid, text, text, text, text)'
+  ]) signature
+  where pg_catalog.has_function_privilege(role_name, signature, 'EXECUTE')
+  limit 1;
+  if v_reachable is not null then
+    raise exception 'DB5_V1_IMPACT_REACHABLE_BY_WRONG_ROLE:%', v_reachable;
+  end if;
+
+  select signature into v_missing
+  from unnest(array[
+    'projectceo_m4_api.review_change_impact(uuid, uuid, text, text, text, bigint, text)',
+    'projectceo_m4_api.replay_review_change_impact(uuid, uuid, text, text, text, text)'
+  ]) signature
+  where not pg_catalog.has_function_privilege('authenticated', signature, 'EXECUTE')
+  limit 1;
+  if v_missing is not null then
+    raise exception 'DB5_V1_IMPACT_LOST_HUMAN_GRANT:%', v_missing;
+  end if;
+
   -- 2. Поверхность `authenticated` в схеме модуля исчерпывающая, а не
-  --    выборочная: ровно три функции — инкремент 1 и его replay-обёртка,
-  --    открытые скриптом среды, плюс читающая RPC рабочего пространства.
-  --    Проверка по счётчику ловит и то, чего сегодня нет: функция, добавленная
-  --    в схему завтра и выданная по недосмотру, уронит прогон.
+  --    выборочная: ровно пять функций — инкремент 1 и его replay-обёртка,
+  --    читающая RPC рабочего пространства и две двери V1, открытые скриптами
+  --    среды. Проверка по счётчику ловит и то, чего сегодня нет: функция,
+  --    добавленная в схему завтра и выданная по недосмотру, уронит прогон.
   select procedure.proname into v_reachable
   from pg_catalog.pg_proc procedure
   join pg_catalog.pg_namespace namespace
@@ -54,11 +85,13 @@ begin
     and pg_catalog.has_function_privilege('authenticated', procedure.oid, 'EXECUTE')
     and procedure.proname not in (
       'submit_change_request', 'replay_submit_change_request',
-      'get_execution_delivery'
+      'get_execution_delivery',
+      -- Открыты GO на V1 (`enable-m4-v1-impact.sql`).
+      'review_change_impact', 'replay_review_change_impact'
     )
   limit 1;
   if v_reachable is not null then
-    raise exception 'DB5_AUTHENTICATED_SURFACE_WIDER_THAN_INCREMENT_1:%', v_reachable;
+    raise exception 'DB5_AUTHENTICATED_SURFACE_WIDER_THAN_AUTHORISED:%', v_reachable;
   end if;
 
   -- 3. `service_role` в схеме модуля — ровно два воркерных вызова, ни одной

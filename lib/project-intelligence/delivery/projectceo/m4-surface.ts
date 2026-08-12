@@ -34,6 +34,7 @@
  */
 
 import type { ProjectCeoCommand } from "./command-contract";
+import { EXECUTION_INCREMENT_1, EXECUTION_V1_IMPACT } from "./execution-flag";
 
 export type M4RpcClosure = "revoked_from_authenticated" | "enabled_by_environment_script";
 
@@ -142,24 +143,27 @@ export const M4_SURFACE: readonly M4SurfaceRow[] = [
     ],
   },
   {
+    // Классификация A6 не меняется — команда как была во втором инкременте,
+    // так и осталась. Изменилось разрешение: GO на V1 от 12.08.2026 открыл её
+    // отдельно, после того как появился воркер, рождающий её вход.
     command: "review_change_impact",
     increment: 2,
     offState: "module_disabled",
-    onState: "increment_not_authorized",
+    onState: "precondition_driven",
     rpcs: [
       {
         schema: "projectceo_m4_api",
         name: "review_change_impact",
         signature: "projectceo_m4_api.review_change_impact(uuid, uuid, text, text, text, bigint, text)",
         sharing: "m4_only",
-        closure: "revoked_from_authenticated",
+        closure: "enabled_by_environment_script",
       },
       {
         schema: "projectceo_m4_api",
         name: "replay_review_change_impact",
         signature: "projectceo_m4_api.replay_review_change_impact(uuid, uuid, text, text, text, text)",
         sharing: "m4_only",
-        closure: "revoked_from_authenticated",
+        closure: "enabled_by_environment_script",
       },
     ],
   },
@@ -289,7 +293,29 @@ export const M4_REVOKED_SIGNATURES: readonly string[] = signatures(
   (rpc) => rpc.closure === "revoked_from_authenticated",
 );
 
+/**
+ * Открываемые сигнатуры конкретного набора команд.
+ *
+ * Разделение по наборам появилось с открытием V1: пока открываемым был ровно
+ * инкремент 1, хватало одного списка и одного скрипта среды. Теперь скриптов
+ * два, и каждый обязан сверяться со своим списком — иначе тест «скрипт
+ * открывает ровно то, что положено» проходил бы, открывай он что угодно из
+ * общей кучи.
+ */
+function openableSignatures(commands: readonly string[]): readonly string[] {
+  const scope = new Set(commands);
+  return M4_SURFACE
+    .filter((row) => scope.has(row.command))
+    .flatMap((row) => row.rpcs)
+    .filter((rpc) => rpc.closure === "enabled_by_environment_script")
+    .map((rpc) => rpc.signature)
+    .filter((signature, index, all) => all.indexOf(signature) === index);
+}
+
 /** Закрыто по умолчанию, открывается явно там, где модуль намеренно включён. */
-export const M4_INCREMENT_1_SIGNATURES: readonly string[] = signatures(
-  (rpc) => rpc.closure === "enabled_by_environment_script",
-);
+export const M4_INCREMENT_1_SIGNATURES: readonly string[] =
+  openableSignatures(EXECUTION_INCREMENT_1);
+
+/** То же для вертикали V1 Impact — открывается своим скриптом среды. */
+export const M4_V1_IMPACT_SIGNATURES: readonly string[] =
+  openableSignatures(EXECUTION_V1_IMPACT);

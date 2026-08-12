@@ -71,10 +71,16 @@ begin
   -- здесь, а не в отдельном сценарии, потому что ошибиться легче всего именно
   -- в момент открытия: одна лишняя строка в `grant` выше — и закрытым остаётся
   -- только документ.
+  --
+  -- `review_change_impact` и её повторная дверь из этого списка УБРАНЫ
+  -- 12.08.2026: их открывает `enable-m4-v1-impact.sql` по отдельному GO на
+  -- вертикаль V1. Пока они охранялись здесь, повторное применение этого скрипта
+  -- в среде с открытым V1 падало бы на законно выданном праве — то есть
+  -- порядок применения скриптов стал бы частью контракта. Теперь каждый скрипт
+  -- охраняет ровно то, чего сам не открывает. Что инкремент 1 их не выдаёт,
+  -- видно из `grant` выше: их там нет.
   select signature into v_leaked
   from unnest(array[
-    'projectceo_m4_api.review_change_impact(uuid, uuid, text, text, text, bigint, text)',
-    'projectceo_m4_api.replay_review_change_impact(uuid, uuid, text, text, text, text)',
     'projectceo_m4_api.register_photo_evidence(uuid, uuid, text, text, text, timestamptz, text, bigint, text)',
     'projectceo_m4_api.replay_register_photo_evidence(uuid, uuid, text, text, text, timestamptz, text, text)',
     'projectceo_m4_api.review_photo_evidence(uuid, uuid, text, text, bigint, text)',

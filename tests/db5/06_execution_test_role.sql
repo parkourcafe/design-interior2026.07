@@ -201,7 +201,6 @@ begin
   select format('%s:%s', role_name, signature) into v_problem
   from unnest(array['anon', 'authenticated', 'service_role']) role_name
   cross join unnest(array[
-    'projectceo_m4_api.review_change_impact(uuid, uuid, text, text, text, bigint, text)',
     'projectceo_m4_api.define_milestone(uuid, uuid, text, text, jsonb, bigint, text)',
     'projectceo_m4_api.register_photo_evidence(uuid, uuid, text, text, text, timestamptz, text, bigint, text)',
     'projectceo_m4_api.review_photo_evidence(uuid, uuid, text, text, bigint, text)',
@@ -210,6 +209,11 @@ begin
   ]) signature
   where pg_catalog.has_function_privilege(role_name, signature, 'EXECUTE')
   limit 1;
+  -- `review_change_impact` из этого списка убрана 12.08.2026: её открывает
+  -- `enable-m4-v1-impact.sql` по GO на вертикаль V1, и он отрабатывает ДО этого
+  -- файла. Из-под проверки она не выпала — closure по ролям проверяет
+  -- `90_default_deny_after.sql` пунктом 1b, и строже: `anon` и `service_role`
+  -- не достают, `authenticated` достаёт.
   if v_problem is not null then
     raise exception 'DB5_INCREMENT_2_LEAKED_TO_POSTGREST_ROLE:%', v_problem;
   end if;
