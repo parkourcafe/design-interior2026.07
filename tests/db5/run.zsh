@@ -62,6 +62,8 @@ done
 #              DB4 и AP1, и ни строкой больше (инкремент 2 они не трогают);
 #   06 — завести отдельную `nologin`-роль для человеческих RPC инкремента 2;
 #   10/20 — контракт схемы и позитивная цепочка;
+#   26 — benchmark политики обхода: он выбирает `maxDepth` и проверяет, что
+#        усечение, лимит и время не остались декларацией;
 #   90 — доказать, что после всего этого закрытое так и осталось закрытым.
 for sql in \
   "${repo_root}/tests/db5/05_default_deny_before.sql" \
@@ -71,7 +73,8 @@ for sql in \
   "${repo_root}/tests/db3/20_foundation_operations.sql" \
   "${repo_root}/tests/db4/20_product_operations.sql" \
   "${repo_root}/tests/db5/10_schema_security.sql" \
-  "${repo_root}/tests/db5/20_execution_operations.sql"; do
+  "${repo_root}/tests/db5/20_execution_operations.sql" \
+  "${repo_root}/tests/db5/26_impact_policy_benchmark.sql"; do
   print -r -- "Running ${sql:t}"
   run_file "${sql}"
 done

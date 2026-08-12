@@ -243,6 +243,10 @@ describe("Layout Studio delivery/UI slice", () => {
       // Вертикаль Telegram → Project Inbox (A7 §1.8). К Layout Studio
       // отношения не имеет.
       "20260811060000_remhaos_channel_bridge_inbox.sql",
+      // V1 Impact модуля 4: очередь воркера расчёта влияния и политика обхода
+      // (DEC-032, OWNER M4 IMPLEMENTATION GO на V1). Права только у
+      // `service_role`. К Layout Studio отношения не имеет.
+      "20260812010000_projectceo_m4_impact_worker_read.sql",
     ];
     const actual = readdirSync(join(repoRoot, "supabase/migrations"), { withFileTypes: true })
       .filter((entry) => entry.isFile())

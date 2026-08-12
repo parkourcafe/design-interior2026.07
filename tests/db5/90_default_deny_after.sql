@@ -70,7 +70,10 @@ begin
   where namespace.nspname = 'projectceo_m4_api'
     and pg_catalog.has_function_privilege('service_role', procedure.oid, 'EXECUTE')
     and procedure.proname not in (
-      'calculate_change_impact', 'build_construction_handover'
+      'calculate_change_impact', 'build_construction_handover',
+      -- V1 Impact: воркерные двери расчёта, открытые только системной роли
+      -- (`20260812010000`).
+      'calculate_change_impact_policy_bound', 'list_change_impact_backlog'
     )
   limit 1;
   if v_reachable is not null then
@@ -80,7 +83,11 @@ begin
   select signature into v_missing
   from unnest(array[
     'projectceo_m4_api.calculate_change_impact(uuid, uuid, integer, bigint, text)',
-    'projectceo_m4_api.build_construction_handover(uuid, uuid, text, bigint, text)'
+    'projectceo_m4_api.build_construction_handover(uuid, uuid, text, bigint, text)',
+    -- V1 Impact: те же правила для новых воркерных дверей — человеческим ролям
+    -- недоступны, системной доступны.
+    'projectceo_m4_api.calculate_change_impact_policy_bound(uuid, uuid, bigint, text)',
+    'projectceo_m4_api.list_change_impact_backlog(integer)'
   ]) signature
   where not pg_catalog.has_function_privilege('service_role', signature, 'EXECUTE')
   limit 1;
