@@ -252,6 +252,34 @@ function parseExecutionDelivery(value: unknown): ExecutionDeliveryEnvelope {
   return value as unknown as ExecutionDeliveryEnvelope;
 }
 
+export interface ImpactWorkerFailureResult {
+  readonly attemptCount: number;
+  readonly deadLettered: boolean;
+}
+
+function parseImpactWorkerFailureResult(value: unknown): ImpactWorkerFailureResult {
+  const isRecord = (candidate: unknown): candidate is Record<string, unknown> =>
+    candidate !== null && typeof candidate === "object" && !Array.isArray(candidate);
+  if (
+    !isRecord(value)
+    || typeof value.attemptCount !== "number"
+    || !Number.isSafeInteger(value.attemptCount)
+    || typeof value.deadLettered !== "boolean"
+  ) {
+    throw new Error("Invalid ProjectCEO M4 impact worker failure result");
+  }
+  return { attemptCount: value.attemptCount, deadLettered: value.deadLettered };
+}
+
+function parseImpactWorkerRedriveResult(value: unknown): { readonly redriven: true } {
+  const isRecord = (candidate: unknown): candidate is Record<string, unknown> =>
+    candidate !== null && typeof candidate === "object" && !Array.isArray(candidate);
+  if (!isRecord(value) || value.redriven !== true) {
+    throw new Error("Invalid ProjectCEO M4 impact worker redrive result");
+  }
+  return { redriven: true };
+}
+
 /**
  * Request-bound authenticated-human operations. PostgreSQL derives the actor,
  * organization, package access and effective role from the authenticated
@@ -552,6 +580,56 @@ export class ProjectCeoM4WorkerPostgresAdapter {
           production_package_version_id: input.productionPackageVersionId,
           expected_state_revision: input.expectedStateRevision,
           idempotency_key: input.idempotencyKey,
+        },
+      ),
+    );
+  }
+
+  /**
+   * Durable operator failure поверх воркерной двери расчёта (DEC-033):
+   * bounded retry — счётчик попыток и terminal dead-letter на пороге
+   * `maxAttempts` (сервер по умолчанию — 5). Воркер зовёт эту дверь только на
+   * `not_found` и на прочих неожиданных отказах — НЕ на `stale_state`,
+   * который является нормальным исходом гонки и не считается попыткой.
+   */
+  async recordChangeImpactWorkerFailure(input: {
+    readonly projectId: string;
+    readonly changeRequestId: string;
+    readonly failureCode: string;
+    readonly maxAttempts?: number;
+  }): Promise<ImpactWorkerFailureResult> {
+    return parseImpactWorkerFailureResult(
+      await callRpc(
+        this.client,
+        "projectceo_m4_api",
+        "record_change_impact_worker_failure",
+        {
+          project_id: input.projectId,
+          change_request_id: input.changeRequestId,
+          failure_code: input.failureCode,
+          ...(input.maxAttempts === undefined ? {} : { max_attempts: input.maxAttempts }),
+        },
+      ),
+    );
+  }
+
+  /**
+   * Единственный путь из dead-letter — операторская дверь, не автосброс.
+   * Обёртка существует для repo-скриптов ops-действий, не для воркерного
+   * цикла: воркер сам никогда не редрайвит то, что сам же и заблокировал.
+   */
+  async redriveChangeImpactWorkerFailure(input: {
+    readonly projectId: string;
+    readonly changeRequestId: string;
+  }): Promise<{ readonly redriven: true }> {
+    return parseImpactWorkerRedriveResult(
+      await callRpc(
+        this.client,
+        "projectceo_m4_api",
+        "redrive_change_impact_worker_failure",
+        {
+          project_id: input.projectId,
+          change_request_id: input.changeRequestId,
         },
       ),
     );
