@@ -99,43 +99,121 @@ create policy impact_truncation_acknowledgements_internal_owner
   on projectceo_m4.impact_truncation_acknowledgements
   for all to pi_table_owner using (true) with check (true);
 
--- Словари операций и событий расширяются одним значением каждый. Списки
--- переписываются целиком, потому что CHECK не дополняется — это форма,
--- принятая в `20260810010000`, а не изобретение.
-alter table projectceo_product.command_records drop constraint command_records_operation_check;
-alter table projectceo_product.command_records add constraint command_records_operation_check check (operation in (
-  'append_decision_revision', 'append_selection_revision', 'append_price_observation',
-  'append_system_decision_revision', 'append_system_selection_revision',
-  'create_approval_package', 'submit_approval_package', 'review_approval_package',
-  'publish_project_baseline', 'publish_production_package_version', 'build_release_artifact',
-  'distribute_release', 'acknowledge_release', 'approve_no_change', 'submit_change_request',
-  'calculate_change_impact', 'review_change_impact', 'define_milestone',
-  'register_photo_evidence', 'review_photo_evidence', 'accept_milestone',
-  'register_handover_document', 'build_construction_handover', 'append_m2_room_revision',
-  'append_m2_variant_revision', 'append_m2_material_revision', 'append_m2_budget_revision',
-  'append_m2_client_handoff_revision', 'append_m2_approved_commit_revision',
-  'append_m2_layout_version_revision', 'submit_m2_client_review',
-  'review_m2_client_submission', 'publish_m2_m3_handoff',
-  'register_m3_documentation_sheet', 'attach_m3_documentation_sheet_specifications',
-  'acknowledge_impact_truncation'
-));
+-- Словари операций и событий расширяются одним значением каждый.
+--
+-- ЛОВУШКА ВОКРУГ ПЕРЕПИСЫВАНИЯ СПИСКА. CHECK не дополняется — его приходится
+-- объявлять заново целиком, и при первом написании этой миграции ручное
+-- копирование потеряло два значения (`distribute_release_request_bound` и
+-- `acknowledge_release_request_bound`). Поймал это харнесс AP1, а не глаза.
+--
+-- Поэтому старый список снимается с базы ДО замены и сверяется с новым после:
+-- значение, принимавшееся раньше и переставшее приниматься теперь, роняет
+-- миграцию. Расширение словаря остаётся ручным и видимым в диффе, а вот
+-- незаметная потеря — нет.
+do $operation_dictionary$
+declare
+  v_old text[];
+  v_new text[];
+  v_lost text;
+begin
+  select array_agg(match[1] order by match[1]) into v_old
+  from pg_catalog.pg_constraint constraint_row,
+    lateral regexp_matches(
+      pg_catalog.pg_get_constraintdef(constraint_row.oid), $re$'([a-z0-9_]+)'$re$, 'g'
+    ) match
+  where constraint_row.conname = 'command_records_operation_check'
+    and constraint_row.conrelid = 'projectceo_product.command_records'::regclass;
 
-alter table projectceo_product.audit_events drop constraint audit_events_event_type_check;
-alter table projectceo_product.audit_events add constraint audit_events_event_type_check check (event_type in (
-  'decision_revision_appended', 'selection_revision_appended', 'price_observation_appended',
-  'approval_package_created', 'approval_package_submitted', 'approval_package_reviewed',
-  'project_baseline_published', 'production_package_version_published', 'release_artifact_built',
-  'release_distributed', 'release_acknowledged', 'no_change_approved', 'change_request_submitted',
-  'change_impact_calculated', 'change_impact_reviewed', 'milestone_defined',
-  'photo_evidence_registered', 'photo_evidence_reviewed', 'milestone_accepted',
-  'handover_document_registered', 'construction_handover_built', 'm2_room_revision_appended',
-  'm2_variant_revision_appended', 'm2_material_revision_appended', 'm2_budget_revision_appended',
-  'm2_client_handoff_revision_appended', 'm2_approved_commit_revision_appended',
-  'm2_layout_version_revision_appended', 'm2_client_review_submitted',
-  'm2_client_submission_reviewed', 'm2_m3_handoff_published',
-  'm3_documentation_sheet_registered', 'm3_documentation_sheet_specifications_attached',
-  'change_impact_truncation_acknowledged'
-));
+  alter table projectceo_product.command_records
+    drop constraint command_records_operation_check;
+  alter table projectceo_product.command_records
+    add constraint command_records_operation_check check (operation in (
+      'append_decision_revision', 'append_selection_revision', 'append_price_observation',
+      'append_system_decision_revision', 'append_system_selection_revision',
+      'create_approval_package', 'submit_approval_package', 'review_approval_package',
+      'publish_project_baseline', 'publish_production_package_version', 'build_release_artifact',
+      'distribute_release', 'distribute_release_request_bound',
+      'acknowledge_release', 'acknowledge_release_request_bound',
+      'approve_no_change', 'submit_change_request',
+      'calculate_change_impact', 'review_change_impact', 'define_milestone',
+      'register_photo_evidence', 'review_photo_evidence', 'accept_milestone',
+      'register_handover_document', 'build_construction_handover', 'append_m2_room_revision',
+      'append_m2_variant_revision', 'append_m2_material_revision', 'append_m2_budget_revision',
+      'append_m2_client_handoff_revision', 'append_m2_approved_commit_revision',
+      'append_m2_layout_version_revision', 'submit_m2_client_review',
+      'review_m2_client_submission', 'publish_m2_m3_handoff',
+      'register_m3_documentation_sheet', 'attach_m3_documentation_sheet_specifications',
+      'acknowledge_impact_truncation'
+    ));
+
+  select array_agg(match[1] order by match[1]) into v_new
+  from pg_catalog.pg_constraint constraint_row,
+    lateral regexp_matches(
+      pg_catalog.pg_get_constraintdef(constraint_row.oid), $re$'([a-z0-9_]+)'$re$, 'g'
+    ) match
+  where constraint_row.conname = 'command_records_operation_check'
+    and constraint_row.conrelid = 'projectceo_product.command_records'::regclass;
+
+  select value into v_lost
+  from unnest(v_old) value
+  where not value = any(v_new)
+  limit 1;
+  if v_lost is not null then
+    raise exception 'PROJECTCEO_COMMAND_OPERATION_DROPPED:%', v_lost;
+  end if;
+end
+$operation_dictionary$;
+
+do $event_dictionary$
+declare
+  v_old text[];
+  v_new text[];
+  v_lost text;
+begin
+  select array_agg(match[1] order by match[1]) into v_old
+  from pg_catalog.pg_constraint constraint_row,
+    lateral regexp_matches(
+      pg_catalog.pg_get_constraintdef(constraint_row.oid), $re$'([a-z0-9_]+)'$re$, 'g'
+    ) match
+  where constraint_row.conname = 'audit_events_event_type_check'
+    and constraint_row.conrelid = 'projectceo_product.audit_events'::regclass;
+
+  alter table projectceo_product.audit_events
+    drop constraint audit_events_event_type_check;
+  alter table projectceo_product.audit_events
+    add constraint audit_events_event_type_check check (event_type in (
+      'decision_revision_appended', 'selection_revision_appended', 'price_observation_appended',
+      'approval_package_created', 'approval_package_submitted', 'approval_package_reviewed',
+      'project_baseline_published', 'production_package_version_published', 'release_artifact_built',
+      'release_distributed', 'release_acknowledged', 'no_change_approved', 'change_request_submitted',
+      'change_impact_calculated', 'change_impact_reviewed', 'milestone_defined',
+      'photo_evidence_registered', 'photo_evidence_reviewed', 'milestone_accepted',
+      'handover_document_registered', 'construction_handover_built', 'm2_room_revision_appended',
+      'm2_variant_revision_appended', 'm2_material_revision_appended', 'm2_budget_revision_appended',
+      'm2_client_handoff_revision_appended', 'm2_approved_commit_revision_appended',
+      'm2_layout_version_revision_appended', 'm2_client_review_submitted',
+      'm2_client_submission_reviewed', 'm2_m3_handoff_published',
+      'm3_documentation_sheet_registered', 'm3_documentation_sheet_specifications_attached',
+      'change_impact_truncation_acknowledged'
+    ));
+
+  select array_agg(match[1] order by match[1]) into v_new
+  from pg_catalog.pg_constraint constraint_row,
+    lateral regexp_matches(
+      pg_catalog.pg_get_constraintdef(constraint_row.oid), $re$'([a-z0-9_]+)'$re$, 'g'
+    ) match
+  where constraint_row.conname = 'audit_events_event_type_check'
+    and constraint_row.conrelid = 'projectceo_product.audit_events'::regclass;
+
+  select value into v_lost
+  from unnest(v_old) value
+  where not value = any(v_new)
+  limit 1;
+  if v_lost is not null then
+    raise exception 'PROJECTCEO_AUDIT_EVENT_DROPPED:%', v_lost;
+  end if;
+end
+$event_dictionary$;
 
 create or replace function projectceo_m4_api.calculate_change_impact(
   project_id uuid,

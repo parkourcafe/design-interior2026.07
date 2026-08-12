@@ -16,6 +16,7 @@ import {
   type Ap5RoleKey,
 } from "./ap5-env";
 import { runReleaseArtifactWorker } from "./release-worker";
+import { runChangeImpactWorker } from "./change-impact-worker";
 
 const env = ap5Env();
 // Ленивое чтение: сборка списка тестов не должна зависеть от того,
@@ -96,7 +97,21 @@ type Workspace = {
     readonly acknowledgementCount: number;
     readonly recipientCount: number;
   }[];
-  readonly changes: readonly { readonly id: string; readonly reason: string }[];
+  readonly changes: readonly {
+    readonly id: string;
+    readonly reason: string;
+    // Влияние читается из того же вью, что видит человек: проверять его по
+    // базе значило бы доказывать не то, что показано в интерфейсе.
+    readonly impactCount: number;
+    readonly reviewedImpactCount: number;
+    readonly impactTruncated: boolean;
+    readonly impactReviewComplete: boolean;
+    readonly impacts: readonly {
+      readonly impactRunId: string;
+      readonly impactId: string;
+      readonly disposition: string | null;
+    }[];
+  }[];
   readonly participants: readonly { readonly role: string }[];
   readonly operations: Record<string, {
     readonly status?: string;
@@ -547,6 +562,67 @@ test.describe("AP5 — цепочка Kora на живом стеке", () => {
     const changes = (await workspace(builder)).changes;
     expect(changes.length).toBeGreaterThan(0);
   });
+
+  /**
+   * 12. Влияние изменения: заявка → системный расчёт → рассмотрение человеком.
+   *
+   * Звено воспроизводит форму шага 9: изменение создаёт человек браузером,
+   * влияние считает СИСТЕМА своим процессом, рассматривает снова человек своей
+   * сессией. Человеческой двери к расчёту нет и не будет — `impactRunId`
+   * рождается только в воркерном контуре.
+   *
+   * До 12.08.2026 это звено стояло пропуском по двум причинам сразу: воркера
+   * не существовало, а команда не была авторизована. Обе сняты — воркер
+   * построен (V1 Impact), команда открыта отдельным M4 IMPLEMENTATION GO.
+   */
+  test("12. влияние изменения: воркер считает, архитектор рассматривает", async ({ browser }) => {
+    const architect = await requestAs(browser, "designer");
+
+    // До расчёта рассматривать нечего, и поверхность обязана это признавать, а
+    // не предлагать действие, которое сервер отклонит.
+    const beforeWorker = await workspace(architect);
+    expect(beforeWorker.operations.review_change_impact?.status).toBe("unavailable");
+
+    // Очередь воркер находит сам: идентификатор заявки ему не передаётся.
+    const report = runChangeImpactWorker();
+    expect(report.scanned).toBeGreaterThan(0);
+    expect(report.calculated + report.alreadyPresent).toBeGreaterThan(0);
+    // Граф этой цепочки мал: усечения быть не должно, и `needsAttention`
+    // здесь — сигнал о настоящей проблеме, а не ожидаемый исход.
+    expect(report.calculatedTruncated).toBe(0);
+    expect(report.needsAttention).toBe(0);
+    // Глубину выбрала политика, а не вызывающий.
+    expect(report.policy.maxDepth).toBeGreaterThan(0);
+
+    // Прогон существует — и он виден человеку в рабочем пространстве.
+    const afterWorker = await workspace(architect);
+    const change = afterWorker.changes.find((entry) => entry.impactCount > 0);
+    expect(change, "воркер не создал прогон влияния ни для одной заявки").toBeTruthy();
+    expect(change!.impactTruncated).toBe(false);
+    expect(change!.impactReviewComplete).toBe(false);
+
+    const pending = change!.impacts.find((impact) => impact.disposition === null);
+    expect(pending, "у прогона нет ни одной нерассмотренной карточки").toBeTruthy();
+    expect(afterWorker.operations.review_change_impact?.status).toBe("available");
+
+    // Рассматривает АРХИТЕКТОР своей сессией — не service role и не воркер.
+    const reviewed = await command(architect, "review_change_impact", {
+      impactRunId: pending!.impactRunId,
+      impactId: pending!.impactId,
+      disposition: "resolved",
+      reason: "AP5: влияние разобрано архитектором в своей сессии",
+    });
+    expect(reviewed.status, JSON.stringify(reviewed.body.error)).toBe(200);
+
+    const afterReview = await workspace(architect);
+    const reviewedChange = afterReview.changes.find((entry) => entry.id === change!.id);
+    expect(reviewedChange!.reviewedImpactCount).toBeGreaterThan(0);
+    // Полный прогон, у которого разобраны все карточки, закрывается сам —
+    // подтверждение неполноты требуется только усечённому.
+    if (reviewedChange!.reviewedImpactCount === reviewedChange!.impactCount) {
+      expect(reviewedChange!.impactReviewComplete).toBe(true);
+    }
+  });
 });
 
 /**
@@ -561,14 +637,10 @@ test.describe("AP5 — ещё не покрытые звенья", () => {
   //   * «Decision/Selection approval → ProjectBaseline V1» — шаг 6 (гейт 1);
   //   * «ProductionPackageVersion V1 → распространение и подтверждение» —
   //     шаги 7, 9 и 10 (гейт 1 и гейт 2);
-  //   * заявка на изменение — шаг 11.
-  test.fixme(
-    "bounded impact заявки на изменение и решения человека по нему",
-    // Сама заявка проходит (шаг 11), но `review_change_impact` адресуется
-    // `impactRunId`, который создаёт воркерный расчёт влияния. Сверх того
-    // команда принадлежит инкременту 2 и не авторизована ничем (A6 §1.1).
-    () => {},
-  );
+  //   * заявка на изменение — шаг 11;
+  //   * bounded impact и решение человека по нему — шаг 12 (V1 Impact,
+  //     12.08.2026). Пропуск стоял по двум причинам сразу: воркера расчёта не
+  //     существовало, а команда не была авторизована. Сняты обе.
   test.fixme(
     "фотодоказательство и приёмка вехи",
     // upload_photo_evidence требует существующего milestoneId; вех в проекте
