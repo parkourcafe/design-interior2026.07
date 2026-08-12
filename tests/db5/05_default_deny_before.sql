@@ -87,7 +87,11 @@ begin
   from unnest(array['anon', 'authenticated']) role_name
   cross join unnest(array[
     'projectceo_m4_api.calculate_change_impact(uuid, uuid, integer, bigint, text)',
-    'projectceo_m4_api.build_construction_handover(uuid, uuid, text, bigint, text)'
+    'projectceo_m4_api.build_construction_handover(uuid, uuid, text, bigint, text)',
+    -- V1 Impact: те же правила для новых воркерных дверей — человеческим ролям
+    -- недоступны, системной доступны.
+    'projectceo_m4_api.calculate_change_impact_policy_bound(uuid, uuid, bigint, text)',
+    'projectceo_m4_api.list_change_impact_backlog(integer)'
   ]) signature
   where pg_catalog.has_function_privilege(role_name, signature, 'EXECUTE')
   limit 1;
@@ -98,7 +102,11 @@ begin
   select signature into v_missing
   from unnest(array[
     'projectceo_m4_api.calculate_change_impact(uuid, uuid, integer, bigint, text)',
-    'projectceo_m4_api.build_construction_handover(uuid, uuid, text, bigint, text)'
+    'projectceo_m4_api.build_construction_handover(uuid, uuid, text, bigint, text)',
+    -- V1 Impact: те же правила для новых воркерных дверей — человеческим ролям
+    -- недоступны, системной доступны.
+    'projectceo_m4_api.calculate_change_impact_policy_bound(uuid, uuid, bigint, text)',
+    'projectceo_m4_api.list_change_impact_backlog(integer)'
   ]) signature
   where not pg_catalog.has_function_privilege('service_role', signature, 'EXECUTE')
   limit 1;

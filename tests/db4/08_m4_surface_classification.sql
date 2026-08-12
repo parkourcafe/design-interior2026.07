@@ -47,7 +47,11 @@ declare
     'calculate_change_impact',
     'define_milestone',
     'register_handover_document',
-    'get_execution_delivery'
+    'get_execution_delivery',
+    -- V1 Impact: воркерные двери расчёта. Человеческой команды у них нет и не
+    -- будет — расчёт влияния делает система (DEC-032 §3).
+    'calculate_change_impact_policy_bound',
+    'list_change_impact_backlog'
   ];
 begin
   -- 1. Каждая сигнатура матрицы существует. `to_regprocedure` возвращает null
