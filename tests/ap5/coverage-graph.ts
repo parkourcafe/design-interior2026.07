@@ -61,11 +61,20 @@ interface EdgeSpec {
   readonly relation: string;
 }
 
-function revisionFor(nodeId: string, revisionId: string, title: string): RevisionSpec {
+function revisionFor(
+  nodeId: string,
+  revisionId: string,
+  title: string,
+  bindingSourceId?: string,
+): RevisionSpec {
   // Полезная нагрузка несёт nodeId — иначе много ревизий с одинаковым `{}`
   // получили бы одинаковый digest, а «разное содержимое» перестало бы быть
-  // правдой.
-  const payload = { nodeId };
+  // правдой. Для узла, несущего привязку источника (`kind: 'source'`),
+  // payload ОБЯЗАН содержать `sourceId`, совпадающий с `source.sourceId`:
+  // `ingest_source_graph` сверяет их и отвечает `SOURCE_REVISION_BINDING_INVALID`,
+  // если полезная нагрузка ревизии этого не подтверждает (проверено на живом
+  // стеке — без этого поля привязка не проходит ни при какой форме остального).
+  const payload = bindingSourceId ? { nodeId, sourceId: bindingSourceId } : { nodeId };
   return {
     revisionId,
     nodeId,
@@ -171,7 +180,12 @@ export async function ingestDepthChain(): Promise<{ readonly sourceId: string }>
       stableKey: `depth-chain-${step}`,
       currentRevisionId: revisionId,
     });
-    revisions.push(revisionFor(nodeId, revisionId, `AP5 depth chain step ${step}`));
+    revisions.push(revisionFor(
+      nodeId,
+      revisionId,
+      `AP5 depth chain step ${step}`,
+      step === 1 ? sourceId : undefined,
+    ));
     edges.push({
       edgeId: ap5DepthChainEdgeId(step),
       fromNodeId: nodeId,
@@ -230,7 +244,12 @@ export async function ingestWideStar(): Promise<{ readonly batchCount: number }>
         stableKey: `ws-${leaf}`,
         currentRevisionId: revisionId,
       });
-      revisions.push(revisionFor(nodeId, revisionId, String(leaf)));
+      revisions.push(revisionFor(
+        nodeId,
+        revisionId,
+        String(leaf),
+        leaf === batchStart ? sourceId : undefined,
+      ));
       edges.push({
         edgeId: ap5WideStarEdgeId(leaf),
         fromNodeId: nodeId,
