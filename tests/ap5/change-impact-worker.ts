@@ -29,6 +29,8 @@ export interface ChangeImpactWorkerReport {
   readonly alreadyPresent: number;
   readonly staleState: number;
   readonly unresolved: number;
+  readonly failedRetrying: number;
+  readonly failedDeadLetter: number;
   readonly needsAttention: number;
   readonly policy: {
     readonly version: string;

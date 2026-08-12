@@ -773,6 +773,8 @@ select set_config(
 -- проверяется отдельно, на специально построенных графах
 -- (`29_impact_coverage_dec034.sql`), где размер и форма графа управляемы.
 do $impact_contract$
+declare
+  v_policy jsonb := projectceo_m4._impact_policy();
 begin
   if (
     select count(*)
@@ -795,6 +797,8 @@ begin
     raise exception 'DB5_BOUNDED_IMPACT_INVALID';
   end if;
 
+  -- Политика читается динамически: версия и глубина здесь — то, что живая
+  -- база отдаёт СЕЙЧАС, а не число, застывшее в тексте сценария.
   if not exists (
     select 1
     from projectceo_m4.impact_runs run
@@ -802,9 +806,9 @@ begin
       and run.impact_run_id =
         current_setting('projectceo.db5_impact_run_id')::uuid
       and run.coverage_status = 'complete'
-      and run.policy_version = 'project-ceo-impact-policy/0.1'
-      and run.max_depth = 8
-      and run.max_impacts = 5000
+      and run.policy_version = v_policy ->> 'version'
+      and run.max_depth = (v_policy ->> 'maxDepth')::integer
+      and run.max_impacts = (v_policy ->> 'maxImpacts')::integer
       and run.returned_impact_count = 1
       and run.known_impact_count_lower_bound = 1
       and run.has_more_beyond_depth = false

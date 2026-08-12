@@ -70,6 +70,9 @@ done
 #   29 — DEC-034: точная граница 5000/5001, приоритет лимита над глубиной на
 #        совмещённом срезе, исчезновение из очереди воркера — на управляемых
 #        фикстурах, откатывается целиком;
+#   31 — DEC-036: bounded retry, dead-letter, операторский редрайв, исчезновение
+#        ядовитого элемента из активной очереди — на собственной управляемой
+#        заявке, откатывается целиком;
 #   90 — доказать, что после всего этого закрытое так и осталось закрытым.
 for sql in \
   "${repo_root}/tests/db5/05_default_deny_before.sql" \
@@ -84,7 +87,8 @@ for sql in \
   "${repo_root}/tests/db5/26_impact_policy_benchmark.sql" \
   "${repo_root}/tests/db5/27_impact_concurrency_fixture.sql" \
   "${repo_root}/tests/db5/28_v1_production_switch.sql" \
-  "${repo_root}/tests/db5/29_impact_coverage_dec034.sql"; do
+  "${repo_root}/tests/db5/29_impact_coverage_dec034.sql" \
+  "${repo_root}/tests/db5/31_impact_worker_reliability.sql"; do
   print -r -- "Running ${sql:t}"
   run_file "${sql}"
 done

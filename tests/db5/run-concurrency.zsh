@@ -200,4 +200,99 @@ fi
 
 print -r -- "DB5_IMPACT_CONCURRENCY_OK"
 
+# Третья гонка: ДВА ПАРАЛЛЕЛЬНЫХ ОТКАЗА ПО ОДНОЙ ЗАЯВКЕ (DEC-036, OWNER
+# REVIEW 12.08.2026). Оба вызова обязаны увеличить счётчик попыток — не
+# потерять один из них под блокировкой строки — и оба обязаны завершиться
+# успешно (upsert, не гонка за вставку).
+#
+# `record_change_impact_worker_failure` не читает граф и не резолвит
+# baseline — минимальной строки `change_requests` для организации золотого
+# проекта достаточно, отдельного графа-фикстуры, как для расчёта, не нужно.
+failure_change_request=fa11fa11-0000-4000-8000-000000000001
+
+failure_org=$(psql_exec db5-failure-org "
+  select cr.organization_id::text
+  from projectceo_m4.change_requests cr
+  where cr.project_id = '${project}'
+  order by cr.requested_at
+  limit 1
+")
+failure_from_baseline=$(psql_exec db5-failure-from-baseline "
+  select cr.from_baseline_id
+  from projectceo_m4.change_requests cr
+  where cr.project_id = '${project}'
+  order by cr.requested_at
+  limit 1
+")
+failure_from_version=$(psql_exec db5-failure-from-version "
+  select cr.from_production_package_version_id
+  from projectceo_m4.change_requests cr
+  where cr.project_id = '${project}'
+  order by cr.requested_at
+  limit 1
+")
+
+psql_exec db5-failure-fixture "
+begin;
+set local session_replication_role = replica;
+insert into projectceo_m4.change_requests (
+  organization_id, project_id, change_request_id, package_id,
+  from_baseline_id, proposed_baseline_id, from_production_package_version_id,
+  protected_reason, reason_digest, initiator_role, delta_cost_rub, delta_days,
+  requested_by_user_id
+) values (
+  '${failure_org}', '${project}', '${failure_change_request}', '${package}',
+  '${failure_from_baseline}', 'baseline-concurrent-failure-test', '${failure_from_version}',
+  'concurrent worker-failure request',
+  pg_catalog.sha256(convert_to('concurrent worker-failure request', 'UTF8')),
+  'architect', 0, 0, '31111111-1111-4111-8111-111111111111'
+);
+commit;
+"
+
+# Воркерная дверь — `service_role`, не человеческая тестовая: запись отказа —
+# системная операция, и гонка обязана идти тем же путём, каким её реально
+# вызовет воркер.
+failure_call="begin;
+set local role service_role;
+select projectceo_m4_api.record_change_impact_worker_failure(
+  '${project}',
+  '${failure_change_request}'::uuid,
+  'transient',
+  'internal_error',
+  null
+);
+commit;"
+
+set +e
+psql_exec db5-failure-a "${failure_call}" >"${tmpdir}/failure-a.out" 2>&1 &
+pid_failure_a=$!
+psql_exec db5-failure-b "${failure_call}" >"${tmpdir}/failure-b.out" 2>&1 &
+pid_failure_b=$!
+wait "${pid_failure_a}"; status_failure_a=$?
+wait "${pid_failure_b}"; status_failure_b=$?
+set -e
+
+if [[ "${status_failure_a}" != "0" || "${status_failure_b}" != "0" ]]; then
+  print -u2 -r -- "Concurrent M4 worker-failure record failed"
+  sed -n '1,160p' "${tmpdir}/failure-a.out" >&2
+  sed -n '1,160p' "${tmpdir}/failure-b.out" >&2
+  exit 1
+fi
+
+# Главное: ровно одна строка, счётчик попыток — два, ни одна запись не
+# потеряна под блокировкой первичного ключа.
+failure_result=$(psql_exec db5-failure-assert "
+  select count(*)::text || '|' || max(attempt_count)::text
+  from projectceo_m4.impact_worker_failures
+  where project_id = '${project}'
+    and change_request_id = '${failure_change_request}'
+")
+if [[ "${failure_result}" != "1|2" ]]; then
+  print -u2 -r -- "Concurrent M4 worker-failure state invalid: ${failure_result}"
+  exit 1
+fi
+
+print -r -- "DB5_WORKER_FAILURE_CONCURRENCY_OK"
+
 print -r -- "DB5_CONCURRENCY_OK"

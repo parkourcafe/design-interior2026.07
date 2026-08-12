@@ -296,6 +296,10 @@ export const M4_NON_COMMAND_FUNCTIONS: readonly string[] = [
   // выданы только `service_role`.
   "calculate_change_impact_policy_bound",
   "list_change_impact_backlog",
+  // OWNER REVIEW (поверх DEC-034/035): дверь воркера, записывающая durable
+  // отказ (DEC-036). Та же системная identity, тот же принцип — человеческой
+  // команды нет и не будет.
+  "record_change_impact_worker_failure",
 ];
 
 /** Команды модуля — производная от матрицы, а не второй список рядом с ней. */

@@ -7,6 +7,8 @@ import {
   AP5_DECISION_NODE_ID,
   AP5_DECISION_REVISION_ID,
   AP5_DECISION_REVISION_ID_2,
+  AP5_DECISION_REVISION_ID_3,
+  AP5_DECISION_REVISION_ID_4,
   AP5_SOURCE_NAME,
   AP5_SOURCE_REVISION_ID,
 } from "../ap5/ap5-env";
@@ -138,6 +140,56 @@ describe("AP5 chain identifiers satisfy the command contract", () => {
   it("11. create_change carries integer deltas and the previous version id", () => {
     expect(parse("create_change", {
       reason: "AP5: на объекте вскрылось расхождение с выпущенной редакцией",
+      fromProductionPackageVersionId: "package-ap5-root-v1",
+      deltaCostRub: 0,
+      deltaDays: 0,
+    })).toBeNull();
+  });
+
+  // Звенья 14/15 (V1 Impact coverage states, OWNER REVIEW 12.08.2026):
+  // третья и четвёртая ревизия того же решения — та же форма, что уже проверена
+  // для ревизии 2, и та же причина: заявка требует расхождения между baseline,
+  // а расхождение — одна сущность, разные ревизии.
+  it("14/15. the third and fourth decision revisions are distinct uuids too", () => {
+    expect(AP5_DECISION_REVISION_ID_3).not.toBe(AP5_DECISION_REVISION_ID_2);
+    expect(AP5_DECISION_REVISION_ID_4).not.toBe(AP5_DECISION_REVISION_ID_3);
+    expect(parse("create_decision", {
+      packageId: rootPackageId,
+      nodeId: AP5_DECISION_NODE_ID,
+      revisionId: AP5_DECISION_REVISION_ID_3,
+      expectedRevisionId: AP5_DECISION_REVISION_ID_2,
+      claimStatus: "human_origin",
+      title: "AP5 decision (partial-depth)",
+      resolution: "AP5 chain decision revised for the partial_depth coverage scenario.",
+      areaNodeId: null,
+      decisionStatus: "confirmed",
+      evidence: [],
+      reason: "AP5 authenticated browser chain — partial-depth coverage scenario",
+    })).toBeNull();
+    expect(parse("create_decision", {
+      packageId: rootPackageId,
+      nodeId: AP5_DECISION_NODE_ID,
+      revisionId: AP5_DECISION_REVISION_ID_4,
+      expectedRevisionId: AP5_DECISION_REVISION_ID_3,
+      claimStatus: "human_origin",
+      title: "AP5 decision (blocked-result-limit)",
+      resolution: "AP5 chain decision revised for the blocked_result_limit coverage scenario.",
+      areaNodeId: null,
+      decisionStatus: "confirmed",
+      evidence: [],
+      reason: "AP5 authenticated browser chain — blocked-result-limit coverage scenario",
+    })).toBeNull();
+  });
+
+  it("14/15. create_change carries the coverage-state reasons the live page will show", () => {
+    expect(parse("create_change", {
+      reason: "AP5: обход упирается в глубину политики — частичный охват (partial_depth)",
+      fromProductionPackageVersionId: "package-ap5-root-v1",
+      deltaCostRub: 0,
+      deltaDays: 0,
+    })).toBeNull();
+    expect(parse("create_change", {
+      reason: "AP5: найдено многократно больше лимита результата — блокировка (blocked_result_limit)",
       fromProductionPackageVersionId: "package-ap5-root-v1",
       deltaCostRub: 0,
       deltaDays: 0,

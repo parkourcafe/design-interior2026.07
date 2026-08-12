@@ -59,9 +59,10 @@ declare
   v_project uuid := '41111111-1111-4111-8111-111111111111';
   v_pkg uuid := current_setting('projectceo.cov34_pkg')::uuid;
   v_version text := current_setting('projectceo.cov34_graph_version');
-  -- Политика: maxDepth=8, maxImpacts=5000 (`_impact_policy()`). Хвост
-  -- `v_tail_len` шагов длиннее восьми — граф «combined» одновременно шире
-  -- лимита и глубже политики.
+  -- Политика читается динамически (`_impact_policy()`), а не зашивается
+  -- числом: хвост `v_tail_len` всегда на пять шагов длиннее живого maxDepth —
+  -- граф «combined» одновременно шире лимита и глубже политики независимо от
+  -- того, каким числом эта политика сейчас является.
   v_policy_depth integer :=
     (projectceo_m4._impact_policy() ->> 'maxDepth')::integer;
   v_tail_len integer;

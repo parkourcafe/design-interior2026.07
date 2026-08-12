@@ -91,7 +91,10 @@ begin
     -- V1 Impact: те же правила для новых воркерных дверей — человеческим ролям
     -- недоступны, системной доступны.
     'projectceo_m4_api.calculate_change_impact_policy_bound(uuid, uuid, bigint, text)',
-    'projectceo_m4_api.list_change_impact_backlog(integer)'
+    'projectceo_m4_api.list_change_impact_backlog(integer)',
+    -- OWNER REVIEW (поверх DEC-034/035): дверь воркера, записывающая durable
+    -- отказ (DEC-036) — та же системная identity.
+    'projectceo_m4_api.record_change_impact_worker_failure(uuid, uuid, text, text, jsonb)'
   ]) signature
   where pg_catalog.has_function_privilege(role_name, signature, 'EXECUTE')
   limit 1;
@@ -108,7 +111,8 @@ begin
     -- `service_role`: единственная системная дверь расчёта отныне
     -- `calculate_change_impact_policy_bound`.
     'projectceo_m4_api.calculate_change_impact_policy_bound(uuid, uuid, bigint, text)',
-    'projectceo_m4_api.list_change_impact_backlog(integer)'
+    'projectceo_m4_api.list_change_impact_backlog(integer)',
+    'projectceo_m4_api.record_change_impact_worker_failure(uuid, uuid, text, text, jsonb)'
   ]) signature
   where not pg_catalog.has_function_privilege('service_role', signature, 'EXECUTE')
   limit 1;

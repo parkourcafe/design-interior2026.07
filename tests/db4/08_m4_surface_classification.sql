@@ -53,7 +53,10 @@ declare
     -- V1 Impact: воркерные двери расчёта. Человеческой команды у них нет и не
     -- будет — расчёт влияния делает система (DEC-032 §3).
     'calculate_change_impact_policy_bound',
-    'list_change_impact_backlog'
+    'list_change_impact_backlog',
+    -- OWNER REVIEW (поверх DEC-034/035): дверь воркера, записывающая durable
+    -- отказ (DEC-036). Человеческой команды нет и не будет.
+    'record_change_impact_worker_failure'
   ];
 begin
   -- 1. Каждая сигнатура матрицы существует. `to_regprocedure` возвращает null

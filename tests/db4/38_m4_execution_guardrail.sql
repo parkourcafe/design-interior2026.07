@@ -112,6 +112,19 @@ begin
     raise exception 'DB4_M4_POLICY_BOUND_IMPACT_RPC_LOST';
   end if;
 
+  -- 3б. OWNER REVIEW (поверх DEC-034/035): дверь воркера, записывающая
+  --     durable отказ (DEC-036), — тоже только `service_role`. Редрайв сюда
+  --     не входит: он живёт в приватной схеме `projectceo_m4`, а не
+  --     `_api`, и эта проверка её вообще не видит — как и
+  --     `open_v1_impact_production`.
+  if not pg_catalog.has_function_privilege(
+    'service_role',
+    'projectceo_m4_api.record_change_impact_worker_failure(uuid, uuid, text, text, jsonb)',
+    'EXECUTE'
+  ) then
+    raise exception 'DB4_M4_RECORD_WORKER_FAILURE_RPC_LOST';
+  end if;
+
   -- 4. Схема остаётся отданной Data API — ради пункта 2. Если её однажды
   --    закроют целиком, чтение исполнения умрёт молча, поэтому usage
   --    проверяется отдельно от execute.

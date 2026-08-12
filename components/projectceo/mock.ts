@@ -451,7 +451,7 @@ const changes: readonly ChangeRequestView[] = [
     hasMoreBeyondDepth: true,
     knownImpactCountLowerBound: 4,
     returnedImpactCount: 3,
-    policyVersion: "project-ceo-impact-policy/0.1",
+    policyVersion: "project-ceo-impact-policy/0.2",
     maxImpacts: 5000,
     allReturnedImpactsReviewed: false,
     coverageComplete: false,
