@@ -75,7 +75,10 @@ export async function ingestDependentNode(): Promise<DependentNodeResult> {
     source: {
       sourceId: AP5_DEPENDENT_SOURCE_ID,
       sourceRevisionId: AP5_DEPENDENT_REVISION_ID,
-      kind: "document",
+      // `kind` НЕ произвольный: сервер выводит его из mediaType и расширения
+      // (`_source_kind_for`) и отвечает `SOURCE_KIND_MISMATCH`, если присланное
+      // значение не совпало. Для application/pdf + pdf это `pdf`.
+      kind: "pdf",
       checksumHex,
       packageId: handoff.rootPackageId,
       metadata: {
@@ -83,7 +86,9 @@ export async function ingestDependentNode(): Promise<DependentNodeResult> {
         mediaType: "application/pdf",
         sizeBytes: 2048,
         extension: "pdf",
-        sourceRole: "specification",
+        // Роль — из закрытого словаря (`document`, `drawing-preview`,
+        // `reference`, `photo-evidence`, `correspondence`, `schedule`).
+        sourceRole: "document",
         declaredRevision: null,
         documentStatus: "current",
       },
