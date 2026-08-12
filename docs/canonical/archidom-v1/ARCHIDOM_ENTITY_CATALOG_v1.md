@@ -40,6 +40,37 @@
 
 `SkillDefinition`, `ActionDefinition`, `WorkflowDefinition`, `WorkflowRun`, `WorkflowStepRun`, `ApprovalRequest`, `Connection`, `StudioStandard`, `AiCall`, `AuditEvent`.
 
+### 3.1 Integration Gateway → Messaging (A7 / DEC-031, 11.08.2026)
+
+Сущности моста платформенные, а не доменные: они принадлежат одному
+горизонтальному адаптеру и **не** копируются в модули. Идентификаторы Telegram
+живут только здесь — добавлять `telegram_chat_id` или `telegram_user_id` в
+доменные таблицы M1–M4 запрещено (A7 §2.1).
+
+| Technical ID | Публичный канон | Тип | Смысл |
+|---|---|---|---|
+| ProjectChannelBinding | Подключённый чат проекта | entity | связь проекта с внешним чатом; один активный на проект и один проект на чат |
+| ChannelIdentityLink | Связанный аккаунт | entity | Telegram user ID ↔ аккаунт RemHaOS; полномочий не даёт |
+| BindingIntent / IdentityLinkIntent | — | short-lived token record | одноразовое намерение с TTL; в БД только хеш nonce |
+| ChannelEvent | Событие канала | entity | нормализованное входящее сообщение с провенансом и ревизией источника |
+| ChannelAttachment | Вложение канала | entity | метаданные и карантинный статус файла; байты — в общем private storage |
+| ProjectInboxCandidate | Кандидат во входящих | entity | **неподтверждённое** предложение: вопрос, решение, изменение, риск, заметка |
+| NotificationOutbox | Очередь уведомлений | entity | исходящие уведомления с лизами, ретраями и внутренней дедупликацией |
+
+Отношения:
+
+| From | Relation | To | Requirement |
+|---|---|---|---|
+| Project | HAS_CHANNEL_BINDING | ProjectChannelBinding | optional-one-active |
+| ProjectChannelBinding | RECEIVES | ChannelEvent | optional-many |
+| ChannelEvent | CARRIES | ChannelAttachment | optional-many |
+| ChannelEvent | SUGGESTS | ProjectInboxCandidate | optional-many |
+| ProjectInboxCandidate | BECOMES | ChangeRequest/Decision/Risk/OpenQuestion | **только через человеческую команду** |
+
+Запрещённые сокращения моста (дополняют §5): кандидат, ставший официальным
+объектом без человеческой команды · вторая истина проекта в таблицах канала ·
+членство в Telegram-группе как источник роли или capability.
+
 ## 4. Allowed core relations
 
 | From | Relation | To | Requirement |

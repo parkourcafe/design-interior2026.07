@@ -73,15 +73,39 @@ for sql in \
   "${repo_root}/tests/db4/40_baseline_refs_read.sql" \
   "${repo_root}/tests/db4/41_release_artifact_backlog.sql" \
   "${repo_root}/tests/db4/42_telegram_bridge_boundary.sql" \
-  "${repo_root}/tests/db4/43_telegram_inbox_vertical.sql"; do
+  "${repo_root}/tests/db4/43_telegram_inbox_vertical.sql" \
+  "${repo_root}/tests/db4/44_telegram_bridge_correction.sql" \
+  "${repo_root}/tests/db4/47_telegram_pending_ambiguity.sql"; do
   print -r -- "Running ${sql:t}"
   run_file "${sql}"
 done
+
+# Апгрейд населённой базы живёт в `run-telegram-upgrade.zsh` — там же, где
+# сценарии 45/46. Второй харнесс поднимал ради того же доказательства ещё
+# один контейнер и проверял строго меньше: нормализацию связей (уведомлённая
+# сохраняет приём, «молчаливая» его теряет) и живость цепочки после апгрейда
+# он не смотрел вовсе.
 
 PI_DB4_CONTAINER="${container}" \
 PI_DB4_DATABASE="${database}" \
 PI_DB4_PASSWORD="${password}" \
   "${repo_root}/tests/db4/run-concurrency.zsh"
+
+# Остальные гонки моста: отзыв права во время открытой транзакции активации,
+# одновременное понижение обеих сторон вместе с попыткой приёма, аренда
+# очереди. Отдельным файлом, потому что каждая из них требует ДВУХ сессий
+# сразу, а один psql-скрипт умеет только последовательные вызовы.
+PI_DB4_CONTAINER="${container}" \
+PI_DB4_DATABASE="${database}" \
+PI_DB4_PASSWORD="${password}" \
+  "${repo_root}/tests/db4/run-telegram-concurrency.zsh"
+
+# Апгрейд населённой базы — в собственном кластере: prelude заводит роли
+# Supabase на весь сервер, поэтому второй базы рядом с основной не хватит. Без
+# этого прогона обе ветки нормализации `20260811070000` не исполняются ни разу:
+# здесь база пустая, нормализовать в ней нечего, и ошибка в порядке шагов
+# миграции осталась бы невидимой до первой настоящей установки.
+PI_DB_IMAGE="${image}" "${repo_root}/tests/db4/run-telegram-upgrade.zsh"
 
 print -r -- "Restarting database for DB4 replay proof"
 docker restart "${container}" >/dev/null

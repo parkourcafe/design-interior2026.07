@@ -243,6 +243,10 @@ describe("Layout Studio delivery/UI slice", () => {
       // Вертикаль Telegram → Project Inbox (A7 §1.8). К Layout Studio
       // отношения не имеет.
       "20260811060000_remhaos_channel_bridge_inbox.sql",
+      // Исправление фундамента моста (CORRECTIVE GO 11.08.2026): один чат —
+      // один проект, приём после уведомления, аренда очереди с fencing.
+      // К Layout Studio отношения не имеет.
+      "20260811070000_remhaos_channel_bridge_correction.sql",
       // V1 Impact модуля 4: очередь воркера расчёта влияния и политика обхода
       // (DEC-032, OWNER M4 IMPLEMENTATION GO на V1). Права только у
       // `service_role`. К Layout Studio отношения не имеет.

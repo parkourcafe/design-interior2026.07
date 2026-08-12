@@ -74,8 +74,40 @@ export const TELEGRAM_BRIDGE_SURFACE: readonly TelegramBridgeRpc[] = [
   {
     schema: "remhaos_channel_api",
     name: "activate_project_binding",
+    // Два обязательных утверждения об администраторстве — инициатора и самого
+    // бота. Их проверяет транспорт (база не умеет спросить Telegram), но отказ
+    // живёт в RPC: пропустить обязательный аргумент труднее, чем забыть вызов.
     signature:
-      "remhaos_channel_api.activate_project_binding(bytea, bigint, text, bigint, text, text)",
+      "remhaos_channel_api.activate_project_binding(bytea, bigint, text, bigint, text, text, boolean, boolean)",
+    audience: "system",
+    capability: null,
+  },
+  {
+    schema: "remhaos_channel_api",
+    name: "terminate_pending_binding",
+    signature: "remhaos_channel_api.terminate_pending_binding(uuid, text, text)",
+    audience: "system",
+    // Закрывает недоведённую связь безопасным терминальным состоянием, чтобы
+    // постоянный отказ не оставлял `notice_pending` навсегда.
+    capability: null,
+  },
+  {
+    schema: "remhaos_channel_api",
+    name: "find_pending_notice_binding",
+    signature: "remhaos_channel_api.find_pending_notice_binding(text, bigint)",
+    audience: "system",
+    // Существует ради повтора публикации уведомления: одноразовый секрет к
+    // этому моменту потрачен, и без этой двери зависший `notice_pending`
+    // нельзя сдвинуть ничем, кроме ручной правки базы.
+    capability: null,
+  },
+  {
+    schema: "remhaos_channel_api",
+    name: "mark_channel_notice_posted",
+    // Связь становится активной и приём открывается ТОЛЬКО здесь — после того
+    // как участники группы получили уведомление о сборе.
+    signature:
+      "remhaos_channel_api.mark_channel_notice_posted(uuid, text, boolean, boolean)",
     audience: "system",
     capability: null,
   },
@@ -112,14 +144,14 @@ export const TELEGRAM_BRIDGE_SURFACE: readonly TelegramBridgeRpc[] = [
   {
     schema: "remhaos_channel_api",
     name: "mark_notification_sent",
-    signature: "remhaos_channel_api.mark_notification_sent(uuid, bigint)",
+    signature: "remhaos_channel_api.mark_notification_sent(uuid, uuid, bigint)",
     audience: "system",
     capability: null,
   },
   {
     schema: "remhaos_channel_api",
     name: "mark_notification_failed",
-    signature: "remhaos_channel_api.mark_notification_failed(uuid, text, integer)",
+    signature: "remhaos_channel_api.mark_notification_failed(uuid, uuid, text, integer)",
     audience: "system",
     capability: null,
   },

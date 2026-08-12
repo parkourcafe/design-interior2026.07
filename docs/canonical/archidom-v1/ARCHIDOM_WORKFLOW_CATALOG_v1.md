@@ -47,6 +47,66 @@ Approved decisions → drawing set → QA/conflicts → specifications → issue
 
 Issued baseline → site tasks → RFI/deviation → change/substitution → inspection → evidence → acceptance.
 
+## WF-TG-001 · Telegram Chat Bridge (M3 → M4)
+
+**Статус:** AUTHORIZED BY A7 — P0 ONLY (подписан 11.08.2026, DEC-031).
+Разрешены local, CI и закрытый staging с тестовыми участниками; production —
+отдельный OWNER GO. Мост выключен по умолчанию.
+
+**Owner module:** ни один — горизонтальный адаптер `Integration Gateway →
+Messaging`. Доменные модули остаются единственным официальным входом.
+
+**Состояние гейтов на 11.08.2026 — единая редакция для обоих брендов.**
+
+| Гейт | Статус |
+|---|---|
+| TG0 | PASS |
+| TG1 | **REOPENED** — до принятия C1 Foundation Correction |
+| TG2 | **REOPENED** |
+| TG3 | **NOT PROVEN** |
+| TG4 | BLOCKED_EXTERNAL_CREDENTIALS |
+| production | disabled |
+| M4 Increment 2 | closed |
+
+Что из прежних формулировок было неверно и снято:
+
+- «TG1/TG2/TG3 proven» — не соответствовало коду;
+- «TG3 доказан DB4» — DB4 доказывает контракт базы и не доказывает вертикаль:
+  в слитом коде **нет вызова `create_change`**, а браузерного прогона не было;
+- «P0 окончательно работает без LLM» — правил недостаточно, обязательное
+  извлечение через существующую абстракцию `lib/llm/provider.ts` строится в C3;
+- «rule classifier заменяет extraction worker» — не заменяет: правила остаются
+  **необязательным дешёвым префильтром**;
+- «binding сразу active» — связь рождается `notice_pending` и становится
+  `active` только после публикации уведомления участникам.
+
+AP5 в этих прогонах **skipped** и о TG3 не доказывает ничего. Вертикаль M3 → M4
+ниже описана как **целевая**, а не как достигнутая.
+
+| # | Action | cost_class | Human gate | Output |
+|---:|---|---|---|---|
+| 1 | link_telegram_identity | free_deterministic | вход в RemHaOS + одноразовый intent | ChannelIdentityLink |
+| 2 | bind_project_chat | free_deterministic | `manage_project_integrations` + admin группы (инициатор И бот) | ProjectChannelBinding (`notice_pending` → `active` после уведомления) — ЕДИНСТВЕННАЯ живая связь чата и проекта |
+| 2a | terminate_pending_binding | free_deterministic | — (системный adapter; отказ, который повтор не лечит) | ProjectChannelBinding (`suspended`/`revoked`), чат и проект освобождены |
+| 3 | ingest_channel_update | free_deterministic | — (системный adapter) | ChannelEvent (+ ChannelAttachment) |
+| 4 | extract_candidate | metered_ai (C3) | — (система ничего не утверждает) | ProjectInboxCandidate (pending) |
+| 5 | review_candidate | free_deterministic | **человек в RemHaOS** | подтверждён / отклонён |
+| 6 | существующая команда модуля | по модулю | человеческая сессия | ChangeRequest и др. официальные объекты |
+| 7 | notify_release_distributed | free_deterministic | — (исходящее уведомление) | сообщение в чат + защищённый deep link |
+
+Первый доказываемый сценарий:
+
+```text
+distribute_release → уведомление в Telegram → защищённый переход →
+acknowledge_release сессией получателя → сообщение строителя →
+change_request_candidate → проверка человеком → create_change
+```
+
+Acceptance: дедупликация `update_id`, ревизия при `edited_message`, карантин
+вложений, at-least-once доставка с внутренней дедупликацией, RLS
+deny-by-default, отсутствие сырого текста и секретов в логах, невозможность
+выполнить официальную команду из Telegram.
+
 ## Auto-trigger policy
 
 Only `free_deterministic` steps may auto-run without cost confirmation. `metered_ai` waits in `pending_cost_confirmation` when studio threshold is exceeded.

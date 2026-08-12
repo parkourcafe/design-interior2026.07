@@ -82,7 +82,22 @@ begin;
 set local role service_role;
 select remhaos_channel_api.activate_project_binding(
   pg_catalog.sha256(convert_to('db4-inbox-nonce', 'UTF8')),
-  777001, 'db4-bot', -100600, 'supergroup', 'notice-v1'
+  777001, 'db4-bot', -100600, 'supergroup', 'notice-v1', true, true
+);
+commit;
+
+-- Приём открывает только опубликованное уведомление участникам. До него связь
+-- живёт в `notice_pending` и не сохраняет ни одного сообщения.
+select binding_id::text as db4_binding_100600
+from remhaos_channel.project_channel_bindings
+where project_id = '41111111-1111-4111-8111-111111111111'
+  and external_chat_id = -100600
+  and status = 'notice_pending' \gset
+
+begin;
+set local role service_role;
+select remhaos_channel_api.mark_channel_notice_posted(
+  :'db4_binding_100600'::uuid, 'notice-v1', true, true
 );
 commit;
 

@@ -26,6 +26,10 @@ export type TelegramBridgeOutcome =
   | "ignored_not_group"
   | "ignored_chat_not_bound"
   | "binding_activated"
+  // Связь создана, но уведомление участникам не ушло: приём НЕ открыт, и
+  // следующее событие в этом чате повторит попытку. Отдельный исход, а не
+  // «активировано»: разница в том, сохраняем ли мы чужую переписку.
+  | "binding_notice_pending"
   | "binding_rejected"
   | "binding_suspended"
   | "identity_linked"

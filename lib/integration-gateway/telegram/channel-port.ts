@@ -88,12 +88,47 @@ const claimedNotificationSchema = z.object({
   bindingId: z.string(),
   templateVersion: z.string(),
   attemptCount: z.number().int().nonnegative(),
+  // Токен аренды. Возвращается захватом и требуется завершением: без него
+  // «захват» был бы обещанием, а не механизмом.
+  leaseToken: z.string(),
   payload: z.record(z.unknown()),
   externalChatId: z.number(),
   botInstanceId: z.string(),
 });
 
 export type ClaimedNotification = z.infer<typeof claimedNotificationSchema>;
+
+/**
+ * Ответ поиска ожидающей связи. Union, а не объект с необязательными полями:
+ * «связь есть» и «связи нет» несут разные наборы данных, и схема, принимающая
+ * обе формы разом, пропустила бы ответ без `bindingId` там, где он обязателен.
+ */
+const pendingNoticeSchema = z.discriminatedUnion("pending", [
+  z.object({
+    pending: z.literal(true),
+    bindingId: z.string().min(1),
+    noticeVersion: z.string(),
+    initiatorExternalUserId: z.number().int().nullable(),
+  }),
+  z.object({
+    pending: z.literal(false),
+    // Чат занят ожидающей связью ДРУГОГО экземпляра бота. Не «свободно»:
+    // заводить вторую связь поверх нельзя, и доделывать её тоже не нам.
+    chatHeldByOtherBot: z.boolean().optional(),
+  }),
+]);
+
+export interface PendingNoticeBinding {
+  readonly bindingId: string;
+  readonly noticeVersion: string;
+  /** null — связь личности инициатора отозвана; финализация обязана отказать. */
+  readonly initiatorExternalUserId: number | null;
+}
+
+export interface PendingNoticeLookup {
+  readonly binding: PendingNoticeBinding | null;
+  readonly chatHeldByOtherBot: boolean;
+}
 
 export interface IngestChannelUpdateInput {
   readonly botInstanceId: string;
@@ -121,6 +156,15 @@ export class TelegramSystemPort {
     });
   }
 
+  /**
+   * Создаёт связь в состоянии `notice_pending`: приём ещё НЕ открыт. Открывает
+   * его только `markChannelNoticePosted` — после того, как участники группы
+   * получили сообщение о сборе.
+   *
+   * Оба факта об администраторстве проверяет транспорт (база не умеет спросить
+   * Telegram) и передаёт их явными аргументами. Отказ при `false` живёт в самой
+   * RPC: пропустить обязательный аргумент труднее, чем забыть проверку.
+   */
   async activateProjectBinding(input: {
     readonly nonceDigest: PostgresBytea;
     readonly externalUserId: number;
@@ -128,7 +172,9 @@ export class TelegramSystemPort {
     readonly chatId: number;
     readonly chatType: string;
     readonly noticeVersion: string;
-  }): Promise<{ readonly projectId: string }> {
+    readonly initiatorIsChatAdmin: boolean;
+    readonly botIsChatAdmin: boolean;
+  }): Promise<{ readonly projectId: string; readonly bindingId: string }> {
     const data = await callChannelRpc(this.client, "activate_project_binding", {
       nonce_digest: input.nonceDigest,
       external_user_id: input.externalUserId,
@@ -136,12 +182,110 @@ export class TelegramSystemPort {
       external_chat_id: input.chatId,
       external_chat_type: input.chatType,
       notice_version: input.noticeVersion,
+      initiator_is_chat_admin: input.initiatorIsChatAdmin,
+      bot_is_chat_admin: input.botIsChatAdmin,
     });
-    const parsed = z.object({ projectId: z.string() }).safeParse(data);
+    const parsed = z
+      .object({ projectId: z.string(), bindingId: z.string() })
+      .safeParse(data);
     if (!parsed.success) {
       throw new TelegramChannelRpcError("activate_project_binding", "shape_invalid");
     }
     return parsed.data;
+  }
+
+  /**
+   * Уведомление опубликовано — связь становится активной и приём открывается.
+   * Отдельный шаг, потому что отдельный факт: между созданием связи и словами в
+   * чате может пройти минута, а может не пройти ничего.
+   */
+  async markChannelNoticePosted(input: {
+    readonly bindingId: string;
+    readonly noticeVersion: string;
+    readonly initiatorIsChatAdmin: boolean;
+    readonly botIsChatAdmin: boolean;
+  }): Promise<{ readonly changed: boolean }> {
+    const data = await callChannelRpc(this.client, "mark_channel_notice_posted", {
+      binding_id: input.bindingId,
+      notice_version: input.noticeVersion,
+      initiator_is_chat_admin: input.initiatorIsChatAdmin,
+      bot_is_chat_admin: input.botIsChatAdmin,
+    });
+    // Нарушение контракта — это НЕ «ничего не изменилось». Свернув его в
+    // `changed: false`, порт сказал бы вызывающему «связь уже активна», и тот
+    // спокойно открыл бы приём переписки, которого база не открывала.
+    const parsed = z.object({ changed: z.boolean() }).safeParse(data);
+    if (!parsed.success) {
+      throw new TelegramChannelRpcError("mark_channel_notice_posted", "shape_invalid");
+    }
+    return parsed.data;
+  }
+
+  /**
+   * Закончить недоведённую связь безопасным терминальным состоянием.
+   *
+   * Нужна ровно затем, чтобы постоянный отказ не оставлял `notice_pending`
+   * навсегда: иначе мост слал бы уведомление на каждом обновлении чата и
+   * никогда не завершал подключение.
+   */
+  async terminatePendingBinding(input: {
+    readonly bindingId: string;
+    /**
+     * `suspended` — причина внешняя и поправимая (понизили, выкинули);
+     * `revoked` — полномочий больше нет вовсе. Оба освобождают чат и проект,
+     * но говорят человеку на экране разное.
+     */
+    readonly disposition: "suspended" | "revoked";
+    readonly reason: string;
+  }): Promise<{ readonly terminated: boolean }> {
+    const data = await callChannelRpc(this.client, "terminate_pending_binding", {
+      binding_id: input.bindingId,
+      disposition: input.disposition,
+      reason: input.reason,
+    });
+    const parsed = z.object({ terminated: z.boolean() }).safeParse(data);
+    if (!parsed.success) {
+      throw new TelegramChannelRpcError("terminate_pending_binding", "shape_invalid");
+    }
+    return parsed.data;
+  }
+
+  /**
+   * Связь этого чата, ожидающая публикации уведомления.
+   *
+   * Существует ровно ради повтора: одноразовый секрет потрачен при создании
+   * связи, и без этой двери зависший `notice_pending` нельзя было бы сдвинуть
+   * ничем, кроме ручной правки базы.
+   */
+  async findPendingNoticeBinding(input: {
+    readonly botInstanceId: string;
+    readonly chatId: number;
+  }): Promise<PendingNoticeLookup> {
+    const data = await callChannelRpc(this.client, "find_pending_notice_binding", {
+      bot_instance_id: input.botInstanceId,
+      external_chat_id: input.chatId,
+    });
+    const parsed = pendingNoticeSchema.safeParse(data);
+    // Ответ не той формы — исключение, а не `null`. `null` здесь значит «чат
+    // свободен», и транспорт по нему пошёл бы заводить вторую связь поверх
+    // существующей: сломанный контракт превратился бы в нарушенный инвариант.
+    if (!parsed.success) {
+      throw new TelegramChannelRpcError("find_pending_notice_binding", "shape_invalid");
+    }
+    if (!parsed.data.pending) {
+      return {
+        binding: null,
+        chatHeldByOtherBot: parsed.data.chatHeldByOtherBot === true,
+      };
+    }
+    return {
+      binding: {
+        bindingId: parsed.data.bindingId,
+        noticeVersion: parsed.data.noticeVersion,
+        initiatorExternalUserId: parsed.data.initiatorExternalUserId,
+      },
+      chatHeldByOtherBot: false,
+    };
   }
 
   async suspendProjectBinding(input: {
@@ -216,23 +360,32 @@ export class TelegramSystemPort {
     return parsed.success ? parsed.data : [];
   }
 
+  /**
+   * Завершение требует ТОЙ ЖЕ аренды, что и захват. Воркер, чью работу уже
+   * забрали по истёкшей аренде, ничего не подтверждает — и, что важнее, не
+   * воскрешает отменённое уведомление.
+   */
   async markNotificationSent(input: {
     readonly notificationId: string;
+    readonly leaseToken: string;
     readonly externalMessageId: number | null;
   }): Promise<void> {
     await callChannelRpc(this.client, "mark_notification_sent", {
       notification_id: input.notificationId,
+      lease_token: input.leaseToken,
       external_message_id: input.externalMessageId,
     });
   }
 
   async markNotificationFailed(input: {
     readonly notificationId: string;
+    readonly leaseToken: string;
     readonly failureCode: string;
     readonly retryAfterSeconds: number;
   }): Promise<void> {
     await callChannelRpc(this.client, "mark_notification_failed", {
       notification_id: input.notificationId,
+      lease_token: input.leaseToken,
       failure_code: input.failureCode,
       retry_after_seconds: input.retryAfterSeconds,
     });
@@ -320,7 +473,11 @@ export const projectChannelStateSchema = z.object({
   canManage: z.boolean(),
   binding: z
     .object({
-      status: z.enum(["pending", "active", "suspended"]),
+      status: z.enum(["pending", "notice_pending", "active", "suspended"]),
+      // Приём — отдельный факт от статуса. Экран обязан различать «связь есть»
+      // и «переписка сохраняется» так же, как их различает база: второе
+      // касается участников чата, первое — нет.
+      captureState: z.enum(["none", "full_after_notice"]),
       chatType: z.string().nullable(),
       activatedAt: z.string().nullable(),
       statusReason: z.string().nullable(),
