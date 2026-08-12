@@ -79,7 +79,8 @@ for sql in \
   "${repo_root}/tests/db5/10_schema_security.sql" \
   "${repo_root}/tests/db5/20_execution_operations.sql" \
   "${repo_root}/tests/db5/26_impact_policy_benchmark.sql" \
-  "${repo_root}/tests/db5/27_impact_concurrency_fixture.sql"; do
+  "${repo_root}/tests/db5/27_impact_concurrency_fixture.sql" \
+  "${repo_root}/tests/db5/28_v1_production_switch.sql"; do
   print -r -- "Running ${sql:t}"
   run_file "${sql}"
 done

@@ -254,6 +254,11 @@ describe("Layout Studio delivery/UI slice", () => {
       // Усечение расчёта влияния становится данными вместо отказа (решение
       // владельца 12.08.2026). К Layout Studio отношения не имеет.
       "20260812020000_projectceo_m4_impact_truncation.sql",
+      // Производственный выключатель вертикали V1 Impact (DEC-033): журнал
+      // переключений и операции открыть/закрыть с обязательными подписью и
+      // основанием. Применение миграции ничего не открывает. К Layout Studio
+      // отношения не имеет.
+      "20260812030000_projectceo_m4_v1_production_switch.sql",
     ];
     const actual = readdirSync(join(repoRoot, "supabase/migrations"), { withFileTypes: true })
       .filter((entry) => entry.isFile())
