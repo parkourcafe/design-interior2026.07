@@ -2,11 +2,10 @@
 
 -- Роли в этом сценарии выбраны не по удобству, а по границе модуля.
 --
---   * `authenticated` — M2/M3, инкремент 1 (`submit_change_request`,
---     публикация, чтение `get_execution_delivery`) и V1 Impact
---     (`review_change_impact` — DEC-033 открыл его этой роли явно). Ровно то,
---     что скрипты среды открывают в непроизводственном стенде;
---   * `pi_db5_execution_tester` — человеческие RPC V2/V3. Отдельная
+--   * `authenticated` — M2/M3 и инкремент 1 (`submit_change_request`,
+--     публикация, чтение `get_execution_delivery`). Ровно то, что скрипты
+--     среды открывают в непроизводственном стенде;
+--   * `pi_db5_execution_tester` — человеческие RPC инкремента 2. Отдельная
 --     `nologin`-роль, заведённая `06_execution_test_role.sql` внутри
 --     одноразового контейнера. `authenticated` для этих RPC закрыт навсегда, и
 --     открывать его ради прогона нельзя: доказательство работы движка не
@@ -772,7 +771,7 @@ select set_config(
 -- Малый золотой граф исчерпывается на первом же соседе: единственный исход —
 -- complete. Полная матрица complete/partial_depth/blocked_result_limit
 -- проверяется отдельно, на специально построенных графах
--- (`27_impact_coverage_outcomes.sql`), где размер и форма графа управляемы.
+-- (`29_impact_coverage_dec034.sql`), где размер и форма графа управляемы.
 do $impact_contract$
 begin
   if (
@@ -822,7 +821,7 @@ where project_id = '41111111-1111-4111-8111-111111111111'
 \gset db5_
 
 begin;
-set local role authenticated;
+set local role pi_db5_execution_tester;
 set local request.jwt.claim.sub =
   '31111111-1111-4111-8111-111111111111';
 select projectceo_m4_api.review_change_impact(

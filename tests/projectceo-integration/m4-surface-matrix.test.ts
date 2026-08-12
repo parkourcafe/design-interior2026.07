@@ -126,17 +126,15 @@ describe("M4 surface matrix", () => {
   });
 
   /**
-   * Скриптов среды два. `enable-m4-v1-impact.sql` открывает ровно свой набор.
-   * `enable-m4-increment-1.sql` открывает СВОЙ набор ПЛЮС набор V1 Impact —
-   * это осознанное решение (три отдельных комментария в самом файле), не
-   * недосмотр: инкремент 1 самодостаточен для сред, которые поднимают только
-   * его, а порядок применения обоих скриптов при этом не становится частью
-   * контракта (`enable-m4-v1-impact.sql` перегранчивает то же самое
-   * идемпотентно). Направление проверки поэтому одностороннее: V1-скрипт не
-   * имеет права открыть инкремент 1, обратное — не нарушение.
+   * Скриптов среды два, и каждый обязан открывать ровно свой набор. Общий
+   * список здесь не годился бы: скрипт V1, открывший заодно инкремент 1, прошёл
+   * бы такую проверку молча.
    */
-  it("keeps enable-m4-v1-impact.sql opening exactly its own signatures", () => {
-    const enable = read("tests/ap1/environment/enable-m4-v1-impact.sql");
+  it.each([
+    ["tests/ap1/environment/enable-m4-increment-1.sql", M4_INCREMENT_1_SIGNATURES],
+    ["tests/ap1/environment/enable-m4-v1-impact.sql", M4_V1_IMPACT_SIGNATURES],
+  ] as const)("keeps %s opening exactly its own signatures", (path, expected) => {
+    const enable = read(path);
     const grantBlock = enable.slice(
       enable.indexOf("grant execute on function"),
       enable.indexOf("to authenticated;"),
@@ -145,36 +143,20 @@ describe("M4 surface matrix", () => {
       .split("\n")
       .map((line) => line.trim().replace(/,$/, ""))
       .filter((line) => line.includes("(") && line.includes(".") && !line.startsWith("--"));
-    expect(M4_V1_IMPACT_SIGNATURES.length).toBeGreaterThan(0);
-    expect(granted.length).toBe(M4_V1_IMPACT_SIGNATURES.length);
-    for (const signature of M4_V1_IMPACT_SIGNATURES) {
-      expect(squash(grantBlock), signature).toContain(squash(signature));
-    }
-    for (const signature of M4_REVOKED_SIGNATURES) {
-      expect(squash(grantBlock), signature).not.toContain(squash(signature));
-    }
-    for (const signature of M4_INCREMENT_1_SIGNATURES) {
-      expect(squash(grantBlock), signature).not.toContain(squash(signature));
-    }
-  });
-
-  it("keeps enable-m4-increment-1.sql opening its own signatures plus V1 Impact, and nothing else", () => {
-    const enable = read("tests/ap1/environment/enable-m4-increment-1.sql");
-    const grantBlock = enable.slice(
-      enable.indexOf("grant execute on function"),
-      enable.indexOf("to authenticated;"),
-    );
-    const granted = grantBlock
-      .split("\n")
-      .map((line) => line.trim().replace(/,$/, ""))
-      .filter((line) => line.includes("(") && line.includes(".") && !line.startsWith("--"));
-    const expected = [...M4_INCREMENT_1_SIGNATURES, ...M4_V1_IMPACT_SIGNATURES];
     expect(expected.length).toBeGreaterThan(0);
     expect(granted.length).toBe(expected.length);
     for (const signature of expected) {
       expect(squash(grantBlock), signature).toContain(squash(signature));
     }
+    // Ни одна отозванная навсегда сигнатура не имеет права оказаться в гранте.
     for (const signature of M4_REVOKED_SIGNATURES) {
+      expect(squash(grantBlock), signature).not.toContain(squash(signature));
+    }
+    // И ни один скрипт не открывает чужой набор.
+    const foreign = path.includes("increment-1")
+      ? M4_V1_IMPACT_SIGNATURES
+      : M4_INCREMENT_1_SIGNATURES;
+    for (const signature of foreign) {
       expect(squash(grantBlock), signature).not.toContain(squash(signature));
     }
   });

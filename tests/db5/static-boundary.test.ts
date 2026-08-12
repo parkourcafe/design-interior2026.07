@@ -119,16 +119,17 @@ describe("ProjectCEO M4 static boundary", () => {
     expect(testRole).toBeLessThan(chain);
     expect(chain).toBeLessThan(after);
 
-    // Скрипт среды инкремента 1 не имеет права открыть V2/V3 — он сам это
-    // проверяет и падает `PROJECTCEO_M4_V2_V3_LEAKED`. Здесь мы следим за тем,
-    // чтобы эту проверку не выпилили.
+    // Скрипт среды инкремента 1 не имеет права открыть инкремент 2 — он сам это
+    // проверяет и падает `PROJECTCEO_M4_INCREMENT_2_LEAKED`. Здесь мы следим за
+    // тем, чтобы эту проверку не выпилили.
     expect(read("tests/ap1/environment/enable-m4-increment-1.sql"))
-      .toContain("PROJECTCEO_M4_V2_V3_LEAKED");
+      .toContain("PROJECTCEO_M4_INCREMENT_2_LEAKED");
 
-    // Человеческие RPC V2/V3 в сценарии вызываются только тестовой ролью. Ни
-    // одного `authenticated` рядом с ними быть не должно.
+    // Человеческие RPC инкремента 2 в сценарии вызываются только тестовой
+    // ролью. Ни одного `authenticated` рядом с ними быть не должно.
     const scenario = read("tests/db5/20_execution_operations.sql");
     for (const rpc of [
+      "review_change_impact",
       "define_milestone",
       "register_photo_evidence",
       "review_photo_evidence",
@@ -141,14 +142,5 @@ describe("ProjectCEO M4 static boundary", () => {
       const lastRole = preamble.lastIndexOf("set local role ");
       expect(preamble.slice(lastRole), rpc).toContain(DB5_TEST_ROLE);
     }
-
-    // `review_change_impact` — V1, DEC-033 открыл его `authenticated` явно.
-    // Тестовая роль его больше не держит; сценарий обязан звать его под
-    // `authenticated`, как в жизни.
-    const reviewCall = scenario.indexOf("projectceo_m4_api.review_change_impact(");
-    expect(reviewCall).toBeGreaterThan(-1);
-    const reviewPreamble = scenario.slice(Math.max(0, reviewCall - 400), reviewCall);
-    const reviewLastRole = reviewPreamble.lastIndexOf("set local role ");
-    expect(reviewPreamble.slice(reviewLastRole)).toContain("set local role authenticated");
   });
 });
