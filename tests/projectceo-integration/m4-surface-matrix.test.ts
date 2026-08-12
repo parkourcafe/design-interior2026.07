@@ -10,11 +10,14 @@ import {
   M4_REVOKED_SIGNATURES,
   M4_SURFACE,
   M4_SURFACE_COMMANDS,
+  M4_V1_IMPACT_SIGNATURES,
 } from "../../lib/project-intelligence/delivery/projectceo/m4-surface";
 import {
   EXECUTION_INCREMENT_1,
   EXECUTION_INCREMENT_2,
   EXECUTION_MODULE,
+  EXECUTION_NOT_AUTHORIZED_COMMANDS,
+  EXECUTION_V1_IMPACT,
 } from "../../lib/project-intelligence/delivery/projectceo/execution-flag";
 
 const repoRoot = process.cwd();
@@ -34,15 +37,26 @@ describe("M4 surface matrix", () => {
     expect([...M4_SURFACE_COMMANDS].sort()).toEqual([...EXECUTION_MODULE].sort());
     expect(M4_SURFACE.filter((row) => row.increment === 1).map((row) => row.command).sort())
       .toEqual([...EXECUTION_INCREMENT_1].sort());
+    // Во втором инкременте живут и команды, которых A6 не классифицировал
+    // вовсе: `acknowledge_impact_truncation` появилась вместе с решением об
+    // усечении и относится к тому же неавторизованному-по-A6 ярусу.
     expect(M4_SURFACE.filter((row) => row.increment === 2).map((row) => row.command).sort())
-      .toEqual([...EXECUTION_INCREMENT_2].sort());
+      .toEqual([...new Set([...EXECUTION_INCREMENT_2, ...EXECUTION_V1_IMPACT])].sort());
   });
 
-  it("states one honest off-state and an on-state that matches the increment", () => {
+  /**
+   * Состояние «включено» определяется АВТОРИЗАЦИЕЙ, а не номером инкремента.
+   * До 12.08 это было одно и то же, и правило можно было писать по номеру;
+   * GO на V1 их развёл: `review_change_impact` осталась во втором инкременте
+   * по классификации A6, но открыта отдельным решением владельца.
+   */
+  it("states one honest off-state and an on-state that matches the authorisation", () => {
     for (const row of M4_SURFACE) {
       expect(row.offState, row.command).toBe("module_disabled");
+      const authorized = row.increment === 1
+        || (EXECUTION_V1_IMPACT as readonly string[]).includes(row.command);
       expect(row.onState, row.command).toBe(
-        row.increment === 1 ? "precondition_driven" : "increment_not_authorized",
+        authorized ? "precondition_driven" : "increment_not_authorized",
       );
       expect(row.rpcs.length, row.command).toBeGreaterThan(0);
       for (const rpc of row.rpcs) {
@@ -55,12 +69,19 @@ describe("M4 surface matrix", () => {
   });
 
   /**
-   * Ни одна RPC инкремента 2 не может быть открываемой средой. Это и есть
-   * граница между «модуль выключен» и «инкремент не авторизован»: первое
-   * снимается флагом, второе не снимается ничем, кроме нового решения владельца.
+   * Ни одна RPC НЕАВТОРИЗОВАННОЙ команды не может быть открываемой средой. Это
+   * и есть граница между «модуль выключен» и «не авторизовано»: первое
+   * снимается флагом, второе не снимается ничем, кроме решения владельца —
+   * ровно такого, каким открыт V1.
    */
-  it("never lets an increment 2 RPC be openable by any environment", () => {
-    for (const row of M4_SURFACE.filter((entry) => entry.increment === 2)) {
+  it("never lets an unauthorised RPC be openable by any environment", () => {
+    const closed = M4_SURFACE.filter(
+      (entry) => EXECUTION_NOT_AUTHORIZED_COMMANDS.has(entry.command),
+    );
+    // Список не должен опустеть незаметно: пустой фильтр прошёл бы молча и
+    // перестал бы что-либо охранять.
+    expect(closed.length).toBe(4);
+    for (const row of closed) {
       for (const rpc of row.rpcs) {
         expect(rpc.closure, rpc.signature).toBe("revoked_from_authenticated");
       }
@@ -96,8 +117,16 @@ describe("M4 surface matrix", () => {
     }
   });
 
-  it("keeps the enable script opening increment 1 and only increment 1", () => {
-    const enable = read("tests/ap1/environment/enable-m4-increment-1.sql");
+  /**
+   * Скриптов среды два, и каждый обязан открывать ровно свой набор. Общий
+   * список здесь не годился бы: скрипт V1, открывший заодно инкремент 1, прошёл
+   * бы такую проверку молча.
+   */
+  it.each([
+    ["tests/ap1/environment/enable-m4-increment-1.sql", M4_INCREMENT_1_SIGNATURES],
+    ["tests/ap1/environment/enable-m4-v1-impact.sql", M4_V1_IMPACT_SIGNATURES],
+  ] as const)("keeps %s opening exactly its own signatures", (path, expected) => {
+    const enable = read(path);
     const grantBlock = enable.slice(
       enable.indexOf("grant execute on function"),
       enable.indexOf("to authenticated;"),
@@ -106,13 +135,57 @@ describe("M4 surface matrix", () => {
       .split("\n")
       .map((line) => line.trim().replace(/,$/, ""))
       .filter((line) => line.includes("(") && line.includes(".") && !line.startsWith("--"));
-    expect(granted.length).toBe(M4_INCREMENT_1_SIGNATURES.length);
-    for (const signature of M4_INCREMENT_1_SIGNATURES) {
+    expect(expected.length).toBeGreaterThan(0);
+    expect(granted.length).toBe(expected.length);
+    for (const signature of expected) {
       expect(squash(grantBlock), signature).toContain(squash(signature));
     }
     // Ни одна отозванная навсегда сигнатура не имеет права оказаться в гранте.
     for (const signature of M4_REVOKED_SIGNATURES) {
       expect(squash(grantBlock), signature).not.toContain(squash(signature));
+    }
+    // И ни один скрипт не открывает чужой набор.
+    const foreign = path.includes("increment-1")
+      ? M4_V1_IMPACT_SIGNATURES
+      : M4_INCREMENT_1_SIGNATURES;
+    for (const signature of foreign) {
+      expect(squash(grantBlock), signature).not.toContain(squash(signature));
+    }
+  });
+
+  /**
+   * Производственный выключатель (DEC-033) открывает вертикаль по собственному
+   * списку сигнатур, живущему в миграции. Разойдись он с матрицей — и
+   * включение в production открыло бы не то, что вертикаль: меньше — и
+   * архитектор упрётся в отозванное право на живом проекте, больше — и
+   * откроется команда, которой никто не разрешал.
+   *
+   * Скрипт среды такой же список уже сверяет (выше). Здесь тот же контроль для
+   * механизма, которым открывают по-настоящему.
+   */
+  it("keeps the production switch opening exactly the V1 signatures", () => {
+    const migration = read(
+      "supabase/migrations/20260812030000_projectceo_m4_v1_production_switch.sql",
+    );
+    const definition = migration.slice(
+      migration.indexOf("create function projectceo_m4._v1_impact_signatures()"),
+    );
+    const listBlock = definition.slice(
+      definition.indexOf("select array["),
+      definition.indexOf("];"),
+    );
+    const listed = listBlock
+      .split("\n")
+      .map((line) => line.trim().replace(/,$/, "").replace(/^'|'$/g, ""))
+      .filter((line) => line.includes("(") && line.includes("."));
+
+    expect(listed.length).toBe(M4_V1_IMPACT_SIGNATURES.length);
+    for (const signature of M4_V1_IMPACT_SIGNATURES) {
+      expect(squash(listBlock), signature).toContain(squash(signature));
+    }
+    // Ни инкремент 1, ни отозванные навсегда команды выключатель не трогает.
+    for (const signature of [...M4_INCREMENT_1_SIGNATURES, ...M4_REVOKED_SIGNATURES]) {
+      expect(squash(listBlock), signature).not.toContain(squash(signature));
     }
   });
 

@@ -22,13 +22,6 @@ export interface ChangeRequestMutation {
   readonly status: "submitted";
 }
 
-export type ImpactCoverageStatus =
-  | "complete"
-  | "partial_depth"
-  | "blocked_result_limit";
-
-export type ImpactCutoffReason = "depth_boundary" | "result_limit" | null;
-
 export interface ImpactRunMutation {
   readonly id: string;
   readonly projectId: string;
@@ -40,15 +33,11 @@ export interface ImpactRunMutation {
   readonly impacts: readonly Readonly<Record<string, unknown>>[];
   readonly algorithm: Readonly<Record<string, unknown>>;
   readonly resultHash: ProjectCeoHash;
-  /** DEC-033: policy-bound coverage outcome. Never caller-supplied. */
-  readonly coverageStatus: ImpactCoverageStatus;
-  readonly cutoffReason: ImpactCutoffReason;
-  readonly hasMoreBeyondDepth: boolean;
-  readonly knownImpactCountLowerBound: number;
-  readonly maxDepth: number;
-  readonly maxImpacts: number;
-  readonly policyVersion: string;
-  readonly returnedImpactCount: number;
+  /** Неполнота прогона — часть результата, а не служебная деталь. */
+  readonly isTruncated: boolean;
+  readonly truncationReason: "depth_limit" | "result_limit" | null;
+  readonly calculatedDepth: number;
+  readonly policyMaxDepth: number;
 }
 
 export interface ImpactReviewMutation {
@@ -58,67 +47,34 @@ export interface ImpactReviewMutation {
   readonly disposition: "accepted" | "resolved" | "dismissed";
   readonly reasonHash: ProjectCeoHash;
   /**
-   * Все ВОЗВРАЩЁННЫЕ карточки просмотрены. Не «анализ полон» — для partial_
-   * depth/blocked это может быть true, пока `coverageComplete` остаётся false.
+   * Закрыто ли рассмотрение целиком. На усечённом прогоне остаётся `false`
+   * до подтверждения архитектора — даже когда все карточки разобраны.
    */
-  readonly allReturnedImpactsReviewed: boolean;
-  /** DEC-033: обход исчерпан (`coverage_status = 'complete'`). */
-  readonly coverageComplete: boolean;
-  /** `allReturnedImpactsReviewed AND coverageComplete`. */
-  readonly impactReviewComplete: boolean;
+  readonly allImpactsReviewed: boolean;
+  readonly everyImpactReviewed: boolean;
+  readonly isTruncated: boolean;
+  readonly truncationAcknowledged: boolean;
+  readonly truncationReason: "depth_limit" | "result_limit" | null;
   readonly reviewedBy: {
     readonly actorId: string;
     readonly actorType: "human";
   };
 }
 
-export interface ImpactBacklogItem {
-  readonly organizationId: string;
-  readonly projectId: string;
-  readonly packageId: string;
-  readonly changeRequestId: string;
-  readonly proposedBaselineId: string;
-  readonly rootCount: number;
-  readonly stateRevision: number;
-}
-
-export interface ImpactPolicy {
-  readonly version: string;
-  readonly maxDepth: number;
-  readonly maxImpacts: number;
-}
-
-export interface ImpactBacklogEnvelope {
-  readonly contractVersion: "project-ceo-impact-worker/0.1";
-  readonly requestId: string;
-  readonly policy: ImpactPolicy;
-  readonly data: readonly ImpactBacklogItem[];
-  readonly error: null;
-}
-
-function parseImpactBacklogEnvelope(value: unknown): ImpactBacklogEnvelope {
-  const isRecord = (candidate: unknown): candidate is Record<string, unknown> =>
-    candidate !== null && typeof candidate === "object" && !Array.isArray(candidate);
-  if (!isRecord(value)) {
-    throw new Error("Invalid ProjectCEO M4 impact backlog envelope");
-  }
-  const policy = value.policy;
-  const data = value.data;
-  if (
-    value.contractVersion !== "project-ceo-impact-worker/0.1"
-    || typeof value.requestId !== "string"
-    || value.requestId.length === 0
-    || value.error !== null
-    || !isRecord(policy)
-    || typeof policy.version !== "string"
-    || typeof policy.maxDepth !== "number"
-    || typeof policy.maxImpacts !== "number"
-    || !Array.isArray(data)
-    || !data.every(isRecord)
-  ) {
-    throw new Error("Invalid ProjectCEO M4 impact backlog envelope");
-  }
-  return value as unknown as ImpactBacklogEnvelope;
+export interface ImpactTruncationAcknowledgementMutation {
+  readonly id: string;
+  readonly impactRunId: string;
+  readonly reasonHash: ProjectCeoHash;
+  readonly truncationReason: "depth_limit" | "result_limit";
+  /**
+   * Закрыт ли прогон после подтверждения. Подтверждение снимает ровно одно
+   * препятствие — нерассмотренные карточки оно не закрывает.
+   */
+  readonly allImpactsReviewed: boolean;
+  readonly acknowledgedBy: {
+    readonly actorId: string;
+    readonly actorType: "human";
+  };
 }
 
 export interface MilestoneMutation {
@@ -197,7 +153,7 @@ export interface ExecutionDeliveryProjection {
 }
 
 export interface ExecutionDeliveryEnvelope {
-  readonly contractVersion: "project-ceo-m4-delivery/0.2";
+  readonly contractVersion: "project-ceo-m4-delivery/0.1";
   readonly requestId: string;
   readonly data: ExecutionDeliveryProjection;
   readonly error: null;
@@ -237,7 +193,7 @@ function parseExecutionDelivery(value: unknown): ExecutionDeliveryEnvelope {
     scope.packageId,
   ].every((id) => typeof id === "string" && uuid.test(id));
   if (
-    value.contractVersion !== "project-ceo-m4-delivery/0.2"
+    value.contractVersion !== "project-ceo-m4-delivery/0.1"
     || typeof value.requestId !== "string"
     || value.requestId.length === 0
     || value.error !== null
@@ -250,34 +206,6 @@ function parseExecutionDelivery(value: unknown): ExecutionDeliveryEnvelope {
     throw new Error("Invalid ProjectCEO M4 delivery envelope");
   }
   return value as unknown as ExecutionDeliveryEnvelope;
-}
-
-export interface ImpactWorkerFailureResult {
-  readonly attemptCount: number;
-  readonly deadLettered: boolean;
-}
-
-function parseImpactWorkerFailureResult(value: unknown): ImpactWorkerFailureResult {
-  const isRecord = (candidate: unknown): candidate is Record<string, unknown> =>
-    candidate !== null && typeof candidate === "object" && !Array.isArray(candidate);
-  if (
-    !isRecord(value)
-    || typeof value.attemptCount !== "number"
-    || !Number.isSafeInteger(value.attemptCount)
-    || typeof value.deadLettered !== "boolean"
-  ) {
-    throw new Error("Invalid ProjectCEO M4 impact worker failure result");
-  }
-  return { attemptCount: value.attemptCount, deadLettered: value.deadLettered };
-}
-
-function parseImpactWorkerRedriveResult(value: unknown): { readonly redriven: true } {
-  const isRecord = (candidate: unknown): candidate is Record<string, unknown> =>
-    candidate !== null && typeof candidate === "object" && !Array.isArray(candidate);
-  if (!isRecord(value) || value.redriven !== true) {
-    throw new Error("Invalid ProjectCEO M4 impact worker redrive result");
-  }
-  return { redriven: true };
 }
 
 /**
@@ -506,6 +434,34 @@ export class ProjectCeoM4HumanPostgresAdapter {
     );
   }
 
+  /**
+   * Подтверждение неполноты прогона. Человеческая операция: подписывается тот
+   * же архитектор, который рассматривает влияние (capability
+   * `review_change_impact`).
+   */
+  async acknowledgeImpactTruncation(input: {
+    readonly projectId: string;
+    readonly impactRunId: string;
+    readonly reason: string;
+    readonly expectedStateRevision: number;
+    readonly idempotencyKey: string;
+  }): Promise<CommandMutation<ImpactTruncationAcknowledgementMutation>> {
+    return parseCommandMutation<ImpactTruncationAcknowledgementMutation>(
+      await callRpc(
+        this.client,
+        "projectceo_m4_api",
+        "acknowledge_impact_truncation",
+        {
+          project_id: input.projectId,
+          impact_run_id: input.impactRunId,
+          reason: input.reason,
+          expected_state_revision: input.expectedStateRevision,
+          idempotency_key: input.idempotencyKey,
+        },
+      ),
+    );
+  }
+
   async getExecutionDelivery(input: {
     readonly projectId: string;
     readonly packageId: string;
@@ -523,10 +479,51 @@ export class ProjectCeoM4HumanPostgresAdapter {
 export class ProjectCeoM4WorkerPostgresAdapter {
   constructor(private readonly client: PostgresRpcClient) {}
 
+  async calculateChangeImpact(input: {
+    readonly projectId: string;
+    readonly changeRequestId: string;
+    readonly maxDepth: number;
+    readonly expectedStateRevision: number;
+    readonly idempotencyKey: string;
+  }): Promise<CommandMutation<ImpactRunMutation>> {
+    return parseCommandMutation<ImpactRunMutation>(
+      await callRpc(
+        this.client,
+        "projectceo_m4_api",
+        "calculate_change_impact",
+        {
+          project_id: input.projectId,
+          change_request_id: input.changeRequestId,
+          max_depth: input.maxDepth,
+          expected_state_revision: input.expectedStateRevision,
+          idempotency_key: input.idempotencyKey,
+        },
+      ),
+    );
+  }
+
   /**
-   * DEC-033: единственная системная дверь расчёта влияния. Глубина и лимит —
-   * серверная политика (`projectceo_m4._impact_policy()`); вызывающий их не
-   * передаёт и повлиять на них не может.
+   * Очередь заявок без прогона влияния — системное чтение
+   * (`20260812010000`, права только у service role). Разбор конверта живёт в
+   * воркере: адаптер отвечает за границу с базой, а не за контракт очереди.
+   */
+  async listChangeImpactBacklog(input: {
+    readonly maxRows: number;
+  }): Promise<unknown> {
+    return callRpc(
+      this.client,
+      "projectceo_m4_api",
+      "list_change_impact_backlog",
+      { max_rows: input.maxRows },
+    );
+  }
+
+  /**
+   * Дверь воркера. Глубина обхода СЮДА НЕ ПЕРЕДАЁТСЯ — её берёт из versioned
+   * политики сама база (`_impact_policy`). Это и есть смысл двери: пока
+   * глубина была аргументом, два воркера с разными числами давали разный
+   * результат на одном графе, и «детерминированный расчёт» держался на том,
+   * что никто не ошибётся в вызове.
    */
   async calculateChangeImpactPolicyBound(input: {
     readonly projectId: string;
@@ -549,19 +546,6 @@ export class ProjectCeoM4WorkerPostgresAdapter {
     );
   }
 
-  async listChangeImpactBacklog(
-    input: { readonly maxRows?: number } = {},
-  ): Promise<ImpactBacklogEnvelope> {
-    return parseImpactBacklogEnvelope(
-      await callRpc(
-        this.client,
-        "projectceo_m4_api",
-        "list_change_impact_backlog",
-        input.maxRows === undefined ? {} : { max_rows: input.maxRows },
-      ),
-    );
-  }
-
   async buildConstructionHandover(input: {
     readonly projectId: string;
     readonly packageId: string;
@@ -580,56 +564,6 @@ export class ProjectCeoM4WorkerPostgresAdapter {
           production_package_version_id: input.productionPackageVersionId,
           expected_state_revision: input.expectedStateRevision,
           idempotency_key: input.idempotencyKey,
-        },
-      ),
-    );
-  }
-
-  /**
-   * Durable operator failure поверх воркерной двери расчёта (DEC-033):
-   * bounded retry — счётчик попыток и terminal dead-letter на пороге
-   * `maxAttempts` (сервер по умолчанию — 5). Воркер зовёт эту дверь только на
-   * `not_found` и на прочих неожиданных отказах — НЕ на `stale_state`,
-   * который является нормальным исходом гонки и не считается попыткой.
-   */
-  async recordChangeImpactWorkerFailure(input: {
-    readonly projectId: string;
-    readonly changeRequestId: string;
-    readonly failureCode: string;
-    readonly maxAttempts?: number;
-  }): Promise<ImpactWorkerFailureResult> {
-    return parseImpactWorkerFailureResult(
-      await callRpc(
-        this.client,
-        "projectceo_m4_api",
-        "record_change_impact_worker_failure",
-        {
-          project_id: input.projectId,
-          change_request_id: input.changeRequestId,
-          failure_code: input.failureCode,
-          ...(input.maxAttempts === undefined ? {} : { max_attempts: input.maxAttempts }),
-        },
-      ),
-    );
-  }
-
-  /**
-   * Единственный путь из dead-letter — операторская дверь, не автосброс.
-   * Обёртка существует для repo-скриптов ops-действий, не для воркерного
-   * цикла: воркер сам никогда не редрайвит то, что сам же и заблокировал.
-   */
-  async redriveChangeImpactWorkerFailure(input: {
-    readonly projectId: string;
-    readonly changeRequestId: string;
-  }): Promise<{ readonly redriven: true }> {
-    return parseImpactWorkerRedriveResult(
-      await callRpc(
-        this.client,
-        "projectceo_m4_api",
-        "redrive_change_impact_worker_failure",
-        {
-          project_id: input.projectId,
-          change_request_id: input.changeRequestId,
         },
       ),
     );

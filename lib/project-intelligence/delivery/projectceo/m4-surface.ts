@@ -34,6 +34,7 @@
  */
 
 import type { ProjectCeoCommand } from "./command-contract";
+import { EXECUTION_INCREMENT_1, EXECUTION_V1_IMPACT } from "./execution-flag";
 
 export type M4RpcClosure = "revoked_from_authenticated" | "enabled_by_environment_script";
 
@@ -142,11 +143,11 @@ export const M4_SURFACE: readonly M4SurfaceRow[] = [
     ],
   },
   {
-    // V1 Impact (DEC-033, OWNER GO 12.08.2026): ревью уже посчитанного влияния
-    // переходит в инкремент 1. Сам расчёт — воркерная операция без человеческой
-    // команды (см. `M4_NON_COMMAND_FUNCTIONS`); эта строка — только про ревью.
+    // Классификация A6 не меняется — команда как была во втором инкременте,
+    // так и осталась. Изменилось разрешение: GO на V1 от 12.08.2026 открыл её
+    // отдельно, после того как появился воркер, рождающий её вход.
     command: "review_change_impact",
-    increment: 1,
+    increment: 2,
     offState: "module_disabled",
     onState: "precondition_driven",
     rpcs: [
@@ -161,6 +162,24 @@ export const M4_SURFACE: readonly M4SurfaceRow[] = [
         schema: "projectceo_m4_api",
         name: "replay_review_change_impact",
         signature: "projectceo_m4_api.replay_review_change_impact(uuid, uuid, text, text, text, text)",
+        sharing: "m4_only",
+        closure: "enabled_by_environment_script",
+      },
+    ],
+  },
+  {
+    // Подтверждение неполноты. Инкрементом A6 не классифицировалась вовсе —
+    // команды тогда не существовало; относится к V1 и открыта тем же
+    // решением владельца, что и рассмотрение.
+    command: "acknowledge_impact_truncation",
+    increment: 2,
+    offState: "module_disabled",
+    onState: "precondition_driven",
+    rpcs: [
+      {
+        schema: "projectceo_m4_api",
+        name: "acknowledge_impact_truncation",
+        signature: "projectceo_m4_api.acknowledge_impact_truncation(uuid, uuid, text, bigint, text)",
         sharing: "m4_only",
         closure: "enabled_by_environment_script",
       },
@@ -260,24 +279,18 @@ export const M4_SURFACE: readonly M4SurfaceRow[] = [
  * «команда, которую забыли внести в матрицу».
  */
 export const M4_NON_COMMAND_FUNCTIONS: readonly string[] = [
-  // Прежняя дверь расчёта с произвольной глубиной от вызывающего. DEC-033
-  // закрыла её execute даже для `service_role`; функция физически осталась в
-  // схеме (уже слитая миграция неизменяема), поэтому классификация тоже
-  // остаётся — как недостижимая никем не-команда.
   "calculate_change_impact",
   "define_milestone",
   "register_handover_document",
   // Единственная функция схемы, доступная человеческой сессии: без неё
   // рабочее пространство перестанет читаться (см. `20260810070000`).
   "get_execution_delivery",
-  // V1 Impact (DEC-033): воркерные двери расчёта и очереди. Человеческой
-  // команды у них нет и не будет — расчёт делает система, не пользователь.
+  // V1 Impact: воркерные двери расчёта (`20260812010000`). Человеческой
+  // команды у них нет и не будет — влияние считает система, а человек
+  // рассматривает готовый прогон командой `review_change_impact`. Права
+  // выданы только `service_role`.
   "calculate_change_impact_policy_bound",
   "list_change_impact_backlog",
-  // V1 Impact: durable operator failure поверх воркерной двери расчёта —
-  // bounded retry и redrive из dead-letter. Тоже без человеческой команды.
-  "record_change_impact_worker_failure",
-  "redrive_change_impact_worker_failure",
 ];
 
 /** Команды модуля — производная от матрицы, а не второй список рядом с ней. */
@@ -298,7 +311,29 @@ export const M4_REVOKED_SIGNATURES: readonly string[] = signatures(
   (rpc) => rpc.closure === "revoked_from_authenticated",
 );
 
+/**
+ * Открываемые сигнатуры конкретного набора команд.
+ *
+ * Разделение по наборам появилось с открытием V1: пока открываемым был ровно
+ * инкремент 1, хватало одного списка и одного скрипта среды. Теперь скриптов
+ * два, и каждый обязан сверяться со своим списком — иначе тест «скрипт
+ * открывает ровно то, что положено» проходил бы, открывай он что угодно из
+ * общей кучи.
+ */
+function openableSignatures(commands: readonly string[]): readonly string[] {
+  const scope = new Set(commands);
+  return M4_SURFACE
+    .filter((row) => scope.has(row.command))
+    .flatMap((row) => row.rpcs)
+    .filter((rpc) => rpc.closure === "enabled_by_environment_script")
+    .map((rpc) => rpc.signature)
+    .filter((signature, index, all) => all.indexOf(signature) === index);
+}
+
 /** Закрыто по умолчанию, открывается явно там, где модуль намеренно включён. */
-export const M4_INCREMENT_1_SIGNATURES: readonly string[] = signatures(
-  (rpc) => rpc.closure === "enabled_by_environment_script",
-);
+export const M4_INCREMENT_1_SIGNATURES: readonly string[] =
+  openableSignatures(EXECUTION_INCREMENT_1);
+
+/** То же для вертикали V1 Impact — открывается своим скриптом среды. */
+export const M4_V1_IMPACT_SIGNATURES: readonly string[] =
+  openableSignatures(EXECUTION_V1_IMPACT);

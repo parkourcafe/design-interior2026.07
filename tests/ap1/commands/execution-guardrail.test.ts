@@ -11,6 +11,8 @@ import {
   EXECUTION_INCREMENT_1,
   EXECUTION_INCREMENT_2,
   EXECUTION_MODULE,
+  EXECUTION_NOT_AUTHORIZED_COMMANDS,
+  EXECUTION_V1_IMPACT,
   isExecutionModuleEnabled,
 } from "../../../lib/project-intelligence/delivery/projectceo/execution-flag";
 
@@ -100,9 +102,13 @@ describe("M4 execution guardrail", () => {
       "Команда добавлена или удалена в командном контракте. Отнесите её к "
       + "инкременту 1, инкременту 2 или к «не модуль 4» в execution-flag.ts, "
       + "затем обновите это число.",
-    ).toBe(32);
+    ).toBe(33);
 
-    const declared = [...EXECUTION_INCREMENT_1, ...EXECUTION_INCREMENT_2];
+    const declared = [...new Set([
+      ...EXECUTION_INCREMENT_1,
+      ...EXECUTION_INCREMENT_2,
+      ...EXECUTION_V1_IMPACT,
+    ])];
     // Каждая классифицированная команда действительно существует в контракте:
     // опечатка в имени иначе тихо выключила бы запрет для настоящей команды.
     for (const kind of declared) {
@@ -111,16 +117,20 @@ describe("M4 execution guardrail", () => {
     // Инкременты не пересекаются и вместе покрывают модуль целиком.
     expect(new Set(declared).size).toBe(declared.length);
     expect(EXECUTION_MODULE.size).toBe(declared.length);
-    expect(declared.length).toBe(8);
+    // Было 8 — три команды инкремента 1 и пять инкремента 2. Стало 9:
+    // решение владельца об усечении от 12.08.2026 добавило
+    // `acknowledge_impact_truncation`, которой в классификации A6 не было.
+    expect(declared.length).toBe(9);
   });
 
   /**
-   * Инкремент 1 открыт подписью A6, инкремент 2 — нет. С 11.08 это различие
-   * живёт в коде, а не только в документе: включение модуля обязано открывать
-   * ровно первое и ни одной командой больше.
+   * Инкремент 1 открыт подписью A6; из инкремента 2 отдельным GO от 12.08.2026
+   * открыта одна команда — `review_change_impact` (вертикаль V1 Impact).
+   * Различие живёт в коде, а не только в документе: включение модуля обязано
+   * открывать ровно разрешённое и ни одной командой больше.
    */
-  it("opens increment 1 and keeps increment 2 closed when the flag is on", async () => {
-    for (const kind of EXECUTION_INCREMENT_2) {
+  it("opens what is authorised and keeps the rest closed when the flag is on", async () => {
+    for (const kind of EXECUTION_NOT_AUTHORIZED_COMMANDS) {
       const calls: string[] = [];
       const service = new ProjectCeoCommandService({
         client: client(calls),
@@ -137,10 +147,14 @@ describe("M4 execution guardrail", () => {
       expect(calls, kind).toEqual([]);
     }
 
-    // Инкремент 1 при включённом модуле до базы доходит. Проверяется именно
-    // это — не успех команды (payload здесь пустой и база ответит отказом), а
-    // то, что запрет её больше не перехватывает.
-    for (const kind of EXECUTION_INCREMENT_1) {
+    // Разрешённые команды при включённом модуле доходят до базы. Проверяется
+    // именно это — не успех команды (payload здесь пустой и база ответит
+    // отказом), а то, что запрет её больше не перехватывает.
+    //
+    // `review_change_impact` здесь наравне с инкрементом 1: после GO на V1 она
+    // обязана отказывать по предпосылке (нет прогона влияния), а не по
+    // авторизации. Разница видна только тем, что вызов до базы доходит.
+    for (const kind of [...EXECUTION_INCREMENT_1, ...EXECUTION_V1_IMPACT]) {
       const calls: string[] = [];
       const service = new ProjectCeoCommandService({
         client: client(calls),

@@ -5,8 +5,8 @@
 -- Позитивная цепочка прошла целиком — значит движок инкремента 2 работает. Это
 -- половина доказательства. Вторая половина в том, что доказали мы его НЕ ценой
 -- открытия: `anon`, `authenticated` и `service_role` не получили ни одного
--- права V2/V3, а тестовая роль не разрослась за пределы выданных пяти
--- функций.
+-- неавторизованного права, а тестовая роль не разрослась за пределы выданных
+-- семи функций.
 --
 -- Проверка стоит в конце намеренно. Между `06_...` и этим файлом успели
 -- отработать все сценарии, конкурентный прогон и перезапуск базы: если бы
@@ -19,10 +19,14 @@ declare
   v_count bigint;
   v_role_oid oid;
 begin
-  -- 1. Восемь человеческих RPC V2/V3 по-прежнему недоступны всем трём
-  --    PostgREST-ролям. `review_change_impact`/`replay_review_change_impact`
-  --    здесь больше нет: DEC-033 вывел их из закрытого множества в V1, и их
-  --    проверяют отдельно, положительно, ниже.
+  -- 1. Восемь человеческих RPC, не открытых никем, по-прежнему недоступны всем
+  --    трём PostgREST-ролям.
+  --
+  --    Список короче, чем в `05_default_deny_before.sql`, ровно на две двери
+  --    `review_change_impact`: их открывает `enable-m4-v1-impact.sql` по GO на
+  --    вертикаль V1 от 12.08.2026. Они не выпали из-под проверки — они
+  --    проверяются ниже, отдельным пунктом и строже: закрыты для `anon` и
+  --    `service_role`, открыты ровно для `authenticated`.
   select format('%s:%s', role_name, signature) into v_reachable
   from unnest(array['anon', 'authenticated', 'service_role']) role_name
   cross join unnest(array[
@@ -41,13 +45,40 @@ begin
     raise exception 'DB5_INCREMENT_2_REACHABLE_AFTER_RUN:%', v_reachable;
   end if;
 
+  -- 1b. Две двери V1 открыты РОВНО человеческой сессии. Открытие вертикали не
+  --     имеет права протечь ни в публичную роль, ни в системную: `anon` — это
+  --     интернет, а `service_role` — это воркер, который влияние считает, но
+  --     не рассматривает.
+  select format('%s:%s', role_name, signature) into v_reachable
+  from unnest(array['anon', 'service_role']) role_name
+  cross join unnest(array[
+    'projectceo_m4_api.review_change_impact(uuid, uuid, text, text, text, bigint, text)',
+    'projectceo_m4_api.replay_review_change_impact(uuid, uuid, text, text, text, text)',
+    'projectceo_m4_api.acknowledge_impact_truncation(uuid, uuid, text, bigint, text)'
+  ]) signature
+  where pg_catalog.has_function_privilege(role_name, signature, 'EXECUTE')
+  limit 1;
+  if v_reachable is not null then
+    raise exception 'DB5_V1_IMPACT_REACHABLE_BY_WRONG_ROLE:%', v_reachable;
+  end if;
+
+  select signature into v_missing
+  from unnest(array[
+    'projectceo_m4_api.review_change_impact(uuid, uuid, text, text, text, bigint, text)',
+    'projectceo_m4_api.replay_review_change_impact(uuid, uuid, text, text, text, text)',
+    'projectceo_m4_api.acknowledge_impact_truncation(uuid, uuid, text, bigint, text)'
+  ]) signature
+  where not pg_catalog.has_function_privilege('authenticated', signature, 'EXECUTE')
+  limit 1;
+  if v_missing is not null then
+    raise exception 'DB5_V1_IMPACT_LOST_HUMAN_GRANT:%', v_missing;
+  end if;
+
   -- 2. Поверхность `authenticated` в схеме модуля исчерпывающая, а не
-  --    выборочная: ровно пять функций — инкремент 1 (`create_change`) и его
-  --    replay-обёртка, V1 Impact (`review_change_impact`) и его
-  --    replay-обёртка, открытые скриптом среды, плюс читающая RPC рабочего
-  --    пространства. Проверка по счётчику ловит и то, чего сегодня нет:
-  --    функция, добавленная в схему завтра и выданная по недосмотру, уронит
-  --    прогон.
+  --    выборочная: ровно шесть функций — инкремент 1 и его replay-обёртка,
+  --    читающая RPC рабочего пространства и две двери V1, открытые скриптами
+  --    среды. Проверка по счётчику ловит и то, чего сегодня нет: функция,
+  --    добавленная в схему завтра и выданная по недосмотру, уронит прогон.
   select procedure.proname into v_reachable
   from pg_catalog.pg_proc procedure
   join pg_catalog.pg_namespace namespace
@@ -56,31 +87,18 @@ begin
     and pg_catalog.has_function_privilege('authenticated', procedure.oid, 'EXECUTE')
     and procedure.proname not in (
       'submit_change_request', 'replay_submit_change_request',
+      'get_execution_delivery',
+      -- Открыты GO на V1 (`enable-m4-v1-impact.sql`).
       'review_change_impact', 'replay_review_change_impact',
-      'get_execution_delivery'
+      'acknowledge_impact_truncation'
     )
   limit 1;
   if v_reachable is not null then
-    raise exception 'DB5_AUTHENTICATED_SURFACE_WIDER_THAN_INCREMENT_1:%', v_reachable;
+    raise exception 'DB5_AUTHENTICATED_SURFACE_WIDER_THAN_AUTHORISED:%', v_reachable;
   end if;
 
-  -- V1 Impact открыт: `authenticated` обязана видеть обе двери
-  -- (review_change_impact и её replay-обёртку) после скрипта среды.
-  select signature into v_missing
-  from unnest(array[
-    'projectceo_m4_api.review_change_impact(uuid, uuid, text, text, text, bigint, text)',
-    'projectceo_m4_api.replay_review_change_impact(uuid, uuid, text, text, text, text)'
-  ]) signature
-  where not pg_catalog.has_function_privilege('authenticated', signature, 'EXECUTE')
-  limit 1;
-  if v_missing is not null then
-    raise exception 'DB5_V1_IMPACT_REVIEW_NOT_ENABLED:%', v_missing;
-  end if;
-
-  -- 3. `service_role` в схеме модуля — ровно пять воркерных вызовов
-  --    (`build_construction_handover` плюс четыре V1 Impact), ни одной
-  --    человеческой операции, и БЕЗ прежней двери расчёта с произвольной
-  --    глубиной (DEC-033 §8 закрыл её и для `service_role`).
+  -- 3. `service_role` в схеме модуля — ровно два воркерных вызова, ни одной
+  --    человеческой операции.
   select procedure.proname into v_reachable
   from pg_catalog.pg_proc procedure
   join pg_catalog.pg_namespace namespace
@@ -88,9 +106,10 @@ begin
   where namespace.nspname = 'projectceo_m4_api'
     and pg_catalog.has_function_privilege('service_role', procedure.oid, 'EXECUTE')
     and procedure.proname not in (
-      'build_construction_handover',
-      'calculate_change_impact_policy_bound', 'list_change_impact_backlog',
-      'record_change_impact_worker_failure', 'redrive_change_impact_worker_failure'
+      'calculate_change_impact', 'build_construction_handover',
+      -- V1 Impact: воркерные двери расчёта, открытые только системной роли
+      -- (`20260812010000`).
+      'calculate_change_impact_policy_bound', 'list_change_impact_backlog'
     )
   limit 1;
   if v_reachable is not null then
@@ -99,24 +118,17 @@ begin
 
   select signature into v_missing
   from unnest(array[
+    'projectceo_m4_api.calculate_change_impact(uuid, uuid, integer, bigint, text)',
     'projectceo_m4_api.build_construction_handover(uuid, uuid, text, bigint, text)',
+    -- V1 Impact: те же правила для новых воркерных дверей — человеческим ролям
+    -- недоступны, системной доступны.
     'projectceo_m4_api.calculate_change_impact_policy_bound(uuid, uuid, bigint, text)',
-    'projectceo_m4_api.list_change_impact_backlog(integer)',
-    'projectceo_m4_api.record_change_impact_worker_failure(uuid, uuid, text, integer)',
-    'projectceo_m4_api.redrive_change_impact_worker_failure(uuid, uuid)'
+    'projectceo_m4_api.list_change_impact_backlog(integer)'
   ]) signature
   where not pg_catalog.has_function_privilege('service_role', signature, 'EXECUTE')
   limit 1;
   if v_missing is not null then
     raise exception 'DB5_WORKER_RPC_LOST_SYSTEM_GRANT:%', v_missing;
-  end if;
-
-  if pg_catalog.has_function_privilege(
-    'service_role',
-    'projectceo_m4_api.calculate_change_impact(uuid, uuid, integer, bigint, text)',
-    'EXECUTE'
-  ) then
-    raise exception 'DB5_RAW_IMPACT_RPC_REACHABLE_BY_SERVICE_ROLE_AFTER_RUN';
   end if;
 
   -- 4. `anon` не достаёт до схемы модуля вовсе.
@@ -131,9 +143,11 @@ begin
     raise exception 'DB5_ANON_REACHED_MODULE:%', v_reachable;
   end if;
 
-  -- 5. Тестовая роль не разрослась: те же пять ЯВНЫХ грантов на функции и ни
-  --    одного табличного. Счётчик говорит про записи ACL, а не про то, сколько
-  --    функций роль вообще способна вызвать.
+  -- 5. Тестовая роль не разрослась: те же семь ЯВНЫХ грантов на функции и ни
+  --    одного табличного. Седьмой появился вместе с подтверждением неполноты
+  --    прогона (`acknowledge_impact_truncation`, решение об усечении 12.08).
+  --    Счётчик говорит про записи ACL, а не про то, сколько функций роль
+  --    вообще способна вызвать.
   select oid into v_role_oid
   from pg_catalog.pg_roles
   where rolname = 'pi_db5_execution_tester';
@@ -148,7 +162,7 @@ begin
     pg_catalog.acldefault('f'::"char", procedure.proowner)
   )) acl
   where acl.grantee = v_role_oid;
-  if v_count <> 5 then
+  if v_count <> 7 then
     raise exception 'DB5_TEST_ROLE_EXPLICIT_FUNCTION_ACL_COUNT_AFTER_RUN:%', v_count;
   end if;
 

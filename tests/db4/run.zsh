@@ -58,6 +58,7 @@ for sql in \
   "${repo_root}/tests/db4/08_m4_surface_classification.sql" \
   "${repo_root}/tests/ap1/environment/enable-m3-publication.sql" \
   "${repo_root}/tests/ap1/environment/enable-m4-increment-1.sql" \
+  "${repo_root}/tests/ap1/environment/enable-m4-v1-impact.sql" \
   "${repo_root}/tests/db4/10_schema_security.sql" \
   "${repo_root}/tests/db4/20_product_operations.sql" \
   "${repo_root}/tests/db4/30_m2_expansion_operations.sql" \

@@ -57,13 +57,21 @@ done
 # Модули 3 и 4 закрыты в базе по умолчанию (guardrail'ы 20260811010000 и
 # 20260811020000), а сценарии ниже публикуют baseline, выдают пакет и
 # подтверждают получение из-под роли authenticated. Харнесс — одноразовая среда,
-# где модули открыты намеренно; без двух строк включения он падал бы на
+# где модули открыты намеренно; без строк включения он падал бы на
 # insufficient_privilege, то есть проверял бы не то, ради чего написан.
+#
+# `06_execution_test_role.sql` добавлен 12.08.2026. С E0R сценарий
+# `tests/db5/20_execution_operations.sql` зовёт человеческие RPC инкремента 2
+# из-под отдельной роли `pi_db5_execution_tester`, а создаётся она именно этим
+# файлом. Без него харнесс падал на `role does not exist` — то есть был красным
+# независимо от того, что проверяет.
 for sql in \
   "${repo_root}/tests/db3/20_foundation_operations.sql" \
   "${repo_root}/tests/ap1/environment/enable-m3-publication.sql" \
   "${repo_root}/tests/ap1/environment/enable-m4-increment-1.sql" \
+  "${repo_root}/tests/ap1/environment/enable-m4-v1-impact.sql" \
   "${repo_root}/tests/db4/20_product_operations.sql" \
+  "${repo_root}/tests/db5/06_execution_test_role.sql" \
   "${repo_root}/tests/db5/20_execution_operations.sql" \
   "${repo_root}/tests/ap1/reads/10_schema_security.sql" \
   "${repo_root}/tests/ap1/reads/15_inventory_duplicate_groups.sql" \

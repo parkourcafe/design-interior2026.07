@@ -60,26 +60,27 @@ done
 #   05 — доказать, что закрыто ВСЁ, включая инкремент 1 и публикацию M3;
 #   enable-* — открыть ровно то, что скрипты одноразовой среды открывают в
 #              DB4 и AP1, и ни строкой больше (инкремент 2 они не трогают);
-#   06 — завести отдельную `nologin`-роль для человеческих RPC V2/V3;
+#   06 — завести отдельную `nologin`-роль для человеческих RPC инкремента 2;
 #   10/20 — контракт схемы и позитивная цепочка;
-#   26 — benchmark политики обхода V1 Impact: детерминированность, честный
-#        сигнал усечения, приемлемое время — на уже ЗАФИКСИРОВАННЫХ DEC-033
-#        параметрах, не подбор числа;
-#   27 — полная матрица исходов V1 Impact (complete/partial_depth/
-#        blocked_result_limit), digest/replay, неизменяемость, durable
-#        operator failure и redrive;
+#   26 — benchmark политики обхода: он выбирает `maxDepth` и проверяет, что
+#        усечение, лимит и время не остались декларацией, а частичный прогон
+#        нельзя закрыть без подтверждения архитектора;
+#   27 — заявка для гонки расчёта: фиксируется (не откатывается), потому что
+#        конкурентные сессии видят только зафиксированные данные;
 #   90 — доказать, что после всего этого закрытое так и осталось закрытым.
 for sql in \
   "${repo_root}/tests/db5/05_default_deny_before.sql" \
   "${repo_root}/tests/ap1/environment/enable-m3-publication.sql" \
   "${repo_root}/tests/ap1/environment/enable-m4-increment-1.sql" \
+  "${repo_root}/tests/ap1/environment/enable-m4-v1-impact.sql" \
   "${repo_root}/tests/db5/06_execution_test_role.sql" \
   "${repo_root}/tests/db3/20_foundation_operations.sql" \
   "${repo_root}/tests/db4/20_product_operations.sql" \
   "${repo_root}/tests/db5/10_schema_security.sql" \
   "${repo_root}/tests/db5/20_execution_operations.sql" \
   "${repo_root}/tests/db5/26_impact_policy_benchmark.sql" \
-  "${repo_root}/tests/db5/27_impact_coverage_outcomes.sql"; do
+  "${repo_root}/tests/db5/27_impact_concurrency_fixture.sql" \
+  "${repo_root}/tests/db5/28_v1_production_switch.sql"; do
   print -r -- "Running ${sql:t}"
   run_file "${sql}"
 done

@@ -105,6 +105,101 @@ if [[ "${result}" != "${expected_state}|1|1" ]]; then
   exit 1
 fi
 
+# Вторая гонка: РАСЧЁТ ВЛИЯНИЯ (гейт V1 «два параллельных прохода дают один
+# прогон»).
+#
+# Почему на отдельной заявке — см. `27_impact_concurrency_fixture.sql`: у заявки
+# золотого проекта прогон уже есть, и оба соперника получили бы
+# `IMPACT_ALREADY_CALCULATED`, то есть проверялся бы повтор, а не гонка.
+#
+# Роль здесь `service_role`, а не тестовая: расчёт — системная операция, и
+# гонка обязана идти тем же путём, каким ходит воркер.
+impact_change_request=c0ffee00-0000-4000-8000-000000000001
+
+impact_state=$(psql_exec db5-impact-state "
+  select state_revision
+  from project_intelligence.project_workflows
+  where project_id = '${project}'
+")
+
+# Ключ идемпотентности тот же, что выводит воркер
+# (`changeImpactIdempotencyKey`): гонка обязана проверять ровно то значение,
+# которым ходит продукт, иначе она доказывает поведение, которого нет.
+impact_call="begin;
+set local role service_role;
+select projectceo_m4_api.calculate_change_impact_policy_bound(
+  '${project}',
+  '${impact_change_request}'::uuid,
+  ${impact_state},
+  'worker:change-impact:${impact_change_request}'
+);
+commit;"
+
+set +e
+psql_exec db5-impact-a "${impact_call}" >"${tmpdir}/impact-a.out" 2>&1 &
+pid_impact_a=$!
+psql_exec db5-impact-b "${impact_call}" >"${tmpdir}/impact-b.out" 2>&1 &
+pid_impact_b=$!
+wait "${pid_impact_a}"; status_impact_a=$?
+wait "${pid_impact_b}"; status_impact_b=$?
+set -e
+
+# Оба вызова обязаны ЗАВЕРШИТЬСЯ успехом. Проигравший гонку не падает: у него
+# тот же ключ идемпотентности, и он получает сохранённый результат победителя.
+if [[ "${status_impact_a}" != "0" || "${status_impact_b}" != "0" ]]; then
+  print -u2 -r -- "Concurrent M4 impact calculation failed"
+  sed -n '1,160p' "${tmpdir}/impact-a.out" >&2
+  sed -n '1,160p' "${tmpdir}/impact-b.out" >&2
+  exit 1
+fi
+
+# Ровно один из двух посчитал, ровно один получил повтор. Два `replay: false`
+# означали бы два прогона, два `true` — что не посчитал никто.
+if [[ $(
+  (rg -o '"replay": false' "${tmpdir}/impact-a.out" "${tmpdir}/impact-b.out" || true) \
+    | wc -l | tr -d ' '
+) != "1" ]] || [[ $(
+  (rg -o '"replay": true' "${tmpdir}/impact-a.out" "${tmpdir}/impact-b.out" || true) \
+    | wc -l | tr -d ' '
+) != "1" ]]; then
+  print -u2 -r -- "Concurrent M4 impact replay contract failed"
+  sed -n '1,160p' "${tmpdir}/impact-a.out" >&2
+  sed -n '1,160p' "${tmpdir}/impact-b.out" >&2
+  exit 1
+fi
+
+# И главное — состояние базы. Ровно один прогон, ровно один набор влияния и
+# ровно одна запись команды: контракт повтора проверяется по данным, а не по
+# тексту ответа.
+impact_result=$(psql_exec db5-impact-assert "
+  select (
+    select count(*)
+    from projectceo_m4.impact_runs run
+    where run.project_id = '${project}'
+      and run.change_request_id = '${impact_change_request}'
+  )::text
+  || '|' || (
+    select count(distinct impact.impact_run_id)
+    from projectceo_m4.impacts impact
+    where impact.project_id = '${project}'
+      and impact.change_request_id = '${impact_change_request}'
+  )::text
+  || '|' || (
+    select count(*)
+    from projectceo_product.command_records command
+    where command.project_id = '${project}'
+      and command.operation = 'calculate_change_impact'
+      and command.logical_result ->> 'changeRequestId'
+        = '${impact_change_request}'
+  )::text
+")
+if [[ "${impact_result}" != "1|1|1" ]]; then
+  print -u2 -r -- "Concurrent M4 impact state invalid: ${impact_result}"
+  exit 1
+fi
+
+print -r -- "DB5_IMPACT_CONCURRENCY_OK"
+
 print -r -- "DB5_CONCURRENCY_OK"
 
 # ─────────────────────────────────────────────────────────────────────────────

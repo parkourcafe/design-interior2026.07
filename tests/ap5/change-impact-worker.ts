@@ -1,36 +1,50 @@
 import { execFileSync } from "node:child_process";
 
 /**
- * Запуск НАСТОЯЩЕГО системного воркера расчёта влияния (DEC-033, V1 Impact,
- * OWNER GO 12.08.2026).
+ * Запуск НАСТОЯЩЕГО системного воркера расчёта влияния (V1 Impact, W1).
  *
- * Тот же приём, что и у `release-worker.ts` (DEC-030): прогон вызывает
- * `npm run worker:change-impact`, а не изображает воркера мостом из спеки —
- * иначе недоказанным осталось бы ровно то, ради чего воркер написан.
+ * Тот же приём и по той же причине, что у воркера артефактов
+ * (`release-worker.ts`): psql-мост доказывал бы поведение базы, но не
+ * существование воркера. Здесь запускается `npm run worker:change-impact` —
+ * ровно тот процесс, который пойдёт в продукт.
  *
- * Воркер сам находит заявки без прогона влияния через
- * `list_change_impact_backlog` — ни идентификатора заявки, ни глубины, ни
- * лимита ему передавать не нужно и нельзя: и то и другое — политика сервера
- * (`projectceo_m4._impact_policy()`, DEC-033 LOCKED), а не аргумент вызывающего.
+ * Очередь воркер находит сам: ни идентификатора заявки, ни глубины обхода ему
+ * передавать не нужно и нельзя. Подскажи ему очередь — и останется
+ * недоказанным ровно то, ради чего он написан. Глубину он не выбирает вовсе:
+ * её держит versioned серверная политика.
  *
- * Системная identity здесь настоящая: скрипт ходит service role ключом, как в
- * продакшене ходил бы воркерный процесс. Человеческие команды цепочки при этом
- * идут через браузер своими сессиями — service role их не выполняет.
+ * Системная identity настоящая: скрипт ходит service role ключом. Человеческие
+ * команды цепочки при этом идут через браузер своими сессиями — рассмотрение
+ * влияния делает архитектор, а не service role.
+ *
+ * КОД ВОЗВРАТА. Воркер отвечает ненулевым кодом, когда проход оставил работу
+ * человеку (частичный прогон или неразрешимый baseline). В цепочке AP5 граф
+ * маленький, усечения быть не должно, поэтому ненулевой код здесь — сигнал о
+ * настоящей проблеме, и глотать его нельзя.
  */
-export function runChangeImpactWorker(): {
+export interface ChangeImpactWorkerReport {
   readonly scanned: number;
   readonly calculated: number;
+  readonly calculatedTruncated: number;
   readonly alreadyPresent: number;
   readonly staleState: number;
-  readonly failureRecorded: number;
-  readonly deadLettered: number;
+  readonly unresolved: number;
+  readonly needsAttention: number;
+  readonly policy: {
+    readonly version: string;
+    readonly maxDepth: number;
+    readonly maxImpacts: number;
+  };
   readonly items: readonly {
     readonly projectId: string;
     readonly changeRequestId: string;
+    readonly rootCount: number;
     readonly outcome: string;
-    readonly coverageStatus?: string;
+    readonly truncationReason: string | null;
   }[];
-} {
+}
+
+export function runChangeImpactWorker(): ChangeImpactWorkerReport {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
   if (!url || !serviceKey) {
@@ -48,6 +62,8 @@ export function runChangeImpactWorker(): {
       env: { ...process.env, NEXT_PUBLIC_SUPABASE_URL: url, SUPABASE_SERVICE_ROLE_KEY: serviceKey },
     });
   } catch (error) {
+    // Отказ обязан называть себя сам: цена непонятной ошибки здесь — сорок
+    // пять минут следующего прогона.
     const detail = error as { stderr?: string; stdout?: string; message?: string };
     throw new Error(
       "AP5: системный воркер расчёта влияния не прошёл.\n"
@@ -56,12 +72,10 @@ export function runChangeImpactWorker(): {
       + `stdout: ${detail.stdout ?? "(пусто)"}`,
     );
   }
-  // Отчёт воркера — последняя строка JSON: он печатает его всегда, в том числе
-  // на пустой очереди, чтобы «нечего делать» отличалось от «не запускался».
   const line = output.trim().split("\n").at(-1) ?? "";
   try {
-    return JSON.parse(line) as ReturnType<typeof runChangeImpactWorker>;
+    return JSON.parse(line) as ChangeImpactWorkerReport;
   } catch {
-    throw new Error(`AP5: воркер не отдал отчёт JSON. Вывод: ${output}`);
+    throw new Error(`AP5: воркер расчёта влияния не отдал отчёт JSON. Вывод: ${output}`);
   }
 }

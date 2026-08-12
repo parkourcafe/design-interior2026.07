@@ -21,7 +21,7 @@ import {
 } from "./command-contract";
 import { DOCUMENTATION_PUBLICATION, isDocumentationModuleEnabled } from "./documentation-flag";
 import {
-  EXECUTION_INCREMENT_2_COMMANDS,
+  EXECUTION_NOT_AUTHORIZED_COMMANDS,
   EXECUTION_MODULE,
   isExecutionModuleEnabled,
 } from "./execution-flag";
@@ -51,7 +51,7 @@ type CommandErrorCode =
 // Сборка handover — воркерный путь с отдельным allowlist (AP3 §10); в
 // человеческом сервисе команды нет намеренно. Остальные четыре команды
 // инкремента 2 закрыты по другому основанию (A6 §1.1 их не открывает) и живут
-// в `EXECUTION_INCREMENT_2_COMMANDS` — разные причины не сливаются в один
+// в `EXECUTION_NOT_AUTHORIZED_COMMANDS` — разные причины не сливаются в один
 // список, чтобы снятие одной не снимало вторую.
 const UNAVAILABLE = new Set<ProjectCeoCommand["kind"]>([
   "build_handover",
@@ -260,10 +260,13 @@ export class ProjectCeoCommandService {
     ) {
       return failure(requestId, "unavailable", "operation_unavailable");
     }
-    // Инкремент 2 закрыт независимо от флага: его не открывал ни один
-    // подписанный документ (A6 §1.1). Проверка стоит ПОСЛЕ флага и не зависит
-    // от него — включение модуля не должно открывать неавторизованное.
-    if (EXECUTION_INCREMENT_2_COMMANDS.has(command.kind)) {
+    // Неавторизованные команды закрыты независимо от флага: их не открывал ни
+    // один подписанный документ (A6 §1.1) и ни один последующий GO. Проверка
+    // стоит ПОСЛЕ флага и не зависит от него — включение модуля не должно
+    // открывать неавторизованное. `review_change_impact` в этом списке больше
+    // нет: её открыл GO на V1, и дальше она живёт по предпосылке (есть прогон
+    // влияния или нет), как любая команда инкремента 1.
+    if (EXECUTION_NOT_AUTHORIZED_COMMANDS.has(command.kind)) {
       return failure(requestId, "unavailable", "operation_unavailable");
     }
     if (
@@ -1029,6 +1032,22 @@ export class ProjectCeoCommandService {
           impactRunId: command.payload.impactRunId,
           impactId: command.payload.impactId,
           disposition: command.payload.disposition,
+          reason: command.payload.reason,
+          expectedStateRevision: scope.stateRevision,
+          idempotencyKey,
+        }));
+      }
+      if (command.kind === "acknowledge_impact_truncation") {
+        // Прогон обязан принадлежать проекту вызывающего — та же проверка, что
+        // у рассмотрения. Без неё идентификатор чужого прогона проходил бы до
+        // базы, и отказ приходил бы оттуда, а не отсюда.
+        const belongs = executionDeliveries.some((envelope) => (
+          envelope.data.impactRuns.some((run) => run.id === command.payload.impactRunId)
+        ));
+        if (!belongs) return failure(requestId, "error", "scope_conflict");
+        return completed(requestId, await this.execution.acknowledgeImpactTruncation({
+          projectId: command.projectId,
+          impactRunId: command.payload.impactRunId,
           reason: command.payload.reason,
           expectedStateRevision: scope.stateRevision,
           idempotencyKey,

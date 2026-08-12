@@ -65,6 +65,7 @@ const fixtureOperations: ProjectCeoOperationStates = {
   acknowledge_release: { status: "unavailable", reason: "fixture_read_only" },
   create_change: { status: "unavailable", reason: "fixture_read_only" },
   review_change_impact: { status: "unavailable", reason: "fixture_read_only" },
+  acknowledge_impact_truncation: { status: "unavailable", reason: "fixture_read_only" },
   upload_photo_evidence: { status: "unavailable", reason: "fixture_read_only" },
   review_photo_evidence: { status: "unavailable", reason: "fixture_read_only" },
   accept_milestone: { status: "unavailable", reason: "fixture_read_only" },
@@ -437,6 +438,13 @@ const changes: readonly ChangeRequestView[] = [
     requestedAt: "2026-07-16T12:00:00Z",
     impactCount: 3,
     reviewedImpactCount: 2,
+    impactRunId: null,
+    impactTruncated: false,
+    impactTruncationReason: null,
+    impactTruncationAcknowledged: false,
+    impactCalculatedDepth: null,
+    impactPolicyMaxDepth: null,
+    impactReviewComplete: false,
     reason: fixtureRu.change.reason,
     // Demonstrates partial_depth (DEC-033): not everything was found, and
     // that stays visible even after every shown card has been reviewed.

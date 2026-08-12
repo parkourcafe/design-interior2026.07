@@ -80,18 +80,18 @@ begin
   end if;
 
   -- 4. Воркерные RPC модуля недоступны человеческим ролям — и доступны
-  --    системной, за одним поимённым исключением (см. ниже). Второе
-  --    утверждается ЯВНО: молчаливый отзыв прав у `service_role` превратил бы
-  --    воркерный шаг цепочки в необъяснимое падение вместо понятного отказа.
+  --    системной. Второе утверждается ЯВНО: молчаливый отзыв прав у
+  --    `service_role` превратил бы воркерный шаг цепочки в необъяснимое
+  --    падение вместо понятного отказа.
   select format('%s:%s', role_name, signature) into v_reachable
   from unnest(array['anon', 'authenticated']) role_name
   cross join unnest(array[
     'projectceo_m4_api.calculate_change_impact(uuid, uuid, integer, bigint, text)',
     'projectceo_m4_api.build_construction_handover(uuid, uuid, text, bigint, text)',
+    -- V1 Impact: те же правила для новых воркерных дверей — человеческим ролям
+    -- недоступны, системной доступны.
     'projectceo_m4_api.calculate_change_impact_policy_bound(uuid, uuid, bigint, text)',
-    'projectceo_m4_api.list_change_impact_backlog(integer)',
-    'projectceo_m4_api.record_change_impact_worker_failure(uuid, uuid, text, integer)',
-    'projectceo_m4_api.redrive_change_impact_worker_failure(uuid, uuid)'
+    'projectceo_m4_api.list_change_impact_backlog(integer)'
   ]) signature
   where pg_catalog.has_function_privilege(role_name, signature, 'EXECUTE')
   limit 1;
@@ -101,29 +101,17 @@ begin
 
   select signature into v_missing
   from unnest(array[
+    'projectceo_m4_api.calculate_change_impact(uuid, uuid, integer, bigint, text)',
     'projectceo_m4_api.build_construction_handover(uuid, uuid, text, bigint, text)',
-    -- V1 Impact (DEC-033): единственная системная дверь расчёта, плюс
-    -- durable operator failure (bounded retry / dead-letter / redrive).
+    -- V1 Impact: те же правила для новых воркерных дверей — человеческим ролям
+    -- недоступны, системной доступны.
     'projectceo_m4_api.calculate_change_impact_policy_bound(uuid, uuid, bigint, text)',
-    'projectceo_m4_api.list_change_impact_backlog(integer)',
-    'projectceo_m4_api.record_change_impact_worker_failure(uuid, uuid, text, integer)',
-    'projectceo_m4_api.redrive_change_impact_worker_failure(uuid, uuid)'
+    'projectceo_m4_api.list_change_impact_backlog(integer)'
   ]) signature
   where not pg_catalog.has_function_privilege('service_role', signature, 'EXECUTE')
   limit 1;
   if v_missing is not null then
     raise exception 'DB5_WORKER_RPC_LOST_SYSTEM_GRANT:%', v_missing;
-  end if;
-
-  -- Исключение: прежняя дверь расчёта с произвольной глубиной от вызывающего
-  -- закрыта ДАЖЕ для `service_role` (DEC-033 §8) — единственная системная
-  -- дверь расчёта теперь policy-bound.
-  if pg_catalog.has_function_privilege(
-    'service_role',
-    'projectceo_m4_api.calculate_change_impact(uuid, uuid, integer, bigint, text)',
-    'EXECUTE'
-  ) then
-    raise exception 'DB5_RAW_IMPACT_RPC_REACHABLE_BY_SERVICE_ROLE';
   end if;
 
   -- 5. Читающая RPC рабочего пространства обязана уцелеть: она — единственное

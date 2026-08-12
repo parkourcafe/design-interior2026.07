@@ -45,6 +45,24 @@ export const AP5_DECISION_REVISION_ID = "a5d0c1c1-0000-4000-8000-000000000001";
  */
 export const AP5_DECISION_REVISION_ID_2 = "a5d0c1c1-0000-4000-8000-000000000002";
 
+/**
+ * Узел, ЗАВИСЯЩИЙ от решения, и ребро к нему.
+ *
+ * Влияние изменения идёт по ОБРАТНЫМ рёбрам графа: обход стартует от
+ * изменённого узла и ищет рёбра, чей `toNodeId` — этот узел. Пока в цепочке
+ * AP5 не было ни одного такого ребра, прогон влияния получался пустым, и
+ * рассматривать архитектору было нечего — звено закрывалось пропуском.
+ *
+ * Ребро направлено `dependent --depends_on--> decision`: спецификация зависит
+ * от решения, поэтому изменение решения её задевает. Это минимальная фигура,
+ * дающая ровно одну карточку, — не «побольше данных», а ровно столько, сколько
+ * нужно, чтобы цепочка стала доказуемой.
+ */
+export const AP5_DEPENDENT_SOURCE_ID = "ap5-dependent-spec";
+export const AP5_DEPENDENT_NODE_ID = "ap5-node-dependent-spec";
+export const AP5_DEPENDENT_REVISION_ID = "ap5-dependent-spec-revision-1";
+export const AP5_DEPENDENT_EDGE_ID = "ap5-edge-dependent-spec-depends-on-decision";
+
 /*
  * Идентификатор артефакта выпуска отсюда убран 11.08 вместе с psql-мостом:
  * артефакт собирает настоящий воркер (`npm run worker:release-artifacts`), и
