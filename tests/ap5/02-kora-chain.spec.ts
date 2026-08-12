@@ -697,7 +697,20 @@ test.describe("AP5 — цепочка Kora на живом стеке", () => {
       reason: "AP5: повторное решение по уже рассмотренной карточке",
     });
     expect(twice.status).toBe(400);
-    expect(twice.body.error?.code).toBe("unsupported_source");
+    // База отвечает `P1110 invalid_transition {"reason":"IMPACT_ALREADY_REVIEWED"}`,
+    // а командная поверхность НАМЕРЕННО сужает словарь: `errorCode()` в
+    // `command-service.ts` сворачивает `unsupported_source` в
+    // `validation_failed`. Здесь проверяется то, что видит клиент, поэтому
+    // ожидание — суженный код, а не внутренний.
+    expect(twice.body.error?.code).toBe("validation_failed");
+    // Отказ обязан быть НАСТОЯЩИМ: решение по карточке осталось прежним, и
+    // счётчик не сдвинулся. Один код ответа этого не доказывает.
+    const afterTwice = await workspace(architect);
+    const unchanged = afterTwice.changes.find((entry) => entry.id === change!.id)!;
+    expect(unchanged.reviewedImpactCount).toBe(reviewedChange!.reviewedImpactCount);
+    expect(
+      unchanged.impacts.find((impact) => impact.impactId === pending!.impactId)?.disposition,
+    ).toBe("resolved");
 
     // 8. НЕДОПУСТИМАЯ ОПЕРАЦИЯ ОТКЛОНЯЕТСЯ: подтверждать неполноту полного
     //    прогона нечего, и сервер это говорит сам.
@@ -706,7 +719,9 @@ test.describe("AP5 — цепочка Kora на живом стеке", () => {
       reason: "AP5: подтверждение неполноты полного прогона",
     });
     expect(acknowledged.status).toBe(400);
-    expect(acknowledged.body.error?.code).toBe("unsupported_source");
+    // Тот же суженный код: база говорит `IMPACT_NOT_TRUNCATED`, клиент видит
+    // `validation_failed`.
+    expect(acknowledged.body.error?.code).toBe("validation_failed");
 
     // 9. Второй проход воркера не заводит второго прогона и не трогает
     //    рассмотренное.
