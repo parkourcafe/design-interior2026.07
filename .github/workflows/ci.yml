@@ -210,11 +210,19 @@ jobs:
       - name: Verify M4 execution is closed on the Data API
         run: node tests/ap1/environment/verify-m4-data-api-closed.mjs
 
-      # Открывается РОВНО инкремент 1 (A6 §1.1 / DEC-025). Пять команд
-      # инкремента 2 не открывает ни этот шаг, ни любая другая среда: сам скрипт
-      # падает, если они окажутся доступны.
+      # Открывается РОВНО инкремент 1 (A6 §1.1 / DEC-025). Команды, которых не
+      # авторизовал ни один документ, не открывает ни этот шаг, ни любая другая
+      # среда: сам скрипт падает, если они окажутся доступны.
       - name: Enable M4 increment 1 on the database boundary
         run: psql "${SUPABASE_DB_URL}" -X --set ON_ERROR_STOP=1 -f tests/ap1/environment/enable-m4-increment-1.sql
+
+      # Вертикаль V1 Impact (M4 IMPLEMENTATION GO от 12.08.2026): рассмотрение
+      # готового прогона влияния и подтверждение его неполноты. Без этого шага
+      # звено 12 упиралось бы в отозванные права, то есть проверяло бы
+      # guardrail, а не цепочку. V2 и V3 скрипт не открывает и падает, если они
+      # окажутся доступны.
+      - name: Enable M4 V1 Impact on the database boundary
+        run: psql "${SUPABASE_DB_URL}" -X --set ON_ERROR_STOP=1 -f tests/ap1/environment/enable-m4-v1-impact.sql
 
       - name: Build and start the application
         env:
