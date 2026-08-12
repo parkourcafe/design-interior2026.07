@@ -154,6 +154,42 @@ describe("M4 surface matrix", () => {
   });
 
   /**
+   * Производственный выключатель (DEC-033) открывает вертикаль по собственному
+   * списку сигнатур, живущему в миграции. Разойдись он с матрицей — и
+   * включение в production открыло бы не то, что вертикаль: меньше — и
+   * архитектор упрётся в отозванное право на живом проекте, больше — и
+   * откроется команда, которой никто не разрешал.
+   *
+   * Скрипт среды такой же список уже сверяет (выше). Здесь тот же контроль для
+   * механизма, которым открывают по-настоящему.
+   */
+  it("keeps the production switch opening exactly the V1 signatures", () => {
+    const migration = read(
+      "supabase/migrations/20260812030000_projectceo_m4_v1_production_switch.sql",
+    );
+    const definition = migration.slice(
+      migration.indexOf("create function projectceo_m4._v1_impact_signatures()"),
+    );
+    const listBlock = definition.slice(
+      definition.indexOf("select array["),
+      definition.indexOf("];"),
+    );
+    const listed = listBlock
+      .split("\n")
+      .map((line) => line.trim().replace(/,$/, "").replace(/^'|'$/g, ""))
+      .filter((line) => line.includes("(") && line.includes("."));
+
+    expect(listed.length).toBe(M4_V1_IMPACT_SIGNATURES.length);
+    for (const signature of M4_V1_IMPACT_SIGNATURES) {
+      expect(squash(listBlock), signature).toContain(squash(signature));
+    }
+    // Ни инкремент 1, ни отозванные навсегда команды выключатель не трогает.
+    for (const signature of [...M4_INCREMENT_1_SIGNATURES, ...M4_REVOKED_SIGNATURES]) {
+      expect(squash(listBlock), signature).not.toContain(squash(signature));
+    }
+  });
+
+  /**
    * Сценарий DB4 сверяет матрицу с настоящей базой, и делать это он может
    * только по собственному списку — SQL не импортирует TypeScript. Значит
    * списка два, и разойтись они не имеют права.
