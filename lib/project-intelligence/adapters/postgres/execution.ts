@@ -445,6 +445,50 @@ export class ProjectCeoM4WorkerPostgresAdapter {
     );
   }
 
+  /**
+   * Очередь заявок без прогона влияния — системное чтение
+   * (`20260812010000`, права только у service role). Разбор конверта живёт в
+   * воркере: адаптер отвечает за границу с базой, а не за контракт очереди.
+   */
+  async listChangeImpactBacklog(input: {
+    readonly maxRows: number;
+  }): Promise<unknown> {
+    return callRpc(
+      this.client,
+      "projectceo_m4_api",
+      "list_change_impact_backlog",
+      { max_rows: input.maxRows },
+    );
+  }
+
+  /**
+   * Дверь воркера. Глубина обхода СЮДА НЕ ПЕРЕДАЁТСЯ — её берёт из versioned
+   * политики сама база (`_impact_policy`). Это и есть смысл двери: пока
+   * глубина была аргументом, два воркера с разными числами давали разный
+   * результат на одном графе, и «детерминированный расчёт» держался на том,
+   * что никто не ошибётся в вызове.
+   */
+  async calculateChangeImpactPolicyBound(input: {
+    readonly projectId: string;
+    readonly changeRequestId: string;
+    readonly expectedStateRevision: number;
+    readonly idempotencyKey: string;
+  }): Promise<CommandMutation<ImpactRunMutation>> {
+    return parseCommandMutation<ImpactRunMutation>(
+      await callRpc(
+        this.client,
+        "projectceo_m4_api",
+        "calculate_change_impact_policy_bound",
+        {
+          project_id: input.projectId,
+          change_request_id: input.changeRequestId,
+          expected_state_revision: input.expectedStateRevision,
+          idempotency_key: input.idempotencyKey,
+        },
+      ),
+    );
+  }
+
   async buildConstructionHandover(input: {
     readonly projectId: string;
     readonly packageId: string;
