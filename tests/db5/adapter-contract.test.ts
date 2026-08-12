@@ -190,7 +190,7 @@ describe("ProjectCEO M4 postgres adapter", () => {
       contractVersion: "project-ceo-impact-worker/0.1",
       requestId: "db:request",
       policy: {
-        version: "project-ceo-impact-policy/0.1",
+        version: "project-ceo-impact-policy/0.2",
         maxDepth: 7,
         maxImpacts: 5000,
       },
