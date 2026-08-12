@@ -100,8 +100,9 @@ begin
     raise exception 'DB5_ANON_REACHED_MODULE:%', v_reachable;
   end if;
 
-  -- 5. Тестовая роль не разрослась: те же шесть функций, та же одна схема, ни
-  --    одной таблицы.
+  -- 5. Тестовая роль не разрослась: те же шесть ЯВНЫХ грантов на функции и ни
+  --    одного табличного. Счётчик говорит про записи ACL, а не про то, сколько
+  --    функций роль вообще способна вызвать.
   select oid into v_role_oid
   from pg_catalog.pg_roles
   where rolname = 'pi_db5_execution_tester';
@@ -117,7 +118,7 @@ begin
   )) acl
   where acl.grantee = v_role_oid;
   if v_count <> 6 then
-    raise exception 'DB5_TEST_ROLE_FUNCTION_GRANT_COUNT_AFTER_RUN:%', v_count;
+    raise exception 'DB5_TEST_ROLE_EXPLICIT_FUNCTION_ACL_COUNT_AFTER_RUN:%', v_count;
   end if;
 
   select count(*) into v_count
