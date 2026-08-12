@@ -61,15 +61,49 @@ function stableMessageCode(error: RpcErrorLike): string | null {
   return match?.[1] ?? null;
 }
 
+/**
+ * Причина отказа из `DETAIL` — машинный разбор `projectceo_product._raise`,
+ * который кладёт туда `{"reason": "..."}` в виде текста.
+ *
+ * Зачем это нужно отдельно от кода. Один SQLSTATE несёт совершенно разные
+ * исходы: у `P1110` это и `IMPACT_ALREADY_CALCULATED` («работу сделал сосед,
+ * для очереди это успех»), и `IMPACT_NOT_TRUNCATED` («подтверждать нечего»).
+ * Системному воркеру приходится их различать, а код отказа у них один.
+ *
+ * Наружу это не уходит. `errorEnvelope` собирает ответ клиенту из `code` и
+ * `messageKey`; причина остаётся серверной и попадает только в лог воркера.
+ */
+function detailReason(error: RpcErrorLike): string | null {
+  const details = error.details;
+  if (typeof details !== "string" || details.length === 0) return null;
+  try {
+    const parsed: unknown = JSON.parse(details);
+    if (typeof parsed !== "object" || parsed === null) return null;
+    const reason = (parsed as { readonly reason?: unknown }).reason;
+    return typeof reason === "string" && reason.length > 0 ? reason : null;
+  } catch {
+    // `DETAIL` не обязан быть JSON: у ошибок самой PostgreSQL там текст. Это не
+    // повод потерять саму ошибку — причина просто остаётся неизвестной.
+    return null;
+  }
+}
+
 export class ProjectIntelligenceAdapterError extends Error {
   readonly code: FoundationErrorCode;
   readonly sqlstate: string | null;
+  /** Машинная причина из `DETAIL`, если база её назвала. */
+  readonly reason: string | null;
 
-  constructor(code: FoundationErrorCode, sqlstate: string | null) {
+  constructor(
+    code: FoundationErrorCode,
+    sqlstate: string | null,
+    reason: string | null = null,
+  ) {
     super(`project_ceo.${code}`);
     this.name = "ProjectIntelligenceAdapterError";
     this.code = code;
     this.sqlstate = sqlstate;
+    this.reason = reason;
   }
 }
 
@@ -81,7 +115,7 @@ export function mapRpcError(error: RpcErrorLike): ProjectIntelligenceAdapterErro
     (messageCode ? MESSAGE_CODE_TO_FOUNDATION[messageCode] : undefined) ??
     "internal_error";
 
-  return new ProjectIntelligenceAdapterError(code, sqlstate);
+  return new ProjectIntelligenceAdapterError(code, sqlstate, detailReason(error));
 }
 
 export function errorEnvelope(

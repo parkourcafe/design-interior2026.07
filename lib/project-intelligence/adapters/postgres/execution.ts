@@ -33,6 +33,11 @@ export interface ImpactRunMutation {
   readonly impacts: readonly Readonly<Record<string, unknown>>[];
   readonly algorithm: Readonly<Record<string, unknown>>;
   readonly resultHash: ProjectCeoHash;
+  /** Неполнота прогона — часть результата, а не служебная деталь. */
+  readonly isTruncated: boolean;
+  readonly truncationReason: "depth_limit" | "result_limit" | null;
+  readonly calculatedDepth: number;
+  readonly policyMaxDepth: number;
 }
 
 export interface ImpactReviewMutation {
@@ -41,8 +46,32 @@ export interface ImpactReviewMutation {
   readonly impactId: string;
   readonly disposition: "accepted" | "resolved" | "dismissed";
   readonly reasonHash: ProjectCeoHash;
+  /**
+   * Закрыто ли рассмотрение целиком. На усечённом прогоне остаётся `false`
+   * до подтверждения архитектора — даже когда все карточки разобраны.
+   */
   readonly allImpactsReviewed: boolean;
+  readonly everyImpactReviewed: boolean;
+  readonly isTruncated: boolean;
+  readonly truncationAcknowledged: boolean;
+  readonly truncationReason: "depth_limit" | "result_limit" | null;
   readonly reviewedBy: {
+    readonly actorId: string;
+    readonly actorType: "human";
+  };
+}
+
+export interface ImpactTruncationAcknowledgementMutation {
+  readonly id: string;
+  readonly impactRunId: string;
+  readonly reasonHash: ProjectCeoHash;
+  readonly truncationReason: "depth_limit" | "result_limit";
+  /**
+   * Закрыт ли прогон после подтверждения. Подтверждение снимает ровно одно
+   * препятствие — нерассмотренные карточки оно не закрывает.
+   */
+  readonly allImpactsReviewed: boolean;
+  readonly acknowledgedBy: {
     readonly actorId: string;
     readonly actorType: "human";
   };
@@ -405,6 +434,34 @@ export class ProjectCeoM4HumanPostgresAdapter {
     );
   }
 
+  /**
+   * Подтверждение неполноты прогона. Человеческая операция: подписывается тот
+   * же архитектор, который рассматривает влияние (capability
+   * `review_change_impact`).
+   */
+  async acknowledgeImpactTruncation(input: {
+    readonly projectId: string;
+    readonly impactRunId: string;
+    readonly reason: string;
+    readonly expectedStateRevision: number;
+    readonly idempotencyKey: string;
+  }): Promise<CommandMutation<ImpactTruncationAcknowledgementMutation>> {
+    return parseCommandMutation<ImpactTruncationAcknowledgementMutation>(
+      await callRpc(
+        this.client,
+        "projectceo_m4_api",
+        "acknowledge_impact_truncation",
+        {
+          project_id: input.projectId,
+          impact_run_id: input.impactRunId,
+          reason: input.reason,
+          expected_state_revision: input.expectedStateRevision,
+          idempotency_key: input.idempotencyKey,
+        },
+      ),
+    );
+  }
+
   async getExecutionDelivery(input: {
     readonly projectId: string;
     readonly packageId: string;
@@ -438,6 +495,50 @@ export class ProjectCeoM4WorkerPostgresAdapter {
           project_id: input.projectId,
           change_request_id: input.changeRequestId,
           max_depth: input.maxDepth,
+          expected_state_revision: input.expectedStateRevision,
+          idempotency_key: input.idempotencyKey,
+        },
+      ),
+    );
+  }
+
+  /**
+   * Очередь заявок без прогона влияния — системное чтение
+   * (`20260812010000`, права только у service role). Разбор конверта живёт в
+   * воркере: адаптер отвечает за границу с базой, а не за контракт очереди.
+   */
+  async listChangeImpactBacklog(input: {
+    readonly maxRows: number;
+  }): Promise<unknown> {
+    return callRpc(
+      this.client,
+      "projectceo_m4_api",
+      "list_change_impact_backlog",
+      { max_rows: input.maxRows },
+    );
+  }
+
+  /**
+   * Дверь воркера. Глубина обхода СЮДА НЕ ПЕРЕДАЁТСЯ — её берёт из versioned
+   * политики сама база (`_impact_policy`). Это и есть смысл двери: пока
+   * глубина была аргументом, два воркера с разными числами давали разный
+   * результат на одном графе, и «детерминированный расчёт» держался на том,
+   * что никто не ошибётся в вызове.
+   */
+  async calculateChangeImpactPolicyBound(input: {
+    readonly projectId: string;
+    readonly changeRequestId: string;
+    readonly expectedStateRevision: number;
+    readonly idempotencyKey: string;
+  }): Promise<CommandMutation<ImpactRunMutation>> {
+    return parseCommandMutation<ImpactRunMutation>(
+      await callRpc(
+        this.client,
+        "projectceo_m4_api",
+        "calculate_change_impact_policy_bound",
+        {
+          project_id: input.projectId,
+          change_request_id: input.changeRequestId,
           expected_state_revision: input.expectedStateRevision,
           idempotency_key: input.idempotencyKey,
         },

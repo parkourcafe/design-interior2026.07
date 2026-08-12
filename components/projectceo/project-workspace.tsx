@@ -1402,11 +1402,68 @@ function ChangesView({
                 <p className="mt-1 font-medium">{change.toBaseline ?? projectCeoRu.workspace.changes.afterReview}</p>
               </div>
             </div>
+            {/*
+              Truncation is shown BEFORE the counter and the progress bar.
+              Otherwise "8 of 8" and a full bar read as a finished review — the
+              exact false status the owner's 2026-08-12 decision forbids.
+            */}
+            {change.impactTruncated && (
+              <div className="mt-4 rounded-lg border border-line bg-paper p-3">
+                <p className="text-sm font-medium">
+                  {projectCeoRu.workspace.changes.truncation.title}
+                </p>
+                <p className="mt-1 text-xs text-muted">
+                  {change.impactTruncationReason === "result_limit"
+                    ? projectCeoRu.workspace.changes.truncation.resultLimit
+                    : projectCeoRu.workspace.changes.truncation.depthLimit}
+                </p>
+                {change.impactCalculatedDepth !== null
+                  && change.impactPolicyMaxDepth !== null && (
+                  <p className="mt-1 text-xs text-muted">
+                    {projectCeoRu.workspace.changes.truncation.depth}
+                    {": "}
+                    {change.impactCalculatedDepth}/{change.impactPolicyMaxDepth}
+                  </p>
+                )}
+                {change.impactTruncationAcknowledged ? (
+                  <p className="mt-2 text-xs text-muted">
+                    {projectCeoRu.workspace.changes.truncation.acknowledged}
+                  </p>
+                ) : mayReview && change.impactRunId ? (
+                  <ProjectCeoCommandButton
+                    command={{
+                      contractVersion: PROJECTCEO_COMMAND_CONTRACT_VERSION,
+                      kind: "acknowledge_impact_truncation",
+                      projectId: view.project.id,
+                      payload: {
+                        impactRunId: change.impactRunId,
+                        reason: projectCeoRu.workspace.changes.truncation
+                          .acknowledgeReason,
+                      },
+                    }}
+                    disabled={
+                      view.operations.acknowledge_impact_truncation.status
+                        !== "available"
+                    }
+                    className="mt-2 rounded-lg border border-line px-3 py-2 text-xs font-medium hover:border-accent"
+                  >
+                    {projectCeoRu.workspace.changes.truncation.acknowledgeAction}
+                  </ProjectCeoCommandButton>
+                ) : null}
+              </div>
+            )}
             {change.impactCount > 0 && (
               <div className="mt-4">
                 <div className="flex items-center justify-between text-xs text-muted">
                   <span>{projectCeoRu.workspace.changes.humanDispositions}</span>
-                  <span>{change.reviewedImpactCount}/{change.impactCount}</span>
+                  <span>
+                    {change.reviewedImpactCount}/{change.impactCount}
+                    {/* Every card handled but the run is partial: the counter
+                        alone must not look like completion. */}
+                    {!change.impactReviewComplete
+                      && change.reviewedImpactCount === change.impactCount
+                      && ` · ${projectCeoRu.workspace.changes.truncation.incomplete}`}
+                  </span>
                 </div>
                 <div className="mt-2 h-2 rounded-full bg-line">
                   <div

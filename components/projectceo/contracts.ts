@@ -437,6 +437,19 @@ export interface ChangeRequestView {
   readonly requestedAt: string;
   readonly impactCount: number;
   readonly reviewedImpactCount: number;
+  /**
+   * Run incompleteness. Without these fields "8 of 8" would look like a
+   * finished review even where the walk never reached the end of the graph —
+   * the exact false status the owner's 2026-08-12 decision forbids.
+   */
+  readonly impactRunId: string | null;
+  readonly impactTruncated: boolean;
+  readonly impactTruncationReason: "depth_limit" | "result_limit" | null;
+  readonly impactTruncationAcknowledged: boolean;
+  readonly impactCalculatedDepth: number | null;
+  readonly impactPolicyMaxDepth: number | null;
+  /** Truly closed: every card reviewed AND the incompleteness acknowledged. */
+  readonly impactReviewComplete: boolean;
   readonly reason: string;
   readonly impacts: readonly {
     readonly impactRunId: string;
@@ -585,6 +598,7 @@ export const PROJECTCEO_OPERATION_NAMES = [
   "acknowledge_release",
   "create_change",
   "review_change_impact",
+  "acknowledge_impact_truncation",
   "upload_photo_evidence",
   "review_photo_evidence",
   "accept_milestone",

@@ -843,17 +843,43 @@ describe("AP1 supported human commands", () => {
     expect(calls).toEqual([]);
   });
 
-  // Инкремент 2 модуля 4 закрыт НЕЗАВИСИМО от флага. Здесь модуль включён
-  // (`service()` передаёт executionEnabled = "true"), и всё равно каждая из
-  // пяти команд обязана отказать до единого чтения и записи: A6 §1.1 их не
-  // открывал, а включение модуля не имеет права открывать неавторизованное.
+  /**
+   * После GO на V1 рассмотрение влияния доходит до базы. Проверяется именно
+   * это — не успех сценария, а то, что запрет по авторизации её больше не
+   * перехватывает: команда снова живёт по предпосылке (есть прогон или нет).
+   *
+   * Дверь расчёта при этом человеку по-прежнему недоступна: воркерные RPC
+   * выданы только `service_role`, и ни один вызов отсюда их не трогает.
+   */
+  it("lets the authorised impact review reach the database", async () => {
+    const calls: Call[] = [];
+    const result = await service(calls).execute(
+      command("review_change_impact", {
+        impactRunId,
+        impactId: "impact-1",
+        disposition: "resolved",
+        reason: "Влияние проверено человеком",
+      }),
+      "v1-review_change_impact",
+    );
+    expect(result).not.toMatchObject({
+      status: "unavailable",
+      error: { code: "operation_unavailable" },
+    });
+    expect(calls.map((call) => call.name))
+      .toContain("projectceo_m4_api.review_change_impact");
+    expect(calls.map((call) => call.name))
+      .not.toContain("projectceo_m4_api.calculate_change_impact");
+    expect(calls.map((call) => call.name))
+      .not.toContain("projectceo_m4_api.calculate_change_impact_policy_bound");
+  });
+
+  // Оставшиеся команды инкремента 2 закрыты НЕЗАВИСИМО от флага. Здесь модуль
+  // включён (`service()` передаёт executionEnabled = "true"), и всё равно
+  // каждая из четырёх обязана отказать до единого чтения и записи: A6 §1.1 их
+  // не открывал, GO на V1 — тоже, а включение модуля не имеет права открывать
+  // неавторизованное.
   it.each([
-    command("review_change_impact", {
-      impactRunId,
-      impactId: "impact-1",
-      disposition: "resolved",
-      reason: "Влияние проверено человеком",
-    }),
     command("upload_photo_evidence", {
       milestoneId,
       areaNodeId: "area-1",

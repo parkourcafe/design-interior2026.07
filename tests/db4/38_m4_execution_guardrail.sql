@@ -24,10 +24,10 @@ declare
   v_closed text;
   v_count integer;
 begin
-  -- 1. Достижимо ролью `authenticated` ровно то, что открыл инкремент 1, плюс
-  --    читающая RPC. Проверка сплошная по схеме: перечислять закрытое
-  --    бессмысленно — именно ручной перечень и подвёл при подготовке миграции,
-  --    пропустив пять `replay_*`-обёрток.
+  -- 1. Достижимо ролью `authenticated` ровно то, что открыли скрипты среды —
+  --    инкремент 1 и вертикаль V1, — плюс читающая RPC. Проверка сплошная по
+  --    схеме: перечислять закрытое бессмысленно — именно ручной перечень и
+  --    подвёл при подготовке миграции, пропустив пять `replay_*`-обёрток.
   select p.proname into v_reachable
   from pg_catalog.pg_proc p
   join pg_catalog.pg_namespace n on n.oid = p.pronamespace
@@ -35,7 +35,12 @@ begin
     and p.proname <> all (array[
       'get_execution_delivery',
       'submit_change_request',
-      'replay_submit_change_request'
+      'replay_submit_change_request',
+      -- Открыты `enable-m4-v1-impact.sql` по GO на вертикаль V1 от 12.08.2026.
+      -- Сценарий стоит после него, поэтому наблюдает среду с открытым V1.
+      'review_change_impact',
+      'replay_review_change_impact',
+      'acknowledge_impact_truncation'
     ])
     and pg_catalog.has_function_privilege('authenticated', p.oid, 'EXECUTE')
   limit 1;

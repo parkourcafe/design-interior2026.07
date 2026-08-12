@@ -121,7 +121,10 @@ const denied = [
     expected_state_revision: 1,
     idempotency_key: "probe",
   }],
-  // Инкремент 2 — не открыт ничем и не открывается ни одной средой.
+  // Инкремент 2. `review_change_impact` с 12.08.2026 открывается скриптом
+  // среды (GO на V1) — но этот скрипт работает ДО включения, поэтому здесь она
+  // обязана отказать наравне с остальными: он мерит состояние по умолчанию,
+  // то самое, в котором живёт production.
   ["projectceo_m4_api", "review_change_impact", {
     project_id: probeProject,
     impact_run_id: probeProject,

@@ -254,6 +254,18 @@ export const projectCeoCommandSchema = z.discriminatedUnion("kind", [
   }).strict(),
   projectSelector.extend({
     contractVersion: z.literal(PROJECTCEO_COMMAND_CONTRACT_VERSION),
+    // Подтверждение неполноты прогона архитектором (решение владельца об
+    // усечении от 12.08.2026). Отдельная команда, потому что это отдельное
+    // решение человека: рассмотреть карточки и принять, что часть влияния
+    // осталась за границей политики, — не одно и то же.
+    kind: z.literal("acknowledge_impact_truncation"),
+    payload: z.object({
+      impactRunId: uuid,
+      reason: z.string().trim().min(3).max(4000),
+    }).strict(),
+  }).strict(),
+  projectSelector.extend({
+    contractVersion: z.literal(PROJECTCEO_COMMAND_CONTRACT_VERSION),
     kind: z.literal("upload_photo_evidence"),
     payload: z.object({
       milestoneId: uuid,

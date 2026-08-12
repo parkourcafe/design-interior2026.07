@@ -172,14 +172,30 @@ begin
     raise exception 'AP1_REQUEST_BOUND_RELEASE_UNSAFE_DEFINER:%', v_problem;
   end if;
 
+  -- ACL повторных дверей модуля 4.
+  --
+  -- ЧТО ЗДЕСЬ ИЗМЕНИЛОСЬ И ПОЧЕМУ. Файл писался 18.07.2026, когда все пять
+  -- `replay_*` были выданы `authenticated` миграцией `20260718124958`. С
+  -- 10.08.2026 guardrail `20260810070000` отзывает права по схеме M4 целиком, и
+  -- обратно их возвращают только скрипты одноразовой среды — ровно тем, что
+  -- авторизовано:
+  --
+  --   * `replay_submit_change_request` — инкремент 1 (A6 §1.1, DEC-025);
+  --   * `replay_review_change_impact` — вертикаль V1 (M4 IMPLEMENTATION GO
+  --     от 12.08.2026).
+  --
+  -- Остальные три принадлежат V2 и V3, которые `NOT AUTHORIZED` (DEC-032), и
+  -- закрыты для ВСЕХ ролей. До этой правки файл требовал их у `authenticated` и
+  -- потому падал `AP1_M4_REPLAY_ACL_INVALID` — не находка, а устаревшее
+  -- ожидание: он описывал мир до guardrail'а.
+  --
+  -- Права им НЕ возвращаются. Открытие V2/V3 требует отдельного решения
+  -- владельца, и харнесс не то место, где такие решения принимаются.
   if exists (
     select 1
     from (values
       ('projectceo_m4_api.replay_submit_change_request(uuid,uuid,text,text,text,text,bigint,integer,text)'),
-      ('projectceo_m4_api.replay_review_change_impact(uuid,uuid,text,text,text,text)'),
-      ('projectceo_m4_api.replay_register_photo_evidence(uuid,uuid,text,text,text,timestamptz,text,text)'),
-      ('projectceo_m4_api.replay_review_photo_evidence(uuid,uuid,text,text,text)'),
-      ('projectceo_m4_api.replay_accept_milestone(uuid,uuid,text)')
+      ('projectceo_m4_api.replay_review_change_impact(uuid,uuid,text,text,text,text)')
     ) replay(signature)
     where not has_function_privilege(
       'authenticated', replay.signature, 'EXECUTE'
@@ -191,12 +207,35 @@ begin
       or has_function_privilege(
         'pi_worker_executor', replay.signature, 'EXECUTE'
       )
-  ) or has_function_privilege(
+  ) then
+    raise exception 'AP1_M4_AUTHORISED_REPLAY_ACL_INVALID';
+  end if;
+
+  -- Неавторизованные вертикали закрыты для всех, включая `authenticated`.
+  -- Проверка положительная, а не «не упало»: молчаливое открытие одной из них
+  -- иначе прошло бы незамеченным.
+  if exists (
+    select 1
+    from (values
+      ('projectceo_m4_api.replay_register_photo_evidence(uuid,uuid,text,text,text,timestamptz,text,text)'),
+      ('projectceo_m4_api.replay_review_photo_evidence(uuid,uuid,text,text,text)'),
+      ('projectceo_m4_api.replay_accept_milestone(uuid,uuid,text)')
+    ) replay(signature)
+    cross join (values
+      ('anon'), ('authenticated'), ('service_role'),
+      ('pi_human_executor'), ('pi_worker_executor')
+    ) actor(role_name)
+    where has_function_privilege(actor.role_name, replay.signature, 'EXECUTE')
+  ) then
+    raise exception 'AP1_M4_UNAUTHORISED_REPLAY_REACHABLE';
+  end if;
+
+  if has_function_privilege(
     'authenticated',
     'projectceo_m4._request_bound_human_replay_or_null(uuid,uuid,text,text,text,jsonb)',
     'EXECUTE'
   ) then
-    raise exception 'AP1_M4_REPLAY_ACL_INVALID';
+    raise exception 'AP1_M4_REPLAY_HELPER_REACHABLE';
   end if;
 
   select format(

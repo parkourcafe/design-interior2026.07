@@ -129,42 +129,51 @@ begin
     raise exception 'AP1_M4_IMPACT_REPLAY_MISSING';
   end if;
 
-  v_replay := projectceo_m4_api.replay_register_photo_evidence(
-    '41111111-1111-4111-8111-111111111111',
-    current_setting('projectceo.ap1_m4_milestone_id')::uuid,
-    current_setting('projectceo.ap1_m4_area_node_id'),
-    current_setting('projectceo.ap1_m4_source_id'),
-    current_setting('projectceo.ap1_m4_source_revision_id'),
-    current_setting('projectceo.ap1_m4_captured_at')::timestamptz,
-    current_setting('projectceo.ap1_m4_protected_note'),
-    'db5-register-photo'
-  );
-  if coalesce((v_replay ->> 'replay')::boolean, false) is not true
-     or v_replay ->> 'operation' <> 'register_photo_evidence' then
-    raise exception 'AP1_M4_PHOTO_REGISTER_REPLAY_MISSING';
-  end if;
+  -- Повторные двери V2 и V3 НЕ проверяются положительно: с 10.08.2026
+  -- guardrail отозвал их у `authenticated`, а вертикали, которым они
+  -- принадлежат, `NOT AUTHORIZED` (DEC-032). Раньше здесь стояли три успешных
+  -- повтора — ожидание из мира до guardrail'а, из-за которого харнесс падал
+  -- `permission denied` независимо от того, что проверяет.
+  --
+  -- Права им не возвращаются. Вместо успеха проверяется отказ, и проверяется
+  -- он положительно: молчаливое открытие любой из трёх иначе прошло бы
+  -- незамеченным ровно там, где это важнее всего.
+  begin
+    perform projectceo_m4_api.replay_register_photo_evidence(
+      '41111111-1111-4111-8111-111111111111',
+      current_setting('projectceo.ap1_m4_milestone_id')::uuid,
+      current_setting('projectceo.ap1_m4_area_node_id'),
+      current_setting('projectceo.ap1_m4_source_id'),
+      current_setting('projectceo.ap1_m4_source_revision_id'),
+      current_setting('projectceo.ap1_m4_captured_at')::timestamptz,
+      current_setting('projectceo.ap1_m4_protected_note'),
+      'db5-register-photo'
+    );
+    raise exception 'AP1_M4_PHOTO_REGISTER_REPLAY_REACHABLE';
+  exception when insufficient_privilege then null;
+  end;
 
-  v_replay := projectceo_m4_api.replay_review_photo_evidence(
-    '41111111-1111-4111-8111-111111111111',
-    current_setting('projectceo.ap1_m4_photo_evidence_id')::uuid,
-    'accepted',
-    'Photo confirms accepted work in the exact area',
-    'db5-review-photo'
-  );
-  if coalesce((v_replay ->> 'replay')::boolean, false) is not true
-     or v_replay ->> 'operation' <> 'review_photo_evidence' then
-    raise exception 'AP1_M4_PHOTO_REVIEW_REPLAY_MISSING';
-  end if;
+  begin
+    perform projectceo_m4_api.replay_review_photo_evidence(
+      '41111111-1111-4111-8111-111111111111',
+      current_setting('projectceo.ap1_m4_photo_evidence_id')::uuid,
+      'accepted',
+      'Photo confirms accepted work in the exact area',
+      'db5-review-photo'
+    );
+    raise exception 'AP1_M4_PHOTO_REVIEW_REPLAY_REACHABLE';
+  exception when insufficient_privilege then null;
+  end;
 
-  v_replay := projectceo_m4_api.replay_accept_milestone(
-    '41111111-1111-4111-8111-111111111111',
-    current_setting('projectceo.ap1_m4_milestone_id')::uuid,
-    'db5-accept-milestone'
-  );
-  if coalesce((v_replay ->> 'replay')::boolean, false) is not true
-     or v_replay ->> 'operation' <> 'accept_milestone' then
-    raise exception 'AP1_M4_MILESTONE_REPLAY_MISSING';
-  end if;
+  begin
+    perform projectceo_m4_api.replay_accept_milestone(
+      '41111111-1111-4111-8111-111111111111',
+      current_setting('projectceo.ap1_m4_milestone_id')::uuid,
+      'db5-accept-milestone'
+    );
+    raise exception 'AP1_M4_MILESTONE_REPLAY_REACHABLE';
+  exception when insufficient_privilege then null;
+  end;
 
   begin
     perform projectceo_m4_api.replay_submit_change_request(

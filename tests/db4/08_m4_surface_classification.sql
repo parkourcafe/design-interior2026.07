@@ -40,14 +40,20 @@ declare
     'projectceo_m4_api.replay_review_photo_evidence(uuid, uuid, text, text, text)',
     'projectceo_m4_api.accept_milestone(uuid, uuid, bigint, text)',
     'projectceo_m4_api.replay_accept_milestone(uuid, uuid, text)',
-    'projectceo_m4_api.build_construction_handover(uuid, uuid, text, bigint, text)'
+    'projectceo_m4_api.build_construction_handover(uuid, uuid, text, bigint, text)',
+    -- Подтверждение неполноты прогона (решение владельца об усечении 12.08).
+    'projectceo_m4_api.acknowledge_impact_truncation(uuid, uuid, text, bigint, text)'
   ];
   -- Функции схемы, у которых человеческой команды нет вовсе.
   v_non_commands text[] := array[
     'calculate_change_impact',
     'define_milestone',
     'register_handover_document',
-    'get_execution_delivery'
+    'get_execution_delivery',
+    -- V1 Impact: воркерные двери расчёта. Человеческой команды у них нет и не
+    -- будет — расчёт влияния делает система (DEC-032 §3).
+    'calculate_change_impact_policy_bound',
+    'list_change_impact_backlog'
   ];
 begin
   -- 1. Каждая сигнатура матрицы существует. `to_regprocedure` возвращает null
