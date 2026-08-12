@@ -1,16 +1,22 @@
 # M4 EXECUTION LAYER — пакет подготовки решения владельца
 
-Дата: 11.08.2026
-Режим: **исследование и проектирование**. Кода нет, миграций нет, PR нет,
-production не включается, ни один существующий флаг или запрет не снят,
+Дата подготовки: 11.08.2026
+Редакция 2 — после OWNER DECISION «M4 REVISE + E0R GO» от 11.08.2026.
+
+**Что изменилось в редакции 2.** Владелец принял фактическую часть редакции 1 и
+исправил план: разрешил десять команд, задал форму `build_handover`, закрыл
+вопрос об impact policy, потребовал реального пути evidence через общий
+source pipeline и заменил неработоспособный E0 на E0R. Все правки внесены;
+места, где редакция 1 ошибалась, названы прямо, а не переписаны молча.
+
+Статус работ: **выполнен только E0R**. V1–V3 не начаты, production не включён,
+`REMHAOS_EXECUTION_ENABLED` остаётся `false`, цикл 7 остаётся красным,
 Telegram Bridge не изменён.
-База аудита: `main` на момент подготовки, рабочее дерево на коммите `5ea15f1`.
 
 Каждое утверждение помечено:
 
-* **EXTRACTED** — прочитано в файле репозитория или получено прогоном; указан
-  источник;
-* **INTERPRETED** — вывод из нескольких EXTRACTED-фактов; вывод мой, не факт;
+* **EXTRACTED** — прочитано в файле репозитория или получено прогоном;
+* **INTERPRETED** — вывод из нескольких EXTRACTED-фактов;
 * **OWNER DECISION** — зафиксированное решение владельца;
 * **UNKNOWN** — данных нет, и они НЕ заменены предположением.
 
@@ -18,35 +24,28 @@ Telegram Bridge не изменён.
 
 ## 1. Метод и статус источников
 
-### 1.1 Что считалось действующим контрактом
-
 | Документ | Статус | Как использован |
 |---|---|---|
-| `AGENTS.md` §M4 (стр. 131–182) | действующий | контракт модуля | **EXTRACTED** |
-| `REMHAOS_ADDENDUM_A6_M4_OPENING.md` (подписан 10.08.2026) | действующий | объём и гейты | **EXTRACTED** |
+| `AGENTS.md` §M4 | действующий | контракт модуля | **EXTRACTED** |
+| `REMHAOS_ADDENDUM_A6_M4_OPENING.md` | действующий, **уточняется решением от 11.08** | объём и гейты | **EXTRACTED** |
 | `REMHAOS_A6_CLARIFICATION_M4_GRANT_MECHANISM_2026-08-11.md` | действующий | механизм грантов (DEC-029) | **EXTRACTED** |
 | `REMHAOS_GUARDRAIL_DECISION_M4_FLAG.md` | действующий | флаг и две границы | **EXTRACTED** |
-| `REMHAOS_DECISION_LOG_v1.md` DEC-025/029/030/031 | действующий, LOCKED | границы разрешённого | **OWNER DECISION** |
-| `M4_INCREMENT_1_REPORT_2026-08-11.md` | действующий | что построено и что нет | **EXTRACTED** |
-| `M4_INCREMENT_1_5_WORKER_REPORT_2026-08-11.md` | действующий | образец воркера | **EXTRACTED** |
+| `REMHAOS_DECISION_LOG_v1.md` DEC-025/029/030/031 | LOCKED | границы разрешённого | **OWNER DECISION** |
+| OWNER DECISION «M4 REVISE + E0R GO», 11.08.2026 | действующий, новейший | контракт из десяти команд, форма `build_handover`, impact policy, evidence intake, E0R, план V1–V3 | **OWNER DECISION** |
+| `M4_INCREMENT_1_REPORT` и `M4_INCREMENT_1_5_WORKER_REPORT` | действующие | что построено | **EXTRACTED** |
 | `REMHAOS_ENTITY_CATALOG_v1.md` | действующий | сущности и инварианты графа | **EXTRACTED** |
-| `MASTER_EXECUTION_PLAN.md` §M4 | действующий | объём тонкого P0 | **EXTRACTED** |
-| `REMHAOS_READINESS_MATRIX_v1.csv` строка M4 | **устарел** (см. §2.6) | НЕ использован как контракт | **EXTRACTED** |
+| `REMHAOS_READINESS_MATRIX_v1.csv` / `ARCHIDOM_...` | **обновлены этой работой** | строка M4 приведена к факту | — |
 | `CLAUDE.md` | исторический (сам себя так помечает) | не использован | **EXTRACTED** |
 
-### 1.2 Чем аудит подкреплён, кроме чтения
-
-Один реальный прогон: `zsh tests/db5/run.zsh` на PostgreSQL 16 в этом
-окружении, 11.08.2026. Результат разобран в §2.5 — он оказался решающим и
-опроверг то, что следовало бы из документов.
+При конфликте побеждает решение от 11.08.2026 как новейшее.
 
 ---
 
 ## 2. Фактическое состояние M4
 
-### 2.1 Что существует в базе — больше, чем говорят документы
+### 2.1 Что существует в базе
 
-**EXTRACTED.** `supabase/migrations/20260717102000_projectceo_m4_execution_persistence.sql`
+**EXTRACTED.** `20260717102000_projectceo_m4_execution_persistence.sql`
 (2125 строк) создаёт **16 таблиц** схемы `projectceo_m4`:
 
 ```
@@ -58,10 +57,24 @@ handover_documents · construction_handovers
 handover_milestone_refs · handover_photo_refs · handover_document_refs
 ```
 
-**EXTRACTED.** `20260717103000_projectceo_m4_execution_operations.sql`
-(2515 строк) создаёт **15 функций** `projectceo_m4_api`. Классификация — по
-тому, какой контекст каждая берёт (`_human_command_context` требует
-capability, `_worker_command_context` ставит `actor_id = 'system:projectceo-m4'`):
+**EXTRACTED — с исправленной атрибуцией.** Редакция 1 писала «миграция
+`20260717103000` создаёт 15 функций `projectceo_m4_api`». Это неверно, и
+проверяется счётом по файлам:
+
+* `20260717103000_projectceo_m4_execution_operations.sql` создаёт **10 публичных
+  функций** `projectceo_m4_api` и **5 приватных helper-функций** `projectceo_m4._*`
+  (`_human_command_context`, `_worker_command_context`, `_actor_initiator_role`,
+  `_materialized_source`, `_assert_version_open`);
+* пять обёрток `replay_*` появились **позже** — в
+  `20260718124958_projectceo_ap1_authenticated_reads.sql` (строки 605, 654, 709,
+  774, 826).
+
+Отсюда сегодняшние 15 функций в схеме `projectceo_m4_api` = 10 исходных + 5
+replay. Счётчик 15 закреплён тестом `DB5_UNEXPECTED_RPC_COUNT`.
+
+Классификация десяти исходных — по тому, какой контекст берёт каждая
+(`_human_command_context` требует capability, `_worker_command_context` ставит
+`actor_id = 'system:projectceo-m4'`):
 
 | RPC | Контекст | Capability | Строка |
 |---|---|---|---|
@@ -75,186 +88,131 @@ capability, `_worker_command_context` ставит `actor_id = 'system:projectce
 | `register_handover_document` | **человеческий** | `review_milestone` | 1765 / 1807 |
 | `build_construction_handover` | **воркерный** | — | 1898 / 1939 |
 | `get_execution_delivery` | читающий | `view_project` | 2254 |
-| 5 × `replay_*` | обёртки идемпотентности | — | — |
 
-**Это не заготовки.** `calculate_change_impact` — настоящий рекурсивный
-обратный обход версионированного графа проекта
-(`project_intelligence.version_edges` × `graph_edges`, отношения
+**Это не заготовки.** `calculate_change_impact` — рекурсивный обратный обход
+версионированного графа (`version_edges` × `graph_edges`, отношения
 `depends_on · derived_from · specified_by · satisfies`, `maxDepth` 1..20,
 политика циклов `shortest_path_per_changed_root`, детерминированный
 `impactId = sha256(changeRequestId, graphVersionId, changedNode, impactedNode,
-nodePath, edgePath)`, версия алгоритма `project-ceo-impact/0.2`). Строки
-668–760. **EXTRACTED.**
+nodePath, edgePath)`, версия алгоритма `project-ceo-impact/0.2`). Строки 668–760.
 
-**Все capability модуля уже заведены и роздны ролям.** `create_change`,
-`review_change_impact`, `upload_photo_evidence`, `review_milestone` есть в
-`project_member_capabilities_capability_check` и в `_role_capabilities`
-(`20260811040000`, строки 500–560): `owner_lead` и `architect` имеют все
-четыре, `builder` — `create_change` + `upload_photo_evidence`,
-`client_approver` — `create_change` + `review_milestone`. **EXTRACTED.**
+**Все capability модуля заведены и розданы ролям** (`20260811040000`, 500–560):
+`owner_lead` и `architect` — все четыре; `builder` — `create_change` +
+`upload_photo_evidence`; `client_approver` — `create_change` + `review_milestone`.
 
 ### 2.2 Что закрыто и чем именно
 
-**Граница «база».** `20260810070000` отзывает `execute` у `authenticated`
-сплошь по схеме `projectceo_m4_api` с единственным исключением
-`get_execution_delivery`; `20260811020000` доотзывает четыре командные RPC
-модуля, живущие в `projectceo_product_api` (`distribute_release`,
-`acknowledge_release` и их `_request_bound` версии). Обе миграции падают, если
-отзыв не достиг цели (`PROJECTCEO_M4_COMMAND_STILL_REACHABLE`,
-`PROJECTCEO_M4_DISTRIBUTION_STILL_REACHABLE`). **EXTRACTED.**
+**Граница «база».** `20260810070000` отзывает `execute` у `authenticated` сплошь
+по схеме `projectceo_m4_api`, исключение — `get_execution_delivery`;
+`20260811020000` доотзывает четыре командные RPC модуля в
+`projectceo_product_api`. Обе миграции падают, если отзыв не достиг цели.
+Инкремент 1 возвращается только `tests/ap1/environment/enable-m4-increment-1.sql`,
+и тот же скрипт падает `PROJECTCEO_M4_INCREMENT_2_LEAKED`, если открытие задело
+инкремент 2 (DEC-029 LOCKED). **EXTRACTED / OWNER DECISION.**
 
-Инкремент 1 возвращается **только** скриптом среды
-`tests/ap1/environment/enable-m4-increment-1.sql` — шесть подписей, и тот же
-скрипт падает `PROJECTCEO_M4_INCREMENT_2_LEAKED`, если открытие задело хоть
-одну из девяти подписей инкремента 2. **EXTRACTED.** Это DEC-029 LOCKED:
-постоянные миграции таких прав не возвращают. **OWNER DECISION.**
-
-**Граница «приложение».** `REMHAOS_EXECUTION_ENABLED=false` в `.env.example:98`;
+**Граница «приложение».** `REMHAOS_EXECUTION_ENABLED=false` (`.env.example:98`);
 `command-service.ts:259` закрывает модуль целиком, `:266` закрывает пять команд
-инкремента 2 **отдельной проверкой, не зависящей от флага**. **EXTRACTED.**
+инкремента 2 отдельной проверкой, не зависящей от флага. **EXTRACTED.**
 
-### 2.3 Что уже написано в приложении, но никогда не исполняется
+### 2.3 Что написано в приложении, но никогда не исполняется
 
-**EXTRACTED, и это важнее всего для оценки объёма работы.**
+**EXTRACTED.** `command-service.ts` содержит полностью написанные обработчики
+четырёх команд инкремента 2 — `review_change_impact` (:1027),
+`upload_photo_evidence` (:1045), `review_photo_evidence` (:1064),
+`accept_milestone` (:1078) — с проверкой принадлежности цели проекции, ревизией
+состояния и ключом идемпотентности. Все стоят после гейта `:266` и недостижимы.
+`build_handover` обработчика не имеет: путь доходит до финального
+`operation_unavailable`.
 
-`command-service.ts` содержит **полностью написанные обработчики четырёх из
-пяти закрытых команд** — `review_change_impact` (:1027), `upload_photo_evidence`
-(:1045), `review_photo_evidence` (:1064), `accept_milestone` (:1078), — включая
-проверку принадлежности цели проекции (`belongs`), проброс
-`expectedStateRevision` и ключа идемпотентности. Все они стоят **после**
-гейта `:266` и недостижимы.
+`ProjectCeoM4HumanPostgresAdapter` (`adapters/postgres/execution.ts:188`) —
+семь методов; `ProjectCeoM4WorkerPostgresAdapter` (:422) — два воркерных.
 
-`build_handover` обработчика не имеет вовсе: путь доходит до финального
-`return failure(requestId, "unavailable", "operation_unavailable")`.
+### 2.4 Что есть в интерфейсе, а чего в нём нет
 
-`ProjectCeoM4HumanPostgresAdapter` (`adapters/postgres/execution.ts:188`)
-реализует семь методов, `ProjectCeoM4WorkerPostgresAdapter` (:422) — два
-воркерных (`calculateChangeImpact`, `buildConstructionHandover`). Все девять
-уже написаны.
+Редакция 1 оценивала интерфейс в «~90 %». Оценка снята как необоснованная:
+процент не измерялся, а после решения о десяти командах он и не мог быть верным.
+Вместо него — перечень.
 
-### 2.4 Что «только отображается в интерфейсе»
+**Отрисовано и работает как разметка** (`components/projectceo/project-workspace.tsx`):
+форма загрузки фотодоказательства с выбором вехи, зоны и источника (:164–:280);
+кнопки «принять / отклонить фото» (:438, :454); кнопка приёмки вехи с
+предусловием «все фото приняты» (:73, :473); ревью влияния изменения (:1427).
+Всё прибито к `view.operations.<kind>.status`, а `live-read-port.ts:1300`
+безусловно ставит пяти командам `increment_not_authorized`, при выключенном
+модуле — `module_disabled` (:1290); `build_handover` отдельно —
+`worker_only` (:1283). **EXTRACTED.**
 
-**EXTRACTED.** `components/projectceo/project-workspace.tsx` уже содержит
-работающую разметку всех закрытых операций:
-
-* форма загрузки фотодоказательства с выбором вехи/зоны и источника (:164–:280);
-* кнопки «принять / отклонить фото» на каждую нерешённую фотографию (:438, :454);
-* кнопка приёмки вехи с предусловием «все фото приняты»
-  (`milestoneReadyForAcceptance`, :73, кнопка :473);
-* ревью влияния изменения (:1427).
-
-Все они прибиты к `view.operations.<kind>.status === "available"`, а
-`live-read-port.ts:1300` безусловно проставляет всем пяти
-`unavailable("increment_not_authorized")` при включённом модуле и
-`module_disabled` при выключенном (:1290). `build_handover` отдельно —
-`unavailable("worker_only")` (:1283).
-
-**INTERPRETED.** То есть интерфейс инкремента 2 не «надо построить» — он
-построен и честно выключен. Работа здесь не в вёрстке, а в снятии причины
-отказа и в доказательстве, что за кнопкой действительно что-то происходит.
-
-**EXTRACTED.** Собственных маршрутов у M4 нет: `find app -path '*m4*' -o -path
-'*execution*'` пуст. Модуль живёт внутри общего workspace.
-
-### 2.5 Что покрыто исполняемыми тестами — и решающая находка
-
-**Негативное покрытие есть и оно настоящее:**
-
-* `tests/db4/07_m4_execution_boundary.sql` — одиннадцать подписей проверяются
-  на недоступность `authenticated` **до** применения скрипта включения;
-* `tests/db4/08_m4_surface_classification.sql` — матрица `m4-surface.ts`
-  сверяется с базой;
-* `tests/db4/38_m4_execution_guardrail.sql`;
-* AP5 шаг 8 (`tests/ap5/02-kora-chain.spec.ts:354`) — все пять команд отдают
-  `increment_not_authorized`, и посланная в обход интерфейса `accept_milestone`
-  получает 409 `operation_unavailable`.
-
-**Позитивное покрытие цепочки инкремента 2 существует ровно в одном месте —
-и сегодня оно не работает.**
-
-`tests/db5/20_execution_operations.sql` (1344 строки) — единственный
-исполняемый сценарий, который проходит всю цепочку по-настоящему:
-`calculate_change_impact` (:725, :742) → `review_change_impact` (:800) →
-`define_milestone` (:838) → `register_photo_evidence` →
-`review_photo_evidence` (:916) → `accept_milestone` (:935) →
-`register_handover_document` (:983) → `build_construction_handover` (:1118).
-Рядом — `tests/db5/run-concurrency.zsh` и `30_restart_replay.sql`. **EXTRACTED.**
-
-**Находка 1 — DB5 не запускается ничем.** `.github/workflows/ci.yml` в задании
-базы выполняет только `zsh tests/db4/run.zsh` (строка 56). В `package.json`
-скрипта для DB5 нет. **EXTRACTED.**
-
-**Находка 2 — DB5 сегодня падает.** Прогон 11.08.2026 в этом окружении:
-
-```
-Running 20_product_operations.sql
-ERROR:  permission denied for function publish_project_baseline
-```
-
-Причина установлена: `20260811010000_projectceo_m3_publication_guardrail.sql:54–56`
-отозвал `publish_project_baseline` у `authenticated`, а `tests/db5/run.zsh`
-(строки 53–59) применяет только миграции и сценарии — в отличие от
-`tests/db4/run.zsh` (строки 59–60), который применяет
-`enable-m3-publication.sql` и `enable-m4-increment-1.sql`. **EXTRACTED.**
-
-**Находка 3 — раньше он был зелёным.** `MASTER_EXECUTION_PLAN.md:70`:
-`| Thin M4 | e74f4b3 | release/impact/closure DB5 PASS |`. Последние коммиты,
-трогавшие `tests/db5/`, — `79d4a16` и `79bc57e`, то есть исходное слияние.
+**Не отрисовано вовсе:** определение вехи с выбором зон графа; регистрация
+документа передачи; человеческая финализация комплекта (`build_handover` в новой
+форме); чтение собранного архива. Для всех четырёх нет ни команды, ни экрана.
 **EXTRACTED.**
 
-**INTERPRETED.** Единственное доказательство работоспособности движка
-инкремента 2 деградировало молча, потому что не было ни в одном обязательном
-гейте. Утверждение «машинерия исполнения покрыта DB5» (A6 §3.1) на дату
-подготовки этого пакета **не подтверждается прогоном**. Это не значит, что
-движок сломан: падение произошло на предпосылке M3, до первой строки M4. Но
-статус движка сегодня — **NOT PROVEN**, а не «покрыт».
+Собственных маршрутов у M4 нет — модуль живёт внутри общего workspace.
+
+### 2.5 Что покрыто исполняемыми тестами
+
+**Негативное покрытие** — DB4 07/08/38 и AP5 шаг 8 (все пять команд отдают
+`increment_not_authorized`; посланная в обход интерфейса `accept_milestone`
+получает 409). **EXTRACTED.**
+
+**Позитивная цепочка инкремента 2** — `tests/db5/20_execution_operations.sql`
+(1344 строки): `calculate_change_impact` → `review_change_impact` →
+`define_milestone` → `register_photo_evidence` → `review_photo_evidence` →
+`accept_milestone` → `register_handover_document` →
+`build_construction_handover`, плюс конкурентный прогон и replay после
+перезапуска базы.
+
+**Находка редакции 1, подтверждённая прогоном:** DB5 не входил ни в один
+обязательный гейт (`ci.yml` запускал только `tests/db4/run.zsh`, в
+`package.json` скрипта не было) и падал на предпосылке M3 —
+`permission denied for function publish_project_baseline`, потому что
+`20260811010000` отозвал её у `authenticated`. При этом
+`MASTER_EXECUTION_PLAN.md:70` фиксирует `Thin M4 | e74f4b3 | DB5 PASS`: харнесс
+был зелёным и деградировал молча. **EXTRACTED.**
+
+**Состояние после E0R (§6.1):** DB5 зелёный на PostgreSQL 16 и 17, стоит
+обязательным заданием CI, окружён доказательствами запрета до и после, а
+человеческие RPC инкремента 2 вызывает изолированная `nologin`-роль. То есть
+движок инкремента 2 теперь **PROVEN на уровне базы** — и по-прежнему **закрыт**
+на обеих границах.
 
 ### 2.6 Расхождения документов и кода
 
-| # | Расхождение | Оценка |
+| # | Расхождение | Статус |
 |---|---|---|
-| R1 | A6 §1.1: `upload_photo_evidence` и `accept_milestone` ждут «`milestoneId` воркерного плана». В коде `define_milestone` — **человеческая** RPC с capability `review_milestone` (`20260717103000:1065/1115`). Воркерного плана вех не существует и он не нужен. | **EXTRACTED**; следствие — **INTERPRETED**: две из пяти «воркерных» зависимостей ложные |
-| R2 | Матрица готовности, строка M4: `NOT_PROVEN, DOC_TARGET, Charter/catalog, Thin P0 in code no UI surface`. Противоречит DEC-029 (`M4_BROWSER_PROVEN`, AP5 195), DEC-030 (`M4_RELEASE_WORKER_PROVEN`) и коду (интерфейс есть). | **EXTRACTED**; строка устарела |
-| R3 | `REMHAOS_ENTITY_CATALOG_v1.md:88–91,105` требует `ChangeOrder`: `ImpactAssessment ASSESSES ChangeRequest required-one`, `ChangeOrder APPROVES ChangeRequest required-one`, `BaselineRevision INCORPORATES ChangeOrder required-one-or-more`, запрещено «ChangeOrder без ChangeRequest и ImpactAssessment». Таблицы `change_orders` в `projectceo_m4` **нет**; DEC-025 закрывает Change Order до wedge validation. | **EXTRACTED** + **OWNER DECISION**; следствие в §3.3 |
-| R4 | `m4-surface.ts:262` относит `define_milestone` и `register_handover_document` к `M4_NON_COMMAND_FUNCTIONS` («команды нет»). Обе — человеческие RPC, вызвать их некому. | **EXTRACTED** |
-| R5 | Комментарий в `workers/release-artifact/runner.ts` ссылается на `tests/db4/09_release_artifact_worker.sql`; файл называется `41_release_artifact_backlog.sql`. Косметика. | **EXTRACTED** |
+| R1 | A6 §1.1: `upload_photo_evidence` и `accept_milestone` ждут «`milestoneId` воркерного плана». В коде `define_milestone` — человеческая RPC с capability `review_milestone`. Воркерного плана вех нет и не нужно. | **EXTRACTED**; учтено решением о десяти командах |
+| R2 | Строка M4 в матрицах готовности (`DOC_TARGET`, `Thin P0 in code no UI surface`) противоречила DEC-029, DEC-030 и коду. | **исправлено** этой работой в обоих брендах |
+| R3 | Каталог сущностей требует `ChangeOrder` (`ChangeOrder APPROVES ChangeRequest required-one`, `BaselineRevision INCORPORATES ChangeOrder required-one-or-more`); таблицы нет, DEC-025 закрывает Change Order до wedge validation. | **EXTRACTED / OWNER DECISION**: ChangeOrder не переоткрывается; см. §3.3 |
+| R4 | `m4-surface.ts:262` относит `define_milestone` и `register_handover_document` к `M4_NON_COMMAND_FUNCTIONS`. | **EXTRACTED**; снимается в V2/V3 |
+| R5 | Комментарий в `workers/release-artifact/runner.ts` ссылается на `tests/db4/09_release_artifact_worker.sql`; файл называется `41_release_artifact_backlog.sql`. | косметика, не трогалось |
 
 ### 2.7 Что из Telegram Bridge НЕ является M4
 
 **EXTRACTED / OWNER DECISION (DEC-031).** Мост — горизонтальный адаптер
-`Integration Gateway → Messaging`, не модуль и не часть M4. К M4 он не
-относится ничем из перечисленного:
+`Integration Gateway → Messaging`. Схемы `remhaos_channel*` отдельные, доменных
+таблиц M1–M4 не трогают. Сообщения, фото и документы из чата создают только
+неподтверждённых кандидатов Project Inbox; переход в `ChangeRequest` — «только
+через человеческую команду». Фото из Telegram **не является** фотодоказательством
+M4, и решение от 11.08 подтверждает это прямо: **Telegram intake не строится.**
+«Получил» в чате не выполняет `acknowledge_release`.
 
-* схемы `remhaos_channel` / `remhaos_channel_api` — отдельные, доменных таблиц
-  M1–M4 не трогают (A7 §2.1, `ENTITY_CATALOG:49`);
-* сообщения, фото и документы из чата создают **только неподтверждённых
-  кандидатов** Project Inbox; переход `ProjectInboxCandidate BECOMES
-  ChangeRequest` — «только через человеческую команду» (`ENTITY_CATALOG:69`);
-* фото из Telegram **не является** фотодоказательством M4: `register_photo_evidence`
-  требует материализованного источника (§4.3), а не файла из чата;
-* «получил» в чате не выполняет `acknowledge_release`, callback и deep link не
-  выполняют mutation;
-* исходящие уведомления моста (`notification_outbox`) — доставка, а не
-  состояние M4.
+**Зависимости M4 от незавершённого Telegram C1 нет.** Единственная точка
+соприкосновения по A7 — `create_change`, то есть уже принятый инкремент 1. Ни
+одна из закрытых команд не читает и не пишет в схемах моста. **EXTRACTED.**
 
-**Зависимость M4 от незавершённого Telegram C1: отсутствует.** Единственная
-точка соприкосновения по A7 — «первый доменный адаптер M3 → M4» через
-`create_change`, то есть через **инкремент 1**, который уже принят. Ни одна из
-пяти закрытых команд не читает и не пишет ничего в схемах моста. **EXTRACTED.**
-
-### 2.8 Сводка «что есть / чего нет»
+### 2.8 Сводка
 
 | Слой | Инкремент 1 | Инкремент 2 |
 |---|---|---|
-| Таблицы | есть | **есть** |
-| RPC | есть | **есть** (9 из 9) |
-| Адаптер TypeScript | есть | **есть** (9 методов) |
+| Таблицы | есть | есть |
+| RPC | есть | есть (9 из 9) |
+| Адаптер TypeScript | есть | есть (9 методов) |
 | Обработчик команды | есть | есть у 4 из 5; у `build_handover` нет |
-| Контракт команды | есть | есть у 5; **нет** у `define_milestone` и `register_handover_document` |
-| Интерфейс | есть | **есть**, всегда выключен |
-| Гранты | скриптом среды | **ни в одной среде** |
+| Контракт команды | есть | 5 из 8 старого контракта; **три новые команды не написаны** |
+| Интерфейс | есть | частично (см. §2.4) |
+| Гранты | скриптом среды | ни в одной среде |
 | Очередь и раннер воркера | есть (Release Artifact) | **нет** (impact, handover) |
-| Исполняемое доказательство | AP5 195 (`M4_BROWSER_PROVEN`) | DB5 — **вне CI и красный** |
+| Исполняемое доказательство | AP5 195 | **DB5 PG16/17 в обязательном CI — после E0R** |
 
 ---
 
@@ -269,380 +227,398 @@ ERROR:  permission denied for function publish_project_baseline
    └─ create_change / submit_change_request   ← инкремент 1, принят
 оценка влияния
    └─ [W1] calculate_change_impact            ← воркер, ОТСУТСТВУЕТ
-   └─ review_change_impact                    ← закрыто
+   └─ review_change_impact                    ← закрыто, обработчик готов
 веха
-   └─ define_milestone                        ← закрыто, команды НЕТ
+   └─ define_milestone                        ← закрыто, КОМАНДЫ НЕТ
 фото-доказательство
-   └─ register_photo_evidence                 ← закрыто
+   └─ intake: JPG/PNG → materialized source → source revision → graph node
+   └─ register_photo_evidence                 ← закрыто, обработчик готов
 проверка
-   └─ review_photo_evidence                   ← закрыто
+   └─ review_photo_evidence                   ← закрыто, обработчик готов
 приёмка
-   └─ accept_milestone                        ← закрыто
+   └─ accept_milestone                        ← закрыто, обработчик готов
 handover
-   └─ register_handover_document              ← закрыто, команды НЕТ
+   └─ intake: PDF → materialized source
+   └─ register_handover_document              ← закрыто, КОМАНДЫ НЕТ
+   └─ build_handover                          ← ЧЕЛОВЕЧЕСКАЯ финализация, НЕ НАПИСАНА
    └─ [W2] build_construction_handover        ← воркер, ОТСУТСТВУЕТ
 ```
 
 ### 3.2 Сущности, состояния и переходы
 
-Все переходы ниже **EXTRACTED** из тел RPC — это не проект «как хотелось бы»,
-а то, что база уже делает.
+Всё ниже **EXTRACTED** из тел RPC и подтверждено прогоном DB5 — это то, что
+база уже делает, а не проект «как хотелось бы».
 
-| Сущность | Состояния | Разрешённый переход | Кто | Инвариант |
+| Сущность | Состояния | Переход | Кто | Инвариант |
 |---|---|---|---|---|
 | `change_requests` | `submitted` | создание | человек, `create_change` | корни — пары «сущность, ревизия»; версия пакета открыта |
-| `impact_runs` | существует / нет | создание | **система** | ровно один прогон на заявку: повтор → `P1110 IMPACT_ALREADY_CALCULATED` (:646) |
-| `impacts` | — | производные прогона | система | `impactId` детерминирован по пути (sha256), порядок — `unicode_code_point` |
-| `impact_reviews` | `accepted` / `resolved` / `dismissed` | одно решение на влияние | человек, `review_change_impact` | флаг `allImpactsReviewed` считается сервером |
-| `milestones` | существует | создание | человек, `review_milestone` | привязка к `production_package_version_id` + `baseline_id` + `graph_version_id`; зоны — узлы графа |
-| `photo_evidence` | без решения | регистрация | человек, `upload_photo_evidence` | источник обязан быть **материализован** (§4.3); `capturedAt` не в будущем более чем на 5 мин |
+| `impact_runs` | есть / нет | создание | **система** | один прогон на заявку: повтор → `P1110 IMPACT_ALREADY_CALCULATED` |
+| `impacts` | — | производные прогона | система | `impactId` детерминирован по пути; порядок `unicode_code_point` |
+| `impact_reviews` | `accepted` / `resolved` / `dismissed` | одно решение на влияние | человек, `review_change_impact` | `allImpactsReviewed` считает сервер |
+| `milestones` | существует | создание | человек, `review_milestone` | привязка к версии пакета, baseline и версии графа; зоны — узлы графа |
+| `photo_evidence` | без решения | регистрация | человек, `upload_photo_evidence` | источник **материализован**; `capturedAt` не в будущем > 5 мин |
 | `photo_evidence_reviews` | `accepted` / `rejected` | одно решение на фото | человек, `review_milestone` | — |
-| `milestone_acceptances` | принята | приёмка | человек, `review_milestone` | приёмка — решение человека (A6 §4.2.3); семантический хеш фиксируется |
+| `milestone_acceptances` | принята | приёмка | человек, `review_milestone` | приёмка — решение человека (A6 §4.2.3); фиксируется семантический хеш |
 | `handover_documents` | `acceptance_act` / `warranty` / `manual` | регистрация | человек, `review_milestone` | источник материализован |
-| `construction_handovers` | собран | сборка | **система** | требуется: ≥1 веха, **все** вехи приняты, **обязателен** документ `warranty` (:1962–2006); повтор → `P1110 HANDOVER_ALREADY_BUILT` |
+| **build request** | `requested` | **человеческая финализация** | человек, `build_handover` | **новая сущность V3, см. ниже** |
+| `construction_handovers` | собран | сборка | **система** | ≥1 веха, **все** вехи приняты, обязателен документ `warranty`; повтор → `P1110 HANDOVER_ALREADY_BUILT` |
 
-**Терминальность.** После сборки handover версия закрыта:
-`_assert_version_open` (:283) поднимает `P1110 HANDOVER_VERSION_CLOSED` на
-любую дальнейшую запись по этой версии пакета. **EXTRACTED.** Это и есть
-«архив неизменяем» A6 §4.2.4 — реализовано.
+**Терминальность.** После сборки архива `_assert_version_open` поднимает
+`P1110 HANDOVER_VERSION_CLOSED` на любую дальнейшую запись по этой версии
+пакета. **EXTRACTED** — «архив неизменяем» A6 §4.2.4 реализовано.
+
+**Форма `build_handover` — OWNER DECISION 11.08.2026.** `build_handover` —
+человеческая команда финализации: человек подтверждает завершение комплекта,
+создаётся durable build request, и только потом W2 выполняет worker-only
+`build_construction_handover`. **W2 не имеет права закрыть версию по одному
+лишь факту наличия warranty и принятых вех.**
+
+**Следствие, которое надо назвать прямо. INTERPRETED.** Сегодня
+`build_construction_handover` не знает ни о каком запросе: его предусловия —
+ровно «есть вехи, все приняты, есть warranty» (строки 1962–2006). Значит V3
+обязан добавить (а) таблицу durable build request и (б) проверку её наличия в
+предусловиях сборки. Это единственная новая доменная таблица во всём плане, и
+её необходимость доказана не удобством, а решением владельца: без неё «до
+человеческой команды архив не собирается» останется словом.
 
 ### 3.3 Связи с остальной платформой
 
-* **Project Graph** — не «связь», а несущая конструкция: `calculate_change_impact`
-  ходит по `version_edges`/`graph_edges` конкретной версии графа; `milestone_areas`
-  ссылаются на ревизии узлов; `impact_path_steps` хранит пройденные рёбра.
-  **EXTRACTED.**
+* **Project Graph** — несущая конструкция, а не связь: расчёт влияния ходит по
+  `version_edges`/`graph_edges` конкретной версии; `milestone_areas` ссылаются
+  на ревизии узлов; `impact_path_steps` хранит пройденные рёбра. **EXTRACTED.**
 * **Decision Ledger / baseline** — вход: `change_requests.proposed_baseline_id`
-  join `project_baselines` даёт `graph_version_id`, по которому считается
-  влияние. **Выход отсутствует:** принятые влияния никуда не возвращаются, потому
-  что `ChangeOrder` закрыт DEC-025 (R3). **INTERPRETED:** запрошенная цепочка
-  замыкается на handover, но изменение **не инкорпорируется в baseline**. Это
-  осознанный разрыв по решению владельца, а не дефект проекта; называть цепочку
-  «полным циклом изменения» нельзя.
-* **Release Artifact Worker** — образец, а не зависимость: два новых воркера
-  строятся по его форме (очередь `service_role` + детерминированный ключ +
-  один проход), но ни один из них не читает его данные. **INTERPRETED.**
+  join `project_baselines` даёт версию графа. **Выхода нет:** принятые влияния
+  не возвращаются в baseline, потому что `ChangeOrder` закрыт DEC-025 и решением
+  от 11.08 **не переоткрывается**. **OWNER DECISION.** Отсюда обязательство
+  формулировок: **текущий объём нельзя называть полным change-control cycle.**
+  Это execution- и evidence-контур, замыкающийся на архив передачи.
+* **Release Artifact Worker** — образец формы, не зависимость: W1 и W2 строятся
+  по нему (очередь только для `service_role`, детерминированный ключ, один
+  проход, без HTTP-маршрута), но данных его не читают. **INTERPRETED.**
 * **M1–M3** — вход M4 единственный: подтверждённая выдача Released Production
-  Package (A6 §2). Фото и документы handover приходят через общий intake
-  источников (§4.3), то есть через механику M1/источников, не через новый путь.
+  Package (A6 §2). Фото и документы приходят **только через общий source
+  pipeline** (§4.3).
 
 ### 3.4 Идемпотентность, журнал, аудит
 
-**EXTRACTED — механизм уже единый для всей платформы и переиспользуется:**
+**EXTRACTED, механизм платформенный и переиспользуется:** ключ идемпотентности
++ дайджест запроса (`sha256` от `{expectedStateRevision, operation, packageId,
+payload, projectId}`) → `_replay_or_null`; повтор с тем же ключом и запросом
+возвращает прежний результат, с тем же ключом и другим запросом —
+`idempotency_conflict`; `project_workflows.state_revision` читается
+`for update`, расхождение → `P1107 stale_state`; журнал команд и `audit_events`
+— существующие таблицы. Пять `replay_*` обёрток уже есть.
 
-* ключ идемпотентности + дайджест запроса (`sha256` от
-  `{expectedStateRevision, operation, packageId, payload, projectId}`) →
-  `projectceo_product._replay_or_null`; повтор с тем же ключом и тем же
-  запросом возвращает прежний результат, с тем же ключом и другим запросом —
-  `idempotency_conflict`;
-* оптимистическая блокировка: `project_workflows.state_revision` читается
-  `for update`, расхождение → `P1107 stale_state` с текущим значением;
-* журнал команд и `audit_events` — существующие таблицы
-  (`projectceo_product.audit_events`, `projectceo_foundation.audit_events`),
-  M4 пишет туда же;
-* пять `replay_*` обёрток уже есть для команд инкремента 2.
-
-**Ничего нового в этом слое проектировать не требуется.** **INTERPRETED.**
+Проверено прогоном: DB5 доказывает replay после перезапуска базы и один
+результат при конкурентном вызове. **EXTRACTED.**
 
 ### 3.5 Отказы, отмена, повтор
 
 | Случай | Поведение | Статус |
 |---|---|---|
-| Потеря ответа воркера | повтор с тем же детерминированным ключом → replay | образец DEC-030, применим |
-| Два воркера одновременно | `for update` по строке проекта + уникальность прогона на заявку → один выигрывает, второй получает `IMPACT_ALREADY_CALCULATED` (для воркера это успех, не ошибка) | **INTERPRETED** по образцу runner'а |
-| Состояние сдвинулось | `stale_state`; ретрая внутри прохода нет — следующий проход читает очередь заново | образец DEC-030 |
-| Отмена расчёта | **не поддерживается**: `impact_runs` не имеет статуса, повторный расчёт запрещён | **EXTRACTED** — см. §7 вопрос Q4 |
+| Потеря ответа воркера | повтор с детерминированным ключом → replay | образец DEC-030 |
+| Два воркера одновременно | `for update` + уникальность прогона на заявку; проигравший получает `IMPACT_ALREADY_CALCULATED`, и для воркера это успех | доказано DB5 |
+| Состояние сдвинулось | `stale_state`; ретрая внутри прохода нет, следующий проход читает очередь заново | образец DEC-030 |
+| **Отмена и пересчёт влияния** | **не строятся в P0**: один immutable ChangeRequest — один immutable impact run; новое изменение оформляется новым ChangeRequest | **OWNER DECISION 11.08.2026** |
 | Отклонение фото | `rejected`; веха не принимается, пока есть непринятые фото | **EXTRACTED** |
-| Отзыв приёмки | **не поддерживается** — таблица приёмок append-only | **EXTRACTED** |
+| Отзыв приёмки | не поддерживается — таблица приёмок append-only | **EXTRACTED** |
 | Пустая очередь воркера | безопасный no-op | образец DEC-030 |
 
 ---
 
-## 4. Чего действительно не хватает — по каждой из пяти команд
+## 4. Чего не хватает — по командам
 
 ### 4.1 `review_change_impact`
 
-* Ждёт `impactRunId`. **EXTRACTED.**
-* Производитель существует и реализован полностью — `calculate_change_impact`,
-  права только у `service_role`. **EXTRACTED.**
-* **Не хватает ровно двух вещей:** (1) RPC очереди «заявки без прогона влияния»
-  и (2) раннера, который её читает. Обработчик команды, адаптер и интерфейс —
-  написаны.
-* Воркер нужен: **да** (W1).
+Ждёт `impactRunId`. Производитель реализован (`calculate_change_impact`, права
+только у `service_role`) и доказан DB5. **Не хватает:** RPC очереди «заявки без
+прогона влияния» и раннера. Обработчик, адаптер и интерфейс написаны.
+Воркер нужен: **да** (W1).
 
-### 4.2 `upload_photo_evidence` и `accept_milestone`
+### 4.2 `define_milestone`, `upload_photo_evidence`, `accept_milestone`
 
-* Ждут `milestoneId`. **EXTRACTED.**
-* **A6 ошибается, называя источник вех воркерным.** `define_milestone` —
-  человеческая RPC с capability `review_milestone`. **EXTRACTED (R1).**
-* **Не хватает:** команды `define_milestone` в `command-contract.ts` (её там
-  нет — контракт содержит ровно восемь команд), обработчика, интерфейса выбора
-  зон и гранта в скрипте среды.
-* Воркер нужен: **нет.**
+A6 называл источник вех воркерным — это неверно (R1). `define_milestone` —
+человеческая RPC. **Не хватает:** команды в контракте, обработчика, интерфейса
+выбора зон и гранта. Воркер: **нет.**
 
-### 4.3 Фото как источник — отдельная и недооценённая предпосылка
+### 4.3 Evidence intake — реальный путь, а не обход
 
-**EXTRACTED.** `register_photo_evidence` не принимает файл. Он принимает
-`sourceId` + `sourceRevisionId` и прогоняет их через
-`projectceo_m4._materialized_source` (:223), который требует одновременно:
+**OWNER DECISION 11.08.2026.** Фото и документы проходят **только** через
+существующий общий source pipeline. Требуемые пути:
 
-* `project_intelligence.sources` с непустым `storage_object_path`;
-* `projectceo_foundation.source_protected_metadata` с подходящей `source_role`
-  для этого пакета;
-* `source_inventory_records` с `availability = 'materialized'` и совпадающей
-  контрольной суммой;
-* узел графа `kind = 'source'` с ревизией `sourceRevisionId`.
+```
+JPG/PNG → materialized source → source revision → graph source node
+        → register_photo_evidence
+PDF     → materialized source → register_handover_document
+```
 
-Иначе — `P1111 validation_failed {"reason":"EXACT_MATERIALIZED_SOURCE_REQUIRED"}`.
+**Не создавать:** отдельное хранилище M4; параллельную модель источников;
+Telegram intake; новые доменные таблицы без доказанной необходимости.
 
-Интерфейс это уже отражает: `photoSourcesForPackage` выбирает из **уже
-зарегистрированных** источников, а не загружает файл (`project-workspace.tsx:78`).
+**Что этому пути уже требуется. EXTRACTED.**
+`projectceo_m4._materialized_source` (:223) требует одновременно:
+`project_intelligence.sources` с непустым `storage_object_path`;
+`source_protected_metadata` с подходящей `source_role` для пакета;
+`source_inventory_records` с `availability = 'materialized'` и совпадающей
+контрольной суммой; узел графа `kind = 'source'` с ревизией. Иначе —
+`P1111 validation_failed {"reason":"EXACT_MATERIALIZED_SOURCE_REQUIRED"}`.
+Интерфейс это уже отражает: `photoSourcesForPackage` выбирает из
+зарегистрированных источников, а не загружает файл.
 
-**UNKNOWN.** Проходит ли фотография со стройки существующий intake источников —
-с нужной `source_role`, материализацией и узлом графа — я не проверял прогоном
-и не буду достраивать предположением. Это вопрос Q2 в §7. То же касается
-`register_handover_document`: он использует тот же механизм.
+**UNKNOWN — и это работа V2/V3, а не предположение.** Замыкается ли этот путь
+для JPG/PNG и PDF additive-изменением существующего intake, прогоном не
+проверено. По условию решения: **если additive-изменением не замыкается —
+остановиться и вернуть точный scope delta**, а не достраивать параллельную
+модель.
 
 ### 4.4 `review_photo_evidence`
 
-* Ждёт существующего фото. Сверх §4.2–4.3 не требует ничего. **EXTRACTED.**
-* Воркер нужен: **нет.**
+Ждёт существующего фото. Сверх §4.2–4.3 не требует ничего. Воркер: **нет.**
 
-### 4.5 `build_handover`
+### 4.5 `build_handover` и `register_handover_document`
 
-* Производитель — `build_construction_handover`, воркерная RPC. Человеческой
-  двери нет и по `m4-surface.ts:233` не будет. **EXTRACTED.**
-* Предусловия жёстче, чем описано где-либо в документах: **≥1 веха, все вехи
-  приняты, и обязательно документ `warranty`** (:1962–2006). **EXTRACTED.**
-* **Не хватает:** очереди + раннера (W2) **и** команды `register_handover_document`
-  — без неё документ `warranty` появиться не может, а без него сборка всегда
-  падает `WARRANTY_DOCUMENT_REQUIRED`.
-* Воркер нужен: **да** (W2).
+`build_construction_handover` — воркерная RPC; человеческой двери к ней нет и не
+будет. Предусловия: **≥1 веха, все вехи приняты, обязателен документ
+`warranty`** (:1962–2006). **EXTRACTED.**
 
-### 4.6 Следствие для контракта команд
+**Не хватает:** команды `register_handover_document`; команды `build_handover`
+как человеческой финализации; таблицы durable build request и проверки её в
+предусловиях сборки (§3.2); очереди и раннера W2 (очередь читает **запросы**, а
+не «версии, у которых всё готово»).
 
-**INTERPRETED, и это ключевой вывод пакета.** Замкнуть запрошенную цепочку
-восемью командами **невозможно**: `define_milestone` и
-`register_handover_document` — человеческие RPC без команд, и подменить их
-воркером нельзя (они требуют `_authorize_package_human`, а вызов человеческой
-RPC через `service_role` запрещён платформенным правилом).
+### 4.6 Контракт: десять команд
 
-Контракт обязан вырасти с 8 команд до 10. При этом A6 §1.1 фиксирует «Восемь
-команд контракта = 3 + 5» и требует теста, который **уронит CI, если появится
-девятая**. Это прямое отступление от подписанного аддендума и требует решения
-владельца (Q1 в §7).
+**OWNER DECISION 11.08.2026.** Контракт M4 расширяется до **десяти явных
+команд**: восемь существующих плюс `define_milestone` и
+`register_handover_document`; `build_handover` меняет смысл — становится
+человеческой командой финализации, порождающей durable build request.
+
+Редакция 1 подавала это как математически единственное решение. Формулировка
+снята: **это решение владельца.** Технически альтернативы существовали
+(например, отказаться от вех и handover в этом объёме, оставив цепочку
+незамкнутой на приёмке). Владелец выбрал замкнуть цепочку и уточнить A6.
+Тест «контракт содержит ровно N команд» (A6 §5.1) обновляется осознанно и с
+ссылкой на это решение, а не подгоняется.
 
 ---
 
-## 5. Воркеры: какие действительно нужны
+## 5. Воркеры
 
-Правило владельца соблюдено — воркеры не добавляются автоматически, каждый
-обоснован отдельно и по одному критерию: **существует ли человеческая дверь к
-этому шагу**. Если существует — воркер не нужен.
+Правило соблюдено: воркеры не добавляются автоматически, каждый обоснован по
+одному критерию — **существует ли человеческая дверь к этому шагу**.
 
 ### W1 · Impact Calculation Worker — **НУЖЕН**
 
-* **Почему.** `calculate_change_impact` берёт `_worker_command_context`
-  (`actor_id = 'system:projectceo-m4'`) и не имеет человеческой capability.
-  Человеческой двери нет по конструкции. Без прогона `review_change_impact`
-  адресоваться нечему. **EXTRACTED.**
-* **Очередь.** `change_requests`, для которых нет `impact_runs`. Данные для
-  такого запроса уже есть, новых полей не требуется. **INTERPRETED.**
-* **Форма.** Один проход, детерминированный ключ идемпотентности из
-  `changeRequestId`, только `service_role`, без HTTP-маршрута — образец
-  DEC-030.
-* **Открытый параметр.** `maxDepth` (1..20) сейчас передаётся вызывающим.
-  Воркер обязан взять его из конфигурации, а не из запроса — иначе результат
-  перестаёт быть детерминированным по проекту. Значение — вопрос Q3.
+`calculate_change_impact` берёт `_worker_command_context` и человеческой
+capability не имеет: двери нет по конструкции. Без прогона
+`review_change_impact` адресоваться нечему. **EXTRACTED.**
+Очередь — заявки без `impact_runs`; новых полей не требуется. **INTERPRETED.**
+Форма — образец DEC-030: один проход, детерминированный ключ из
+`changeRequestId`, только `service_role`, без HTTP-маршрута.
 
 ### W2 · Handover Assembly Worker — **НУЖЕН**
 
-* **Почему.** `build_construction_handover` — тоже `_worker_command_context`,
-  человеческой двери нет и не планируется (`m4-surface.ts:233`). **EXTRACTED.**
-* **Очередь.** Версии пакета, где есть вехи, все приняты, есть документ
-  `warranty`, и `construction_handovers` ещё нет. **INTERPRETED.**
-* **Форма.** Та же, что W1.
+`build_construction_handover` — тоже `_worker_command_context`, человеческой
+двери нет. **EXTRACTED.**
+**Очередь — durable build requests, а не «версии, где всё готово».**
+**OWNER DECISION:** W2 не закрывает версию по факту наличия warranty и принятых
+вех; до человеческой команды `build_handover` архив не собирается.
 
-### Воркеры, которые НЕ нужны — и почему
+### Воркеры, которые НЕ нужны
 
 | Кандидат | Вердикт | Основание |
 |---|---|---|
 | Планировщик вех | **не нужен** | `define_milestone` человеческая (R1) |
 | Обработка/приём фото | **не нужен** | `register_photo_evidence` человеческая |
 | Регистрация документов handover | **не нужен** | `register_handover_document` человеческая |
-| Фреймворк очередей, ретраев с бэкоффом, расписания | **не нужен в этом объёме** | DEC-030 его не разрешил, и оба воркера обходятся одним проходом; расписание — часть отдельного решения о production |
-| Воркер уведомлений M4 | **не нужен** | доставка — дело моста, и мост к M4 не относится (§2.7) |
+| Фреймворк очередей, ретраев, расписания | **не нужен в этом объёме** | DEC-030 его не разрешил; оба воркера обходятся одним проходом; расписание — часть отдельного решения о production |
+| Воркер уведомлений M4 | **не нужен** | доставка — дело моста, а мост к M4 не относится |
 
 **Итого: два воркера, ни одним больше.**
 
 ---
 
-## 6. Разбиение на инкременты
+## 6. План реализации
 
-Каждый даёт законченный проверяемый результат, ни один не включает production,
-ни один не трогает принятый инкремент 1 и не зависит от Telegram C1.
+**OWNER DECISION 11.08.2026:** четыре вертикали — E0R, V1, V2, V3.
 
-### E0 · Восстановление DB5 и ввод его в обязательный CI
+### 6.1 E0R · DB5 на PG16/17 в обязательном CI — **ВЫПОЛНЕНО**
 
-*Ничего не открывает.* Чинит `tests/db5/run.zsh` (применить
-`enable-m3-publication.sql` и `enable-m4-increment-1.sql`, как это делает
-DB4), добавляет `npm`-скрипт и задание в `ci.yml` на PG16/PG17.
+**Почему предложенный редакцией 1 E0 был неработоспособен.** Он предлагал
+«применить два обычных enable-скрипта, и DB5 станет зелёным». Это неверно, и
+владелец это поймал: `enable-m4-increment-1.sql` намеренно **оставляет инкремент
+2 закрытым** для `authenticated` (и падает `PROJECTCEO_M4_INCREMENT_2_LEAKED`,
+если бы открыл), тогда как DB5 вызывает `review_change_impact`,
+`define_milestone`, операции с фото, `accept_milestone` и
+`register_handover_document` именно под `authenticated`. Утверждение снято.
 
-**Гейт:** `DB5_EXECUTION_HARNESS_OK` на обеих версиях в обязательном CI.
-**Почему первым:** без него любой следующий инкремент строится поверх
-недоказанного движка. Сегодня утверждение «движок покрыт DB5» прогоном не
-подтверждается (§2.5).
-**Требует решения владельца:** нет.
+**Что сделано вместо этого.**
 
-### E1 · Impact Calculation Worker (W1)
+1. `tests/db5/05_default_deny_before.sql` — сразу после цепочки миграций
+   доказывается, что закрыто всё: десять человеческих RPC инкремента 2
+   недоступны `anon`, `authenticated` и `service_role`; инкремент 1 и публикация
+   M3 закрыты по умолчанию; воркерные RPC недоступны человеческим ролям и
+   доступны системной; читающая RPC уцелела; тестовой роли ещё нет.
+2. Применяются `enable-m3-publication.sql` и `enable-m4-increment-1.sql` — те же
+   скрипты одноразовой среды, что и в DB4. Инкремент 2 они не открывают.
+3. `tests/db5/06_execution_test_role.sql` — **внутри одноразового контейнера**
+   создаётся отдельная роль `pi_db5_execution_tester`:
+   `nologin noinherit nobypassrls nosuperuser nocreatedb nocreaterole
+   noreplication`, с `usage` на одну схему и `execute` ровно на шесть
+   человеческих RPC инкремента 2, которые вызывает цепочка. Изоляция
+   проверяется, а не декларируется: атрибуты роли; отсутствие членства в обе
+   стороны; **явная** запись в ACL (а не `has_function_privilege`, который скрыл
+   бы право, доставшееся через `PUBLIC`); ровно шесть функций и ровно одна схема
+   во всей базе; ноль табличных прав; отсутствие доступа к воркерным RPC и к
+   инкременту 1; и тут же — что PostgREST-роли ничего не получили.
+4. Человеческая identity не подменяется: `auth.uid()` читает
+   `request.jwt.claim.sub`, `_authorize_package_human` по-прежнему требует
+   активного членства и capability. Роль базы решает только право **вызвать**
+   функцию. Поэтому цепочка доказывает авторизацию, а не обходит её.
+5. Воркерные шаги идут под `service_role`; человеческих операций у неё нет, и
+   `10_schema_security.sql` роняет прогон (`DB5_EXECUTOR_ROLE_BOUNDARY_BROKEN`),
+   если появятся.
+6. `tests/db5/90_default_deny_after.sql` — после цепочки, конкурентного прогона
+   и перезапуска базы повторно доказывается: инкремент 2 закрыт всем трём
+   PostgREST-ролям; поверхность `authenticated` в схеме модуля исчерпывающе
+   равна трём функциям (инкремент 1, его replay и чтение); `service_role` — двум
+   воркерным; `anon` — нулю; тестовая роль не разрослась.
+7. Постоянные гранты не изменены, тестовая роль в миграциях отсутствует —
+   проверяется статически в `tests/db5/static-boundary.test.ts` (сканирование
+   всех файлов миграций и `supabase/config.toml`), там же закреплён порядок
+   шагов харнесса и то, что все шесть RPC инкремента 2 вызываются только
+   тестовой ролью.
+8. `zsh tests/db5/run.zsh` подключён обязательным заданием CI на PostgreSQL 16 и
+   17 и доступен как `npm run test:db5`.
 
-Backlog-RPC `list_change_impact_backlog` (только `service_role`) + планировщик
-и раннер по образцу `workers/release-artifact` + `npm run worker:change-impact`.
-Права `authenticated` не появляются нигде.
+**Результат: DB5 зелёный на обеих версиях, DB4 default-deny не тронут.**
 
-**Гейты:** DB4-сценарий «`authenticated` не достаёт до очереди и до расчёта»;
-два параллельных прохода → один прогон влияния; повтор после перезапуска не
-создаёт дубль; пустая очередь — no-op; DB5 зелёный.
-**Требует решения владельца:** `maxDepth` (Q3).
+### 6.2 V1 · Impact
 
-### E2 · Открытие `review_change_impact`
+W1 + backlog-RPC (только `service_role`) + раннер по образцу
+`workers/release-artifact` + открытие `review_change_impact`.
 
-Снять команду из `EXECUTION_INCREMENT_2_COMMANDS`, добавить две подписи в
-скрипт среды, снять `increment_not_authorized` в проекции для этой команды,
-обновить `m4-surface.ts` и матричные тесты. Обработчик и интерфейс уже есть.
+`maxDepth` — **versioned server-side constant**, не настройка проекта и не
+параметр вызова (**OWNER DECISION**). Значение выбирается **исполняемым
+benchmark**, проверяющим детерминированность, отсутствие молчаливого усечения,
+лимит 5000 impacts и приемлемое время.
 
-**Гейты:** DB4 07/08 обновлены и зелёные; AP5 — реальный прогон в браузере:
-владелец создаёт изменение, воркер считает влияние, архитектор рассматривает
-его своей сессией; проверка, что остальные четыре команды по-прежнему
-`increment_not_authorized`.
-**Требует решения владельца:** да — частичное открытие инкремента 2 (Q1).
+**Гейты:** `authenticated` не достаёт ни до очереди, ни до расчёта; два
+параллельных прохода дают один прогон; повтор после перезапуска не создаёт
+дубль; пустая очередь — no-op; benchmark воспроизводим; DB5 зелёный; AP5 —
+изменение создаётся владельцем, влияние считает воркер, архитектор рассматривает
+его своей сессией.
 
-### E3 · Вехи: девятая команда `define_milestone`
+### 6.3 V2 · Field Evidence
 
-Команда в контракте, обработчик, интерфейс выбора зон из графа, грант.
+`define_milestone` как команда + **прямой photo intake** (JPG/PNG →
+materialized source → source revision → graph source node) + открытие
+`upload_photo_evidence`, `review_photo_evidence`, `accept_milestone`.
 
-**Гейты:** тест «контракт содержит ровно N команд» обновлён осознанно, а не
-подогнан; DB4 классификация; AP5 — веха создана в браузере ролью с
-`review_milestone`.
-**Требует решения владельца:** да — расширение контракта (Q1).
+**Гейты:** реальная загрузка изображения проходит общий pipeline и доходит до
+`register_photo_evidence`; негативный тест `EXACT_MATERIALIZED_SOURCE_REQUIRED`;
+веха не принимается, пока есть непринятое фото; AP5 — прораб загружает фото,
+архитектор принимает, веха принимается третьей сессией; DB5 зелёный.
 
-### E4 · Фото и приёмка
+**Условие остановки:** если общий source pipeline не замыкается
+additive-изменением — остановиться и вернуть точный scope delta.
 
-Открытие `upload_photo_evidence`, `review_photo_evidence`, `accept_milestone`.
-Интерфейс есть целиком; работа — гранты, снятие гейта и путь фотографии до
-материализованного источника.
+### 6.4 V3 · Handover
 
-**Гейты:** AP5 — прораб загружает фото, архитектор принимает, веха принимается
-третьей сессией; негативный тест «веха не принимается, пока есть непринятое
-фото»; тест на `EXACT_MATERIALIZED_SOURCE_REQUIRED`.
-**Требует решения владельца:** Q1 и Q2 (путь фотографии).
+Document intake (PDF → materialized source) + `register_handover_document` как
+команда + `build_handover` как человеческая финализация с durable build request
++ W2 + чтение архива.
 
-### E5 · Handover: десятая команда + Handover Assembly Worker (W2)
+**Гейты:** сборка невозможна без warranty; невозможна при непринятой вехе;
+**невозможна без человеческого build request**; повтор не создаёт второй архив;
+после сборки любая запись по версии падает `HANDOVER_VERSION_CLOSED`; AP5 —
+архив открывается в браузере; DB5 зелёный.
 
-`register_handover_document` как команда, W2 с собственной очередью,
-чтение собранного архива.
-
-**Гейты:** сборка невозможна без `warranty`; невозможна при непринятой вехе;
-после сборки любая запись по версии падает `HANDOVER_VERSION_CLOSED`; повтор
-не создаёт второй архив; AP5 — архив открывается в браузере.
-**Требует решения владельца:** Q1.
-
-**Порядок обязателен:** E0 → E1 → E2 → E3 → E4 → E5. E3 и E4 нельзя менять
-местами (без вехи фото некуда класть), E5 последний (замыкает версию).
+**Порядок обязателен:** E0R → V1 → V2 → V3. V2 нельзя раньше V1 по данным
+(нечего рассматривать), V3 нельзя раньше V2 (нечего принимать), и V3 закрывает
+версию — он последний по определению.
 
 ---
 
-## 7. Риски и вопросы, которые может решить только владелец
+## 7. Что остаётся открытым
 
-**Q1 · Расширение контракта команд с 8 до 10.** A6 §1.1 фиксирует «восемь
-команд = 3 + 5» и требует теста, роняющего CI на девятой. Замкнуть цепочку без
-`define_milestone` и `register_handover_document` невозможно (§4.6). Нужно либо
-уточнение A6 (по форме DEC-028/DEC-029 — отдельный подписанный документ рядом с
-аддендумом), либо отказ от вех и handover в этом объёме.
-
-**Q2 · Путь фотографии со стройки до материализованного источника.**
-**UNKNOWN** — не проверено прогоном. Если существующий intake этого не
-покрывает, работа выходит за границу M4 в M1/источники, и это отдельное
-решение об объёме.
-
-**Q3 · `maxDepth` расчёта влияния.** Должен стать конфигурацией проекта, а не
-параметром вызова. Значение по умолчанию — решение владельца; от него зависит
-объём выдаваемых на ревью влияний.
-
-**Q4 · Отмена и пересчёт влияния.** Сегодня прогон один и навсегда
-(`IMPACT_ALREADY_CALCULATED`). Если заявка меняется, пересчитать нельзя.
-Нужно ли — решение владельца; в объём §6 не включено.
-
-**Q5 · Разрыв ChangeOrder (R3).** Цепочка замыкается на handover, но изменение
-не возвращается в baseline. Каталог сущностей этого требует, DEC-025 это
-закрывает. Разрыв надо либо принять явно, либо пересмотреть DEC-025.
-
-**Q6 · Устаревшая строка матрицы готовности (R2).** Требует правки в обоих
-брендах; правка документа, не кода.
-
-**Риск, не требующий решения:** молчаливая деградация DB5 показывает, что
-харнесс вне обязательного CI гарантий не даёт. E0 закрывает именно это.
+| # | Вопрос | Статус |
+|---|---|---|
+| Q1 | Расширение контракта до десяти команд | **ЗАКРЫТ** — OWNER DECISION 11.08.2026 |
+| Q2 | Путь фотографии и PDF до материализованного источника | **UNKNOWN** — предмет работы V2/V3; при невозможности additive-изменения работа останавливается и возвращается scope delta |
+| Q3 | `maxDepth` | **ЗАКРЫТ** — versioned server-side constant, значение по benchmark |
+| Q4 | Отмена и пересчёт влияния | **ЗАКРЫТ** — в P0 не строится |
+| Q5 | Разрыв ChangeOrder | **ЗАКРЫТ** — не переоткрывается; объём не называть полным change-control cycle |
+| Q6 | Строка M4 в матрицах готовности | **ЗАКРЫТ** — обновлена в обоих брендах |
+| Q7 | Уточнение A6 как подписанный документ | **ОТКРЫТ** — решение принято, но отдельного документа рядом с аддендумом (по форме DEC-028/DEC-029) ещё нет |
 
 ---
 
 ## 8. Что этот пакет НЕ предлагает
 
 WBS, расписание, split estimate, procurement, Change Order, управление
-подрядчиками, оплаты, закупки, гарантийное обслуживание, ERP/склад/бухгалтерия
-— ничего из этого не входит и не предлагается. `M4_PRODUCTION_ENABLED` этим
-пакетом не приближается. Цикл 7 остаётся открытым и красным. Флаг
-`REMHAOS_EXECUTION_ENABLED` остаётся `false`, постоянные миграции прав
-`authenticated` на пишущие RPC M4 не возвращают (DEC-029).
+подрядчиками, оплаты, закупки, гарантийное обслуживание, ERP/склад/бухгалтерия —
+ничего из этого не входит. `M4_PRODUCTION_ENABLED` не приближается. Цикл 7
+остаётся открытым и красным. `REMHAOS_EXECUTION_ENABLED` остаётся `false`.
+Постоянные миграции прав `authenticated` на пишущие RPC M4 не возвращают
+(DEC-029). Telegram intake не строится.
 
 ---
 
-## 9. Оценка объёма — честная
+## 9. Оценка объёма
 
-**INTERPRETED.** Инкремент 2 — не постройка модуля, а **подключение уже
-построенного**. По слоям: таблицы 100 %, RPC 100 %, адаптер 100 %, интерфейс
-~90 %, обработчики команд 80 % (4 из 5), контракт команд 80 % (не хватает
-двух), воркеры 0 % (нужны два), гранты 0 %, исполняемое доказательство —
-существует, но сегодня красное и вне CI.
+**INTERPRETED, без процентов.** Инкремент 2 — не постройка модуля, а
+подключение уже построенного. Что готово: таблицы, все девять RPC, адаптер,
+обработчики четырёх команд, интерфейс четырёх операций, и — после E0R —
+исполняемое доказательство всей цепочки базы на PG16/17 в обязательном CI.
 
-Главная работа — **не код, а доказательство**: восстановить DB5, построить два
-воркера по принятому образцу и провести каждую команду через браузер в AP5.
+Что предстоит написать: два воркера с очередями; три команды
+(`define_milestone`, `register_handover_document`, `build_handover` в новой
+форме) с обработчиками и экранами; таблица durable build request и её проверка в
+предусловиях сборки; путь фото и PDF через общий source pipeline; гранты в
+скриптах среды; браузерные звенья AP5 на каждую вертикаль.
+
+Главная работа по-прежнему не код, а доказательство — с той разницей, что
+базовое доказательство теперь есть и стоит в гейте.
 
 ---
 
-## 10. Условия, при которых рекомендация меняется на GO без оговорок
+## 10. Состояние после E0R
 
-1. Q1 закрыт подписанным уточнением A6 (девятая и десятая команды разрешены).
-2. Q2 закрыт проверкой: путь фотографии до материализованного источника либо
-   существует, либо явно вынесен в отдельный объём.
-3. Q3 закрыт значением `maxDepth`.
-4. E0 принят как обязательная предпосылка до открытия любой команды.
+* DB5 — PASS на PostgreSQL 16 и 17, обязательное задание CI.
+* Инкремент 2 закрыт для `anon`, `authenticated` и `service_role` до и после
+  прогона; доказано в самом прогоне.
+* Постоянные гранты не изменены; тестовая роль живёт только в одноразовом
+  контейнере и в миграциях отсутствует.
+* `REMHAOS_EXECUTION_ENABLED` = `false`; production не включён; V1–V3 не начаты.
+* Матрицы готовности приведены к факту в обоих брендах.
 
 ---
 
 ## 11. Рекомендация
 
-# REVISE
+# GO на V1 → V2 → V3 после E0R
 
-**Не NO-GO**, потому что технически цель достижима меньшими средствами, чем
-предполагает A6: движок исполнения существует целиком, две из пяти «воркерных»
-зависимостей аддендума оказались ложными, а недостающих воркеров ровно два, и
-оба строятся по уже принятому и доказанному образцу DEC-030.
+Основание изменилось по сравнению с редакцией 1, и изменилось по существу.
 
-**Не GO**, потому что пакет нельзя подписать в текущем виде по двум причинам,
-и ни одна из них не является технической:
+Редакция 1 рекомендовала **REVISE** по двум причинам. Первая — цепочку нельзя
+замкнуть, не нарушив подписанный A6; владелец эту причину снял решением о
+десяти командах, и она больше не блокирует. Вторая — основание A6 §3.1
+(«машинерия покрыта DB5») прогоном не подтверждалось; **E0R это исправил:**
+доказательство восстановлено, усилено проверками запрета с обеих сторон и
+поставлено в обязательный гейт, причём без единого послабления в правах
+`authenticated`.
 
-1. **Цепочку нельзя замкнуть, не нарушив подписанный A6.** Требуются девятая и
-   десятая команды контракта, тогда как A6 §1.1 требует теста, роняющего CI на
-   девятой. Это решение владельца, а не разработки.
-2. **Основание, на которое опирается A6 §3.1 («машинерия покрыта DB5»),
-   сегодня прогоном не подтверждается.** DB5 не входит ни в один обязательный
-   гейт и падает на предпосылке M3. Строить поверх этого, не восстановив
-   доказательство, значит повторить ровно ту ошибку, которую нашли гейты 2 и
-   TG1–TG3.
+Остаётся один настоящий риск, и он честно вынесен в условие остановки: **путь
+фото и PDF через общий source pipeline (Q2) прогоном не проверен.** Если он не
+замыкается additive-изменением, V2 останавливается и возвращает scope delta —
+вместо того чтобы построить параллельную модель источников, которую решение
+владельца прямо запрещает.
 
-**Предлагаемая форма решения:** авторизовать **E0 отдельно и немедленно** — он
-ничего не открывает, восстанавливает утраченное доказательство и снимает риск,
-общий для всех дальнейших шагов. E1–E5 авторизовать после ответов на Q1–Q3,
-уточнением к A6 по форме DEC-029.
+Открытым остаётся Q7: решение о десяти командах принято, но подписанного
+уточнения A6 рядом с аддендумом ещё нет. Пока его нет, `AGENTS.md` и A6 §1.1
+продолжают утверждать «восемь команд», и V2/V3 будут этому противоречить.
+Рекомендую оформить уточнение до старта V2.
 
-Реализация не начата. Жду решения OWNER.
+Сейчас выполнено ровно то, что разрешено: **E0R и правка документов.** PR для
+E0R создан и не слит. V1–V3 не начаты. Production не включён.

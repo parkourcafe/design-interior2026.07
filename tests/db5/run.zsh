@@ -50,7 +50,24 @@ for migration in "${repo_root}"/supabase/migrations/*.sql(N); do
   run_file "${migration}"
 done
 
+# Порядок здесь — предмет проверки, а не оформление.
+#
+# Прежняя редакция шла от миграций сразу в позитивную цепочку под
+# `authenticated` и падала на первом же вызове, закрытом guardrail'ом M3. Чинить
+# это возвратом прав `authenticated` нельзя: инкремент 2 обязан остаться
+# закрытым для PostgREST-ролей в любой среде. Поэтому:
+#
+#   05 — доказать, что закрыто ВСЁ, включая инкремент 1 и публикацию M3;
+#   enable-* — открыть ровно то, что скрипты одноразовой среды открывают в
+#              DB4 и AP1, и ни строкой больше (инкремент 2 они не трогают);
+#   06 — завести отдельную `nologin`-роль для человеческих RPC инкремента 2;
+#   10/20 — контракт схемы и позитивная цепочка;
+#   90 — доказать, что после всего этого закрытое так и осталось закрытым.
 for sql in \
+  "${repo_root}/tests/db5/05_default_deny_before.sql" \
+  "${repo_root}/tests/ap1/environment/enable-m3-publication.sql" \
+  "${repo_root}/tests/ap1/environment/enable-m4-increment-1.sql" \
+  "${repo_root}/tests/db5/06_execution_test_role.sql" \
   "${repo_root}/tests/db3/20_foundation_operations.sql" \
   "${repo_root}/tests/db4/20_product_operations.sql" \
   "${repo_root}/tests/db5/10_schema_security.sql" \
@@ -81,5 +98,9 @@ for attempt in {1..120}; do
   sleep 0.25
 done
 run_file "${repo_root}/tests/db5/30_restart_replay.sql"
+
+# После перезапуска базы и всех сценариев — повторное доказательство запрета.
+# Если бы что-то по дороге выдало права молча, здесь это упадёт.
+run_file "${repo_root}/tests/db5/90_default_deny_after.sql"
 
 print -r -- "DB5_EXECUTION_HARNESS_OK image=${image}"
