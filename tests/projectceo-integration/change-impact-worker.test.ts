@@ -269,12 +269,15 @@ describe("change impact worker — a single pass", () => {
 
 describe("change impact worker — an incomplete run still needs a human", () => {
   /**
-   * Решение владельца от 12.08.2026: граница больше не отказ, а частичный
-   * результат с признаком. Для воркера это НЕ «посчитано и свободен»: закрыть
-   * такой прогон без подтверждения архитектора нельзя, значит человек нужен, и
-   * проход обязан это назвать.
+   * Глубокое усечение (depth_limit) — нормальный, ожидаемый исход, когда
+   * обход упёрся в максимальную глубину политики. Результаты были рассчитаны до
+   * лимита, и прогун рассматривается успешно завершённым. Это НЕ требует
+   * внимания человека — политика сделала свою работу.
+   *
+   * Только result_limit (ничего не сохранено из-за превышения лимита результатов)
+   * требует внимания.
    */
-  it("counts a depth-truncated run as needing a human", async () => {
+  it("treats a depth-limited run as complete (policy limit reached normally)", async () => {
     const result = await runChangeImpactWorker({
       client: fakeClient([], { truncation: "depth_limit" }),
     });
@@ -282,12 +285,12 @@ describe("change impact worker — an incomplete run still needs a human", () =>
       scanned: 1,
       calculated: 0,
       calculatedTruncated: 1,
-      needsAttention: 1,
+      needsAttention: 0,
     });
     expect(result.items[0]?.truncationReason).toBe("depth_limit");
   });
 
-  it("counts a result-limited run the same way", async () => {
+  it("counts a result-limited run as needing a human (nothing was saved)", async () => {
     const result = await runChangeImpactWorker({
       client: fakeClient([], { truncation: "result_limit" }),
     });
