@@ -1,3 +1,4 @@
+import { execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
 
 import type { SupabaseClient } from "@supabase/supabase-js";
@@ -206,6 +207,38 @@ export async function ingestDepthChain(): Promise<{ readonly sourceId: string }>
 }
 
 /**
+ * Свежая статистика планировщика после массового ingest.
+ *
+ * Измерено на PG16: `publish_version` на графе из 5001 листа со СТАРОЙ
+ * статистикой (планы построены для таблиц в 7 строк) шёл 428+ секунд и был
+ * снят; тот же вызов после ANALYZE — 7,7 секунды. Autovacuum закрыл бы разрыв
+ * сам в первую минуту простоя, но фикстура сжимает «дни ingest'а» в секунды,
+ * и публикация baseline стартует раньше, чем autoanalyze успевает проснуться.
+ *
+ * Поэтому харнесс выполняет ту же профилактику детерминированно — операторским
+ * psql-доступом, которым workflow уже применяет enable-скрипты и производственный
+ * выключатель. Это обслуживание планировщика, не продуктовая поверхность и не
+ * упрощение сценария: граф остаётся >5000 узлов, поток команд не меняется.
+ */
+function analyzeGraphPlannerStatistics(): void {
+  const dbUrl = process.env.SUPABASE_DB_URL;
+  if (!dbUrl) {
+    throw new Error(
+      "AP5: после массового ingest нужен ANALYZE (SUPABASE_DB_URL не задан) —"
+      + " без свежей статистики publish_version на графе из 5001 узла не"
+      + " помещается ни в один честный statement_timeout",
+    );
+  }
+  execFileSync("psql", [
+    dbUrl, "-X", "--set", "ON_ERROR_STOP=1", "-c",
+    "analyze project_intelligence.graph_nodes,"
+    + " project_intelligence.graph_node_revisions,"
+    + " project_intelligence.graph_edges,"
+    + " project_intelligence.sources",
+  ], { stdio: "pipe", encoding: "utf8" });
+}
+
+/**
  * Звезда из `AP5_WIDE_STAR_LEAF_COUNT` листьев, каждый напрямую зависит от
  * решения (глубина 1 у каждого — усечение по глубине здесь ни при чём).
  * Число найденного превышает лимит результата — `blocked_result_limit`.
@@ -268,5 +301,6 @@ export async function ingestWideStar(): Promise<{ readonly batchCount: number }>
       idempotencyKey: `ap5:ingest-wide-star:${batchCount}`,
     });
   }
+  analyzeGraphPlannerStatistics();
   return { batchCount };
 }
