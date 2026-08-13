@@ -273,6 +273,10 @@ describe("Layout Studio delivery/UI slice", () => {
       // durable-failure/DLQ/redrive контур воркера расчёта влияния. К Layout
       // Studio отношения не имеет.
       "20260813030000_projectceo_m4_v1_impact_worker_reliability.sql",
+      // Function-level statement_timeout двери публикации версии графа:
+      // публикация baseline на графе >5000 узлов не помещалась в ролевые 8s.
+      // К Layout Studio отношения не имеет.
+      "20260813040000_projectceo_publish_version_timeout.sql",
     ];
     const actual = readdirSync(join(repoRoot, "supabase/migrations"), { withFileTypes: true })
       .filter((entry) => entry.isFile())

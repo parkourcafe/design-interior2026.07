@@ -42,6 +42,18 @@ begin
     raise exception 'DB4_PUBLISH_VERSION_DOOR_SEARCH_PATH_NOT_PINNED';
   end if;
 
+  -- Function-level statement_timeout (`20260813040000`). PostgREST применяет
+  -- proconfig вызываемой функции до основного statement — только так публикация
+  -- версии на графе >5000 узлов переживает ролевые 8 секунд `authenticated`,
+  -- не растягивая лимит ни роли, ни всем остальным запросам.
+  if not exists (
+       select 1
+       from unnest(v_proc.proconfig) entry
+       where entry = 'statement_timeout=30s'
+     ) then
+    raise exception 'DB4_PUBLISH_VERSION_DOOR_TIMEOUT_NOT_PINNED';
+  end if;
+
   -- Внутри — делегирование, а не своя копия логики публикации версии.
   if pg_catalog.pg_get_functiondef(v_proc.oid)
        !~ 'project_intelligence_api\.publish_version' then
