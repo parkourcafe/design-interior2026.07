@@ -103,9 +103,14 @@ export type ChangeImpactOutcome =
  * бюджета попыток — ожидаемый, самовосстанавливающийся исход (тот же смысл,
  * что у `stale_state`), а не работа, оставленная человеку. Он станет
  * `failed_dead_letter` и попадёт сюда сам, если бюджет исчерпается.
+ *
+ * `calculated_truncated` с `depth_limit` СОЗНАТЕЛЬНО не входит: обход упёрся
+ * в максимальную глубину политики — это нормальный, ожидаемый исход для
+ * partial_depth. Результаты были рассчитаны до лимита, и прогун рассматривается
+ * нормально. Только `result_limit` (ничего не сохранено из-за превышения лимита
+ * результата) требует внимания — см. DEC-033/034.
  */
 const NEEDS_ATTENTION: ReadonlySet<ChangeImpactOutcome> = new Set([
-  "calculated_truncated",
   "unresolved",
   "failed_dead_letter",
 ]);
@@ -368,6 +373,16 @@ export async function runChangeImpactWorker(
   const count = (outcome: ChangeImpactOutcome): number =>
     items.filter((entry) => entry.outcome === outcome).length;
 
+  // Truncations with depth_limit are normal, expected outcomes (partial_depth).
+  // Only result_limit truncations require attention (nothing saved).
+  const needsAttentionCount = items.filter((entry) => {
+    if (NEEDS_ATTENTION.has(entry.outcome)) return true;
+    if (entry.outcome === "calculated_truncated" && entry.truncationReason === "result_limit") {
+      return true;
+    }
+    return false;
+  }).length;
+
   return {
     policy,
     scanned: plan.length,
@@ -378,7 +393,7 @@ export async function runChangeImpactWorker(
     unresolved: count("unresolved"),
     failedRetrying: count("failed_retrying"),
     failedDeadLetter: count("failed_dead_letter"),
-    needsAttention: items.filter((entry) => NEEDS_ATTENTION.has(entry.outcome)).length,
+    needsAttention: needsAttentionCount,
     items,
   };
 }
