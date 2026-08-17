@@ -2,13 +2,30 @@
 
 ## Текущий активный контракт
 
-С 18 июля 2026 года источниками продуктовой и delivery-истины являются:
+Источниками продуктовой и delivery-истины являются:
 
-- `docs/product-intelligence/ArchiDom_Russia_Product_Charter_v0.4_2026-07-18.md`;
+- `docs/canonical/remhaos-v1/REMHAOS_CHARTER_v0.5_CANONICAL.md` — продуктовый
+  контракт (freeze 27.07.2026). Заменяет Charter v0.4 и интегрирует Addendum A1;
+  `docs/product-intelligence/ArchiDom_Russia_Product_Charter_v0.4_2026-07-18.md`
+  сохраняется как его предшественник и читается только как история;
+- `docs/canonical/remhaos-v1/REMHAOS_DECISION_LOG_v1.md` — журнал решений;
+- `docs/canonical/remhaos-v1/README.md` — состав канонического пакета;
 - `docs/product-intelligence/adr/0005-remhaos-public-brand.md`;
 - `docs/product-intelligence/architecture-v1.md` с compatibility-решением ADR-0004;
 - `docs/product-intelligence/adr/0004-one-archidom-four-workspaces.md`;
 - `docs/product-intelligence/wave-3/MASTER_EXECUTION_PLAN.md`.
+
+**Правило старшинства внутри этого файла.** Разделы ниже — повествование о
+состоянии модулей, и оно живёт в одном файле, который правит каждая ветка. Оно
+отстаёт: разрешение может быть подписано решением владельца и исполнено кодом
+раньше, чем сюда доедет абзац. Поэтому по вопросу «что авторизовано, а что
+нет» **старше журнал решений**, а не текст ниже: при расхождении действует
+`REMHAOS_DECISION_LOG_v1.md` и названный в нём подписанный документ, а абзац
+ниже считается устаревшим и правится. Обратное — привести код в соответствие
+с отставшим абзацем — запрещено: так тихо откатывается подписанное решение.
+Это правило заведено 17.08.2026 после того, как расхождение случилось в
+третий раз (`NOT AUTHORIZED` на вертикали V1 Impact, авторизованной DEC-033 и
+построенной в PR #94/#96).
 
 Публичный российский продукт называется **RemHaOS**. `ProjectCEO` сохраняется
 только как внутренний compatibility namespace существующего кода, API и database

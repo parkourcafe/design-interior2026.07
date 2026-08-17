@@ -18,7 +18,9 @@
 ## Execution
 - REMHAOS_EXECUTION_BRIEF_SPRINT_1.md
 - REMHAOS_READINESS_MATRIX_v1.csv
-- REMHAOS_READINESS_UPDATE_v1.md
+- REMHAOS_READINESS_UPDATE_v1.md — **в этой папке отсутствует**: при ребрендинге
+  файл не переносился, существует только предшественник
+  `../archidom-v1/ARCHIDOM_READINESS_UPDATE_v1.md`
 
 ## Clarifications
 Уточнения к подписанным аддендумам. Подписанный аддендум не переписывается; при конфликте действует уточнение.
