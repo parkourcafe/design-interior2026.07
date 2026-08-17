@@ -1418,6 +1418,9 @@ function ChangesView({
                     )
                     : projectCeoRu.workspace.changes.truncation.title}
                 </p>
+                <p className="mt-1 text-xs text-muted">
+                  {projectCeoRu.workspace.changes.coverageBlockedRecoveryHint}
+                </p>
               </div>
             )}
             {change.coverageStatus === "partial_depth" && (

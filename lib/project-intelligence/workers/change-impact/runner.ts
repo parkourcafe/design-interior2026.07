@@ -65,11 +65,19 @@ export type ChangeImpactOutcome =
   /** Влияние посчитано этим вызовом целиком. */
   | "calculated"
   /**
-   * Влияние посчитано, но частично: обход упёрся в глубину политики или в
-   * лимит результата. Прогон существует и рассматривается, однако закрыть его
-   * без исчерпания обхода нельзя.
+   * Влияние посчитано, но неполно по ГЛУБИНЕ (`partial_depth`): возвращённые
+   * карточки существуют и рассматриваются, однако `impactReviewComplete`
+   * останется false — неполнота покрытия это данные (DEC-034).
    */
   | "calculated_truncated"
+  /**
+   * Заявка ЗАБЛОКИРОВАНА по ширине (`blocked_result_limit`, DEC-034/037):
+   * сохранены только durable-метаданные, карточек нет. Recovery — rescope
+   * новой заявкой либо автоматический пересчёт при подъёме лимита политики
+   * (DEC-037 §3.3). Отдельный исход, а не подвид truncated: владелец требует
+   * видеть заблокированные заявки отдельным полем отчёта (§3.2).
+   */
+  | "calculated_blocked"
   /** Прогон уже существовал — его сделал прошлый проход или сосед. */
   | "already_present"
   /** Состояние проекта сдвинулось между чтением очереди и расчётом. */
@@ -111,6 +119,7 @@ export type ChangeImpactOutcome =
  * результата) требует внимания — см. DEC-033/034.
  */
 const NEEDS_ATTENTION: ReadonlySet<ChangeImpactOutcome> = new Set([
+  "calculated_blocked",
   "unresolved",
   "failed_dead_letter",
 ]);
@@ -139,6 +148,8 @@ export interface ChangeImpactRunResult {
   readonly scanned: number;
   readonly calculated: number;
   readonly calculatedTruncated: number;
+  /** Заблокированные по ширине заявки — отдельным полем (DEC-037 §3.2). */
+  readonly calculatedBlocked: number;
   readonly alreadyPresent: number;
   readonly staleState: number;
   readonly unresolved: number;
@@ -185,7 +196,7 @@ async function readBacklog(
   }
   return {
     policy: envelope.data.policy,
-    plan: planChangeImpactWork(envelope.data.data),
+    plan: planChangeImpactWork(envelope.data.data, envelope.data.policy.version),
   };
 }
 
@@ -329,7 +340,11 @@ async function calculateOne(
       return { outcome: "already_present", truncationReason, failure: null };
     }
     return {
-      outcome: mutation.result.isTruncated ? "calculated_truncated" : "calculated",
+      outcome: truncationReason === "result_limit"
+        ? "calculated_blocked"
+        : mutation.result.isTruncated
+          ? "calculated_truncated"
+          : "calculated",
       truncationReason,
       failure: null,
     };
@@ -373,21 +388,19 @@ export async function runChangeImpactWorker(
   const count = (outcome: ChangeImpactOutcome): number =>
     items.filter((entry) => entry.outcome === outcome).length;
 
-  // Truncations with depth_limit are normal, expected outcomes (partial_depth).
-  // Only result_limit truncations require attention (nothing saved).
-  const needsAttentionCount = items.filter((entry) => {
-    if (NEEDS_ATTENTION.has(entry.outcome)) return true;
-    if (entry.outcome === "calculated_truncated" && entry.truncationReason === "result_limit") {
-      return true;
-    }
-    return false;
-  }).length;
+  // depth_limit — нормальный ожидаемый исход (partial_depth); blocked — свой
+  // исход `calculated_blocked` и входит в NEEDS_ATTENTION сам, без
+  // спецслучая по причине.
+  const needsAttentionCount = items.filter((entry) =>
+    NEEDS_ATTENTION.has(entry.outcome),
+  ).length;
 
   return {
     policy,
     scanned: plan.length,
     calculated: count("calculated"),
     calculatedTruncated: count("calculated_truncated"),
+    calculatedBlocked: count("calculated_blocked"),
     alreadyPresent: count("already_present"),
     staleState: count("stale_state"),
     unresolved: count("unresolved"),

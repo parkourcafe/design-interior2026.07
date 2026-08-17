@@ -56,6 +56,7 @@ async function main(): Promise<void> {
     scanned: result.scanned,
     calculated: result.calculated,
     calculatedTruncated: result.calculatedTruncated,
+    calculatedBlocked: result.calculatedBlocked,
     alreadyPresent: result.alreadyPresent,
     staleState: result.staleState,
     unresolved: result.unresolved,

@@ -151,29 +151,34 @@ describe("change impact worker — determinism", () => {
    * обязан попасть в тот же ключ, даже если состояние успело сдвинуться.
    */
   it("keeps the idempotency key independent of the state revision", () => {
-    expect(changeImpactIdempotencyKey(row({ stateRevision: 9 })))
-      .toBe(changeImpactIdempotencyKey(row({ stateRevision: 42 })));
+    expect(changeImpactIdempotencyKey(row({ stateRevision: 9 }), "project-ceo-impact-policy/0.2"))
+      .toBe(changeImpactIdempotencyKey(row({ stateRevision: 42 }), "project-ceo-impact-policy/0.2"));
+  });
+
+  it("changes the key when the policy version changes (DEC-037 §3.4)", () => {
+    expect(changeImpactIdempotencyKey(row(), "project-ceo-impact-policy/0.2"))
+      .not.toBe(changeImpactIdempotencyKey(row(), "project-ceo-impact-policy/0.3"));
   });
 
   it("keeps the key inside the database limit", () => {
-    expect(changeImpactIdempotencyKey(row()).length).toBeLessThanOrEqual(512);
+    expect(changeImpactIdempotencyKey(row(), "project-ceo-impact-policy/0.2").length).toBeLessThanOrEqual(512);
   });
 
   it("separates change requests", () => {
-    expect(changeImpactIdempotencyKey(row())).not.toBe(
+    expect(changeImpactIdempotencyKey(row(), "project-ceo-impact-policy/0.2")).not.toBe(
       changeImpactIdempotencyKey(row({
         changeRequestId: "55555555-5555-4555-8555-555555555555",
-      })),
+      }), "project-ceo-impact-policy/0.2"),
     );
   });
 
   it("refuses a backlog that returned one change request twice", () => {
-    expect(() => planChangeImpactWork([row(), row()]))
+    expect(() => planChangeImpactWork([row(), row()], "project-ceo-impact-policy/0.2"))
       .toThrow(ChangeImpactPlanError);
   });
 
   it("carries the root count so an empty impact is explainable", () => {
-    const [item] = planChangeImpactWork([row({ rootCount: 0 })]);
+    const [item] = planChangeImpactWork([row({ rootCount: 0 })], "project-ceo-impact-policy/0.2");
     expect(item?.rootCount).toBe(0);
   });
 });
@@ -199,7 +204,7 @@ describe("change impact worker — a single pass", () => {
     expect(call?.args).toMatchObject({
       project_id: projectId,
       change_request_id: changeRequestId,
-      idempotency_key: changeImpactIdempotencyKey(row()),
+      idempotency_key: changeImpactIdempotencyKey(row(), "project-ceo-impact-policy/0.2"),
     });
     // Ни организации, ни актора в аргументах: их выводит база, а не воркер.
     expect(call?.args).not.toHaveProperty("organization_id");
@@ -294,7 +299,14 @@ describe("change impact worker — an incomplete run still needs a human", () =>
     const result = await runChangeImpactWorker({
       client: fakeClient([], { truncation: "result_limit" }),
     });
-    expect(result).toMatchObject({ calculatedTruncated: 1, needsAttention: 1 });
+    // DEC-037 §3.2: заблокированная заявка — отдельное поле отчёта, а не
+    // подвид truncated.
+    expect(result).toMatchObject({
+      calculatedTruncated: 0,
+      calculatedBlocked: 1,
+      needsAttention: 1,
+    });
+    expect(result.items[0]?.outcome).toBe("calculated_blocked");
     expect(result.items[0]?.truncationReason).toBe("result_limit");
   });
 

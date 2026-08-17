@@ -277,6 +277,7 @@ describe("Layout Studio delivery/UI slice", () => {
       // публикация baseline на графе >5000 узлов не помещалась в ролевые 8s.
       // К Layout Studio отношения не имеет.
       "20260813040000_projectceo_publish_version_timeout.sql",
+      "20260817010000_projectceo_m4_v1_impact_recovery_dec037.sql",
     ];
     const actual = readdirSync(join(repoRoot, "supabase/migrations"), { withFileTypes: true })
       .filter((entry) => entry.isFile())

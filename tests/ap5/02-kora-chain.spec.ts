@@ -1060,7 +1060,7 @@ test.describe("AP5 — цепочка Kora на живом стеке", () => {
     const report = runChangeImpactWorker();
     const item = report.items.find((entry) => entry.changeRequestId === changeId);
     expect(item, "AP5: воркер не увидел новую заявку широкой звезды").toBeTruthy();
-    expect(item!.outcome).toBe("calculated_truncated");
+    expect(item!.outcome).toBe("calculated_blocked");
     expect(item!.truncationReason).toBe("result_limit");
 
     const context = await browser.newContext({

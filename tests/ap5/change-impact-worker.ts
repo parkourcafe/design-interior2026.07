@@ -28,6 +28,7 @@ export interface ChangeImpactWorkerReport {
   readonly scanned: number;
   readonly calculated: number;
   readonly calculatedTruncated: number;
+  readonly calculatedBlocked: number;
   readonly alreadyPresent: number;
   readonly staleState: number;
   readonly unresolved: number;

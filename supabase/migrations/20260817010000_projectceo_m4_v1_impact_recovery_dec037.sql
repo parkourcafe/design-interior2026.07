@@ -1,213 +1,209 @@
--- V1 Impact: DEC-034 correction over PR #94's truncation-as-data model.
+-- DEC-037 (OWNER DECISION 17.08.2026,
+-- `docs/canonical/remhaos-v1/REMHAOS_OWNER_DECISION_M4_V1_COVERAGE_AND_RECOVERY_2026-08-17.md`
+-- §3): recovery заблокированного прогона V1 Impact.
 --
--- Основание: OWNER CONTINUE «ЗАВЕРШИТЬ СУЩЕСТВУЮЩИЙ V1» 12.08.2026, поверх
--- DEC-033 LOCKED. Пока эта ветка была в работе, параллельная сессия
--- независимо реализовала тот же OWNER GO и слила PR #94 и #96 первой:
--- `20260812010000`, `20260812020000` и `20260812030000` уже применены и
--- неизменяемы (`AGENTS.md`, «Неподвижные технические правила»). Эта миграция
--- НЕ переписывает ни одну из них — она аддитивно исправляет ровно то, где
--- поведение PR #94 разошлось с зафиксированным контрактом DEC-033.
+-- ЧТО БЫЛО. Заблокированный прогон (`blocked_result_limit`) был тупиком:
+-- заявка с ним навсегда исчезала из очереди воркера (`not exists
+-- impact_runs`), закрыть её было нельзя (`impactReviewComplete = false`
+-- навечно), а пересчёт того же входа детерминированно дал бы тот же blocked —
+-- прогон намертво пришит FK к `proposed_baseline_id` заявки и её неизменяемым
+-- корням. Вдобавок расчёт узнавал о блокировке ПОСЛЕ полной материализации
+-- результата: сборка путей рёбер на графе шире лимита выполнялась целиком и
+-- выбрасывалась.
 --
--- ГДЕ РАСХОЖДЕНИЕ. `20260812020000` заменила отказ при превышении лимита
--- влияний на сохранение первых `maxImpacts` карточек с признаком
--- `is_truncated` и человеческой дверью подтверждения неполноты
--- (`acknowledge_impact_truncation`). DEC-033 требует другого: свыше 5000
--- влияний ничего не сохраняется, `returnedImpactCount = 0`,
--- `knownImpactCountLowerBound = maxImpacts + 1`, результат — durable
--- terminal `blocked_result_limit`, человеческого override нет. Первые 5000
--- НЕ показываются как частичный результат ни при каком раскладе.
+-- ЧТО СТАНОВИТСЯ. Четыре изменения, все аддитивные:
 --
--- ЧТО ДЕЛАЕТ ЭТА МИГРАЦИЯ.
---   1. Добавляет точный контракт покрытия DEC-033 (`coverage_status`,
---      `cutoff_reason`, `has_more_beyond_depth`,
---      `known_impact_count_lower_bound`, `returned_impact_count`,
---      `policy_version`, `max_impacts`) НАРЯДУ с уже существующими
---      `is_truncated`/`truncation_reason`/`calculated_depth`/
---      `policy_max_depth` — старые колонки не удаляются и не переименовы-
---      ваются, просто перестают быть единственным источником истины.
---   2. `create or replace function calculate_change_impact(...)` —
---      ЕДИНСТВЕННОЕ содержательное изменение: при превышении лимита
---      результат обнуляется (`v_impacts := '[]'::jsonb`) ДО вставки, приоритет
---      лимита над зондом глубины — короткое замыкание, зонд глубины при
---      заблокированном исходе не выполняется вовсе. Весь остальной текст
---      функции (обход графа, шейпинг влияний, дедупликация путей) —
---      byte-for-byte копия применённой версии, не переписана заново.
---   3. `create or replace function review_change_impact(...)` — убирает
---      шлюз подтверждения неполноты; `allReturnedImpactsReviewed` /
---      `coverageComplete` / `impactReviewComplete = allReturnedImpactsReviewed
---      AND coverageComplete` заменяют собой `allImpactsReviewed` с
---      подтверждением. Функция больше не читает и не пишет
---      `impact_truncation_acknowledgements` — таблица остаётся в схеме
---      (DDL уже применён и неизменяем), просто больше никем не используется.
---   4. `create or replace function get_execution_delivery(...)` — читающая
---      RPC отдаёт весь контракт покрытия и обе версии совместности
---      (`impactReviewComplete` — новое точное имя, `reviewComplete` — старое
---      имя того же смысла, оставлено ради обратной совместимости чтения).
---   5. `create or replace function projectceo_m4._v1_impact_signatures()` —
---      список дверей вертикали сокращается с трёх до двух:
---      `review_change_impact` и `replay_review_change_impact`.
---      `acknowledge_impact_truncation` убирается из списка, поэтому ни
---      открытие (`open_v1_impact_production`), ни закрытие
---      (`close_v1_impact_production`) вертикали её больше не касаются —
---      единственная точка истины правится один раз, а не в двух местах.
---   6. Явный `revoke` на `acknowledge_impact_truncation` от каждой роли —
---      защитно, поверх уже применённого в `20260812020000` отзыва: эта дверь
---      не должна становиться доступной НИ ПРИ КАКОМ состоянии переключателя.
---   7. Явный `revoke` на `calculate_change_impact` (сырую, с произвольной
---      глубиной от вызывающего) от `service_role` — единственная системная
---      дверь расчёта отныне `calculate_change_impact_policy_bound`, как того
---      требует DEC-033. Обёртка продолжает вызывать сырую функцию изнутри:
---      `security definer` выполняет её под правами владельца, а не
---      вызывающей роли, так что грант вызывающему для этого не нужен.
---   8. Guard-блок проверяет всё перечисленное на живой базе, а не только по
---      тексту миграции.
+--   1. РАННЯЯ ОСТАНОВКА (§3.1). Ограниченный счётчик различных пар
+--      (`_impact_pair_count_bounded`, `limit maxImpacts + 1`) решает исход
+--      `blocked_result_limit` ДО материализации результата; дорогая сборка
+--      для заблокированного прогона не выполняется вовсе. Содержание трёх
+--      исходов DEC-034 не меняется.
+--   2. ВЫТЕСНЕНИЕ (§3.3). Пересчёт той же заявки разрешён системе РОВНО в
+--      одном случае: её единственный активный прогон — `blocked_result_limit`
+--      УСТАРЕВШЕЙ версии политики (например, будущая политика поднимет
+--      лимит). Новый прогон вытесняет старый (`superseded_at`,
+--      `superseded_by_impact_run_id`); «один активный прогон на заявку»
+--      закрепляется ЧАСТИЧНЫМ уникальным индексом (`where superseded_at is
+--      null`) вместо безусловного `m4_impact_runs_request_key`.
+--      `complete`/`partial_depth` не вытесняются никогда: по их карточкам
+--      существуют или могут существовать человеческие рассмотрения. Blocked
+--      ТОЙ ЖЕ политики не пересчитывается: результат детерминирован. Человек
+--      расчёт по-прежнему не заказывает — триггер пересчёта только данные.
+--   3. ОЧЕРЕДЬ (§3.3). `list_change_impact_backlog` снова предлагает заявку,
+--      чей активный прогон — blocked устаревшей политики.
+--   4. ПОВЕРХНОСТЬ И ДВЕРЬ РЕВЬЮ. Вытесненные прогоны не показываются
+--      (история для аудита живёт в таблице); сохранённые truncate-and-keep
+--      строки legacy-прогонов (backfill `20260813010000`) не показываются и
+--      не рассматриваются; `allReturnedImpactsReviewed` вакуумно true для
+--      blocked.
 --
--- ЧЕГО ЗДЕСЬ НЕТ. Ни одного нового человеческого права: обе двери
--- (`review_change_impact`, `replay_review_change_impact`) остаются закрыты
--- постоянной миграцией и открываются только одноразовой средой
--- (`enable-m4-v1-impact.sql`) либо явным `open_v1_impact_production`, как и
--- раньше. Durable operator failure / dead-letter / redrive воркера,
--- построенный в параллельной (несостоявшейся) реализации этой же ветки, — не
--- восстанавливается: PR #94 не строил его, а OWNER CONTINUE прямо запрещает
--- реализовывать V1 заново сверх необходимой коррекции.
+-- ЧЕГО ЗДЕСЬ НЕТ. Ни одной новой человеческой двери: rescope — это
+-- существующая `submit_change_request` (инкремент 1). Права ролей не
+-- меняются; production-выключатель DEC-033 не затрагивается; V2/V3 закрыты.
 
 begin;
 
--- === Точный контракт покрытия DEC-033 (наряду со старыми колонками) =======
+-- === Вытеснение: колонки, парный CHECK, один активный прогон ==============
 
 alter table projectceo_m4.impact_runs
-  add column coverage_status text,
-  add column cutoff_reason text,
-  add column has_more_beyond_depth boolean,
-  add column known_impact_count_lower_bound integer,
-  add column returned_impact_count integer,
-  add column policy_version text,
-  add column max_impacts integer;
-
--- BACKFILL ДО NOT NULL (OWNER DECISION 17.08.2026 §5). Прежняя редакция
--- ставила NOT NULL сразу, полагаясь на «таблица пуста на момент применения».
--- Это верно для среды, применяющей весь ledger одним проходом, и НЕВЕРНО для
--- любой базы, применившей `20260812*` раньше и успевшей посчитать прогоны под
--- семантикой PR #94: на ней `set not null` падает, и упавшую миграцию уже не
--- вылечит никакая последующая. Поэтому существующие строки нормализуются к
--- трём формам контракта ЗДЕСЬ, из legacy-колонок `20260812020000`
--- (`is_truncated not null default false` + парный constraint с
--- `truncation_reason` дают полную классификацию):
---
---   * не усечён → `complete`;
---   * `depth_limit` → `partial_depth`;
---   * `result_limit` (truncate-and-keep PR #94) → `blocked_result_limit` по
---     DEC-034: `returned_impact_count = 0`, нижняя граница `max_impacts + 1`.
---     Сохранённые строки `projectceo_m4.impacts` такого прогона НЕ удаляются
---     (append-only факт), но поверхность чтения и дверь ревью обязаны вести
---     себя по счётчикам контракта — это закрепляет `20260817010000`.
---
--- Legacy-прогоны считались политикой `project-ceo-impact-policy/0.1`
--- (`maxImpacts = 5000`) — снимок политики на момент расчёта, не производная
--- от текущей функции (тот же принцип, что в DEC-035).
---
--- Append-only триггер (`20260717102000`) отключается РОВНО на время этой
--- одноразовой нормализации и включается обратно в той же транзакции: это не
--- изменение содержимого прогонов, а заполнение только что добавленных
--- колонок значениями, выведенными из самих строк.
-alter table projectceo_m4.impact_runs
-  disable trigger impact_runs_append_only;
-update projectceo_m4.impact_runs run set
-  coverage_status = case
-    when not run.is_truncated then 'complete'
-    when run.truncation_reason = 'depth_limit' then 'partial_depth'
-    else 'blocked_result_limit'
-  end,
-  cutoff_reason = case
-    when not run.is_truncated then null
-    when run.truncation_reason = 'depth_limit' then 'depth_boundary'
-    else 'result_limit'
-  end,
-  has_more_beyond_depth = run.is_truncated,
-  returned_impact_count = case
-    when run.is_truncated and run.truncation_reason = 'result_limit' then 0
-    else (
-      select count(*)::integer
-      from projectceo_m4.impacts impact
-      where impact.organization_id = run.organization_id
-        and impact.project_id = run.project_id
-        and impact.impact_run_id = run.impact_run_id
-    )
-  end,
-  known_impact_count_lower_bound = case
-    when run.is_truncated and run.truncation_reason = 'result_limit'
-      then 5000 + 1
-    when run.is_truncated and run.truncation_reason = 'depth_limit'
-      then (
-        select count(*)::integer + 1
-        from projectceo_m4.impacts impact
-        where impact.organization_id = run.organization_id
-          and impact.project_id = run.project_id
-          and impact.impact_run_id = run.impact_run_id
-      )
-    else (
-      select count(*)::integer
-      from projectceo_m4.impacts impact
-      where impact.organization_id = run.organization_id
-        and impact.project_id = run.project_id
-        and impact.impact_run_id = run.impact_run_id
-    )
-  end,
-  policy_version = 'project-ceo-impact-policy/0.1',
-  max_impacts = 5000
-where run.coverage_status is null;
+  add column superseded_at timestamptz,
+  add column superseded_by_impact_run_id uuid;
 
 alter table projectceo_m4.impact_runs
-  enable trigger impact_runs_append_only;
-
-alter table projectceo_m4.impact_runs
-  alter column coverage_status set not null,
-  alter column has_more_beyond_depth set not null,
-  alter column known_impact_count_lower_bound set not null,
-  alter column returned_impact_count set not null,
-  alter column policy_version set not null,
-  alter column max_impacts set not null;
-
-alter table projectceo_m4.impact_runs
-  add constraint m4_impact_runs_coverage_status_check
-    check (coverage_status in ('complete', 'partial_depth', 'blocked_result_limit')),
-  add constraint m4_impact_runs_cutoff_reason_check_dec034
-    check (cutoff_reason is null or cutoff_reason in ('depth_boundary', 'result_limit')),
-  add constraint m4_impact_runs_known_lower_bound_check
-    check (known_impact_count_lower_bound >= 0),
-  add constraint m4_impact_runs_returned_count_check
-    check (returned_impact_count >= 0),
-  add constraint m4_impact_runs_policy_version_check_dec034
-    check (char_length(btrim(policy_version)) between 1 and 60),
-  add constraint m4_impact_runs_max_impacts_check_dec034
-    check (max_impacts between 1 and 5000);
-
--- Инвариант трёх исходов — constraint, не документ (DEC-033). Строка, не
--- соответствующая ровно одному из трёх контрактов, не попадёт в базу ни при
--- каком будущем изменении кода вокруг неё.
-alter table projectceo_m4.impact_runs
-  add constraint m4_impact_runs_coverage_shape_check
+  add constraint m4_impact_runs_superseded_pair_check
     check (
-      (
-        coverage_status = 'complete'
-        and has_more_beyond_depth = false
-        and cutoff_reason is null
-        and returned_impact_count = known_impact_count_lower_bound
-        and returned_impact_count <= max_impacts
-      ) or (
-        coverage_status = 'partial_depth'
-        and has_more_beyond_depth = true
-        and cutoff_reason = 'depth_boundary'
-        and returned_impact_count <= max_impacts
-        and known_impact_count_lower_bound = returned_impact_count + 1
-      ) or (
-        coverage_status = 'blocked_result_limit'
-        and has_more_beyond_depth = true
-        and cutoff_reason = 'result_limit'
-        and returned_impact_count = 0
-        and known_impact_count_lower_bound = max_impacts + 1
-      )
+      (superseded_at is null) = (superseded_by_impact_run_id is null)
     );
+
+-- `max_impacts` — СНИМОК политики на момент расчёта, а не её пин: прежний
+-- CHECK (`between 1 and 5000`) вшивал текущее значение политики в таблицу и
+-- делал подъём лимита будущей версией политики — саму предпосылку
+-- superseding recalculation по DEC-037 §3.3 — невозможным by construction.
+-- Остаётся sanity-граница.
+alter table projectceo_m4.impact_runs
+  drop constraint m4_impact_runs_max_impacts_check_dec034;
+alter table projectceo_m4.impact_runs
+  add constraint m4_impact_runs_max_impacts_check_dec037
+    check (max_impacts between 1 and 1000000);
+
+-- Безусловная уникальность «один прогон на заявку навсегда» уступает место
+-- «одному АКТИВНОМУ прогону»: вытесненные остаются историей. Конкурентную
+-- гарантию (два параллельных расчёта -> один прогон) продолжает давать
+-- уникальный индекс — теперь частичный.
+alter table projectceo_m4.impact_runs
+  drop constraint m4_impact_runs_request_key;
+
+create unique index m4_impact_runs_one_active_key
+  on projectceo_m4.impact_runs (organization_id, project_id, change_request_id)
+  where superseded_at is null;
+
+-- === Append-only с одним санкционированным переходом ======================
+--
+-- Общий триггер `reject_append_only_mutation` (`20260717102000`) запрещает
+-- прогону ЛЮБОЙ update — включая вытеснение. Заменяем его на прогонах
+-- специализированным: разрешён РОВНО один односторонний переход — активный →
+-- вытесненный (`superseded_at`/`superseded_by_impact_run_id` из null в
+-- значение), при этом каждый прочий байт строки обязан совпасть. Содержимое
+-- прогона остаётся неизменяемым; delete запрещён как и был. Имя триггера
+-- сохраняется — состав триггеров таблицы проверяется тестами по имени.
+create function projectceo_m4.reject_impact_run_mutation()
+returns trigger
+language plpgsql
+set search_path = ''
+as $function$
+begin
+  if tg_op = 'UPDATE'
+    and old.superseded_at is null
+    and old.superseded_by_impact_run_id is null
+    and new.superseded_at is not null
+    and new.superseded_by_impact_run_id is not null
+    and (to_jsonb(new) - 'superseded_at' - 'superseded_by_impact_run_id')
+      = (to_jsonb(old) - 'superseded_at' - 'superseded_by_impact_run_id')
+  then
+    return new;
+  end if;
+  raise exception using
+    errcode = '55000',
+    message = 'PROJECTCEO_M4_APPEND_ONLY';
+end
+$function$;
+
+alter function projectceo_m4.reject_impact_run_mutation()
+  owner to pi_table_owner;
+
+revoke all on function projectceo_m4.reject_impact_run_mutation()
+  from public, anon, authenticated, service_role,
+       pi_human_executor, pi_worker_executor;
+
+drop trigger impact_runs_append_only on projectceo_m4.impact_runs;
+create trigger impact_runs_append_only
+  before update or delete on projectceo_m4.impact_runs
+  for each row execute function projectceo_m4.reject_impact_run_mutation();
+
+-- === Ограниченный счётчик пар для ранней остановки (DEC-037 §3.1) =========
+
+create function projectceo_m4._impact_pair_count_bounded(
+  p_organization_id uuid,
+  p_project_id uuid,
+  p_change_request_id uuid,
+  p_graph_version_id text,
+  p_max_depth integer,
+  p_limit bigint
+)
+returns bigint
+language sql
+stable
+security definer
+set search_path = ''
+as $function$
+  with recursive roots as (
+    select root.node_id changed_node_id
+    from projectceo_m4.change_request_roots root
+    where root.organization_id = p_organization_id
+      and root.project_id = p_project_id
+      and root.change_request_id = p_change_request_id
+  ), walk as (
+    select
+      root.changed_node_id,
+      root.changed_node_id current_node_id,
+      array[root.changed_node_id]::text[] node_path,
+      0 depth
+    from roots root
+    union all
+    select
+      walk.changed_node_id,
+      edge.from_node_id,
+      walk.node_path || edge.from_node_id,
+      walk.depth + 1
+    from walk
+    join project_intelligence.version_edges version_edge
+      on version_edge.organization_id = p_organization_id
+     and version_edge.project_id = p_project_id
+     and version_edge.version_id = p_graph_version_id
+    join project_intelligence.graph_edges edge
+      on edge.organization_id = version_edge.organization_id
+     and edge.project_id = version_edge.project_id
+     and edge.edge_id = version_edge.edge_id
+     and edge.to_node_id = walk.current_node_id
+     and edge.relation in (
+       'depends_on', 'derived_from', 'specified_by', 'satisfies'
+     )
+    where walk.depth < p_max_depth
+      and not edge.from_node_id = any(walk.node_path)
+  )
+  -- Те же пары, что у `_impact_pair_count`, но счёт ОГРАНИЧЕН: `limit`
+  -- внутри даёт `min(истинное число, p_limit)`. Для решения «больше ли пар,
+  -- чем maxImpacts» этого достаточно (сравнение с p_limit = maxImpacts + 1),
+  -- а исполнителю разрешено остановиться, как только различных пар набралось
+  -- p_limit, — точного числа заблокированный прогон не требует по контракту
+  -- DEC-034 (нижняя граница maxImpacts + 1).
+  select count(*)
+  from (
+    select distinct walk.changed_node_id, walk.current_node_id
+    from walk
+    join project_intelligence.version_nodes target
+      on target.organization_id = p_organization_id
+     and target.project_id = p_project_id
+     and target.version_id = p_graph_version_id
+     and target.node_id = walk.current_node_id
+    where walk.current_node_id <> walk.changed_node_id
+    limit p_limit
+  ) bounded
+$function$;
+
+alter function projectceo_m4._impact_pair_count_bounded(
+  uuid, uuid, uuid, text, integer, bigint
+) owner to pi_table_owner;
+
+-- Тот же контур закрытости, что у `_impact_pair_count` (`20260812010000`):
+-- дефолтный EXECUTE PUBLIC снимается явно, счётчик достижим только изнутри
+-- `security definer` функций владельца.
+revoke all on function
+  projectceo_m4._impact_pair_count_bounded(uuid, uuid, uuid, text, integer, bigint)
+  from public, anon, authenticated, service_role,
+       pi_human_executor, pi_worker_executor;
+
+-- === Расчёт: ранняя остановка + вытеснение ================================
 
 create or replace function projectceo_m4_api.calculate_change_impact(
   project_id uuid,
@@ -251,6 +247,11 @@ declare
   v_known_impact_count_lower_bound integer;
   v_returned_impact_count integer;
   v_policy_version text := v_policy ->> 'version';
+  -- DEC-037 (OWNER DECISION 17.08.2026): recovery заблокированного прогона.
+  v_active_run_id uuid;
+  v_active_coverage text;
+  v_active_policy_version text;
+  v_probe bigint;
 begin
   if max_depth is null or max_depth < 1 or max_depth > 20 then
     perform projectceo_product._raise(
@@ -289,18 +290,48 @@ begin
     )
   );
   if v_context.replay is not null then return v_context.replay; end if;
-  if exists (
-    select 1
-    from projectceo_m4.impact_runs ir
-    where ir.organization_id = v_context.organization_id
-      and ir.project_id = project_id
-      and ir.change_request_id = change_request_id
-  ) then
-    perform projectceo_product._raise(
-      'P1110',
-      'invalid_transition',
-      '{"reason":"IMPACT_ALREADY_CALCULATED"}'::jsonb
-    );
+  -- DEC-037 §3.3: активный прогон блокирует пересчёт, КРОМЕ ровно одного
+  -- случая — `blocked_result_limit`, посчитанный УСТАРЕВШЕЙ версией политики:
+  -- его новый прогон вытесняет (`superseded_at`). `complete` и
+  -- `partial_depth` не вытесняются никогда — по их карточкам существуют или
+  -- могут существовать человеческие рассмотрения; blocked ТОЙ ЖЕ политики не
+  -- пересчитывается — вход неизменяем (FK к proposed_baseline_id и корням),
+  -- результат детерминирован.
+  select ir.impact_run_id, ir.coverage_status, ir.policy_version
+  into v_active_run_id, v_active_coverage, v_active_policy_version
+  from projectceo_m4.impact_runs ir
+  where ir.organization_id = v_context.organization_id
+    and ir.project_id = project_id
+    and ir.change_request_id = change_request_id
+    and ir.superseded_at is null;
+  if found then
+    if v_active_coverage = 'blocked_result_limit'
+       and v_active_policy_version is distinct from v_policy_version then
+      update projectceo_m4.impact_runs ir
+      set superseded_at = statement_timestamp(),
+          superseded_by_impact_run_id = v_impact_run_id
+      where ir.organization_id = v_context.organization_id
+        and ir.project_id = project_id
+        and ir.impact_run_id = v_active_run_id
+        and ir.superseded_at is null;
+      -- Параллельный пересчёт мог вытеснить первым: под READ COMMITTED
+      -- проигравший увидит 0 строк после снятия блокировки и отвечает тем же
+      -- отказом, что и повторный вызов, — воркер понимает его как
+      -- `already_present`.
+      if not found then
+        perform projectceo_product._raise(
+          'P1110',
+          'invalid_transition',
+          '{"reason":"IMPACT_ALREADY_CALCULATED"}'::jsonb
+        );
+      end if;
+    else
+      perform projectceo_product._raise(
+        'P1110',
+        'invalid_transition',
+        '{"reason":"IMPACT_ALREADY_CALCULATED"}'::jsonb
+      );
+    end if;
   end if;
 
   v_algorithm := jsonb_build_object(
@@ -313,6 +344,32 @@ begin
     ),
     'version', 'project-ceo-impact/0.2'
   );
+
+  -- DEC-037 §3.1: ранняя остановка на maxImpacts + 1. Исход
+  -- `blocked_result_limit` решается ограниченным счётчиком различных пар
+  -- (`limit maxImpacts + 1`, без сборки путей) ДО материализации результата:
+  -- дорогая сборка путей рёбер для заведомо заблокированного прогона не
+  -- выполняется вовсе. Содержание трёх исходов не меняется — меняется только
+  -- момент, когда система прекращает работу над заблокированным прогоном.
+  v_probe := projectceo_m4._impact_pair_count_bounded(
+    v_context.organization_id,
+    project_id,
+    change_request_id,
+    v_target_graph_version_id,
+    max_depth,
+    v_max_impacts + 1
+  );
+  if v_probe > v_max_impacts then
+    v_impacts := '[]'::jsonb;
+    v_found := 0;
+    v_is_truncated := true;
+    v_truncation_reason := 'result_limit';
+    v_coverage_status := 'blocked_result_limit';
+    v_cutoff_reason := 'result_limit';
+    v_has_more_beyond_depth := true;
+    v_returned_impact_count := 0;
+    v_known_impact_count_lower_bound := v_max_impacts + 1;
+  else
 
   with recursive roots as (
     select
@@ -416,63 +473,39 @@ begin
   into v_impacts
   from shaped;
 
-  -- УСЕЧЕНИЕ ВМЕСТО ОТКАЗА (OWNER DECISION 12.08.2026).
-  --
-  -- Прежняя редакция при превышении лимита отказывалась целиком: найденное
-  -- влияние выбрасывалось, и заявка оставалась без анализа вовсе. Отказ был
-  -- честнее молчаливого усечения, но хуже частичного результата с признаком —
-  -- человек не получал НИЧЕГО там, где мог рассмотреть большую часть.
-  --
-  -- Теперь результат сохраняется частично, а факт неполноты становится
-  -- ДАННЫМИ: `is_truncated`, `truncation_reason`, `calculated_depth`,
-  -- `policy_max_depth`. Срез детерминированный — массив уже отсортирован
-  -- (changedNodeId, distance, impactedNodeId), поэтому два прогона на одном
-  -- графе усекаются одинаково.
+  -- Лимит уже исключён ранней остановкой выше: сюда попадает только прогон,
+  -- у которого различных пар не больше maxImpacts, и v_found равен счётчику
+  -- пробы. Остаётся различить полноту по глубине.
   v_found := jsonb_array_length(v_impacts);
 
-  -- DEC-034 correction (OWNER CONTINUE 12.08.2026): DEC-033 requires that
-  -- blocked_result_limit save NOTHING and never present the first
-  -- max_impacts as a reviewable partial result — PR #94's truncate-and-keep
-  -- behavior contradicted this. The limit check short-circuits BEFORE the
-  -- depth probe runs at all: a secondary signal (depth) never gets computed
-  -- once the primary terminal outcome (blocked) is already decided.
-  if v_found > v_max_impacts then
-    v_impacts := '[]'::jsonb;
+  -- Усечение по глубине: тот же обход на шаг глубже нашёл бы больше пар.
+  -- Граф глубже политики — самая частая причина неполноты и самая
+  -- незаметная.
+  v_within := projectceo_m4._impact_pair_count(
+    v_context.organization_id, project_id, change_request_id,
+    v_target_graph_version_id, max_depth
+  );
+  v_deeper := projectceo_m4._impact_pair_count(
+    v_context.organization_id, project_id, change_request_id,
+    v_target_graph_version_id, max_depth + 1
+  );
+  if v_deeper > v_within then
     v_is_truncated := true;
-    v_truncation_reason := 'result_limit';
-    v_coverage_status := 'blocked_result_limit';
-    v_cutoff_reason := 'result_limit';
+    v_truncation_reason := 'depth_limit';
+    v_coverage_status := 'partial_depth';
+    v_cutoff_reason := 'depth_boundary';
     v_has_more_beyond_depth := true;
-    v_returned_impact_count := 0;
-    v_known_impact_count_lower_bound := v_max_impacts + 1;
+    v_returned_impact_count := v_found;
+    v_known_impact_count_lower_bound := v_found + 1;
   else
-    -- Усечение по глубине: тот же обход на шаг глубже нашёл бы больше пар.
-    -- Проверяется только когда лимит НЕ сработал: граф глубже политики —
-    -- самая частая причина неполноты и самая незаметная.
-    v_within := projectceo_m4._impact_pair_count(
-      v_context.organization_id, project_id, change_request_id,
-      v_target_graph_version_id, max_depth
-    );
-    v_deeper := projectceo_m4._impact_pair_count(
-      v_context.organization_id, project_id, change_request_id,
-      v_target_graph_version_id, max_depth + 1
-    );
-    if v_deeper > v_within then
-      v_is_truncated := true;
-      v_truncation_reason := 'depth_limit';
-      v_coverage_status := 'partial_depth';
-      v_cutoff_reason := 'depth_boundary';
-      v_has_more_beyond_depth := true;
-      v_returned_impact_count := v_found;
-      v_known_impact_count_lower_bound := v_found + 1;
-    else
-      v_coverage_status := 'complete';
-      v_cutoff_reason := null;
-      v_has_more_beyond_depth := false;
-      v_returned_impact_count := v_found;
-      v_known_impact_count_lower_bound := v_found;
-    end if;
+    v_coverage_status := 'complete';
+    v_cutoff_reason := null;
+    v_has_more_beyond_depth := false;
+    v_returned_impact_count := v_found;
+    v_known_impact_count_lower_bound := v_found;
   end if;
+
+  end if; -- конец ветви ранней остановки (DEC-037 §3.1)
 
   -- Фактически достигнутая глубина — по сохранённому результату, а не по
   -- границе: пустое влияние даёт 0, и это отличимо от «дошли до восьми».
@@ -649,6 +682,8 @@ begin
 end
 $function$;
 
+-- === Дверь ревью: карточки blocked и вытесненных прогонов не рассматриваются
+
 create or replace function projectceo_m4_api.review_change_impact(
   project_id uuid,
   impact_run_id uuid,
@@ -678,6 +713,9 @@ declare
   v_coverage_complete boolean;
   v_impact_review_complete boolean;
   v_result jsonb;
+  -- DEC-037: состояние прогона, которому принадлежит карточка.
+  v_run_coverage text;
+  v_run_superseded_at timestamptz;
 begin
   if disposition not in ('accepted', 'resolved', 'dismissed') then
     perform projectceo_product._raise(
@@ -713,6 +751,30 @@ begin
     )
   );
   if v_context.replay is not null then return v_context.replay; end if;
+  -- DEC-037: карточки вытесненного прогона и сохранённые truncate-and-keep
+  -- строки legacy-прогона `blocked_result_limit` (backfill `20260813010000`)
+  -- не рассматриваются: у заблокированного прогона возвращённых карточек НЕТ
+  -- по контракту DEC-034, а вытесненный прогон заменён новым.
+  select run.coverage_status, run.superseded_at
+  into v_run_coverage, v_run_superseded_at
+  from projectceo_m4.impact_runs run
+  where run.organization_id = v_context.organization_id
+    and run.project_id = project_id
+    and run.impact_run_id = impact_run_id;
+  if v_run_superseded_at is not null then
+    perform projectceo_product._raise(
+      'P1110',
+      'invalid_transition',
+      '{"reason":"IMPACT_RUN_SUPERSEDED"}'::jsonb
+    );
+  end if;
+  if v_run_coverage = 'blocked_result_limit' then
+    perform projectceo_product._raise(
+      'P1110',
+      'invalid_transition',
+      '{"reason":"IMPACT_RUN_BLOCKED"}'::jsonb
+    );
+  end if;
   if exists (
     select 1
     from projectceo_m4.impact_reviews review
@@ -834,6 +896,102 @@ begin
 end
 $function$;
 
+-- === Очередь воркера: blocked устаревшей политики возвращается ============
+
+create or replace function projectceo_m4_api.list_change_impact_backlog(
+  max_rows integer default 100
+)
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $function$
+#variable_conflict use_variable
+declare
+  v_limit integer;
+  v_data jsonb;
+begin
+  if max_rows is null or max_rows < 1 or max_rows > 1000 then
+    perform projectceo_product._raise(
+      'P1111',
+      'validation_failed',
+      '{"reason":"IMPACT_BACKLOG_LIMIT_INVALID"}'::jsonb
+    );
+  end if;
+  v_limit := max_rows;
+
+  select coalesce(jsonb_agg(item order by item ->> 'changeRequestId'), '[]'::jsonb)
+  into v_data
+  from (
+    select jsonb_build_object(
+      'organizationId', cr.organization_id,
+      'projectId', cr.project_id,
+      'packageId', cr.package_id,
+      'changeRequestId', cr.change_request_id,
+      'proposedBaselineId', cr.proposed_baseline_id,
+      'rootCount', (
+        select count(*)
+        from projectceo_m4.change_request_roots root
+        where root.organization_id = cr.organization_id
+          and root.project_id = cr.project_id
+          and root.change_request_id = cr.change_request_id
+      ),
+      'stateRevision', pw.state_revision
+    ) item
+    from projectceo_m4.change_requests cr
+    join project_intelligence.project_workflows pw
+      on pw.organization_id = cr.organization_id
+     and pw.project_id = cr.project_id
+    where not exists (
+      select 1
+      from projectceo_m4.impact_runs ir
+      where ir.organization_id = cr.organization_id
+        and ir.project_id = cr.project_id
+        and ir.change_request_id = cr.change_request_id
+        and ir.superseded_at is null
+        -- DEC-037 §3.3: blocked-прогон УСТАРЕВШЕЙ версии политики заявку не
+        -- закрывает — очередь предлагает её снова, и новый прогон вытеснит
+        -- его. Blocked ТЕКУЩЕЙ политики — терминален (детерминированный
+        -- повтор), complete/partial_depth закрывают заявку как раньше.
+        and not (
+          ir.coverage_status = 'blocked_result_limit'
+          and ir.policy_version is distinct from
+            (projectceo_m4._impact_policy() ->> 'version')
+        )
+    )
+    -- DEC-036: `dead_letter` исключена из активной очереди СОВСЕМ — она не
+    -- «работа», а операторская находка (видна через прямой запрос к
+    -- `impact_worker_failures`, не через эту очередь). `retrying` исключена
+    -- ТОЛЬКО пока не наступил `next_attempt_at` — пауза между попытками
+    -- живёт в данных, а не в памяти воркера, который мог перезапуститься и
+    -- ничего не забыть только потому, что помнить нечего.
+    and not exists (
+      select 1
+      from projectceo_m4.impact_worker_failures f
+      where f.organization_id = cr.organization_id
+        and f.project_id = cr.project_id
+        and f.change_request_id = cr.change_request_id
+        and (f.status = 'dead_letter' or f.next_attempt_at > now())
+    )
+    order by cr.organization_id,
+      cr.project_id,
+      cr.change_request_id::text collate "C"
+    limit v_limit
+  ) rows;
+
+  return jsonb_build_object(
+    'contractVersion', 'project-ceo-impact-worker/0.1',
+    'requestId', 'db:' || extensions.gen_random_uuid()::text,
+    'policy', projectceo_m4._impact_policy(),
+    'data', v_data,
+    'error', null
+  );
+end
+$function$;
+
+-- === Поверхность чтения: только активные прогоны, blocked без карточек ====
+
 create or replace function projectceo_m4_api.get_execution_delivery(
   project_id uuid,
   package_id uuid
@@ -915,6 +1073,11 @@ begin
           where impact.organization_id = run.organization_id
             and impact.project_id = run.project_id
             and impact.impact_run_id = run.impact_run_id
+            -- DEC-037: сохранённые truncate-and-keep строки legacy-прогона
+            -- `blocked_result_limit` (backfill `20260813010000`) не
+            -- показываются: заблокированный прогон отдаёт ноль карточек по
+            -- контракту DEC-034, поверхность ведёт себя по счётчикам.
+            and run.coverage_status <> 'blocked_result_limit'
         ), '[]'::jsonb),
         'maxDepth', run.max_depth,
         -- Неполнота прогона — часть того, что видит человек, а не служебная
@@ -937,20 +1100,25 @@ begin
         'returnedImpactCount', run.returned_impact_count,
         'policyVersion', run.policy_version,
         'maxImpacts', run.max_impacts,
-        'allReturnedImpactsReviewed', not exists (
-          select 1
-          from projectceo_m4.impacts impact
-          where impact.organization_id = run.organization_id
-            and impact.project_id = run.project_id
-            and impact.impact_run_id = run.impact_run_id
-            and not exists (
-              select 1
-              from projectceo_m4.impact_reviews review
-              where review.organization_id = impact.organization_id
-                and review.project_id = impact.project_id
-                and review.impact_run_id = impact.impact_run_id
-                and review.impact_id = impact.impact_id
-            )
+        'allReturnedImpactsReviewed', (
+          -- Вакуумно true для blocked: возвращённых карточек ноль по
+          -- контракту, и сохранённые строки legacy-прогона этого не меняют.
+          run.coverage_status = 'blocked_result_limit'
+          or not exists (
+            select 1
+            from projectceo_m4.impacts impact
+            where impact.organization_id = run.organization_id
+              and impact.project_id = run.project_id
+              and impact.impact_run_id = run.impact_run_id
+              and not exists (
+                select 1
+                from projectceo_m4.impact_reviews review
+                where review.organization_id = impact.organization_id
+                  and review.project_id = impact.project_id
+                  and review.impact_run_id = impact.impact_run_id
+                  and review.impact_id = impact.impact_id
+              )
+          )
         ),
         'coverageComplete', run.coverage_status = 'complete',
         'impactReviewComplete', (
@@ -997,6 +1165,9 @@ begin
       where run.organization_id = v_context.organization_id
         and run.project_id = project_id
         and run.package_id = package_id
+        -- DEC-037: вытесненный прогон — история для аудита в базе, а не
+        -- рабочая поверхность: показывается только активный.
+        and run.superseded_at is null
     ), '[]'::jsonb),
     'milestones', coalesce((
       select jsonb_agg(jsonb_build_object(
@@ -1104,115 +1275,81 @@ begin
 end
 $function$;
 
--- === Единственная точка истины для дверей вертикали — сокращена ===========
-
-create or replace function projectceo_m4._v1_impact_signatures()
-returns text[]
-language sql
-immutable
-security definer
-set search_path = ''
-as $function$
-  select array[
-    'projectceo_m4_api.review_change_impact(uuid, uuid, text, text, text, bigint, text)',
-    'projectceo_m4_api.replay_review_change_impact(uuid, uuid, text, text, text, text)'
-  ];
-$function$;
-
--- === Двери, которые не должны быть доступны ни при каком состоянии ========
-
--- Защитно, поверх уже применённого в `20260812020000` отзыва: эта дверь не
--- открывается переключателем (список сократился выше) и не должна быть
--- доступна, даже если её когда-то грантнули вручную в обход обеих функций.
-revoke all on function
-  projectceo_m4_api.acknowledge_impact_truncation(uuid, uuid, text, bigint, text)
-  from public, anon, authenticated, service_role,
-       pi_human_executor, pi_worker_executor;
-
--- Единственная системная дверь расчёта — `calculate_change_impact_policy_
--- bound` (DEC-033). Сырая функция с произвольной глубиной от вызывающего
--- продолжает существовать (её вызывает обёртка изнутри под `security
--- definer`), но перестаёт быть достижимой снаружи хоть какой-то ролью.
-revoke all on function
-  projectceo_m4_api.calculate_change_impact(uuid, uuid, integer, bigint, text)
-  from public, anon, authenticated, service_role,
-       pi_human_executor, pi_worker_executor;
+-- === Guard: проверяем на живой базе, а не по тексту =======================
 
 do $guard$
 declare
   v_problem text;
-  v_signatures text[] := projectceo_m4._v1_impact_signatures();
 begin
-  -- 1. Список дверей вертикали сократился ровно до двух, и это не третья
-  --    дверь под другим именем.
-  if array_length(v_signatures, 1) <> 2 then
-    raise exception 'PROJECTCEO_M4_V1_SIGNATURES_COUNT:%', array_length(v_signatures, 1);
-  end if;
-  if 'projectceo_m4_api.acknowledge_impact_truncation(uuid, uuid, text, bigint, text)'
-      = any(v_signatures) then
-    raise exception 'PROJECTCEO_M4_TRUNCATION_ACK_STILL_A_V1_DOOR';
-  end if;
-
-  -- 2. Ни одна роль постоянной миграции не видит подтверждение усечения.
-  select format('%s:%s', role_name, signature) into v_problem
-  from unnest(array['anon', 'authenticated', 'service_role']) role_name
-  cross join unnest(array[
-    'projectceo_m4_api.acknowledge_impact_truncation(uuid, uuid, text, bigint, text)'
-  ]) signature
-  where pg_catalog.has_function_privilege(role_name, signature, 'EXECUTE')
-  limit 1;
-  if v_problem is not null then
-    raise exception 'PROJECTCEO_M4_TRUNCATION_ACK_GRANTED_BY_MIGRATION:%', v_problem;
-  end if;
-
-  -- 3. Сырая дверь расчёта недостижима ни одной ролью, включая service_role:
-  --    policy-bound RPC остаётся единственной системной дверью.
-  select format('%s:%s', role_name, signature) into v_problem
-  from unnest(array['anon', 'authenticated', 'service_role']) role_name
-  cross join unnest(array[
-    'projectceo_m4_api.calculate_change_impact(uuid, uuid, integer, bigint, text)'
-  ]) signature
-  where pg_catalog.has_function_privilege(role_name, signature, 'EXECUTE')
-  limit 1;
-  if v_problem is not null then
-    raise exception 'PROJECTCEO_M4_RAW_IMPACT_RPC_REACHABLE:%', v_problem;
-  end if;
-
-  -- 4. Инвариант трёх исходов стоит на самой таблице.
-  if not exists (
-    select 1
-    from pg_catalog.pg_constraint
-    where conname = 'm4_impact_runs_coverage_shape_check'
+  -- 1. Старый безусловный ключ снят, частичный индекс активных прогонов на
+  --    месте.
+  if exists (
+    select 1 from pg_catalog.pg_constraint
+    where conname = 'm4_impact_runs_request_key'
       and conrelid = 'projectceo_m4.impact_runs'::regclass
   ) then
-    raise exception 'PROJECTCEO_M4_COVERAGE_SHAPE_CHECK_MISSING';
+    raise exception 'PROJECTCEO_M4_UNCONDITIONAL_RUN_KEY_STILL_PRESENT';
+  end if;
+  if not exists (
+    select 1 from pg_catalog.pg_indexes
+    where schemaname = 'projectceo_m4'
+      and tablename = 'impact_runs'
+      and indexname = 'm4_impact_runs_one_active_key'
+      and indexdef like '%WHERE%superseded_at IS NULL%'
+  ) then
+    raise exception 'PROJECTCEO_M4_ONE_ACTIVE_RUN_INDEX_MISSING';
   end if;
 
-  -- 5. blocked_result_limit физически не может нести сохранённые влияния:
-  --    строка, нарушающая это, не пройдёт constraint, а не просто "не должна".
+  -- 2. Ограниченный счётчик недостижим PostgREST-ролям: приватная схема,
+  --    прав никто не получал.
+  select format('%s', role_name) into v_problem
+  from unnest(array['anon', 'authenticated', 'service_role']) role_name
+  where pg_catalog.has_function_privilege(
+    role_name,
+    'projectceo_m4._impact_pair_count_bounded(uuid, uuid, uuid, text, integer, bigint)',
+    'EXECUTE'
+  )
+  limit 1;
+  if v_problem is not null then
+    raise exception 'PROJECTCEO_M4_BOUNDED_COUNT_REACHABLE:%', v_problem;
+  end if;
+
+  -- 3. Список дверей вертикали НЕ изменился: рекавери не открыл ни одной
+  --    новой человеческой двери (DEC-037 «ЧЕГО ЗДЕСЬ НЕТ»).
+  if array_length(projectceo_m4._v1_impact_signatures(), 1) <> 2 then
+    raise exception 'PROJECTCEO_M4_RECOVERY_CHANGED_V1_DOORS';
+  end if;
+
+  -- 4. Два активных прогона одной заявки физически невозможны: синтетическая
+  --    вторая строка обязана упасть на частичном индексе.
   begin
     insert into projectceo_m4.impact_runs (
-      organization_id, project_id, impact_run_id, change_request_id, package_id,
-      target_baseline_id, target_graph_version_id, max_depth, algorithm,
-      result_digest, created_by_id, is_truncated, truncation_reason,
-      coverage_status, cutoff_reason, has_more_beyond_depth,
-      known_impact_count_lower_bound, returned_impact_count, policy_version,
-      max_impacts
-    ) values (
-      '00000000-0000-4000-8000-000000000000',
-      '00000000-0000-4000-8000-000000000000',
+      organization_id, project_id, impact_run_id, change_request_id,
+      package_id, target_baseline_id, target_graph_version_id, max_depth,
+      algorithm, result_digest, created_by_id, is_truncated,
+      truncation_reason, coverage_status, cutoff_reason,
+      has_more_beyond_depth, known_impact_count_lower_bound,
+      returned_impact_count, policy_version, max_impacts
+    )
+    select
+      '00000000-0000-4000-8000-0000000000aa',
+      '00000000-0000-4000-8000-0000000000aa',
       extensions.gen_random_uuid(),
-      '00000000-0000-4000-8000-000000000000',
-      '00000000-0000-4000-8000-000000000000',
+      '00000000-0000-4000-8000-0000000000aa',
+      '00000000-0000-4000-8000-0000000000aa',
       'guard', 'guard', 1, '{}'::jsonb,
-      decode(repeat('00', 32), 'hex'), 'system:guard', true, 'result_limit',
-      'blocked_result_limit', 'result_limit', true, 5001,
-      1, -- ЗАВЕДОМО НЕВЕРНО: blocked обязан нести 0, не 1.
-      'project-ceo-impact-policy/0.1', 5000
-    );
-    raise exception 'PROJECTCEO_M4_BLOCKED_WITH_SAVED_IMPACT_ALLOWED';
+      decode(repeat('00', 32), 'hex'), 'system:guard', false, null,
+      'complete', null, false, 0, 0,
+      'project-ceo-impact-policy/0.2', 5000
+    from generate_series(1, 2);
+    raise exception 'PROJECTCEO_M4_TWO_ACTIVE_RUNS_ALLOWED';
   exception
-    when check_violation then null;
+    when unique_violation then null;
+    when foreign_key_violation then
+      -- FK сработал раньше индекса — среда с включёнными constraint-триггерами
+      -- на пустой базе. Инвариант индекса это не отменяет, но проверить его
+      -- вставкой здесь нельзя; форма индекса уже проверена в п. 1.
+      null;
   end;
 end
 $guard$;
