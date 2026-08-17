@@ -445,10 +445,26 @@ export interface ChangeRequestView {
   readonly impactRunId: string | null;
   readonly impactTruncated: boolean;
   readonly impactTruncationReason: "depth_limit" | "result_limit" | null;
-  readonly impactTruncationAcknowledged: boolean;
   readonly impactCalculatedDepth: number | null;
   readonly impactPolicyMaxDepth: number | null;
-  /** Truly closed: every card reviewed AND the incompleteness acknowledged. */
+  /**
+   * DEC-034 coverage contract (correction over PR #94's truncation-as-data
+   * model). `null` until a run exists. `coverageStatus === null` never means
+   * "complete" — the caller must check for `null` explicitly before reading
+   * any of these.
+   */
+  readonly coverageStatus: "complete" | "partial_depth" | "blocked_result_limit" | null;
+  readonly cutoffReason: "depth_boundary" | "result_limit" | null;
+  readonly hasMoreBeyondDepth: boolean;
+  readonly knownImpactCountLowerBound: number | null;
+  readonly returnedImpactCount: number | null;
+  readonly policyVersion: string | null;
+  readonly maxImpacts: number | null;
+  /** All RETURNED cards reviewed — vacuously true when returnedImpactCount is 0. */
+  readonly allReturnedImpactsReviewed: boolean;
+  /** The walk itself is exhausted (`coverageStatus === "complete"`). */
+  readonly coverageComplete: boolean;
+  /** `allReturnedImpactsReviewed AND coverageComplete` — no human override. */
   readonly impactReviewComplete: boolean;
   readonly reason: string;
   readonly impacts: readonly {

@@ -546,6 +546,36 @@ export class ProjectCeoM4WorkerPostgresAdapter {
     );
   }
 
+  /**
+   * Durable отказ (DEC-036, OWNER REVIEW 12.08.2026). Вызывается только когда
+   * `calculateChangeImpactPolicyBound` завершился отказом, который сам
+   * воркер не считает нормальным исходом гонки (`already_present`,
+   * `stale_state`) — то есть транзиентной или постоянной ошибкой. Ответ несёт
+   * итог upsert'а (счётчик попыток, статус, следующая попытка), а не только
+   * факт записи: вызывающий по нему решает, продолжать ли считать проход
+   * незакрытым.
+   */
+  async recordChangeImpactWorkerFailure(input: {
+    readonly projectId: string;
+    readonly changeRequestId: string;
+    readonly failureKind: "transient" | "permanent";
+    readonly errorCode: string;
+    readonly errorDetail?: Readonly<Record<string, unknown>> | null;
+  }): Promise<unknown> {
+    return callRpc(
+      this.client,
+      "projectceo_m4_api",
+      "record_change_impact_worker_failure",
+      {
+        project_id: input.projectId,
+        change_request_id: input.changeRequestId,
+        failure_kind: input.failureKind,
+        error_code: input.errorCode,
+        error_detail: input.errorDetail ?? null,
+      },
+    );
+  }
+
   async buildConstructionHandover(input: {
     readonly projectId: string;
     readonly packageId: string;

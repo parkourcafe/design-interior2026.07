@@ -17,8 +17,8 @@ const packageId = "33333333-3333-4333-8333-333333333333";
 const changeRequestId = "44444444-4444-4444-8444-444444444444";
 
 const policy = {
-  version: "project-ceo-impact-policy/0.1",
-  maxDepth: 8,
+  version: "project-ceo-impact-policy/0.2",
+  maxDepth: 7,
   maxImpacts: 5000,
 } as const;
 
@@ -68,6 +68,14 @@ function refusal(reason: string, sqlstate = "P1111") {
  * идемпотентности возвращается как `replay` — ровно так, как это делает
  * `calculate_change_impact` под обёрткой `20260812010000`.
  */
+interface RecordedFailureShape {
+  readonly status: "retrying" | "dead_letter";
+  readonly attemptCount?: number;
+  readonly maxAttempts?: number;
+  readonly nextAttemptAt?: string | null;
+  readonly deadLetteredAt?: string | null;
+}
+
 function fakeClient(
   calls: Call[],
   options: {
@@ -75,6 +83,10 @@ function fakeClient(
     readonly failWith?: { readonly code: string; readonly message: string; readonly details?: string };
     readonly truncation?: "depth_limit" | "result_limit";
     readonly store?: Set<string>;
+    /** Ответ `record_change_impact_worker_failure`. По умолчанию — `retrying`. */
+    readonly recordFailure?: RecordedFailureShape;
+    /** Если задано — запись отказа сама недостижима (сеть упала). */
+    readonly recordFailureUnreachable?: boolean;
   } = {},
 ): PostgresRpcClient {
   const store = options.store ?? new Set<string>();
@@ -106,6 +118,27 @@ function fakeClient(
             error: null,
           };
         }
+        if (functionName === "record_change_impact_worker_failure") {
+          if (options.recordFailureUnreachable) {
+            throw new Error("network unreachable");
+          }
+          const record = options.recordFailure ?? { status: "retrying" as const };
+          const deadLettered = record.status === "dead_letter";
+          return {
+            data: {
+              status: record.status,
+              attemptCount: record.attemptCount ?? (deadLettered ? 5 : 1),
+              maxAttempts: record.maxAttempts ?? 5,
+              nextAttemptAt: deadLettered
+                ? null
+                : record.nextAttemptAt ?? "2026-01-01T00:00:00.000Z",
+              deadLetteredAt: deadLettered
+                ? record.deadLetteredAt ?? "2026-01-01T00:00:00.000Z"
+                : null,
+            },
+            error: null,
+          };
+        }
         throw new Error(`unexpected rpc ${functionName}`);
       },
     }),
@@ -118,29 +151,34 @@ describe("change impact worker — determinism", () => {
    * обязан попасть в тот же ключ, даже если состояние успело сдвинуться.
    */
   it("keeps the idempotency key independent of the state revision", () => {
-    expect(changeImpactIdempotencyKey(row({ stateRevision: 9 })))
-      .toBe(changeImpactIdempotencyKey(row({ stateRevision: 42 })));
+    expect(changeImpactIdempotencyKey(row({ stateRevision: 9 }), "project-ceo-impact-policy/0.2"))
+      .toBe(changeImpactIdempotencyKey(row({ stateRevision: 42 }), "project-ceo-impact-policy/0.2"));
+  });
+
+  it("changes the key when the policy version changes (DEC-037 §3.4)", () => {
+    expect(changeImpactIdempotencyKey(row(), "project-ceo-impact-policy/0.2"))
+      .not.toBe(changeImpactIdempotencyKey(row(), "project-ceo-impact-policy/0.3"));
   });
 
   it("keeps the key inside the database limit", () => {
-    expect(changeImpactIdempotencyKey(row()).length).toBeLessThanOrEqual(512);
+    expect(changeImpactIdempotencyKey(row(), "project-ceo-impact-policy/0.2").length).toBeLessThanOrEqual(512);
   });
 
   it("separates change requests", () => {
-    expect(changeImpactIdempotencyKey(row())).not.toBe(
+    expect(changeImpactIdempotencyKey(row(), "project-ceo-impact-policy/0.2")).not.toBe(
       changeImpactIdempotencyKey(row({
         changeRequestId: "55555555-5555-4555-8555-555555555555",
-      })),
+      }), "project-ceo-impact-policy/0.2"),
     );
   });
 
   it("refuses a backlog that returned one change request twice", () => {
-    expect(() => planChangeImpactWork([row(), row()]))
+    expect(() => planChangeImpactWork([row(), row()], "project-ceo-impact-policy/0.2"))
       .toThrow(ChangeImpactPlanError);
   });
 
   it("carries the root count so an empty impact is explainable", () => {
-    const [item] = planChangeImpactWork([row({ rootCount: 0 })]);
+    const [item] = planChangeImpactWork([row({ rootCount: 0 })], "project-ceo-impact-policy/0.2");
     expect(item?.rootCount).toBe(0);
   });
 });
@@ -166,7 +204,7 @@ describe("change impact worker — a single pass", () => {
     expect(call?.args).toMatchObject({
       project_id: projectId,
       change_request_id: changeRequestId,
-      idempotency_key: changeImpactIdempotencyKey(row()),
+      idempotency_key: changeImpactIdempotencyKey(row(), "project-ceo-impact-policy/0.2"),
     });
     // Ни организации, ни актора в аргументах: их выводит база, а не воркер.
     expect(call?.args).not.toHaveProperty("organization_id");
@@ -236,12 +274,15 @@ describe("change impact worker — a single pass", () => {
 
 describe("change impact worker — an incomplete run still needs a human", () => {
   /**
-   * Решение владельца от 12.08.2026: граница больше не отказ, а частичный
-   * результат с признаком. Для воркера это НЕ «посчитано и свободен»: закрыть
-   * такой прогон без подтверждения архитектора нельзя, значит человек нужен, и
-   * проход обязан это назвать.
+   * Глубокое усечение (depth_limit) — нормальный, ожидаемый исход, когда
+   * обход упёрся в максимальную глубину политики. Результаты были рассчитаны до
+   * лимита, и прогун рассматривается успешно завершённым. Это НЕ требует
+   * внимания человека — политика сделала свою работу.
+   *
+   * Только result_limit (ничего не сохранено из-за превышения лимита результатов)
+   * требует внимания.
    */
-  it("counts a depth-truncated run as needing a human", async () => {
+  it("treats a depth-limited run as complete (policy limit reached normally)", async () => {
     const result = await runChangeImpactWorker({
       client: fakeClient([], { truncation: "depth_limit" }),
     });
@@ -249,16 +290,23 @@ describe("change impact worker — an incomplete run still needs a human", () =>
       scanned: 1,
       calculated: 0,
       calculatedTruncated: 1,
-      needsAttention: 1,
+      needsAttention: 0,
     });
     expect(result.items[0]?.truncationReason).toBe("depth_limit");
   });
 
-  it("counts a result-limited run the same way", async () => {
+  it("counts a result-limited run as needing a human (nothing was saved)", async () => {
     const result = await runChangeImpactWorker({
       client: fakeClient([], { truncation: "result_limit" }),
     });
-    expect(result).toMatchObject({ calculatedTruncated: 1, needsAttention: 1 });
+    // DEC-037 §3.2: заблокированная заявка — отдельное поле отчёта, а не
+    // подвид truncated.
+    expect(result).toMatchObject({
+      calculatedTruncated: 0,
+      calculatedBlocked: 1,
+      needsAttention: 1,
+    });
+    expect(result.items[0]?.outcome).toBe("calculated_blocked");
     expect(result.items[0]?.truncationReason).toBe("result_limit");
   });
 
@@ -285,17 +333,93 @@ describe("change impact worker — an incomplete run still needs a human", () =>
     expect(result).toMatchObject({ unresolved: 1, needsAttention: 1 });
   });
 
-  it("does not swallow a refusal it was never taught", async () => {
-    // Незнакомая причина — не «нормальный исход гонки». Тихо посчитать её
-    // готовой значило бы отчитаться об успехе прохода, которого не было.
-    await expect(runChangeImpactWorker({
-      client: fakeClient([], { failWith: refusal("SOME_FUTURE_REASON") }),
-    })).rejects.toThrow();
+  it("does not swallow a refusal it was never taught, but records it durably instead of crashing the pass", async () => {
+    // Незнакомая причина — не «нормальный исход гонки» и (с DEC-036) больше
+    // не роняет весь проход: она классифицируется как структурный (permanent)
+    // отказ и уходит в durable запись, а не теряется молча и не прерывает
+    // обработку остальных заявок.
+    const calls: Call[] = [];
+    const result = await runChangeImpactWorker({
+      client: fakeClient(calls, {
+        failWith: refusal("SOME_FUTURE_REASON"),
+        recordFailure: { status: "dead_letter" },
+      }),
+    });
+    expect(result).toMatchObject({ scanned: 1, calculated: 0, failedDeadLetter: 1 });
+    expect(result.needsAttention).toBe(1);
+    const record = calls.find((entry) => entry.name === "record_change_impact_worker_failure");
+    // Незнакомый, но структурный код (validation_failed) — не транзиентный:
+    // повтор с теми же входными данными не изменит исход.
+    expect(record?.args).toMatchObject({ failure_kind: "permanent" });
   });
 
-  it("keeps working past a refusal instead of stopping the queue", async () => {
-    // Один сломанный элемент не имеет отношения к остальным: остановка
-    // означала бы, что одна заявка держит очередь целиком.
+  it("records a transient failure as failed_retrying while the retry budget still has room", async () => {
+    const result = await runChangeImpactWorker({
+      client: fakeClient([], {
+        failWith: { code: "P1199", message: "internal_error" },
+        recordFailure: { status: "retrying", attemptCount: 2, maxAttempts: 5 },
+      }),
+    });
+    expect(result).toMatchObject({ scanned: 1, failedRetrying: 1, failedDeadLetter: 0 });
+    // Транзиентный отказ в пределах бюджета — ожидаемый, самовосстанавливающийся
+    // исход: следующий проход доберёт его сам, как только пройдёт `next_attempt_at`.
+    // Звать человека тут ещё не за что.
+    expect(result.needsAttention).toBe(0);
+    expect(result.items[0]?.failure).toMatchObject({ status: "retrying", attemptCount: 2 });
+  });
+
+  it("reports failed_dead_letter once the record RPC says the retry budget is exhausted", async () => {
+    const result = await runChangeImpactWorker({
+      client: fakeClient([], {
+        failWith: { code: "P1199", message: "internal_error" },
+        recordFailure: { status: "dead_letter", attemptCount: 5, maxAttempts: 5 },
+      }),
+    });
+    expect(result).toMatchObject({ scanned: 1, failedRetrying: 0, failedDeadLetter: 1 });
+    // Бюджет исчерпан — дальше без оператора (редрайва) заявка не оживёт сама.
+    expect(result.needsAttention).toBe(1);
+    expect(result.items[0]?.failure).toMatchObject({ status: "dead_letter", attemptCount: 5 });
+  });
+
+  it("still reports an outcome for the item when recording its failure is itself unreachable", async () => {
+    // Сеть упала дважды подряд (и на расчёт, и на запись отказа) — воркер не
+    // роняет проход и не выдумывает состояние базы, которого не видел: заявка
+    // остаётся `failed_retrying` без durable следа до следующей попытки.
+    const result = await runChangeImpactWorker({
+      client: fakeClient([], {
+        failWith: { code: "P1199", message: "internal_error" },
+        recordFailureUnreachable: true,
+      }),
+    });
+    expect(result).toMatchObject({ scanned: 1, failedRetrying: 1 });
+    expect(result.items[0]?.failure).toBeNull();
+  });
+
+  it("reflects whatever attempt state the record RPC reports rather than counting locally", async () => {
+    // Попытки живут в базе, не в памяти процесса: два независимых прохода с
+    // разным ответом БД просто пересказывают то, что она сказала — «рестарт
+    // воркера не сбрасывает бюджет попыток» верно постольку, поскольку сам
+    // воркер никакого бюджета не считает.
+    const first = await runChangeImpactWorker({
+      client: fakeClient([], {
+        failWith: { code: "P1199", message: "internal_error" },
+        recordFailure: { status: "retrying", attemptCount: 1 },
+      }),
+    });
+    const second = await runChangeImpactWorker({
+      client: fakeClient([], {
+        failWith: { code: "P1199", message: "internal_error" },
+        recordFailure: { status: "retrying", attemptCount: 4 },
+      }),
+    });
+    expect(first.items[0]?.failure?.attemptCount).toBe(1);
+    expect(second.items[0]?.failure?.attemptCount).toBe(4);
+  });
+
+  it("keeps working past a refusal instead of stopping the queue, and reports both items", async () => {
+    // Один сломанный (ядовитый) элемент не имеет отношения к остальным:
+    // остановка означала бы, что одна заявка держит очередь целиком. Отчёт
+    // обязан назвать исход КАЖДОЙ заявки прохода, а не только выживших.
     const other = "66666666-6666-4666-8666-666666666666";
     const calls: Call[] = [];
     const client = {
@@ -305,6 +429,18 @@ describe("change impact worker — an incomplete run still needs a human", () =>
           if (functionName === "list_change_impact_backlog") {
             return {
               data: envelope([row(), row({ changeRequestId: other })]),
+              error: null,
+            };
+          }
+          if (functionName === "record_change_impact_worker_failure") {
+            return {
+              data: {
+                status: "dead_letter",
+                attemptCount: 1,
+                maxAttempts: 5,
+                nextAttemptAt: null,
+                deadLetteredAt: "2026-01-01T00:00:00.000Z",
+              },
               error: null,
             };
           }
@@ -326,6 +462,18 @@ describe("change impact worker — an incomplete run still needs a human", () =>
 
     const result = await runChangeImpactWorker({ client });
     expect(result).toMatchObject({ scanned: 2, calculated: 1, unresolved: 1 });
+    // Структурный отчёт содержит исход КАЖДОЙ заявки прохода — не только той,
+    // что выжила: ни одна не пропала молча.
+    expect(result.items).toHaveLength(2);
+    expect(result.items.map((item) => item.changeRequestId).sort()).toEqual(
+      [changeRequestId, other].sort(),
+    );
+    expect(
+      result.items.find((item) => item.changeRequestId === changeRequestId)?.outcome,
+    ).toBe("unresolved");
+    expect(
+      result.items.find((item) => item.changeRequestId === other)?.outcome,
+    ).toBe("calculated");
   });
 
   it("fails loudly when the backlog envelope breaks its contract", async () => {

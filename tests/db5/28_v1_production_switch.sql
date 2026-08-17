@@ -7,11 +7,13 @@
 -- прогон: ошибка в нём обнаружилась бы иначе на живой базе, где «открыть» и
 -- «закрыть» уже нельзя порепетировать.
 --
--- ЧТО ДОКАЗЫВАЕТСЯ. Что открытие открывает ровно три двери и записывает, кто и
+-- ЧТО ДОКАЗЫВАЕТСЯ. Что открытие открывает ровно две двери и записывает, кто и
 -- на каком основании; что закрытие снимает права у обеих прикладных ролей и
 -- тоже записывается; что открытие ПАДАЕТ, если рядом просочилась команда V2;
--- что без действующего лица и основания открыть нельзя; и что сам выключатель
--- не доступен ни одной прикладной роли.
+-- что без действующего лица и основания открыть нельзя; что сам выключатель
+-- не доступен ни одной прикладной роли; и что `acknowledge_impact_truncation`
+-- (DEC-034: закрыта навсегда, поверх PR #94) не появляется НИ ПРИ каком
+-- состоянии переключателя, включая «открыто».
 --
 -- ПОРЯДОК. Сценарий стоит после `27_impact_concurrency_fixture.sql` и обязан
 -- оставить вертикаль ОТКРЫТОЙ: `90_default_deny_after.sql` проверяет состояние,
@@ -22,8 +24,7 @@ do $v1_production_switch$
 declare
   v_signatures text[] := array[
     'projectceo_m4_api.review_change_impact(uuid, uuid, text, text, text, bigint, text)',
-    'projectceo_m4_api.replay_review_change_impact(uuid, uuid, text, text, text, text)',
-    'projectceo_m4_api.acknowledge_impact_truncation(uuid, uuid, text, bigint, text)'
+    'projectceo_m4_api.replay_review_change_impact(uuid, uuid, text, text, text, text)'
   ];
   v_problem text;
   v_open boolean;
@@ -145,7 +146,7 @@ begin
       end if;
   end;
 
-  -- 5. Открытие. После него — ровно три двери у `authenticated`, ни одной у
+  -- 5. Открытие. После него — ровно две двери у `authenticated`, ни одной у
   --    `anon`, и воркерный контур по-прежнему системный.
   v_entry_id := projectceo_m4.open_v1_impact_production(
     'DB5 harness',
@@ -184,6 +185,18 @@ begin
   select open_now into v_open from projectceo_m4.v1_impact_production_state();
   if not v_open then
     raise exception 'DB5_V1_SWITCH_STATE_LIES_AFTER_OPEN';
+  end if;
+
+  -- DEC-034: третьей двери не существует ни при каком состоянии, включая
+  -- «вертикаль только что открыта». Проверка стоит именно здесь, а не только
+  -- в default-deny файлах — открытие production-переключателя это ровно та
+  -- операция, которая раньше эту дверь возвращала.
+  if pg_catalog.has_function_privilege(
+    'authenticated',
+    'projectceo_m4_api.acknowledge_impact_truncation(uuid, uuid, text, bigint, text)',
+    'EXECUTE'
+  ) then
+    raise exception 'DB5_V1_SWITCH_OPENED_TRUNCATION_ACK';
   end if;
 
   select action into v_action

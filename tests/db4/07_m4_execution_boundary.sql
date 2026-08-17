@@ -32,8 +32,11 @@ begin
     'projectceo_product_api.acknowledge_release_request_bound(uuid, uuid, text, bigint, text)',
     'projectceo_m4_api.submit_change_request(uuid, uuid, text, text, text, text, bigint, integer, bigint, text)',
     'projectceo_m4_api.replay_submit_change_request(uuid, uuid, text, text, text, text, bigint, integer, text)',
-    -- Инкремент 2 — не открыт ничем и не открывается ни одной средой.
+    -- V1 Impact (DEC-033, OWNER GO 12.08.2026): ревью влияния — тоже
+    -- инкремент 1, тоже закрыто по умолчанию до явного включения (этот
+    -- сценарий стоит ДО `enable-m4-increment-1.sql`, см. комментарий выше).
     'projectceo_m4_api.review_change_impact(uuid, uuid, text, text, text, bigint, text)',
+    -- V2/V3 — не открыты ничем и не открываются ни одной средой.
     'projectceo_m4_api.register_photo_evidence(uuid, uuid, text, text, text, timestamptz, text, bigint, text)',
     'projectceo_m4_api.review_photo_evidence(uuid, uuid, text, text, bigint, text)',
     'projectceo_m4_api.accept_milestone(uuid, uuid, bigint, text)',

@@ -91,7 +91,10 @@ begin
     -- V1 Impact: те же правила для новых воркерных дверей — человеческим ролям
     -- недоступны, системной доступны.
     'projectceo_m4_api.calculate_change_impact_policy_bound(uuid, uuid, bigint, text)',
-    'projectceo_m4_api.list_change_impact_backlog(integer)'
+    'projectceo_m4_api.list_change_impact_backlog(integer)',
+    -- OWNER REVIEW (поверх DEC-034/035): дверь воркера, записывающая durable
+    -- отказ (DEC-036) — та же системная identity.
+    'projectceo_m4_api.record_change_impact_worker_failure(uuid, uuid, text, text, jsonb)'
   ]) signature
   where pg_catalog.has_function_privilege(role_name, signature, 'EXECUTE')
   limit 1;
@@ -101,17 +104,30 @@ begin
 
   select signature into v_missing
   from unnest(array[
-    'projectceo_m4_api.calculate_change_impact(uuid, uuid, integer, bigint, text)',
     'projectceo_m4_api.build_construction_handover(uuid, uuid, text, bigint, text)',
     -- V1 Impact: те же правила для новых воркерных дверей — человеческим ролям
-    -- недоступны, системной доступны.
+    -- недоступны, системной доступны. `calculate_change_impact` (сырая,
+    -- произвольная глубина) сюда НЕ входит — DEC-034 закрыла её и для
+    -- `service_role`: единственная системная дверь расчёта отныне
+    -- `calculate_change_impact_policy_bound`.
     'projectceo_m4_api.calculate_change_impact_policy_bound(uuid, uuid, bigint, text)',
-    'projectceo_m4_api.list_change_impact_backlog(integer)'
+    'projectceo_m4_api.list_change_impact_backlog(integer)',
+    'projectceo_m4_api.record_change_impact_worker_failure(uuid, uuid, text, text, jsonb)'
   ]) signature
   where not pg_catalog.has_function_privilege('service_role', signature, 'EXECUTE')
   limit 1;
   if v_missing is not null then
     raise exception 'DB5_WORKER_RPC_LOST_SYSTEM_GRANT:%', v_missing;
+  end if;
+
+  -- DEC-034: сырая дверь расчёта закрыта даже для `service_role` — это и
+  -- есть «policy-bound RPC остаётся единственной системной дверью».
+  if pg_catalog.has_function_privilege(
+    'service_role',
+    'projectceo_m4_api.calculate_change_impact(uuid, uuid, integer, bigint, text)',
+    'EXECUTE'
+  ) then
+    raise exception 'DB5_RAW_IMPACT_RPC_REACHABLE_BY_SERVICE_ROLE_BEFORE_RUN';
   end if;
 
   -- 5. Читающая RPC рабочего пространства обязана уцелеть: она — единственное

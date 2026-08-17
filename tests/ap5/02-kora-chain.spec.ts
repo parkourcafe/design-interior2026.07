@@ -11,6 +11,8 @@ import {
   AP5_DECISION_NODE_ID,
   AP5_DECISION_REVISION_ID,
   AP5_DECISION_REVISION_ID_2,
+  AP5_DECISION_REVISION_ID_3,
+  AP5_DECISION_REVISION_ID_4,
   AP5_DEPENDENT_SOURCE_ID,
   AP5_SOURCE_NAME,
   AP5_SOURCE_REVISION_ID,
@@ -19,6 +21,8 @@ import {
 import { runReleaseArtifactWorker } from "./release-worker";
 import { runChangeImpactWorker } from "./change-impact-worker";
 import { ingestDependentNode } from "./dependent-node";
+import { ingestDepthChain, ingestWideStar } from "./coverage-graph";
+import { accessTokenFor, clientForToken } from "./rpc-session";
 
 const env = ap5Env();
 // Ленивое чтение: сборка списка тестов не должна зависеть от того,
@@ -94,6 +98,12 @@ type Workspace = {
   readonly releases: readonly {
     readonly id: string;
     readonly versionNo: number;
+    // "current" = наибольший versionNo пакета — используется звеньями 14/15,
+    // чтобы явно выбрать производственную версию для `create_change`, а не
+    // положиться на подсказку `operations.create_change.commandTargetId`
+    // (она берёт САМУЮ СТАРУЮ версию, не сопоставленную latestBaseline, — для
+    // цепочки из нескольких baseline подряд это не то, что нужно).
+    readonly status: string;
     readonly distributionStatus: string;
     readonly pendingDistributionId: string | null;
     readonly acknowledgementCount: number;
@@ -109,6 +119,9 @@ type Workspace = {
     readonly impactRunId: string | null;
     readonly impactTruncated: boolean;
     readonly impactReviewComplete: boolean;
+    // DEC-034 coverage — звенья 13/14 (V1 Impact coverage states).
+    readonly coverageStatus: "complete" | "partial_depth" | "blocked_result_limit" | null;
+    readonly knownImpactCountLowerBound: number | null;
     readonly impacts: readonly {
       readonly impactRunId: string;
       readonly impactId: string;
@@ -401,26 +414,28 @@ test.describe("AP5 — цепочка Kora на живом стеке", () => {
 
     // Четыре команды вертикалей V2 и V3 не авторизованы ничем, и причина обязана
     // называть именно это, а не отсутствие предпосылок: предпосылки тут ни при
-    // чём, их не открывал ни один документ.
+    // чём, их не открывал ни один документ. `acknowledge_impact_truncation`
+    // (DEC-034, поверх DEC-033 LOCKED) сюда же: PR #94 её авторизовал тем же GO,
+    // что `review_change_impact`, но человеческого override усечённого прогона
+    // в V1 не существует — дверь закрыта навсегда, той же причиной, что V2/V3.
     for (const kind of [
       "upload_photo_evidence",
       "review_photo_evidence",
       "accept_milestone",
       "build_handover",
+      "acknowledge_impact_truncation",
     ]) {
       expect(operations[kind]?.status, kind).toBe("unavailable");
       expect(operations[kind]?.reason, kind).toBe("increment_not_authorized");
     }
 
-    // А вот команды вертикали V1 с 12.08.2026 АВТОРИЗОВАНЫ, и их недоступность
+    // А вот `review_change_impact` с 12.08.2026 АВТОРИЗОВАНА, и её недоступность
     // здесь — другого рода: прогона влияния ещё нет (звено 12 его создаст).
     // Разница в причине и есть предмет проверки: назвать открытую команду
     // «неавторизованной» значило бы соврать о состоянии продукта ровно так же,
     // как назвать закрытую «недостающей предпосылкой».
-    for (const kind of ["review_change_impact", "acknowledge_impact_truncation"]) {
-      expect(operations[kind]?.status, kind).toBe("unavailable");
-      expect(operations[kind]?.reason, kind).toBe("prerequisite_missing");
-    }
+    expect(operations.review_change_impact?.status).toBe("unavailable");
+    expect(operations.review_change_impact?.reason).toBe("prerequisite_missing");
 
     // Поверхность — половина запрета. Вторая половина в том, что команда,
     // посланная в обход интерфейса, отклоняется сервером до единого чтения и
@@ -669,7 +684,14 @@ test.describe("AP5 — цепочка Kora на живом стеке", () => {
     // Результат возвращается КЛИЕНТУ, а не только оседает в базе.
     expect(reviewed.body.result?.disposition).toBe("resolved");
     expect(reviewed.body.result?.impactId).toBe(pending!.impactId);
-    expect(reviewed.body.result?.allImpactsReviewed).toBe(true);
+    // DEC-034: все ВОЗВРАЩЁННЫЕ карточки рассмотрены И обход исчерпан
+    // (золотой граф Kora даёт `complete`, не `partial_depth`) — только тогда
+    // `impactReviewComplete` действительно значит «закончено». Человеческого
+    // подтверждения неполноты (`acknowledge_impact_truncation`) в этой цепочке
+    // не требуется и не существует — см. п. 8 ниже.
+    expect(reviewed.body.result?.allReturnedImpactsReviewed).toBe(true);
+    expect(reviewed.body.result?.coverageComplete).toBe(true);
+    expect(reviewed.body.result?.impactReviewComplete).toBe(true);
     expect(reviewed.body.result?.everyImpactReviewed).toBe(true);
     expect(reviewed.body.result?.isTruncated).toBe(false);
 
@@ -712,16 +734,19 @@ test.describe("AP5 — цепочка Kora на живом стеке", () => {
       unchanged.impacts.find((impact) => impact.impactId === pending!.impactId)?.disposition,
     ).toBe("resolved");
 
-    // 8. НЕДОПУСТИМАЯ ОПЕРАЦИЯ ОТКЛОНЯЕТСЯ: подтверждать неполноту полного
-    //    прогона нечего, и сервер это говорит сам.
+    // 8. ДВЕРЬ ПОДТВЕРЖДЕНИЯ НЕПОЛНОТЫ НЕДОСТУПНА НАВСЕГДА (DEC-034, поверх
+    //    DEC-033 LOCKED). Человеческого override в V1 не существует: попытка
+    //    вызвать её отклоняется командным сервисом ДО обращения к базе — тем
+    //    же кодом, что закрытые V2/V3, не «неверный ввод» и не «нет
+    //    предпосылки». Заявленная предпосылка (валидный `impactRunId` живой,
+    //    рассмотренной сессией архитектора) сама по себе НЕ делает дверь
+    //    доступной — она закрыта авторизацией, не отсутствием повода.
     const acknowledged = await command(architect, "acknowledge_impact_truncation", {
       impactRunId: change!.impactRunId!,
-      reason: "AP5: подтверждение неполноты полного прогона",
+      reason: "AP5: попытка вызвать закрытую дверь подтверждения неполноты",
     });
-    expect(acknowledged.status).toBe(400);
-    // Тот же суженный код: база говорит `IMPACT_NOT_TRUNCATED`, клиент видит
-    // `validation_failed`.
-    expect(acknowledged.body.error?.code).toBe("validation_failed");
+    expect(acknowledged.status, JSON.stringify(acknowledged.body.error)).toBe(409);
+    expect(acknowledged.body.error?.code).toBe("operation_unavailable");
 
     // 9. Второй проход воркера не заводит второго прогона и не трогает
     //    рассмотренное.
@@ -730,6 +755,344 @@ test.describe("AP5 — цепочка Kora на живом стеке", () => {
     const afterSecond = await workspace(architect);
     expect(afterSecond.changes.find((entry) => entry.id === change!.id)!.impactReviewComplete)
       .toBe(true);
+  });
+
+  /**
+   * 13. RPC воркера расчёта влияния — недостижимы человеческой сессией
+   *     (блокер 3 из OWNER REVIEW 12.08.2026: «Authorization»).
+   *
+   * Тест 12 доказывает поверхность ЧЕЛОВЕКА (`review_change_impact`, публичный
+   * маршрут команд). Здесь доказывается обратное: три системные двери —
+   * `calculate_change_impact`, `calculate_change_impact_policy_bound`,
+   * `list_change_impact_backlog` — выданы ТОЛЬКО `service_role`
+   * (`20260812010000`, `20260813030000) и отозваны у `authenticated`. Вызов
+   * идёт НАСТОЯЩИМ токеном отдельной аутентифицированной сессии архитектора
+   * через реальный Data API (PostgREST), в обход приложения — тот же приём,
+   * что `tests/ap1/environment/verify-m4-data-api-closed.mjs`.
+   *
+   * Аргументы намеренно негодные (несуществующие project/changeRequest):
+   * отказ обязан прийти по правам, ДО тела функции. 400 недопустим так же,
+   * как успех — он значил бы, что роль эту RPC вообще видит.
+   */
+  test("13. RPC воркера расчёта влияния недостижимы человеческой сессией", async () => {
+    const token = await accessTokenFor("designer");
+    const client = clientForToken(token);
+
+    // Контроль: токен настоящий и рабочий — иначе отказ ниже доказывал бы
+    // сломанный токен, а не границу авторизации.
+    const control = await client.schema("projectceo_api").rpc("list_projects");
+    expect(control.error, JSON.stringify(control.error)).toBeNull();
+
+    const probeProject = "00000000-0000-4000-8000-000000000000";
+    const probeChangeRequest = "00000000-0000-4000-8000-000000000001";
+    const allowedDeniedStatus = [401, 403, 404];
+
+    const calculateChangeImpact = await client
+      .schema("projectceo_m4_api")
+      .rpc("calculate_change_impact", {
+        project_id: probeProject,
+        change_request_id: probeChangeRequest,
+        max_depth: 1,
+        expected_state_revision: 1,
+        idempotency_key: "ap5-authz-probe-calculate",
+      });
+    expect(calculateChangeImpact.data).toBeNull();
+    expect(
+      allowedDeniedStatus,
+      `calculate_change_impact: ${calculateChangeImpact.status} ${JSON.stringify(calculateChangeImpact.error)}`,
+    ).toContain(calculateChangeImpact.status);
+
+    const calculateChangeImpactPolicyBound = await client
+      .schema("projectceo_m4_api")
+      .rpc("calculate_change_impact_policy_bound", {
+        project_id: probeProject,
+        change_request_id: probeChangeRequest,
+        expected_state_revision: 1,
+        idempotency_key: "ap5-authz-probe-policy-bound",
+      });
+    expect(calculateChangeImpactPolicyBound.data).toBeNull();
+    expect(
+      allowedDeniedStatus,
+      `calculate_change_impact_policy_bound: ${calculateChangeImpactPolicyBound.status} `
+      + `${JSON.stringify(calculateChangeImpactPolicyBound.error)}`,
+    ).toContain(calculateChangeImpactPolicyBound.status);
+
+    const listChangeImpactBacklog = await client
+      .schema("projectceo_m4_api")
+      .rpc("list_change_impact_backlog", { max_rows: 10 });
+    expect(listChangeImpactBacklog.data).toBeNull();
+    expect(
+      allowedDeniedStatus,
+      `list_change_impact_backlog: ${listChangeImpactBacklog.status} `
+      + `${JSON.stringify(listChangeImpactBacklog.error)}`,
+    ).toContain(listChangeImpactBacklog.status);
+  });
+
+  /**
+   * Общая механика звеньев 14/15: новый корень изменения — это ВСЕГДА
+   * пересмотр того же решения (`AP5_DECISION_NODE_ID`), одобренный и
+   * опубликованный как новый baseline, плюс производственная версия,
+   * зафиксированная на ПРЕДЫДУЩЕМ baseline (иначе `submit_change_request`
+   * отклонит переход как `CHANGE_BASELINE_LINEAGE_INVALID` — переход
+   * принимается только от baseline, на котором реально стоит производственная
+   * версия, к его непосредственному наследнику).
+   */
+  async function buildProductionVersionAtLatestBaseline(
+    architect: APIRequestContext,
+  ): Promise<void> {
+    const before = await workspace(architect);
+    expect(before.operations.publish_release?.status).toBe("available");
+    const snapshotToken = before.operations.publish_release?.commandTargetId;
+    const released = await command(architect, "publish_release", { snapshotToken });
+    expect(released.status, JSON.stringify(released.body.error)).toBe(200);
+  }
+
+  async function reviseApproveAndPublishBaseline(
+    architect: APIRequestContext,
+    revisionId: string,
+    expectedRevisionId: string,
+    label: string,
+  ): Promise<void> {
+    const revised = await command(architect, "create_decision", {
+      packageId: handoff().rootPackageId,
+      nodeId: AP5_DECISION_NODE_ID,
+      revisionId,
+      expectedRevisionId,
+      claimStatus: "human_origin",
+      title: `AP5 decision (${label})`,
+      resolution: `AP5 chain decision revised for the ${label} coverage scenario.`,
+      areaNodeId: null,
+      decisionStatus: "confirmed",
+      evidence: [],
+      reason: `AP5 authenticated browser chain — ${label} coverage scenario`,
+    });
+    expect(revised.status, JSON.stringify(revised.body.error)).toBe(200);
+
+    const approvalPackageId = `ap5-approval-${label}-${randomUUID()}`;
+    const created = await command(architect, "create_approval_package", {
+      packageId: handoff().rootPackageId,
+      approvalPackageId,
+      items: [{ targetKind: "decision_revision", entityId: AP5_DECISION_NODE_ID, revisionId }],
+    });
+    expect(created.status, JSON.stringify(created.body.error)).toBe(200);
+
+    const submitted = await command(architect, "submit_approval_package", {
+      approvalPackageId,
+      expectedStatus: "draft",
+    });
+    expect(submitted.status, JSON.stringify(submitted.body.error)).toBe(200);
+
+    const approved = await command(architect, "review_selection", {
+      approvalPackageId,
+      expectedStatus: "submitted",
+      decision: "approved",
+      reason: "AP5 authenticated browser chain",
+    });
+    expect(approved.status, JSON.stringify(approved.body.error)).toBe(200);
+
+    const beforeBaseline = await workspace(architect);
+    expect(beforeBaseline.operations.publish_baseline?.status).toBe("available");
+    const snapshotToken = beforeBaseline.operations.publish_baseline?.commandTargetId;
+    const published = await command(architect, "publish_baseline", { snapshotToken });
+    expect(published.status, JSON.stringify(published.body.error)).toBe(200);
+  }
+
+  async function createChangeFromCurrentProductionVersion(
+    architect: APIRequestContext,
+    builder: APIRequestContext,
+    reason: string,
+  ): Promise<string> {
+    // НЕ `operations.create_change.commandTargetId`: та подсказка находит
+    // САМУЮ СТАРУЮ производственную версию, чей baseline отличается от
+    // текущего последнего (`packageVersions` отсортирован по возрастанию
+    // `versionNo`, а подсказка — первое совпадение), а не версию, реально
+    // спаренную с последним baseline. Для одного перехода (звено 11) это одно
+    // и то же; для цепочки из нескольких baseline подряд — уже нет: заявка
+    // ушла бы со старым `fromBaselineId`, для которого `proposedBaselineId`
+    // (всегда последний baseline) не является непосредственным наследником,
+    // и `submit_change_request` отклонил бы её как
+    // `CHANGE_BASELINE_LINEAGE_INVALID`. Версия «current» — та, что реально
+    // построена НА предыдущем шаге ИМЕННО для этого перехода.
+    const architectView = await workspace(architect);
+    const currentRelease = architectView.releases.find((release) => release.status === "current");
+    expect(currentRelease, "AP5: нет текущей производственной версии для заявки").toBeTruthy();
+
+    const before = await workspace(builder);
+    expect(before.operations.create_change?.status).toBe("available");
+    const created = await command(builder, "create_change", {
+      reason,
+      fromProductionPackageVersionId: currentRelease!.id,
+      deltaCostRub: 0,
+      deltaDays: 0,
+    });
+    expect(created.status, JSON.stringify(created.body.error)).toBe(200);
+    const change = (await workspace(builder)).changes.find((entry) => entry.reason === reason);
+    expect(change, `AP5: заявка «${reason}» не найдена в рабочем пространстве`).toBeTruthy();
+    return change!.id;
+  }
+
+  const PARTIAL_DEPTH_REASON =
+    "AP5: обход упирается в глубину политики — частичный охват (partial_depth)";
+
+  /**
+   * 14. `partial_depth` на настоящей странице (блокер 3, «partial_depth»).
+   *
+   * Глубокая цепочка (звено 5б плюс `ingestDepthChain`, глубже текущей
+   * политики) даёт обход, который система не может пройти целиком. Расчёт
+   * делает настоящий системный воркер, а КАЖДОЕ утверждение о том, что видит
+   * человек, — через настоящую страницу `page`, локаторы и видимый текст, не
+   * через JSON команды: рассмотреть можно ВСЕ показанные карточки и всё равно
+   * остаться «не закрыто» — это и есть DEC-033/034, и его нельзя доказать
+   * ответом API, только тем, что реально нарисовано.
+   */
+  test("14. частичный охват (partial_depth) на настоящей странице", async ({ browser }) => {
+    const architect = await requestAs(browser, "designer");
+
+    await ingestDepthChain();
+    await buildProductionVersionAtLatestBaseline(architect);
+    await reviseApproveAndPublishBaseline(
+      architect,
+      AP5_DECISION_REVISION_ID_3,
+      AP5_DECISION_REVISION_ID_2,
+      "partial-depth",
+    );
+
+    const builder = await requestAs(browser, "builder");
+    const changeId = await createChangeFromCurrentProductionVersion(
+      architect,
+      builder,
+      PARTIAL_DEPTH_REASON,
+    );
+
+    const report = runChangeImpactWorker();
+    const item = report.items.find((entry) => entry.changeRequestId === changeId);
+    expect(item, "AP5: воркер не увидел новую заявку глубокой цепочки").toBeTruthy();
+    expect(item!.outcome).toBe("calculated_truncated");
+    expect(item!.truncationReason).toBe("depth_limit");
+
+    // Настоящая страница, настоящая сессия архитектора — не context.request.
+    const context = await browser.newContext({
+      baseURL: env.appUrl,
+      storageState: storageStatePath("designer"),
+    });
+    const page = await context.newPage();
+    const response = await page.goto(`/dashboard/projectceo/projects/${handoff().projectId}`);
+    expect(response?.status()).toBe(200);
+    await page.getByRole("tab", { name: "Изменения" }).click();
+
+    const card = page.locator("article").filter({ hasText: PARTIAL_DEPTH_REASON });
+    await expect(card).toBeVisible();
+    // Текст — дословно из lib/i18n/ru.ts (`coveragePartialWarning`), не
+    // перефразирован: любое расхождение здесь означало бы, что скопирован
+    // не тот текст, который реально покажет пользователю продукт.
+    await expect(card.getByText(
+      "Показаны найденные влияния. Анализ ограничен глубиной и не является полным.",
+    )).toBeVisible();
+
+    const reviewButtonName = "Отметить решённым";
+    let remaining = await card.getByRole("button", { name: reviewButtonName }).count();
+    expect(remaining, "AP5: у частичного прогона нет ни одной карточки на рассмотрение").toBeGreaterThan(0);
+    const shown = remaining;
+
+    // Рассматриваются ВСЕ показанные карточки — настоящим кликом по
+    // настоящей кнопке, не вызовом команды в обход вёрстки.
+    while (remaining > 0) {
+      const button = card.getByRole("button", { name: reviewButtonName }).first();
+      await Promise.all([
+        page.waitForResponse((candidate) => candidate.url().includes("/api/projectceo/commands")),
+        button.click(),
+      ]);
+      remaining -= 1;
+      await expect(card.getByRole("button", { name: reviewButtonName })).toHaveCount(remaining);
+    }
+
+    // ВСЕ показанные карточки рассмотрены — и обход всё равно неполный: DOM
+    // обязан показать оба факта одновременно, иначе «8 из 8» читалось бы как
+    // законченный обзор (ровно та ложь, которую запрещает DEC-033/034).
+    await expect(card.getByText(`Рассмотрено найденных влияний ${shown}/${shown}`)).toBeVisible();
+    await expect(card.getByText("Рассмотрение не закрыто")).toBeVisible();
+
+    // Человеческого override неполноты не существует нигде на странице — ни
+    // здесь, ни в другом месте: ни одной кнопки с таким смыслом.
+    await expect(page.getByRole("button", { name: /подтверд/i })).toHaveCount(0);
+
+    await context.close();
+  });
+
+  const BLOCKED_RESULT_LIMIT_REASON =
+    "AP5: найдено многократно больше лимита результата — блокировка (blocked_result_limit)";
+
+  /**
+   * 15. `blocked_result_limit` на настоящей странице (блокер 3,
+   *     «blocked_result_limit»).
+   *
+   * Широкая звезда (`ingestWideStar`, `AP5_WIDE_STAR_LEAF_COUNT` листьев —
+   * заведомо больше текущего `maxImpacts`) даёт обход, который упирается в
+   * лимит результата раньше, чем в глубину: DEC-034 отдаёт приоритет лимиту —
+   * ничего не сохраняется, `returnedImpactCount = 0`. Доказывается ровно это
+   * на настоящей странице: видимый текст блокировки, ПОЛНОЕ отсутствие кнопок
+   * рассмотрения (рассматривать нечего — не «пока недоступно», а «нечего»), и
+   * то, что заявка исчезла из воркерной очереди совсем, а не «пока не
+   * подошла очередь».
+   */
+  test("15. заблокированный результат (blocked_result_limit) на настоящей странице", async ({ browser }) => {
+    const architect = await requestAs(browser, "designer");
+
+    // Производственная версия сначала — на baseline, который сейчас
+    // последний (опубликован звеном 14); звезда входит в граф ДО следующей
+    // публикации baseline, как и везде в этой цепочке.
+    await buildProductionVersionAtLatestBaseline(architect);
+    await ingestWideStar();
+    await reviseApproveAndPublishBaseline(
+      architect,
+      AP5_DECISION_REVISION_ID_4,
+      AP5_DECISION_REVISION_ID_3,
+      "blocked-result-limit",
+    );
+
+    const builder = await requestAs(browser, "builder");
+    const changeId = await createChangeFromCurrentProductionVersion(
+      architect,
+      builder,
+      BLOCKED_RESULT_LIMIT_REASON,
+    );
+
+    const report = runChangeImpactWorker();
+    const item = report.items.find((entry) => entry.changeRequestId === changeId);
+    expect(item, "AP5: воркер не увидел новую заявку широкой звезды").toBeTruthy();
+    expect(item!.outcome).toBe("calculated_blocked");
+    expect(item!.truncationReason).toBe("result_limit");
+
+    const context = await browser.newContext({
+      baseURL: env.appUrl,
+      storageState: storageStatePath("designer"),
+    });
+    const page = await context.newPage();
+    const response = await page.goto(`/dashboard/projectceo/projects/${handoff().projectId}`);
+    expect(response?.status()).toBe(200);
+    await page.getByRole("tab", { name: "Изменения" }).click();
+
+    const card = page.locator("article").filter({ hasText: BLOCKED_RESULT_LIMIT_REASON });
+    await expect(card).toBeVisible();
+    // `knownImpactCountLowerBound` — ВСЕГДА ровно `maxImpacts + 1` при
+    // блокировке (`20260813010000`), не истинный размер звезды: число в
+    // тексте отражает текущую политику, а не размер фикстуры.
+    await expect(card.getByText(/^Обнаружено не менее \d+ влияния\. Сузьте изменение\.$/))
+      .toBeVisible();
+
+    // Рассматривать нечего ВООБЩЕ: блок с действиями завязан на
+    // `impactCount > 0`, а у блокировки он ноль — весь раздел с кнопками не
+    // рендерится, а не просто дизейблится.
+    await expect(card.getByRole("button", { name: "Принять влияние" })).toHaveCount(0);
+    await expect(card.getByRole("button", { name: "Отметить решённым" })).toHaveCount(0);
+    await expect(card.getByRole("button", { name: "Не влияет" })).toHaveCount(0);
+
+    // Заявка исчезла из воркерной очереди СОВСЕМ — второй проход её не
+    // находит (расчёт уже состоялся, исход не имеет значения — DEC-034 п. 4).
+    const second = runChangeImpactWorker();
+    expect(second.items.some((entry) => entry.changeRequestId === changeId)).toBe(false);
+
+    await context.close();
   });
 });
 

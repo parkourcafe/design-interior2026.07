@@ -12,6 +12,7 @@ import {
   EXECUTION_INCREMENT_2,
   EXECUTION_MODULE,
   EXECUTION_NOT_AUTHORIZED_COMMANDS,
+  EXECUTION_PERMANENTLY_CLOSED,
   EXECUTION_V1_IMPACT,
   isExecutionModuleEnabled,
 } from "../../../lib/project-intelligence/delivery/projectceo/execution-flag";
@@ -108,6 +109,9 @@ describe("M4 execution guardrail", () => {
       ...EXECUTION_INCREMENT_1,
       ...EXECUTION_INCREMENT_2,
       ...EXECUTION_V1_IMPACT,
+      // DEC-034: `acknowledge_impact_truncation` — М4-команда, закрытая
+      // навсегда, а не элемент V1_IMPACT (открытого множества).
+      ...EXECUTION_PERMANENTLY_CLOSED,
     ])];
     // Каждая классифицированная команда действительно существует в контракте:
     // опечатка в имени иначе тихо выключила бы запрет для настоящей команды.

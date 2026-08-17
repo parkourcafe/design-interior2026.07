@@ -792,17 +792,39 @@ function m4Views(envelopes: readonly ExecutionDeliveryEnvelope[]): {
           || impactRun?.truncationReason === "result_limit"
           ? impactRun.truncationReason
           : null,
-        impactTruncationAcknowledged: impactRun?.truncationAcknowledged === true,
         impactCalculatedDepth: typeof impactRun?.calculatedDepth === "number"
           ? impactRun.calculatedDepth
           : null,
         impactPolicyMaxDepth: typeof impactRun?.policyMaxDepth === "number"
           ? impactRun.policyMaxDepth
           : null,
-        // Признак приходит из базы, а не собирается здесь: считать его заново
+        // DEC-034: точный контракт покрытия, каждое поле — из базы, не
+        // пересчитано здесь. `coverageStatus === null` значит «прогона ещё
+        // нет», а не «неизвестно».
+        coverageStatus: impactRun?.coverageStatus === "complete"
+          || impactRun?.coverageStatus === "partial_depth"
+          || impactRun?.coverageStatus === "blocked_result_limit"
+          ? impactRun.coverageStatus
+          : null,
+        cutoffReason: impactRun?.cutoffReason === "depth_boundary"
+          || impactRun?.cutoffReason === "result_limit"
+          ? impactRun.cutoffReason
+          : null,
+        hasMoreBeyondDepth: impactRun?.hasMoreBeyondDepth === true,
+        knownImpactCountLowerBound: typeof impactRun?.knownImpactCountLowerBound === "number"
+          ? impactRun.knownImpactCountLowerBound
+          : null,
+        returnedImpactCount: typeof impactRun?.returnedImpactCount === "number"
+          ? impactRun.returnedImpactCount
+          : null,
+        policyVersion: nullableText(impactRun?.policyVersion),
+        maxImpacts: typeof impactRun?.maxImpacts === "number" ? impactRun.maxImpacts : null,
+        // Признаки приходят из базы, а не собираются здесь: считать их заново
         // в интерфейсе значило бы завести второй источник истины о том, что
-        // считается завершённым.
-        impactReviewComplete: impactRun?.reviewComplete === true,
+        // считается завершённым. Нет human override — DEC-033/034.
+        allReturnedImpactsReviewed: impactRun?.allReturnedImpactsReviewed === true,
+        coverageComplete: impactRun?.coverageComplete === true,
+        impactReviewComplete: impactRun?.impactReviewComplete === true,
         reason: text(request.reason, copy.common.dash),
         impacts: impactRunId ? impacts.flatMap((impact) => {
           const impactId = nullableText(impact.id);
