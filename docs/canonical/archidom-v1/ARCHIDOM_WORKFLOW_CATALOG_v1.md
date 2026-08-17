@@ -56,17 +56,31 @@ Issued baseline → site tasks → RFI/deviation → change/substitution → ins
 **Owner module:** ни один — горизонтальный адаптер `Integration Gateway →
 Messaging`. Доменные модули остаются единственным официальным входом.
 
-**Состояние гейтов на 11.08.2026 — единая редакция для обоих брендов.**
+**Состояние гейтов на 12.08.2026 — единая редакция для обоих брендов.**
 
 | Гейт | Статус |
 |---|---|
 | TG0 | PASS |
-| TG1 | **REOPENED** — до принятия C1 Foundation Correction |
-| TG2 | **REOPENED** |
-| TG3 | **NOT PROVEN** |
+| TG1 | **PASS** — C1 accepted and merged in PR #90 |
+| TG2 | **NOT PROVEN / C2 pending** |
+| TG3 | **NOT PROVEN / AP5 not executed** |
 | TG4 | BLOCKED_EXTERNAL_CREDENTIALS |
 | production | disabled |
 | M4 Increment 2 | closed |
+
+C1 слит squash-мержем: `main` = `f5f35d57c0dc9932551b97f651b17a530db3d8be`,
+post-merge CI — прогон `31553657296` (`lint / typecheck / test / build`,
+`DB4 on postgres:16-alpine`, `DB4 on postgres:17-alpine` — зелёные).
+
+**Что входит в C2.** Транспорт построен: webhook, приём, отправитель очереди и
+проектор существуют и покрыты тестами — называть транспорт отсутствующим
+неверно. Не сделано ровно следующее: вложения не записываются в
+`channel_attachments` (таблица есть, `ingest_channel_update` вложений не
+принимает); не обработано повышение группы до супергруппы (`migrate_to_chat_id`
+не встречается в коде); нет проверки на настоящей HTTP-границе — маршрут
+вызывается в процессе с подменённым портом; отправитель и проектор доказаны
+только против поддельного порта и поддельного `fetch`. `callback_query` в C2 не
+входит: A7 §4 исключает inline callback из объёма P0.
 
 Что из прежних формулировок было неверно и снято:
 
