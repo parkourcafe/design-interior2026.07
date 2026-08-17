@@ -72,16 +72,22 @@ export class ChangeImpactPlanError extends Error {
  *
  * Идентификатор заявки уникален глобально (uuid), поэтому ни организации, ни
  * проекта в ключе нет: они ничего не различают, а длину бы съели.
+ *
+ * ВЕРСИЯ ПОЛИТИКИ входит в ключ (DEC-037 §3.4): повтор при той же политике
+ * попадает в тот же ключ и получает replay, а superseding recalculation при
+ * новой политике — законный новый ключ, а не idempotency-конфликт со старым
+ * прогоном.
  */
 export function changeImpactIdempotencyKey(row: {
   readonly changeRequestId: string;
-}): string {
-  return `worker:change-impact:${row.changeRequestId}`;
+}, policyVersion: string): string {
+  return `worker:change-impact:${row.changeRequestId}:${policyVersion}`;
 }
 
 /** Очередь → задания. Порядок сохраняется тем, в котором её отдала база. */
 export function planChangeImpactWork(
   rows: readonly ChangeImpactBacklogRow[],
+  policyVersion: string,
 ): readonly ChangeImpactWorkItem[] {
   const seen = new Set<string>();
   return rows.map((row) => {
@@ -98,7 +104,7 @@ export function planChangeImpactWork(
       changeRequestId: row.changeRequestId,
       rootCount: row.rootCount,
       expectedStateRevision: row.stateRevision,
-      idempotencyKey: changeImpactIdempotencyKey(row),
+      idempotencyKey: changeImpactIdempotencyKey(row, policyVersion),
     };
   });
 }

@@ -13,7 +13,11 @@
 -- одна команда инкремента 2 не открывалась ни в одной среде.
 --
 -- Открываются РОВНО две команды вертикали: рассмотрение готового прогона
--- влияния (обе двери, прямая и повторная) и подтверждение его неполноты.
+-- влияния, прямая дверь и повторная. Третьей двери — подтверждения неполноты
+-- (`acknowledge_impact_truncation`) — в V1 нет: DEC-034 закрывает её
+-- НАВСЕГДА, поверх DEC-033-на-main, поперёк того, что делал этот скрипт до
+-- коррекции. Человеческого override у усечённого прогона не существует ни в
+-- одной среде, включая эту.
 --
 -- Четыре оставшиеся команды инкремента 2
 -- (`upload_photo_evidence`, `review_photo_evidence`, `accept_milestone`,
@@ -47,11 +51,7 @@ begin;
 
 grant execute on function
   projectceo_m4_api.review_change_impact(uuid, uuid, text, text, text, bigint, text),
-  projectceo_m4_api.replay_review_change_impact(uuid, uuid, text, text, text, text),
-  -- Подтверждение неполноты прогона (решение владельца об усечении от
-  -- 12.08.2026). Без него усечённый прогон нельзя закрыть, то есть открытая
-  -- `review_change_impact` вела бы в тупик.
-  projectceo_m4_api.acknowledge_impact_truncation(uuid, uuid, text, bigint, text)
+  projectceo_m4_api.replay_review_change_impact(uuid, uuid, text, text, text, text)
   to authenticated;
 
 do $enabled$
@@ -62,13 +62,23 @@ begin
   select signature into v_missing
   from unnest(array[
     'projectceo_m4_api.review_change_impact(uuid, uuid, text, text, text, bigint, text)',
-    'projectceo_m4_api.replay_review_change_impact(uuid, uuid, text, text, text, text)',
-    'projectceo_m4_api.acknowledge_impact_truncation(uuid, uuid, text, bigint, text)'
+    'projectceo_m4_api.replay_review_change_impact(uuid, uuid, text, text, text, text)'
   ]) signature
   where not pg_catalog.has_function_privilege('authenticated', signature, 'EXECUTE')
   limit 1;
   if v_missing is not null then
     raise exception 'PROJECTCEO_M4_V1_IMPACT_NOT_ENABLED:%', v_missing;
+  end if;
+
+  -- DEC-034: третьей двери нет ни при каких обстоятельствах, включая эту
+  -- заведомо открытую среду. Явная проверка — не молчаливое отсутствие
+  -- строки в списке выше.
+  if pg_catalog.has_function_privilege(
+    'authenticated',
+    'projectceo_m4_api.acknowledge_impact_truncation(uuid, uuid, text, bigint, text)',
+    'EXECUTE'
+  ) then
+    raise exception 'PROJECTCEO_M4_TRUNCATION_ACK_LEAKED_BY_ENABLE_SCRIPT';
   end if;
 
   -- Открытие V1 не имеет права задеть V2 и V3. Проверка стоит здесь, а не в

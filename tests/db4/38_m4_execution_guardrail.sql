@@ -38,9 +38,11 @@ begin
       'replay_submit_change_request',
       -- Открыты `enable-m4-v1-impact.sql` по GO на вертикаль V1 от 12.08.2026.
       -- Сценарий стоит после него, поэтому наблюдает среду с открытым V1.
+      -- `acknowledge_impact_truncation` сюда НЕ входит (DEC-034): третьей
+      -- двери у вертикали больше нет ни в одной среде, и общая проверка ниже
+      -- обязана сама поймать её, если она вдруг снова окажется доступна.
       'review_change_impact',
-      'replay_review_change_impact',
-      'acknowledge_impact_truncation'
+      'replay_review_change_impact'
     ])
     and pg_catalog.has_function_privilege('authenticated', p.oid, 'EXECUTE')
   limit 1;
@@ -72,10 +74,10 @@ begin
     raise exception 'DB4_M4_DELIVERY_READ_LOST';
   end if;
 
-  -- 3. Запрет именно на `authenticated`. Воркерные функции — расчёт влияния и
-  --    сборка передачи — выданы `service_role` (`20260717103000`, второй блок
-  --    grant), и guardrail их не касается: он закрывает человеческую
-  --    поверхность, а не контур расчётов.
+  -- 3. Запрет именно на `authenticated`. Воркерная сборка передачи выдана
+  --    `service_role` (`20260717103000`, второй блок grant), и guardrail её
+  --    не касается: он закрывает человеческую поверхность, а не контур
+  --    расчётов.
   --
   --    Проверено при написании сценария: у `pi_worker_executor` прав на эту
   --    схему нет и не было — воркер ходит под `service_role`. Assertion писался
@@ -85,10 +87,42 @@ begin
   from pg_catalog.pg_proc p
   join pg_catalog.pg_namespace n on n.oid = p.pronamespace
   where n.nspname = 'projectceo_m4_api'
-    and p.proname in ('calculate_change_impact', 'build_construction_handover')
+    and p.proname in ('build_construction_handover')
     and pg_catalog.has_function_privilege('service_role', p.oid, 'EXECUTE');
-  if v_count <> 2 then
+  if v_count <> 1 then
     raise exception 'DB4_M4_WORKER_PATH_BROKEN:%', v_count;
+  end if;
+
+  -- 3а. DEC-034: единственная системная дверь расчёта влияния — policy-bound
+  --     обёртка. Сырая `calculate_change_impact` (произвольная глубина от
+  --     вызывающего) недостижима даже `service_role` — иначе «единственная
+  --     дверь» было бы утверждением документа, а не факта базы.
+  if pg_catalog.has_function_privilege(
+    'service_role',
+    'projectceo_m4_api.calculate_change_impact(uuid, uuid, integer, bigint, text)',
+    'EXECUTE'
+  ) then
+    raise exception 'DB4_M4_RAW_IMPACT_RPC_REACHABLE_BY_SERVICE_ROLE';
+  end if;
+  if not pg_catalog.has_function_privilege(
+    'service_role',
+    'projectceo_m4_api.calculate_change_impact_policy_bound(uuid, uuid, bigint, text)',
+    'EXECUTE'
+  ) then
+    raise exception 'DB4_M4_POLICY_BOUND_IMPACT_RPC_LOST';
+  end if;
+
+  -- 3б. OWNER REVIEW (поверх DEC-034/035): дверь воркера, записывающая
+  --     durable отказ (DEC-036), — тоже только `service_role`. Редрайв сюда
+  --     не входит: он живёт в приватной схеме `projectceo_m4`, а не
+  --     `_api`, и эта проверка её вообще не видит — как и
+  --     `open_v1_impact_production`.
+  if not pg_catalog.has_function_privilege(
+    'service_role',
+    'projectceo_m4_api.record_change_impact_worker_failure(uuid, uuid, text, text, jsonb)',
+    'EXECUTE'
+  ) then
+    raise exception 'DB4_M4_RECORD_WORKER_FAILURE_RPC_LOST';
   end if;
 
   -- 4. Схема остаётся отданной Data API — ради пункта 2. Если её однажды

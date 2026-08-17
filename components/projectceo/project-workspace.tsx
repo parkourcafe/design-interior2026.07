@@ -1403,19 +1403,36 @@ function ChangesView({
               </div>
             </div>
             {/*
-              Truncation is shown BEFORE the counter and the progress bar.
+              Coverage is shown BEFORE the counter and the progress bar.
               Otherwise "8 of 8" and a full bar read as a finished review — the
-              exact false status the owner's 2026-08-12 decision forbids.
+              exact false status DEC-033/034 forbid. No human override exists
+              in V1: there is no button here that turns partial or blocked
+              into complete.
             */}
-            {change.impactTruncated && (
+            {change.coverageStatus === "blocked_result_limit" && (
               <div className="mt-4 rounded-lg border border-line bg-paper p-3">
                 <p className="text-sm font-medium">
-                  {projectCeoRu.workspace.changes.truncation.title}
+                  {change.knownImpactCountLowerBound !== null
+                    ? projectCeoRu.workspace.changes.coverageBlockedWarning(
+                      change.knownImpactCountLowerBound,
+                    )
+                    : projectCeoRu.workspace.changes.truncation.title}
                 </p>
                 <p className="mt-1 text-xs text-muted">
-                  {change.impactTruncationReason === "result_limit"
-                    ? projectCeoRu.workspace.changes.truncation.resultLimit
-                    : projectCeoRu.workspace.changes.truncation.depthLimit}
+                  {projectCeoRu.workspace.changes.coverageBlockedRecoveryHint}
+                </p>
+              </div>
+            )}
+            {change.coverageStatus === "partial_depth" && (
+              <div className="mt-4 rounded-lg border border-line bg-paper p-3">
+                <p className="text-sm font-medium">
+                  {projectCeoRu.workspace.changes.coveragePartialWarning}
+                </p>
+                <p className="mt-1 text-xs text-muted">
+                  {projectCeoRu.workspace.changes.coverageReviewedCount(
+                    change.reviewedImpactCount,
+                    change.impactCount,
+                  )}
                 </p>
                 {change.impactCalculatedDepth !== null
                   && change.impactPolicyMaxDepth !== null && (
@@ -1425,31 +1442,6 @@ function ChangesView({
                     {change.impactCalculatedDepth}/{change.impactPolicyMaxDepth}
                   </p>
                 )}
-                {change.impactTruncationAcknowledged ? (
-                  <p className="mt-2 text-xs text-muted">
-                    {projectCeoRu.workspace.changes.truncation.acknowledged}
-                  </p>
-                ) : mayReview && change.impactRunId ? (
-                  <ProjectCeoCommandButton
-                    command={{
-                      contractVersion: PROJECTCEO_COMMAND_CONTRACT_VERSION,
-                      kind: "acknowledge_impact_truncation",
-                      projectId: view.project.id,
-                      payload: {
-                        impactRunId: change.impactRunId,
-                        reason: projectCeoRu.workspace.changes.truncation
-                          .acknowledgeReason,
-                      },
-                    }}
-                    disabled={
-                      view.operations.acknowledge_impact_truncation.status
-                        !== "available"
-                    }
-                    className="mt-2 rounded-lg border border-line px-3 py-2 text-xs font-medium hover:border-accent"
-                  >
-                    {projectCeoRu.workspace.changes.truncation.acknowledgeAction}
-                  </ProjectCeoCommandButton>
-                ) : null}
               </div>
             )}
             {change.impactCount > 0 && (

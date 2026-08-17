@@ -56,9 +56,12 @@ async function main(): Promise<void> {
     scanned: result.scanned,
     calculated: result.calculated,
     calculatedTruncated: result.calculatedTruncated,
+    calculatedBlocked: result.calculatedBlocked,
     alreadyPresent: result.alreadyPresent,
     staleState: result.staleState,
     unresolved: result.unresolved,
+    failedRetrying: result.failedRetrying,
+    failedDeadLetter: result.failedDeadLetter,
     needsAttention: result.needsAttention,
     // Идентификаторы проектов и заявок — не PII; имён, контактов и текста
     // причины изменения здесь нет и быть не может.

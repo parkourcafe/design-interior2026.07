@@ -17,18 +17,23 @@ import { execFileSync } from "node:child_process";
  * команды цепочки при этом идут через браузер своими сессиями — рассмотрение
  * влияния делает архитектор, а не service role.
  *
- * КОД ВОЗВРАТА. Воркер отвечает ненулевым кодом, когда проход оставил работу
- * человеку (частичный прогон или неразрешимый baseline). В цепочке AP5 граф
- * маленький, усечения быть не должно, поэтому ненулевой код здесь — сигнал о
- * настоящей проблеме, и глотать его нельзя.
+ * КОД ВОЗВРАТА. Воркер отвечает ненулевым кодом (exit 1), когда результат
+ * требует внимания человека: result_limit truncation (ничего не сохранено),
+ * unresolved baseline, или dead-letter failure. depth_limit truncations
+ * (normal partial_depth outcomes per DEC-034) exit with code 0.
+ *
+ * Отчёт возвращается в обоих случаях — парсим его независимо от кода возврата.
  */
 export interface ChangeImpactWorkerReport {
   readonly scanned: number;
   readonly calculated: number;
   readonly calculatedTruncated: number;
+  readonly calculatedBlocked: number;
   readonly alreadyPresent: number;
   readonly staleState: number;
   readonly unresolved: number;
+  readonly failedRetrying: number;
+  readonly failedDeadLetter: number;
   readonly needsAttention: number;
   readonly policy: {
     readonly version: string;
@@ -64,13 +69,24 @@ export function runChangeImpactWorker(): ChangeImpactWorkerReport {
   } catch (error) {
     // Отказ обязан называть себя сам: цена непонятной ошибки здесь — сорок
     // пять минут следующего прогона.
-    const detail = error as { stderr?: string; stdout?: string; message?: string };
-    throw new Error(
-      "AP5: системный воркер расчёта влияния не прошёл.\n"
-      + `${detail.message ?? String(error)}\n`
-      + `stderr: ${detail.stderr ?? "(пусто)"}\n`
-      + `stdout: ${detail.stdout ?? "(пусто)"}`,
-    );
+    const detail = error as { stderr?: string; stdout?: string; message?: string; status?: number };
+    // Exit code 1 is normal when needs_attention > 0 (result_limit truncation,
+    // unresolved baseline, dead-letter failure). Parse the report anyway if
+    // stdout contains valid JSON.
+    const stdout = detail.stdout ?? "";
+    const lastLine = stdout.trim().split("\n").at(-1) ?? "";
+    try {
+      return JSON.parse(lastLine) as ChangeImpactWorkerReport;
+    } catch {
+      // Stdout doesn't have valid JSON, so this is a real failure.
+      throw new Error(
+        "AP5: системный воркер расчёта влияния не прошёл.\n"
+        + `${detail.message ?? String(error)}\n`
+        + `exit code: ${detail.status ?? "unknown"}\n`
+        + `stderr: ${detail.stderr ?? "(пусто)"}\n`
+        + `stdout: ${stdout}`,
+      );
+    }
   }
   const line = output.trim().split("\n").at(-1) ?? "";
   try {

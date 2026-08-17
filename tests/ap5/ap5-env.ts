@@ -63,6 +63,70 @@ export const AP5_DEPENDENT_NODE_ID = "ap5-node-dependent-spec";
 export const AP5_DEPENDENT_REVISION_ID = "ap5-dependent-spec-revision-1";
 export const AP5_DEPENDENT_EDGE_ID = "ap5-edge-dependent-spec-depends-on-decision";
 
+/**
+ * Третья и четвёртая ревизии решения — предпосылки заявок звеньев 13 и 14
+ * (V1 Impact coverage states, OWNER REVIEW 12.08.2026, блокер 3). Та же
+ * причина, что у `AP5_DECISION_REVISION_ID_2`: `submit_change_request` строит
+ * корни из пар «одна сущность, разные ревизии», и без расхождения между
+ * baseline корней не будет.
+ */
+export const AP5_DECISION_REVISION_ID_3 = "a5d0c1c1-0000-4000-8000-000000000003";
+export const AP5_DECISION_REVISION_ID_4 = "a5d0c1c1-0000-4000-8000-000000000004";
+
+/**
+ * Глубокая цепочка для `partial_depth` (звено 13).
+ *
+ * Обход идёт по обратным рёбрам не глубже серверной политики (`maxDepth`,
+ * сейчас 7). Цепочка длиной `AP5_DEPTH_CHAIN_LENGTH` узлов, каждый зависит от
+ * предыдущего, а первый — от решения, даёт обход глубже политики: последние
+ * звенья цепочки обход не найдёт. Число ЗАВЕДОМО больше текущей политики
+ * (7 + запас), а не равно ей ровно — тест не обязан знать точное число
+ * политики, только то, что она конечна.
+ */
+export const AP5_DEPTH_CHAIN_LENGTH = 9;
+export function ap5DepthChainNodeId(step: number): string {
+  return `ap5-node-depth-chain-${step}`;
+}
+export function ap5DepthChainRevisionId(step: number): string {
+  return `ap5-depth-chain-${step}-revision-1`;
+}
+export function ap5DepthChainEdgeId(step: number): string {
+  return `ap5-edge-depth-chain-${step}`;
+}
+
+/**
+ * Широкая звезда для `blocked_result_limit` (звено 15).
+ *
+ * `knownImpactCountLowerBound` при блокировке — ВСЕГДА ровно `maxImpacts + 1`
+ * (миграция `20260813010000`: `v_known_impact_count_lower_bound :=
+ * v_max_impacts + 1`), не истинное число найденного, и порог побеждает
+ * независимо от того, что ещё в этот момент есть в графе (звено 5б, звено 14
+ * — DEC-034 отдаёт лимиту приоритет над глубиной). Значит для гарантии
+ * достаточно листьев РОВНО в размер текущего лимита (`maxImpacts`, сейчас
+ * 5000) — с узлом звена 5б это `maxImpacts + 1` найденных в любом случае,
+ * без допущений о том, сколько из глубокой цепочки попадёт в пределы
+ * политики. Точная граница (5000 не блокирует, 5001 блокирует) уже доказана
+ * `tests/db5/29_impact_coverage_dec034.sql` — здесь же доказывается, что живая
+ * страница показывает эту блокировку человеку, не точное число.
+ *
+ * Батчами по `AP5_WIDE_STAR_BATCH_SIZE`: один `ingest_source_graph` на все
+ * листья разом — это один HTTP POST на несколько мегабайт, размер которого
+ * ничем в этом стенде не гарантирован. Каждый батч регистрирует СВОЙ
+ * синтетический «источник» — ровно так, как ingest реальных документов такого
+ * объёма пришёл бы порциями, а не одним файлом.
+ */
+export const AP5_WIDE_STAR_LEAF_COUNT = 5000;
+export const AP5_WIDE_STAR_BATCH_SIZE = 500;
+export function ap5WideStarNodeId(leaf: number): string {
+  return `ap5-ws-${leaf}`;
+}
+export function ap5WideStarRevisionId(leaf: number): string {
+  return `ap5-ws-${leaf}-r1`;
+}
+export function ap5WideStarEdgeId(leaf: number): string {
+  return `ap5-ws-${leaf}-e`;
+}
+
 /*
  * Идентификатор артефакта выпуска отсюда убран 11.08 вместе с psql-мостом:
  * артефакт собирает настоящий воркер (`npm run worker:release-artifacts`), и

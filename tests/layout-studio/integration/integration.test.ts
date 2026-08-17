@@ -259,6 +259,25 @@ describe("Layout Studio delivery/UI slice", () => {
       // основанием. Применение миграции ничего не открывает. К Layout Studio
       // отношения не имеет.
       "20260812030000_projectceo_m4_v1_production_switch.sql",
+      // DEC-034 (OWNER CONTINUE 12.08.2026): аддитивная коррекция контракта
+      // покрытия V1 Impact поверх PR #94 — blocked_result_limit больше не
+      // сохраняет найденное, acknowledge_impact_truncation закрыта навсегда.
+      // К Layout Studio отношения не имеет.
+      "20260813010000_projectceo_m4_v1_impact_dec034_correction.sql",
+      // OWNER REVIEW 12.08.2026 (поверх DEC-034): аддитивная коррекция
+      // maxDepth — 8 в 20260812010000 было числовой ошибкой переноса
+      // исходного OWNER GO (7), а не переоткрытием вопроса. К Layout Studio
+      // отношения не имеет.
+      "20260813020000_projectceo_m4_v1_impact_policy_v2.sql",
+      // OWNER REVIEW 12.08.2026 (поверх DEC-034/DEC-035): аддитивный
+      // durable-failure/DLQ/redrive контур воркера расчёта влияния. К Layout
+      // Studio отношения не имеет.
+      "20260813030000_projectceo_m4_v1_impact_worker_reliability.sql",
+      // Function-level statement_timeout двери публикации версии графа:
+      // публикация baseline на графе >5000 узлов не помещалась в ролевые 8s.
+      // К Layout Studio отношения не имеет.
+      "20260813040000_projectceo_publish_version_timeout.sql",
+      "20260817010000_projectceo_m4_v1_impact_recovery_dec037.sql",
     ];
     const actual = readdirSync(join(repoRoot, "supabase/migrations"), { withFileTypes: true })
       .filter((entry) => entry.isFile())

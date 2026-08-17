@@ -108,6 +108,12 @@ PI_DB4_PASSWORD="${password}" \
 # миграции осталась бы невидимой до первой настоящей установки.
 PI_DB_IMAGE="${image}" "${repo_root}/tests/db4/run-telegram-upgrade.zsh"
 
+# Тот же урок для V1 Impact: backfill `20260813010000` (DEC-034) и
+# recovery-миграция `20260817010000` (DEC-037) на пустой базе не исполняются
+# ни одной веткой нормализации. Собственный кластер по той же причине —
+# prelude заводит роли на весь сервер.
+PI_DB_IMAGE="${image}" "${repo_root}/tests/db4/run-impact-upgrade.zsh"
+
 print -r -- "Restarting database for DB4 replay proof"
 docker restart "${container}" >/dev/null
 for attempt in {1..120}; do
