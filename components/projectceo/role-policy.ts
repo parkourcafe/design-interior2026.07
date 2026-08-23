@@ -4,6 +4,13 @@ import type {
   ProjectCeoTab,
 } from "./contracts";
 
+/**
+ * Зеркало `projectceo_foundation._role_capabilities` (миграция
+ * `20260802030000`) для ролей UI: owner_lead→owner, architect→architect,
+ * builder→builder, client_approver→client. Единственный источник истины —
+ * миграция; этот список обязан ей соответствовать набор-в-набор, иначе
+ * поверхность предлагает то, что база отклонит P1103 (A6 §4.2.5).
+ */
 const ROLE_CAPABILITIES: Readonly<Record<ProjectCeoRole, readonly ProjectCeoCapability[]>> = {
   owner: [
     "view_project",
@@ -50,18 +57,14 @@ const ROLE_CAPABILITIES: Readonly<Record<ProjectCeoRole, readonly ProjectCeoCapa
   builder: [
     "view_project",
     "register_source",
-    "create_selection",
     "acknowledge_release",
-    "revise_decision",
     "create_change",
     "upload_photo_evidence",
-    "review_milestone",
   ],
   client: [
     "view_project",
     "review_selection",
     "acknowledge_release",
-    "revise_decision",
     "create_change",
     "review_milestone",
   ],

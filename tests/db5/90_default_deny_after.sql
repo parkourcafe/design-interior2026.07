@@ -102,7 +102,8 @@ begin
     raise exception 'DB5_AUTHENTICATED_SURFACE_WIDER_THAN_AUTHORISED:%', v_reachable;
   end if;
 
-  -- 3. `service_role` в схеме модуля — ровно два воркерных вызова, ни одной
+  -- 3. `service_role` в схеме модуля — ровно четыре воркерных вызова
+  --    (build_construction_handover и три двери V1 Impact), ни одной
   --    человеческой операции. `calculate_change_impact` (сырая) сюда НЕ входит
   --    (DEC-034) — та же логика: если она снова окажется доступна
   --    `service_role`, проверка обязана это поймать.

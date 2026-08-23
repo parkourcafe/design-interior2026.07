@@ -16,6 +16,27 @@ describe("ProjectCEO role-scoped UI policy", () => {
     expect(can("client", "review_selection")).toBe(true);
   });
 
+  it("mirrors the database capability sets for builder and client exactly", () => {
+    // Ровно те наборы, что выдаёт `projectceo_foundation._role_capabilities`
+    // (20260802030000) для builder и client_approver. Лишняя капабилити в UI
+    // означает кнопку, которую база отклонит P1103, — это не «щедрость», а
+    // ложное обещание поверхности (A6 §4.2.5).
+    expect(capabilitiesForRole("builder")).toEqual([
+      "view_project",
+      "register_source",
+      "acknowledge_release",
+      "create_change",
+      "upload_photo_evidence",
+    ]);
+    expect(capabilitiesForRole("client")).toEqual([
+      "view_project",
+      "review_selection",
+      "acknowledge_release",
+      "create_change",
+      "review_milestone",
+    ]);
+  });
+
   it("never gives a guest source, member, audit or change controls", () => {
     expect(capabilitiesForRole("guest")).toEqual([
       "view_project",

@@ -65,7 +65,9 @@ select projectceo_m4.open_v1_impact_production(
 
 -- 2.4 Проверить, а не поверить.
 select * from projectceo_m4.v1_impact_production_state();
---     open_now = true, три сигнатуры, last_action = 'open'
+--     open_now = true, ровно ДВЕ сигнатуры (review_change_impact,
+--     replay_review_change_impact — DEC-034/20260813010000),
+--     last_action = 'open'
 ```
 
 ```text

@@ -184,7 +184,9 @@ async function ReviewBoard({
       attachMeta.map(async (a) => {
         const path = a.path as string;
         const name = typeof a.name === "string" ? a.name : path.split("/").pop() ?? "файл";
-        const { data } = await admin.storage.from("client-uploads").createSignedUrl(path, 3600);
+        // TTL не больше 15 минут — тот же инвариант, что и в
+        // project-intelligence storage-адаптере (storage.ts).
+        const { data } = await admin.storage.from("client-uploads").createSignedUrl(path, 900);
         if (!data?.signedUrl) return null;
         return { name, url: data.signedUrl, isImage: /\.(png|jpe?g|webp|gif|heic)$/i.test(name) };
       }),

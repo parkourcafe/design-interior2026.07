@@ -123,15 +123,20 @@ impact_state=$(psql_exec db5-impact-state "
 ")
 
 # Ключ идемпотентности тот же, что выводит воркер
-# (`changeImpactIdempotencyKey`): гонка обязана проверять ровно то значение,
-# которым ходит продукт, иначе она доказывает поведение, которого нет.
+# (`changeImpactIdempotencyKey`): `worker:change-impact:<id>:<policyVersion>`.
+# Версия политики читается динамически из `_impact_policy()` — тем же приёмом,
+# что и в сценариях 20/26/29 (DEC-035), чтобы гонка проверяла ровно то
+# значение, которым ходит продукт, включая будущие смены версии.
+impact_policy_version=$(psql_exec db5-impact-policy-version "
+  select projectceo_m4._impact_policy() ->> 'version'
+")
 impact_call="begin;
 set local role service_role;
 select projectceo_m4_api.calculate_change_impact_policy_bound(
   '${project}',
   '${impact_change_request}'::uuid,
   ${impact_state},
-  'worker:change-impact:${impact_change_request}'
+  'worker:change-impact:${impact_change_request}:${impact_policy_version}'
 );
 commit;"
 
