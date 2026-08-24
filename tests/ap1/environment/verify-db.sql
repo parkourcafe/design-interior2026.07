@@ -11,10 +11,18 @@ declare
   v_bucket_public boolean;
   v_managed_auth_functions text[];
   v_claim_reader_defects text[];
+  -- Ожидаемый мажор задаётся вызывающим, по умолчанию 17 — версия hosted
+  -- Supabase. Локальный прогон bootstrap-disposable ставит 16 через
+  -- `set ap1.expected_postgres_major`, поведение по умолчанию не меняется.
+  v_expected_major integer := coalesce(
+    nullif(current_setting('ap1.expected_postgres_major', true), '')::integer,
+    17
+  );
 begin
-  if current_setting('server_version_num')::integer < 170000
-     or current_setting('server_version_num')::integer >= 180000 then
-    raise exception 'AP1_EXPECTED_POSTGRES_17 actual=%', current_setting('server_version');
+  if current_setting('server_version_num')::integer < v_expected_major * 10000
+     or current_setting('server_version_num')::integer >= (v_expected_major + 1) * 10000 then
+    raise exception 'AP1_EXPECTED_POSTGRES_% actual=%',
+      v_expected_major, current_setting('server_version');
   end if;
 
   select array_agg(expected.name order by expected.name)

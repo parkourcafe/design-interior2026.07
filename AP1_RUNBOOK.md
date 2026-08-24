@@ -35,6 +35,44 @@
 
 ---
 
+## 1a. Воспроизведение стенда скриптом
+
+Порядок §2 → §2a → §3 ниже описан для чтения. Исполняется он одной командой:
+
+```bash
+AP1_DB_URL=… AP1_CONFIRM_DISPOSABLE=yes \
+  tests/ap1/environment/bootstrap-disposable.zsh bootstrap
+```
+
+Скрипт делает ровно то, что описано ниже, и отказывается работать, если
+предпосылка не выполнена. Три дефекта развёртывания из §6 были видны только на
+живой базе; каждый из них теперь — отказ с именем:
+
+| Отказ | Что означает |
+|---|---|
+| `AP1_PRODUCTION_TARGET_REJECTED` | в строке подключения ref прода — §0 |
+| `AP1_NOT_CLEAN_BOOTSTRAP` | база не пуста, baseline поверх legacy упадёт — §2, §2d |
+| `AP1_HOSTED_ROLE_PRECONDITION_INVALID` | нет членства `SET`/`INHERIT` — §2a |
+| `AP1_MIGRATION_LEDGER_DIGEST_MISMATCH` | миграция изменена без обновления ledger |
+| `AP1_MIGRATION_LEDGER_SET_MISMATCH` | миграция добавлена без обновления ledger |
+| `AP1_AUTH_WORKAROUND_GRANT_PRESENT` | вернулся обход §2b — прогон доказал бы заплатку |
+
+`verify` — те же проверки без применения миграций, на уже поднятом стенде.
+`receipt` печатает строки для отчёта о прогоне
+(`docs/audits/REMHAOS_AP1_PILOT_EVIDENCE_TEMPLATE.md`).
+
+Локально скрипт запускается против любого PostgreSQL: `AP1_TARGET=local`
+добавляет эмуляцию Supabase (`tests/db2/00_supabase_prelude.sql`) и отзыв
+локальных `auth`-грантов, которых на managed Supabase нет. Это способ
+проверить, что новые миграции не ломают clean-bootstrap, не поднимая hosted
+проект.
+
+Чего скрипт НЕ делает: не создаёт hosted-проект, не настраивает Auth redirect
+allowlist / SMTP / Storage-бакеты и не выдаёт членства ролевым пользователям.
+Первое и второе — владелец/оператор, третье — штатный invitation-поток (§3).
+
+---
+
 ## 2. Применение миграций
 
 > ### ⚠️ Папка миграций не bootstrap-ится подряд — `supabase db push` на чистой базе упадёт
