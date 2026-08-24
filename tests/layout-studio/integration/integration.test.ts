@@ -298,6 +298,9 @@ describe("Layout Studio delivery/UI slice", () => {
       // Фаза 3a: вывод legacy-дверей выдачи/подтверждения из строя
       // (M4 backlog #2). К Layout Studio отношения не имеет.
       "20260824060000_projectceo_m4_retire_legacy_release_doors.sql",
+      // Фаза 3a: v10 чтения — approvalSupersededEntities (M4 backlog #5).
+      // К Layout Studio отношения не имеет.
+      "20260824070000_projectceo_workspace_read_v10_superseded_approvals.sql",
     ];
     const actual = readdirSync(join(repoRoot, "supabase/migrations"), { withFileTypes: true })
       // Предмет проверки — миграции, а не всё содержимое папки. Рядом с ними
