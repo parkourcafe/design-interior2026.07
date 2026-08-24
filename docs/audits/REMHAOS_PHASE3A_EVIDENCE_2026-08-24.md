@@ -262,8 +262,13 @@
   concurrency-скрипты, оба upgrade-подсценария на собственных кластерах и
   restart-replay). PG17 локально недоступен (нет пакета в noble) —
   доказательство PG16+PG17 даст обязательная CI-матрица на PR
-  (`.github/workflows/ci.yml:121,158`). Уровень: локально VERIFIED (PG16),
-  PG17 — CI_EVIDENCED после зелёного прогона Actions на PR.
+  (`.github/workflows/ci.yml:121,158`). Уровень: локально VERIFIED (PG16);
+  CI-прогон Actions run 32718049782→32718104856 на HEAD `ca88ca4` ЗЕЛЁНЫЙ:
+  DB4 и DB5 на postgres:16-alpine И postgres:17-alpine, AP5 authenticated
+  browser matrix, lint/typecheck/test/build — CI_EVIDENCED. Единственный
+  красный чек — «cycle 7 evidence (informational)»: намеренно красный гейт
+  до передачи владельцем манифеста реального пакета, красный и на main,
+  мерж не блокирует.
 - Ledger миграций: пять строк добавлено (union-дисциплина, только свои
   файлы), `sha256sum --check` зелёный. Перепись миграций Layout Studio
   (`integration.test.ts`) дополнена шестью своими строками с комментариями.
