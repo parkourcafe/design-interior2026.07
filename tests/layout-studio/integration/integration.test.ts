@@ -292,6 +292,9 @@ describe("Layout Studio delivery/UI slice", () => {
       // очередь, системная дверь, durable-отказы DEC-036. К Layout Studio
       // отношения не имеет.
       "20260824040000_projectceo_source_ingest_worker.sql",
+      // Фаза 3a: гейт читающих RPC по состоянию модуля M3 (backlog #2).
+      // К Layout Studio отношения не имеет.
+      "20260824050000_projectceo_m3_read_gate.sql",
     ];
     const actual = readdirSync(join(repoRoot, "supabase/migrations"), { withFileTypes: true })
       // Предмет проверки — миграции, а не всё содержимое папки. Рядом с ними
