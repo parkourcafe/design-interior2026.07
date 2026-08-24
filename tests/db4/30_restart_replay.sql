@@ -78,4 +78,62 @@ begin
 end
 $restart_count$;
 
+-- Атомарная дверь публикации baseline (backlog #7d): потеря ответа после
+-- commit, пережившая рестарт базы. Оригинальные аргументы вызова
+-- восстанавливаются из леджера — так делал бы и клиент, у которого остался
+-- только commandId: детерминированная метка делает всё остальное выводимым.
+select
+  door.resulting_state_revision - 2 as door_expected_state,
+  door.logical_result #>> '{version,baseVersionId}' as door_expected_latest,
+  door.logical_result #>> '{baseline,previousBaselineId}' as door_previous_baseline,
+  door.logical_result #>> '{version,id}' as door_version_id,
+  door.logical_result #>> '{baseline,id}' as door_baseline_id
+from projectceo_product.command_records door
+where door.project_id = '41111111-1111-4111-8111-111111111111'
+  and door.operation = 'publish_baseline_atomic'
+  and door.logical_result #>> '{baseline,id}' = 'baseline:db4-atomic-1'
+\gset db4_
+
+begin;
+set local role authenticated;
+set local request.jwt.claim.sub = '31111111-1111-4111-8111-111111111111';
+select projectceo_product_api.publish_baseline_atomic(
+  '41111111-1111-4111-8111-111111111111',
+  nullif(:'db4_door_expected_latest', ''),
+  nullif(:'db4_door_previous_baseline', ''),
+  :'db4_door_expected_state'::bigint,
+  'db4-atomic-1',
+  'db4-atomic-door-1'
+) as door_envelope
+\gset db4_
+commit;
+
+select set_config('db4.door_envelope', :'db4_door_envelope', false);
+select set_config('db4.door_version_id', :'db4_door_version_id', false);
+select set_config('db4.door_baseline_id', :'db4_door_baseline_id', false);
+
+do $door_restart_replay$
+declare
+  v_envelope jsonb := current_setting('db4.door_envelope')::jsonb;
+begin
+  if not (v_envelope->>'replay')::boolean then
+    raise exception 'DB4_DOOR_RESTART_REPLAY_FALSE';
+  end if;
+  if v_envelope#>>'{result,version,id}'
+     is distinct from current_setting('db4.door_version_id')
+    or v_envelope#>>'{result,baseline,id}'
+     is distinct from current_setting('db4.door_baseline_id') then
+    raise exception 'DB4_DOOR_RESTART_REPLAY_DIFFERENT_RESULT';
+  end if;
+  if (
+    select count(*)
+    from project_intelligence.project_versions version
+    where version.project_id = '41111111-1111-4111-8111-111111111111'
+      and version.label = 'baseline:db4-atomic-1'
+  ) <> 1 then
+    raise exception 'DB4_DOOR_RESTART_DUPLICATE_VERSION';
+  end if;
+end
+$door_restart_replay$;
+
 select 'DB4_RESTART_REPLAY_OK' as result;

@@ -278,6 +278,16 @@ describe("Layout Studio delivery/UI slice", () => {
       // К Layout Studio отношения не имеет.
       "20260813040000_projectceo_publish_version_timeout.sql",
       "20260817010000_projectceo_m4_v1_impact_recovery_dec037.sql",
+      // Фаза 3a (24.08.2026): авторитетный DB-state включения модулей M3 и
+      // M4-инкремент-1 — журнал переключений, open/close, is_module_open.
+      // К Layout Studio отношения не имеет.
+      "20260824010000_projectceo_platform_module_switch.sql",
+      // Фаза 3a: read-only проекция released archive (M3 backlog #4).
+      // К Layout Studio отношения не имеет.
+      "20260824020000_projectceo_released_archive_read.sql",
+      // Фаза 3a: атомарная дверь публикации baseline (M3 backlog #6/#7),
+      // composition выводится сервером. К Layout Studio отношения не имеет.
+      "20260824030000_projectceo_publish_baseline_door.sql",
     ];
     const actual = readdirSync(join(repoRoot, "supabase/migrations"), { withFileTypes: true })
       // Предмет проверки — миграции, а не всё содержимое папки. Рядом с ними

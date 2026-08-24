@@ -216,7 +216,10 @@ begin
     ('projectceo_product_api.publish_m2_m3_handoff(uuid,uuid,text,text,text,text,text,text,bigint,text)'),
     -- Системное чтение очереди артефактов выпуска (20260811030000,
     -- DEC-030): права только у service_role, проверка — сценарий 41.
-    ('projectceo_product_api.list_release_artifact_backlog(integer)')
+    ('projectceo_product_api.list_release_artifact_backlog(integer)'),
+    -- Атомарная дверь публикации baseline (20260824030000, M3 backlog #6):
+    -- закрыта по умолчанию, открывается выключателем модуля; сценарий 51.
+    ('projectceo_product_api.publish_baseline_atomic(uuid,text,text,bigint,text,text)')
   ) expected(signature)
   where to_regprocedure(expected.signature) is null
   limit 1;
@@ -231,9 +234,10 @@ begin
     and p.prokind = 'f';
   -- The layout migration retains one owner-only compatibility implementation
   -- behind the public request-bound wrapper. Число выросло до 22 с системным
-  -- чтением очереди артефактов выпуска (20260811030000): перепись существует
-  -- ровно затем, чтобы новая RPC в схеме не появлялась молча.
-  if v_count <> 22 then
+  -- чтением очереди артефактов выпуска (20260811030000) и до 23 с атомарной
+  -- дверью публикации baseline (20260824030000): перепись существует ровно
+  -- затем, чтобы новая RPC в схеме не появлялась молча.
+  if v_count <> 23 then
     raise exception 'DB4_UNEXPECTED_RPC_COUNT:%', v_count;
   end if;
 
