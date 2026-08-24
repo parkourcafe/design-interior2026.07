@@ -19,7 +19,7 @@ DOC_TARGET / NOT_BUILT. Процентов здесь нет.
 | # | Работа | Артефакт | Уровень |
 |---|---|---|---|
 | A | Bootstrap-манифест стенда | `tests/ap1/environment/bootstrap-disposable.zsh` | VERIFIED на PostgreSQL 17.11 (путь базы), CODE_PRESENT для локального стека и managed |
-| A | Контрактный тест манифеста | `tests/ap1/environment/bootstrap-disposable.contract.test.ts`, 16 сценариев | VERIFIED |
+| A | Контрактный тест манифеста | `tests/ap1/environment/bootstrap-disposable.contract.test.ts`, 17 сценариев | VERIFIED |
 | B1 | Errata о грантах на управляемую схему `auth` | `docs/canonical/remhaos-v1/REMHAOS_MIGRATION_ERRATA.md`, запись E-002 | VERIFIED (набор пришпилен тестом) |
 | B2 | Решение «два пути bootstrap» в точке применения | `supabase/migrations/README.md` | VERIFIED (наличие и содержание пришпилены тестом) |
 | F¹ | Аддендум runbook | `AP1_RUNBOOK.md` §7 | DOC_TARGET |
@@ -147,7 +147,7 @@ managed-auth grants» в `auth-regression.contract.test.ts`: восьмой та
 |---|---|---|
 | `npm run lint` | 0 errors, 13 warnings (все — предсуществующие `no-unused-vars` в чужих файлах) | VERIFIED |
 | `npm run typecheck` | чисто | VERIFIED |
-| `npm run test` | 160 файлов, **1388** тестов, 0 падений (было 1370 → +18) | VERIFIED |
+| `npm run test` | 160 файлов, **1389** тестов, 0 падений (было 1370 → +19) | VERIFIED |
 | `npm run build` | успешно | VERIFIED |
 | `zsh tests/db4/run.zsh`, PostgreSQL 16 | `DB4_PRODUCT_BRAIN_HARNESS_OK` | VERIFIED |
 | `zsh tests/db4/run.zsh`, PostgreSQL 17 | `DB4_PRODUCT_BRAIN_HARNESS_OK` | VERIFIED |
@@ -158,6 +158,30 @@ managed-auth grants» в `auth-regression.contract.test.ts`: восьмой та
 DB4/DB5 прогнаны не как обязательный гейт изменения, а как проверка, что
 окружение исполнителя честное и цепочка из 54 миграций встаёт под штатными
 харнессами на обеих версиях. Образы — с зеркала `mirror.gcr.io` (см. §4.1).
+
+### 4.0 Тот же гейт в CI
+
+Прогон на `f6bd858` (workflow run 32689758286), PR #100:
+
+| Джоба | Результат | Уровень |
+|---|---|---|
+| `change scope` | success | CI_EVIDENCED |
+| `lint / typecheck / test / build` | success | CI_EVIDENCED |
+| `DB4 on postgres:16-alpine` / `postgres:17-alpine` | success | CI_EVIDENCED |
+| `DB5 on postgres:16-alpine` / `postgres:17-alpine` | success | CI_EVIDENCED |
+| **`AP5 authenticated browser matrix`** | success | CI_EVIDENCED |
+| `cycle 7 evidence (informational)` | failure — **ожидаемо** | — |
+
+Красный `cycle 7` — намеренное состояние гейта до предоставления внешнего
+реального пакета (`ci.yml`, `continue-on-error: true`); он красный и на `main`.
+Работой этого PR не является.
+
+Зелёный **AP5** здесь значит две вещи и не значит третью. Значит: настоящий
+локальный стек Supabase поднимается из репозиторного `config.toml`, и правка
+`ci.yml` из этого PR его не сломала. **Не значит**, что работа A проверена на
+локальном стеке: `bootstrap-disposable.zsh` в джобе `ap5` не вызывается — она
+по-прежнему собирает стенд собственной последовательностью шагов. Это и есть
+причина предложения из §7, отклонение 2.
 
 ### 4.1 Оговорка об окружении прогона
 
@@ -173,9 +197,9 @@ DB4/DB5 прогнаны не как обязательный гейт изме�
   `mirror.gcr.io/library/...`, что и позволило прогнать путь базы и DB4.
 
 Локальный путь остаётся доказуемым в CI: джоба `ap5` поднимает настоящий стек
-тем же `supabase/config.toml`. После слияния PR-1 её прогон и будет
-CI_EVIDENCED для локального стека — но не для скрипта: в CI он не подключён
-(см. §7, отклонение 2).
+тем же `supabase/config.toml` и на этом PR зелёная (§4.0) — но это
+CI_EVIDENCED для стека, не для скрипта: в CI он не подключён (см. §7,
+отклонение 2).
 
 ---
 
@@ -186,7 +210,7 @@ CI_EVIDENCED для локального стека — но не для скр�
 | 54 миграции встают на чистый **managed** Supabase | NOT_BUILT | hosted-проект не создан (пункт владельца §6.1) |
 | Постусловия `verify-db.sql` зелёные **на hosted** | NOT_BUILT | то же |
 | Инертность грантов `auth` на managed воспроизведена **сейчас** | CODE_PRESENT | утверждение опирается на прогон 01.08.2026 на `uafvzxdxlxqkpsejgskt` (runbook §2b), не на свежий |
-| Работа A на **локальном стеке** Supabase | CODE_PRESENT | образы стека недостижимы из среды исполнителя (§4.1) |
+| Работа A на **локальном стеке** Supabase | CODE_PRESENT | образы стека недостижимы из среды исполнителя (§4.1); зелёный AP5 доказывает стек, но не скрипт — он там не вызывается (§4.0) |
 | Пять auth-личностей создаются скриптом | CODE_PRESENT | требует живого Auth |
 | Схемы Data API открыты/закрыты как положено | CODE_PRESENT (в CI — CI_EVIDENCED отдельным шагом `ap5`) | требует живого PostgREST |
 | `supabase db push` на чистой managed-базе больше не падает `MIGRATION_ORDER_BLOCKED` | CODE_PRESENT | проверена цепочка, не команда CLI |
