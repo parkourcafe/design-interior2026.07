@@ -35,7 +35,10 @@ describe("AP1 bootstrap-манифест одноразового стенда",
     // установки zsh из джобы `gates` — и поведенческая половина исчезнет из
     // прогона, оставив зелёный отчёт. Ровно так уже было с AP1_RUNBOOK §4.3
     // п.3: документ описывал защиту, которой не существовало.
-    if (process.env.CI) {
+    // `CI=""` (переменная есть, но пустая) — тоже CI: пустая строка falsy, и
+    // проверка через if (process.env.CI) молча выключалась бы ровно там, где
+    // должна сработать. Сравнение с undefined закрывает эту щель.
+    if (process.env.CI !== undefined) {
       expect(zshAvailable, "zsh недоступен на раннере — установи его в джобе").toBe(true);
     }
   });
@@ -128,6 +131,50 @@ describe("AP1 bootstrap-манифест одноразового стенда",
       const result = runScript(["--target=ztnycrchwxqczqbyegnp"]);
       expect(result.status).toBe(65);
       expect(result.stderr).toContain("AP1_PRODUCTION_REF_REJECTED");
+    });
+
+    it("ловит production ref без учёта регистра — DNS регистронезависим", () => {
+      // DB.ZTNYCRCHWXQCZQBYEGNP.SUPABASE.CO резолвится в тот же прод (RFC 4343),
+      // а libpq имя не нормализует. Guard, ловящий только нижний регистр,
+      // отвечал бы утвердительным «не найден» на строку, ведущую ровно туда же
+      // (внешняя проверка 24.08.2026).
+      const viaEnvironment = runScript(["--target", "hosted"], {
+        SOME_URL: "postgresql://u:p@DB.ZTNYCRCHWXQCZQBYEGNP.SUPABASE.CO:5432/postgres",
+      });
+      expect(viaEnvironment.status).toBe(65);
+      expect(viaEnvironment.stderr).toContain("AP1_PRODUCTION_REF_REJECTED");
+
+      const viaArgument = runScript(["--target=ZTNYCRCHWXQCZQBYEGNP"]);
+      expect(viaArgument.status).toBe(65);
+      expect(viaArgument.stderr).toContain("AP1_PRODUCTION_REF_REJECTED");
+    });
+
+    it("не печатает пароль из неизвестного аргумента", () => {
+      // Спутать `AP1_DB_URL=...` с позиционным аргументом — реалистичная
+      // ошибка оператора. Ветка «неизвестный аргумент» обязана прогнать
+      // значение через redact, а не отдать пароль в лог CI дословно.
+      const result = runScript(["postgresql://postgres:s3cr3t-password@db.example.test:5432/postgres"]);
+      expect(result.status).toBe(64);
+      expect(result.stderr).toContain("AP1_BOOTSTRAP_UNKNOWN_ARGUMENT");
+      expect(result.stderr).not.toContain("s3cr3t-password");
+      expect(result.stderr).toContain("[redacted]");
+    });
+
+    it("для --target local без AP1_TEST_PASSWORD отказывает на предусловиях, а не после стека", () => {
+      // usage первой редакции утверждал «для local переменные не нужны», а
+      // provision_identities требует пароль сам — падение приходило на
+      // предпоследнем шаге, ПОСЛЕ старта стека и 54 миграций: минуты работы
+      // ради причины, которую можно было назвать сразу (внешняя проверка
+      // 24.08.2026). --db-only и --skip-identities пароль не требуют — до
+      // создания личностей эти режимы не доходят.
+      const result = runScript(["--target", "local"], { AP1_TEST_PASSWORD: "" });
+      // 64 — дошли до проверки пароля; 69 — на этой машине нет docker, и
+      // предусловие сработало раньше. Оба исхода — отказ на предусловиях,
+      // стек не стартовал.
+      expect([64, 69]).toContain(result.status);
+      if (result.status === 64) {
+        expect(result.stderr).toContain("AP1_TEST_PASSWORD");
+      }
     });
 
     it("требует явный target", () => {
