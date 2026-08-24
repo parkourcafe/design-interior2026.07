@@ -124,6 +124,24 @@ describe("AP1 disposable Supabase environment contract", () => {
     expect(migration).not.toMatch(/grant\s+authenticated\s+to\s+pi_table_owner/i);
   });
 
+  it("says at the point of use which bootstrap path this folder is", () => {
+    // Папка молчала с 01.08.2026: `0001`–`0007` из неё убрали, а объяснения,
+    // почему нумерация начинается с середины и чем кончился второй путь, в ней
+    // не появилось. Молчащая папка приглашает восстановить «недостающие» файлы
+    // — ровно то, что один раз уже уронило Preview на baseline guard.
+    const readme = readFileSync(
+      resolve(repoRoot, "supabase/migrations/README.md"),
+      "utf8",
+    );
+    expect(readme).toContain("20260716071024_legacy_production_baseline.sql");
+    expect(readme).toContain("migration-ledger.sha256");
+    expect(readme).toContain("bootstrap-disposable.zsh");
+    // Оба пути названы, и historical явно объявлен не путём этой папки.
+    expect(readme).toMatch(/clean-bootstrap/);
+    expect(readme).toMatch(/historical incremental/);
+    expect(readme).toContain("AP1_MIGRATION_PATH_DECISION_2026-08-01.md");
+  });
+
   it("keeps the exact immutable migration ledger", () => {
     const expected = readFileSync(ledgerPath, "utf8")
       .trim()

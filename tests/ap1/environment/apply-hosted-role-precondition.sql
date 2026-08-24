@@ -66,8 +66,10 @@ begin
   -- Исторический обходной путь §2b. Он маскировал несовместимость managed
   -- Supabase и после PR #60 не нужен. Если он вернулся — предусловие врёт о
   -- том, что доказывает прогон, поэтому останавливаемся здесь.
-  if pg_has_role('pi_table_owner', 'authenticated', 'USAGE') then
-    raise exception 'AP1_AUTH_WORKAROUND_GRANT_PRESENT pi_table_owner inherits authenticated';
+  -- Режим MEMBER, не USAGE: pi_table_owner — NOINHERIT, и голый grant без
+  -- `with inherit true` даёт членство, невидимое для USAGE.
+  if pg_has_role('pi_table_owner', 'authenticated', 'MEMBER') then
+    raise exception 'AP1_AUTH_WORKAROUND_GRANT_PRESENT pi_table_owner is a member of authenticated';
   end if;
 end
 $precondition$;

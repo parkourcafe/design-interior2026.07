@@ -103,6 +103,15 @@ jobs:
         with:
           node-version: 22
           cache: npm
+      # Контрактный тест bootstrap-манифеста стенда запускает сам скрипт —
+      # отказ от production ref, коды выхода, разбор аргументов. Без zsh на
+      # раннере эта половина тестов помечалась бы пропущенной и молча ничего не
+      # проверяла: скрипт на zsh, а джоба `gates` — единственная, где вообще
+      # исполняется `npm run test`.
+      - name: Install zsh
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends zsh
       - run: npm ci
       - run: npm run lint
       - run: npm run typecheck

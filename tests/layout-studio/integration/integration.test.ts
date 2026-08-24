@@ -280,7 +280,10 @@ describe("Layout Studio delivery/UI slice", () => {
       "20260817010000_projectceo_m4_v1_impact_recovery_dec037.sql",
     ];
     const actual = readdirSync(join(repoRoot, "supabase/migrations"), { withFileTypes: true })
-      .filter((entry) => entry.isFile())
+      // Предмет проверки — миграции, а не всё содержимое папки. Рядом с ними
+      // с 24.08.2026 лежит README.md о двух путях bootstrap; он не миграция и
+      // в список Layout Studio попадать не должен.
+      .filter((entry) => entry.isFile() && entry.name.endsWith(".sql"))
       .map((entry) => basename(entry.name))
       .sort();
 
