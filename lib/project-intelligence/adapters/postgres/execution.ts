@@ -47,31 +47,18 @@ export interface ImpactReviewMutation {
   readonly disposition: "accepted" | "resolved" | "dismissed";
   readonly reasonHash: ProjectCeoHash;
   /**
-   * Закрыто ли рассмотрение целиком. На усечённом прогоне остаётся `false`
-   * до подтверждения архитектора — даже когда все карточки разобраны.
+   * Рассмотрены ли все ВОЗВРАЩЁННЫЕ карточки. Вакуумно true, когда карточек
+   * ноль (blocked) — просмотреть все показанные не значит «анализ завершён».
    */
-  readonly allImpactsReviewed: boolean;
+  readonly allReturnedImpactsReviewed: boolean;
+  /** Покрытие исчерпано внутри политики: coverage_status = 'complete'. */
+  readonly coverageComplete: boolean;
+  /** `allReturnedImpactsReviewed` AND `coverageComplete`; override не существует (DEC-034). */
+  readonly impactReviewComplete: boolean;
   readonly everyImpactReviewed: boolean;
   readonly isTruncated: boolean;
-  readonly truncationAcknowledged: boolean;
   readonly truncationReason: "depth_limit" | "result_limit" | null;
   readonly reviewedBy: {
-    readonly actorId: string;
-    readonly actorType: "human";
-  };
-}
-
-export interface ImpactTruncationAcknowledgementMutation {
-  readonly id: string;
-  readonly impactRunId: string;
-  readonly reasonHash: ProjectCeoHash;
-  readonly truncationReason: "depth_limit" | "result_limit";
-  /**
-   * Закрыт ли прогон после подтверждения. Подтверждение снимает ровно одно
-   * препятствие — нерассмотренные карточки оно не закрывает.
-   */
-  readonly allImpactsReviewed: boolean;
-  readonly acknowledgedBy: {
     readonly actorId: string;
     readonly actorType: "human";
   };
@@ -427,34 +414,6 @@ export class ProjectCeoM4HumanPostgresAdapter {
           document_kind: input.documentKind,
           source_id: input.sourceId,
           source_revision_id: input.sourceRevisionId,
-          expected_state_revision: input.expectedStateRevision,
-          idempotency_key: input.idempotencyKey,
-        },
-      ),
-    );
-  }
-
-  /**
-   * Подтверждение неполноты прогона. Человеческая операция: подписывается тот
-   * же архитектор, который рассматривает влияние (capability
-   * `review_change_impact`).
-   */
-  async acknowledgeImpactTruncation(input: {
-    readonly projectId: string;
-    readonly impactRunId: string;
-    readonly reason: string;
-    readonly expectedStateRevision: number;
-    readonly idempotencyKey: string;
-  }): Promise<CommandMutation<ImpactTruncationAcknowledgementMutation>> {
-    return parseCommandMutation<ImpactTruncationAcknowledgementMutation>(
-      await callRpc(
-        this.client,
-        "projectceo_m4_api",
-        "acknowledge_impact_truncation",
-        {
-          project_id: input.projectId,
-          impact_run_id: input.impactRunId,
-          reason: input.reason,
           expected_state_revision: input.expectedStateRevision,
           idempotency_key: input.idempotencyKey,
         },

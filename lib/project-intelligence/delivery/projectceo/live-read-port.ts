@@ -1046,10 +1046,6 @@ function operationStates(input: {
     ))?.productionPackageVersionId,
   );
   let unreviewedImpactId: string | null = null;
-  // Прогон, у которого неполнота ещё не подтверждена. Предпосылка команды
-  // подтверждения — именно он, а не нерассмотренная карточка: подтверждать
-  // можно и после того, как разобраны все.
-  let unacknowledgedTruncatedRunId: string | null = null;
   let uploadMilestoneId: string | null = null;
   let undecidedPhotoId: string | null = null;
   let acceptableMilestoneId: string | null = null;
@@ -1141,9 +1137,6 @@ function operationStates(input: {
   );
   for (const envelope of input.m4) {
     for (const run of envelope.data.impactRuns) {
-      if (run.isTruncated === true && run.truncationAcknowledged !== true) {
-        unacknowledgedTruncatedRunId ??= nullableText(run.id);
-      }
       for (const impact of rows(run.impacts)) {
         if (!nullableText(impact.disposition)) {
           unreviewedImpactId ??= nullableText(impact.id);
@@ -1308,16 +1301,13 @@ function operationStates(input: {
           commandTargetId: unreviewedImpactId,
         } : unavailable("prerequisite_missing")
       : unavailable("capability_missing"),
-    // Подтверждает тот же человек и по той же capability: это продолжение
-    // рассмотрения, а не отдельное полномочие. Предпосылка — существование
-    // усечённого неподтверждённого прогона; на полном прогоне подтверждать
-    // нечего, и сервер такой вызов отклоняет (`IMPACT_NOT_TRUNCATED`).
-    acknowledge_impact_truncation: can(input.role, "review_change_impact")
-      ? unacknowledgedTruncatedRunId ? {
-          status: "available",
-          commandTargetId: unacknowledgedTruncatedRunId,
-        } : unavailable("prerequisite_missing")
-      : unavailable("capability_missing"),
+    // Дверь подтверждения неполноты закрыта НАВСЕГДА (DEC-034): ни одно
+    // состояние production-переключателя её не открывает, предпосылок у
+    // закрытой навсегда двери не бывает. Причина — именно
+    // `increment_not_authorized`, а не `prerequisite_missing`; запись ниже
+    // (guard инкремента) даёт тот же исход — эта строка лишь держит форму
+    // states полной.
+    acknowledge_impact_truncation: unavailable("increment_not_authorized"),
     upload_photo_evidence: can(input.role, "upload_photo_evidence")
       ? uploadMilestoneId ? {
           status: "available",

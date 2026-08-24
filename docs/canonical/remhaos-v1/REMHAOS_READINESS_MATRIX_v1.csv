@@ -5,10 +5,10 @@ M1,Risk engine/review,PARTIAL,CODE_REPORTED,rules+LLM stated,No action/approval 
 M1,Pricing,PARTIAL,CODE_REPORTED,deterministic stated,No standard version/cost model,Resolver + tests,P0
 M1,Proposal issue,PARTIAL,CODE_REPORTED,versions/token stated,Shared release gate not proven,Approval gate + regression,P0
 Platform,Project facts/provenance,NOT_STARTED,DOC_TARGET,Charter/Architecture,No normalized ledger,Implement,P0
-Platform,Project Graph v1,NOT_STARTED,DOC_TARGET,Entity Catalog,Relations not proven,Relational FKs/contracts,P0
-Platform,Workflow Engine,NOT_STARTED,DOC_TARGET,Workflow Catalog,No persisted state,Implement M1 only,P0
+Platform,Project Graph v1,CODE_PRESENT,CODE_AND_DB4,graph_nodes/graph_node_revisions with FK and kind checks (20260716072000, extended by 20260717100000 and 20260810060000); review door requires graph (20260810060000),Audit/Event contract has no catalog/workflow links yet,Extend compatibly,P0
+Platform,Workflow Engine,PARTIAL,CODE_AND_DB4,Workflow application service with persisted project_workflows state (application/workflow/service.ts; 20260716072000; 994-line unit suite),Catalog-driven workflow templates from Workflow Catalog v1 remain DOC_TARGET,Implement M1 catalog persistence,P0
 Platform,Action/Skill Registry,NOT_STARTED,DOC_TARGET,Architecture,Implicit functions,Implement M1 registry,P0
-Platform,Approval Requests,NOT_STARTED,DOC_TARGET,Charter,No reusable gate,Implement + self_approved,P0
+Platform,Approval Requests,PARTIAL,CODE_AND_DB4,M2 approval_packages/_items/_events with self_approved marker (20260717100000; 20260802010000/020000),Reusable cross-module approval gate not built,Implement + self_approved,P0
 Platform,AI cost instrumentation,NOT_STARTED,DOC_TARGET,Charter/A1,Historical cost unrecoverable,Implement ai_calls,P0
 Platform,Audit/Event contract,PARTIAL,CODE_REPORTED,events stated,No catalog/workflow links,Extend compatibly,P0
 Studio,Studio Memory v0,EARLY_FRAGMENT,CODE_REPORTED,pricing/defaults stated,No versioned standard,Resolver + version refs,P0

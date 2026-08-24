@@ -1037,22 +1037,6 @@ export class ProjectCeoCommandService {
           idempotencyKey,
         }));
       }
-      if (command.kind === "acknowledge_impact_truncation") {
-        // Прогон обязан принадлежать проекту вызывающего — та же проверка, что
-        // у рассмотрения. Без неё идентификатор чужого прогона проходил бы до
-        // базы, и отказ приходил бы оттуда, а не отсюда.
-        const belongs = executionDeliveries.some((envelope) => (
-          envelope.data.impactRuns.some((run) => run.id === command.payload.impactRunId)
-        ));
-        if (!belongs) return failure(requestId, "error", "scope_conflict");
-        return completed(requestId, await this.execution.acknowledgeImpactTruncation({
-          projectId: command.projectId,
-          impactRunId: command.payload.impactRunId,
-          reason: command.payload.reason,
-          expectedStateRevision: scope.stateRevision,
-          idempotencyKey,
-        }));
-      }
       if (command.kind === "upload_photo_evidence") {
         const belongs = executionDeliveries.some((envelope) => (
           envelope.data.milestones.some((milestone) => (
