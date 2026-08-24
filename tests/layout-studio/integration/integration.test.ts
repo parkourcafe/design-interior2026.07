@@ -295,6 +295,9 @@ describe("Layout Studio delivery/UI slice", () => {
       // Фаза 3a: гейт читающих RPC по состоянию модуля M3 (backlog #2).
       // К Layout Studio отношения не имеет.
       "20260824050000_projectceo_m3_read_gate.sql",
+      // Фаза 3a: вывод legacy-дверей выдачи/подтверждения из строя
+      // (M4 backlog #2). К Layout Studio отношения не имеет.
+      "20260824060000_projectceo_m4_retire_legacy_release_doors.sql",
     ];
     const actual = readdirSync(join(repoRoot, "supabase/migrations"), { withFileTypes: true })
       // Предмет проверки — миграции, а не всё содержимое папки. Рядом с ними
