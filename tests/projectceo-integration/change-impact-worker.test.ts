@@ -260,6 +260,34 @@ describe("change impact worker — a single pass", () => {
     expect(result).toMatchObject({ alreadyPresent: 1, needsAttention: 0 });
   });
 
+  /**
+   * Третий способ проиграть гонку (защита в глубину): сырой
+   * `unique_violation` частичного индекса `m4_impact_runs_one_active_key`
+   * (DEC-037) без именованной причины. Через RPC путь закрыт блокировкой и
+   * P1110; если до индекса всё же дошёл тот, кто блокировку не брал, это
+   * «уже посчитано», а не транзиентный отказ на пять попыток.
+   */
+  it("reads a raw unique violation from the active-run index as done", async () => {
+    const calls: Call[] = [];
+    const result = await runChangeImpactWorker({
+      client: fakeClient(calls, {
+        failWith: {
+          code: "23505",
+          message:
+            'duplicate key value violates unique constraint "m4_impact_runs_one_active_key"',
+        },
+      }),
+    });
+    expect(result).toMatchObject({ scanned: 1, calculated: 0, alreadyPresent: 1 });
+    expect(result.needsAttention).toBe(0);
+    // Гонка за индекс — не отказ: durable запись о неудаче не создаётся.
+    expect(calls.map((call) => call.name)).toEqual([
+      "list_change_impact_backlog",
+      "calculate_change_impact_policy_bound",
+    ]);
+    expect(result.items[0]?.failure).toBeNull();
+  });
+
   it("reports stale state instead of computing against a moved snapshot", async () => {
     const result = await runChangeImpactWorker({
       client: fakeClient([], {

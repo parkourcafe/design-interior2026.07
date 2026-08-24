@@ -32,6 +32,7 @@ jobs:
     timeout-minutes: 5
     outputs:
       m4_v1: ${{ steps.detect.outputs.m4_v1 }}
+      docs_only: ${{ steps.detect.outputs.docs_only }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -79,6 +80,18 @@ jobs:
           else
             echo "m4_v1=false" >> "${GITHUB_OUTPUT}"
           fi
+          # Документные изменения (markdown везде + CSV-матрицы в docs/) не
+          # гоняют тяжёлые джобы: включённые минуты Actions на private-репо
+          # конечны, и в августе 2026 полный матричный прогон на каждый
+          # docs-only push выбрал месячную квоту за полторы недели — CI встал
+          # на неделю. Правило консервативное: docs_only=true ТОЛЬКО когда
+          # список изменённых файлов непуст и КАЖДЫЙ файл — документ; пустой
+          # список, сомнение и сам ci.yml всегда считаются кодом.
+          if printf '%s\n' "${changed}" | grep -qvE '(^docs/.*\.(md|csv)$|\.md$)'; then
+            echo "docs_only=false" >> "${GITHUB_OUTPUT}"
+          else
+            echo "docs_only=true" >> "${GITHUB_OUTPUT}"
+          fi
 
   gates:
     name: lint / typecheck / test / build
@@ -98,6 +111,8 @@ jobs:
 
   database:
     name: DB4 on ${{ matrix.image }}
+    needs: scope
+    if: needs.scope.outputs.docs_only != 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 30
     strategy:
@@ -133,6 +148,8 @@ jobs:
   # одноразового контейнера.
   execution_database:
     name: DB5 on ${{ matrix.image }}
+    needs: scope
+    if: needs.scope.outputs.docs_only != 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 30
     strategy:
@@ -293,7 +310,8 @@ jobs:
       # Открывается ТЕМ ЖЕ механизмом, что и production (DEC-033), а не
       # параллельным скриптом среды. Иначе браузерная цепочка доказывала бы
       # чужой выключатель: сценарий DB5 проверяет, что операция выдаёт ровно
-      # три права, а AP5 — что с этими правами архитектор действительно
+      # два права (DEC-034: третья дверь закрыта навсегда), а AP5 — что с
+      # этими правами архитектор действительно
       # проходит цепочку. Между «права такие» и «цепочка работает» не должно
       # быть шва, который никто не сверял.
       #
@@ -355,6 +373,8 @@ jobs:
   # чтобы его состояние было видно, и не роняет прогон.
   cycle7-evidence:
     name: cycle 7 evidence (informational)
+    needs: scope
+    if: needs.scope.outputs.docs_only != 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 15
     continue-on-error: true
