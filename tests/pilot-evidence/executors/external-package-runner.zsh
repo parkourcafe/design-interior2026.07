@@ -138,12 +138,18 @@ SQL
   )
   audit_event_id=$(print -r -- "${audit_event_id}" | tail -1 | tr -d '[:space:]')
 
+  local actor_user_id actor_session_id
+  actor_user_id=$(jq -er --arg jar "${role}" '.[$jar].userId' "${actors_file}")
+  actor_session_id=$(jq -er --arg jar "${role}" '.[$jar].sessionId' "${actors_file}")
+
   jq --arg operation "${operation}" --arg commandId "${command_id}" --arg requestId "${request_id}" \
     --arg auditEventId "${audit_event_id}" --arg role "${role}" \
+    --arg actorUserId "${actor_user_id}" --arg actorSessionId "${actor_session_id}" \
     --argjson previous "${previous_state_revision}" --argjson resulting "${state_revision}" \
     --arg resultDigest "${result_digest}" --arg replayDigest "${replay_digest}" \
     '. += [{operation: $operation, commandId: $commandId, requestId: $requestId,
             auditEventId: $auditEventId, role: $role,
+            actorUserId: $actorUserId, actorSessionId: $actorSessionId,
             previousStateRevision: $previous, resultingStateRevision: $resulting,
             resultDigest: $resultDigest, replayDigest: $replayDigest}]' \
     "${commands_file}" > "${commands_file}.next"
@@ -155,6 +161,8 @@ SQL
 # request id from a live authenticated read.
 print -r -- '[]' > "${sessions_file}"
 print -r -- '[]' > "${commands_file}"
+actors_file="${work_dir}/actors.json"
+print -r -- '{}' > "${actors_file}"
 for pair in owner_lead:owner architect:architect client_approver:client builder:builder guest:guest; do
   role=${pair%%:*}
   jar_name=${pair##*:}
@@ -177,10 +185,32 @@ SQL
     '. += [{role: $role, userId: $userId, sessionId: $sessionId, requestId: $requestId}]' \
     "${sessions_file}" > "${sessions_file}.next"
   mv -- "${sessions_file}.next" "${sessions_file}"
+  # Карта jar → актор: send_command обязан привязать каждую команду к
+  # пользователю и сессии (дефект D1 из
+  # docs/product-intelligence/M2_EXECUTOR_SCRIPTS_REVIEW_2026-08-24.md —
+  # билдер отклоняет команды без actorUserId/actorSessionId как
+  # EXTERNAL_RUN_COMMAND_ACTOR_UNBOUND).
+  jq --arg jar "${jar_name}" --arg userId "${user_id}" --arg sessionId "${session_id}" \
+    '.[$jar] = {userId: $userId, sessionId: $sessionId}' \
+    "${actors_file}" > "${actors_file}.next"
+  mv -- "${actors_file}.next" "${actors_file}"
 done
 
 # The five operations, in workflow order, with payloads derived from the
 # manifest. Command ids are minted per operation and reused for the replay.
+#
+# Чеканка uuid переносима (дефект D2 из
+# docs/product-intelligence/M2_EXECUTOR_SCRIPTS_REVIEW_2026-08-24.md):
+# /proc/sys/kernel/random/uuid существует только на Linux, а остальной
+# конвейер ориентирован и на macOS (colima, /private/tmp).
+mint_uuid() {
+  if [[ -r /proc/sys/kernel/random/uuid ]]; then
+    cat /proc/sys/kernel/random/uuid
+  else
+    uuidgen | tr '[:upper:]' '[:lower:]'
+  fi
+}
+
 command_payload() {
   local kind=$1 command_id=$2 payload=$3
   jq -nc --arg projectId "${project_id}" --arg commandId "${command_id}" --arg kind "${kind}" \
@@ -188,7 +218,7 @@ command_payload() {
     '{contractVersion:"projectceo-command/0.1",kind:$kind,projectId:$projectId,commandId:$commandId,payload:$payload}'
 }
 
-layout_command_id=$(cat /proc/sys/kernel/random/uuid)
+layout_command_id=$(mint_uuid)
 layout_payload=$(jq -c --arg packageId "${package_id}" --arg roomId "${room_id}" \
   '{packageId: $packageId, roomId: $roomId, variants: [.m2.variants[] | {role, layoutRevisionId, semanticHash, selections}]}' \
   "${manifest_path}")
@@ -196,14 +226,14 @@ send_command owner publish_m2_layout_version \
   "$(command_payload publish_m2_layout_version "${layout_command_id}" "${layout_payload}")" \
   "${layout_command_id}"
 
-submit_command_id=$(cat /proc/sys/kernel/random/uuid)
+submit_command_id=$(mint_uuid)
 submit_payload=$(jq -c --arg packageId "${package_id}" --arg roomId "${room_id}" \
   '{packageId: $packageId, roomId: $roomId, chosenVariantRole: (.m2.variants[0].role)}' "${manifest_path}")
 send_command owner submit_m2_client_review \
   "$(command_payload submit_m2_client_review "${submit_command_id}" "${submit_payload}")" \
   "${submit_command_id}"
 
-review_command_id=$(cat /proc/sys/kernel/random/uuid)
+review_command_id=$(mint_uuid)
 # Причина согласования попадает в аудит и остаётся там навсегда. По умолчанию
 # она прямо говорит, что решение принял оператор проверки, а не заказчик, —
 # доказательство не должно выглядеть как настоящее клиентское согласование.
@@ -214,14 +244,14 @@ send_command client review_m2_client_submission \
   "$(command_payload review_m2_client_submission "${review_command_id}" "${review_payload}")" \
   "${review_command_id}"
 
-append_command_id=$(cat /proc/sys/kernel/random/uuid)
+append_command_id=$(mint_uuid)
 append_payload=$(jq -c --arg packageId "${package_id}" --arg roomId "${room_id}" \
   '{packageId: $packageId, roomId: $roomId}' "${manifest_path}")
 send_command owner append_m2_approved_commit_revision \
   "$(command_payload append_m2_approved_commit_revision "${append_command_id}" "${append_payload}")" \
   "${append_command_id}"
 
-handoff_command_id=$(cat /proc/sys/kernel/random/uuid)
+handoff_command_id=$(mint_uuid)
 handoff_payload=$(jq -c --arg packageId "${package_id}" --arg roomId "${room_id}" \
   '{packageId: $packageId, roomId: $roomId}' "${manifest_path}")
 send_command owner publish_m2_m3_handoff \
@@ -250,7 +280,7 @@ lineage=$(jq -n \
 proofs="${work_dir}/proofs.json"
 print -r -- '{}' > "${proofs}"
 for proof in audit authenticatedRead privacy tenancy replay; do
-  query_receipt=$(cat /proc/sys/kernel/random/uuid)
+  query_receipt=$(mint_uuid)
   audit_receipt=$(query_db <<SQL
 select audit_event_id from projectceo_product.audit_events
 where project_id = '${project_id}'::uuid order by created_at desc limit 1;

@@ -15,7 +15,7 @@
     },
     {
       "path": "tests/pilot-evidence/executors/external-package-runner.zsh",
-      "digest": "sha256:3d1c1fc9d05b85f5701070020237190ebc9b52a0214c5af807f18ca5e319e459"
+      "digest": "sha256:25d9625e294bf0fe8b34c8293b704f229df81df13545527961f56172027e1113"
     }
   ]
 }
