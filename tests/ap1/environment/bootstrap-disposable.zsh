@@ -401,6 +401,17 @@ begin
       where rolname in ('pi_table_owner', 'pi_human_executor', 'pi_worker_executor')) <> 3 then
     raise exception 'AP1_BOOTSTRAP_ROLE_COUNT_INVALID';
   end if;
+  -- Исторический обходной путь §2b — членство pi_table_owner в роли
+  -- authenticated — маскировал несовместимость managed Supabase и после
+  -- PR #60 не нужен.
+  -- Вердикт по блокеру 92060e3 засчитывается ТОЛЬКО вместе с этой строкой
+  -- того же прогона: без неё зелёный стенд не отличим от стенда на заплатке.
+  -- Режим MEMBER, не USAGE: pi_table_owner — NOINHERIT, и голый grant без
+  -- `with inherit true` даёт членство, невидимое для USAGE (проверено живым
+  -- прогоном на PostgreSQL 17: usage_plain=f, member_plain=t).
+  if pg_has_role('pi_table_owner', 'authenticated', 'MEMBER') then
+    raise exception 'AP1_AUTH_WORKAROUND_GRANT_PRESENT pi_table_owner is a member of authenticated';
+  end if;
 end
 $verify$;
 
@@ -410,6 +421,7 @@ SQL
   psql_run_quiet "${sql_file}" || { rm -f "${sql_file}"; fail "AP1_BOOTSTRAP_ROLES_FAILED" 70 }
   rm -f "${sql_file}"
   note "pi_table_owner / pi_human_executor / pi_worker_executor: SET и USAGE у исполнителя миграций есть"
+  note "AP1_AUTH_WORKAROUND_GRANT_ABSENT — обходной грант §2b не выдан"
 }
 
 # --- 3. миграции -------------------------------------------------------------

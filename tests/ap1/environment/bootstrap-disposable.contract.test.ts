@@ -73,6 +73,18 @@ describe("AP1 bootstrap-манифест одноразового стенда",
     expect(executableScript).not.toMatch(/grant\s+usage\s+on\s+schema\s+auth/i);
   });
 
+  it("проверяет отсутствие обходного гранта §2b в каждом прогоне", () => {
+    // ТЗ Фазы 1 ч.2 §4.3: вердикт по блокеру 92060e3 засчитывается ТОЛЬКО
+    // вместе со строкой AP1_AUTH_WORKAROUND_GRANT_ABSENT того же прогона —
+    // иначе зелёный стенд не отличим от стенда, где авторизацию держит
+    // заплатка `grant authenticated to pi_table_owner`.
+    // Именно MEMBER: голый grant без `with inherit true` даёт членство,
+    // невидимое для USAGE у NOINHERIT-роли — заплатка прошла бы проверку.
+    expect(script).toContain("pg_has_role('pi_table_owner', 'authenticated', 'MEMBER')");
+    expect(script).toContain("AP1_AUTH_WORKAROUND_GRANT_PRESENT");
+    expect(script).toContain("AP1_AUTH_WORKAROUND_GRANT_ABSENT");
+  });
+
   it("прогоняет постусловия базы и поверхности теми же файлами, что и AP1/AP5", () => {
     expect(script).toContain("tests/ap1/environment/verify-db.sql");
     expect(script).toContain("tests/ap1/environment/verify-runtime.mjs");
