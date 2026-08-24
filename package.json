@@ -27,6 +27,7 @@
     "provision:ap1": "tsx scripts/provision-ap1-users.ts",
     "worker:release-artifacts": "tsx scripts/run-release-artifact-worker.ts",
     "worker:change-impact": "tsx scripts/run-change-impact-worker.ts",
+    "worker:ingest-source-graph": "tsx scripts/run-ingest-source-graph-worker.ts",
     "bridge:telegram-notifications": "tsx scripts/run-telegram-notifications.ts",
     "bridge:telegram-workers": "tsx scripts/run-telegram-bridge-workers.ts"
   },

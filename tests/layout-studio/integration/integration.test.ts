@@ -288,6 +288,10 @@ describe("Layout Studio delivery/UI slice", () => {
       // Фаза 3a: атомарная дверь публикации baseline (M3 backlog #6/#7),
       // composition выводится сервером. К Layout Studio отношения не имеет.
       "20260824030000_projectceo_publish_baseline_door.sql",
+      // Фаза 3a: воркерный контур ingest_source_graph (M3 backlog #5) —
+      // очередь, системная дверь, durable-отказы DEC-036. К Layout Studio
+      // отношения не имеет.
+      "20260824040000_projectceo_source_ingest_worker.sql",
     ];
     const actual = readdirSync(join(repoRoot, "supabase/migrations"), { withFileTypes: true })
       // Предмет проверки — миграции, а не всё содержимое папки. Рядом с ними
