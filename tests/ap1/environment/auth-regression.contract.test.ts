@@ -127,6 +127,36 @@ describe("managed auth regression contract", () => {
     }
   });
 
+  it("pins the historical inert managed-auth grants", () => {
+    // AP1_RUNBOOK §4.3, пункт 3 с 10.08.2026 обещал именно это — «набор
+    // инертных `grant usage on schema auth` не растёт», — но проверки не
+    // существовало: файл смотрел только тела функций. Errata E-002 описывает
+    // набор как закрытый, и запись обязана быть исполняемой, иначе она
+    // повторяет судьбу пункта 3.
+    //
+    // Гранты инертны только на managed Supabase, где схема `auth` принадлежит
+    // `supabase_admin`. Восьмой такой оператор — это либо новая надежда на
+    // доступ, которого нет, либо реальный доступ там, где среда отличается от
+    // боевой. Оба случая должны стоить красного теста, а не тишины.
+    const observed: string[] = [];
+    for (const name of migrations()) {
+      for (const line of read(name).split("\n")) {
+        if (/^\s*grant\b[^;]*\bauth\.|^\s*grant\s+usage\s+on\s+schema\s+auth\b/i.test(line)) {
+          observed.push(`${name}: ${line.trim()}`);
+        }
+      }
+    }
+    expect(observed).toEqual([
+      "20260716072000_project_intelligence_core.sql: grant usage on schema auth to pi_human_executor;",
+      "20260716072000_project_intelligence_core.sql: grant execute on function auth.uid() to pi_human_executor;",
+      "20260717090000_projectceo_foundation_access.sql: grant usage on schema auth to pi_table_owner;",
+      "20260717090000_projectceo_foundation_access.sql: grant execute on function auth.uid() to pi_table_owner;",
+      "20260717090000_projectceo_foundation_access.sql: grant select on table auth.users to pi_table_owner;",
+      "20260717092000_projectceo_foundation_integration_hardening.sql: grant usage on schema auth to pi_table_owner;",
+      "20260717092000_projectceo_foundation_integration_hardening.sql: grant execute on function auth.jwt() to pi_table_owner;",
+    ]);
+  });
+
   it("references managed auth.users only from foreign keys", () => {
     for (const name of later) {
       if (name === FOLLOWUP) continue;

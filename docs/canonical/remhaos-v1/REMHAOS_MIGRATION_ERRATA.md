@@ -14,6 +14,78 @@
 
 ---
 
+## E-002 · семь грантов на управляемую схему `auth` в трёх миграциях
+
+**Дата записи:** 24.08.2026. **Основание:** `AP1_RUNBOOK.md` §2b и §6, пункт 2
+(«Убрать из миграций три гранта `grant usage on schema auth to pi_table_owner`:
+после PR #60 они не нужны и по-прежнему молча ничего не делают»). Запись
+закрывает этот хвост так, как его вообще можно закрыть: текстом, а не правкой
+миграций.
+
+**Что написано в миграциях.** Семь операторов, выдающих ролям `pi_*` доступ к
+управляемой схеме `auth`:
+
+| Файл | Строки | Операторы |
+|---|---|---|
+| `20260716072000_project_intelligence_core.sql` | 2622–2623 | `grant usage on schema auth to pi_human_executor;`<br>`grant execute on function auth.uid() to pi_human_executor;` |
+| `20260717090000_projectceo_foundation_access.sql` | 2426–2428 | `grant usage on schema auth to pi_table_owner;`<br>`grant execute on function auth.uid() to pi_table_owner;`<br>`grant select on table auth.users to pi_table_owner;` |
+| `20260717092000_projectceo_foundation_integration_hardening.sql` | 11–12 | `grant usage on schema auth to pi_table_owner;`<br>`grant execute on function auth.jwt() to pi_table_owner;` |
+
+Из них `grant usage on schema auth` — три, как и сказано в runbook §6. Остальные
+четыре — того же класса и той же судьбы, поэтому запись описывает весь набор, а
+не только ту его часть, которую первым заметил пилот.
+
+**Что неверно.** Два утверждения сразу.
+
+1. **Они не работают на managed Supabase — и не сообщают об этом.** Схема `auth`
+   принадлежит `supabase_admin`; у `postgres` на неё только `USAGE` без права
+   передачи, и в `supabase_admin` он не входит. PostgreSQL в такой ситуации
+   отвечает `WARNING: no privileges were granted`, а не ошибкой. Миграция
+   проходит «успешно», ACL схемы `auth` после неё роль `pi_table_owner` не
+   содержит. Проверено 01.08.2026 на живом disposable-проекте
+   `uafvzxdxlxqkpsejgskt` (runbook §2b).
+2. **Они больше не нужны.** Ради чего они выдавались — обращение `auth.uid()`
+   изнутри `SECURITY DEFINER` функции, принадлежащей `pi_table_owner` — снято
+   миграцией `20260801120000_projectceo_request_claim_authorization.sql` и её
+   продолжением `20260810040000`: актор читается из подписанных claims
+   PostgREST через `project_intelligence._request_user_id()`. Доступ к
+   управляемой схеме `auth` слою не требуется ни в одной точке входа.
+
+Вместе это давало худший из возможных режимов: право, которого нет, выданное
+оператором, который об этом не узнал, ради обращения, которого больше нет.
+
+**Как правильно.** На managed Supabase роли `pi_*` доступа к схеме `auth` не
+имеют и иметь не должны. Это не побочный факт, а проверяемое постусловие:
+
+* `tests/ap1/environment/verify-db.sql` —
+  `AP1_AUTH_SCHEMA_OWNER_LOOKUP_MUST_NOT_BE_REQUIRED` и
+  `AP1_AUTH_TABLE_OWNER_GRANT_MUST_NOT_EXIST` падают, если доступ всё-таки есть;
+* `tests/ap1/environment/apply-local-auth-compat.sql` — отзывает эти права там,
+  где схему `auth` создал сам исполнитель миграций (локальный стек CLI, чистый
+  PostgreSQL под харнессами DB4/DB5). Без него среда отличалась бы от боевой
+  ровно в том месте, где прятался блокер;
+* `tests/ap1/environment/bootstrap-disposable.zsh`, шаг «ACL схемы auth» —
+  спрашивает базу, применились ли гранты, и отзывает их только если применились.
+  Признак «эта среда не managed» измеряется, а не предполагается по ярлыку среды.
+
+**Почему не исправлено в самих миграциях.** Правило неизменяемости
+timestamped-миграций (`AGENTS.md`) и реестр хешей
+`tests/ap1/environment/migration-ledger.sha256`: удаление семи строк сдвинуло бы
+три хеша и превратило механизм обнаружения незаметных правок в источник ложных
+срабатываний. Поведенческой ошибки здесь нет — операторы инертны на managed и
+отзываются постусловиями там, где не инертны, — поэтому новая миграция не
+требуется, и запись в errata является полным закрытием хвоста, а не отсрочкой.
+
+**Что закрывает эту запись от роста.** Набор пришпилен тестом: см.
+`tests/ap1/environment/auth-regression.contract.test.ts`, сценарий «pins the
+historical inert managed-auth grants». Восьмой такой оператор в новой миграции
+уронит `npm run test`. До 24.08.2026 этой проверки не существовало, хотя
+`AP1_RUNBOOK.md` §4.3, пункт 3 с 10.08.2026 утверждал обратное («и набор
+инертных `grant usage on schema auth` не растёт») — тест проверял только тела
+функций.
+
+---
+
 ## E-001 · `20260812010000_projectceo_m4_impact_worker_read.sql`
 
 **Дата записи:** 12.08.2026.
