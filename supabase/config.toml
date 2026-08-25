@@ -24,6 +24,9 @@ schemas = [
   # ней раздаются поимённо — системные RPC воркеру, человеческие
   # authenticated. Приватная `remhaos_channel` не отдаётся никогда.
   "remhaos_channel_api",
+  # Платформенный фундамент (Фаза 2, DEC-038): двери реестра фактов.
+  # Приватная `projectceo_platform` не отдаётся никогда.
+  "projectceo_platform_api",
 ]
 extra_search_path = ["public", "extensions"]
 max_rows = 1000
