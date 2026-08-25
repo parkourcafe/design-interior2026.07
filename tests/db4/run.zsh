@@ -80,6 +80,7 @@ for sql in \
   "${repo_root}/tests/db4/49_platform_facts_operations.sql" \
   "${repo_root}/tests/db4/50_platform_ai_calls_operations.sql" \
   "${repo_root}/tests/db4/51_platform_approval_requests_operations.sql" \
+  "${repo_root}/tests/db4/52_platform_workflow_templates_operations.sql" \
   "${repo_root}/tests/db4/49_platform_module_switch.sql" \
   "${repo_root}/tests/db4/50_released_archive_read.sql" \
   "${repo_root}/tests/db4/51_publish_baseline_door.sql" \
