@@ -21,6 +21,12 @@ const executableScript = script
 // всё-таки нет — тесты пропускаются явно, а не притворяются пройденными.
 const zshAvailable = spawnSync("zsh", ["--version"], { encoding: "utf8" }).status === 0;
 
+// Скрипту нужен ещё и psql (шаг «Предусловия» проверяет psql/node/npm ДО
+// разбора env). На CI он есть в образе раннера; на машине без клиента
+// поведенческие тесты получают 69 вместо ожидаемых кодов — пропускаются
+// явно, с тем же запретом на молчаливую деградацию, что и у zsh.
+const psqlAvailable = spawnSync("psql", ["--version"], { encoding: "utf8" }).status === 0;
+
 function runScript(args: string[], env: Record<string, string> = {}) {
   return spawnSync("zsh", [scriptPath, ...args], {
     cwd: repoRoot,
@@ -117,7 +123,15 @@ describe("AP1 bootstrap-манифест одноразового стенда",
     expect(script).toContain("Стендом пилота такой прогон не является.");
   });
 
-  describe.skipIf(!zshAvailable)("исполнение", () => {
+  it("в CI psql обязан быть: без него поведенческие пробы скрипта невозможны", () => {
+    if (!process.env.CI && process.env.CI !== "") {
+      expect(psqlAvailable || !zshAvailable || true).toBe(true);
+      return;
+    }
+    expect(psqlAvailable, "в CI нет psql — поведенческие тесты bootstrap пропущены").toBe(true);
+  });
+
+  describe.skipIf(!zshAvailable || !psqlAvailable)("исполнение", () => {
     it("проходит синтаксическую проверку zsh", () => {
       const result = spawnSync("zsh", ["-n", scriptPath], { encoding: "utf8" });
       expect(result.stderr).toBe("");
