@@ -111,9 +111,10 @@ export async function createConceptPack(projectId: string): Promise<CreateConcep
       .eq("status", "accepted"),
     supabase
       .from("proposals")
-      .select("sections")
+      .select("id, version, sections, status, public_token")
       .eq("project_id", projectId)
-      .eq("version", 1)
+      .order("version", { ascending: false })
+      .limit(1)
       .maybeSingle(),
   ]);
   if (answersResult.error || risksResult.error || proposalResult.error) {

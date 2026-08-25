@@ -336,6 +336,8 @@ describe("Layout Studio delivery/UI slice", () => {
       "20260824150000_projectceo_platform_approval_requests.sql",
       // Фаза 2, A5: persistence каталога воркфлоу v1.
       "20260824160000_projectceo_platform_workflow_templates.sql",
+      // Фаза 2, B-блок: immutable паспорт, версии КП, договор, срок брифа.
+      "20260824170000_projectceo_m1_passport_versions_contract.sql",
     ]);
   });
 

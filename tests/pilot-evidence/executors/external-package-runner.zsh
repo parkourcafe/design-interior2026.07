@@ -187,7 +187,7 @@ SQL
   mv -- "${sessions_file}.next" "${sessions_file}"
   # Карта jar → актор: send_command обязан привязать каждую команду к
   # пользователю и сессии (дефект D1 из
-  # docs/product-intelligence/M2_EXECUTOR_SCRIPTS_REVIEW_2026-08-24.md —
+  # docs/product-intelligence/M2_EXECUTOR_SCRIPTS_REVIEW_STREAM3_2026-08-24.md —
   # билдер отклоняет команды без actorUserId/actorSessionId как
   # EXTERNAL_RUN_COMMAND_ACTOR_UNBOUND).
   jq --arg jar "${jar_name}" --arg userId "${user_id}" --arg sessionId "${session_id}" \
@@ -200,7 +200,7 @@ done
 # manifest. Command ids are minted per operation and reused for the replay.
 #
 # Чеканка uuid переносима (дефект D2 из
-# docs/product-intelligence/M2_EXECUTOR_SCRIPTS_REVIEW_2026-08-24.md):
+# docs/product-intelligence/M2_EXECUTOR_SCRIPTS_REVIEW_STREAM3_2026-08-24.md):
 # /proc/sys/kernel/random/uuid существует только на Linux, а остальной
 # конвейер ориентирован и на macOS (colima, /private/tmp).
 mint_uuid() {

@@ -13,6 +13,7 @@ import type {
 import { calcPrice, type PriceResult } from "@/lib/pricing/calc";
 import { buildProposalSections } from "@/lib/proposal/build";
 import { derivePackageRecommendation } from "@/lib/proposal/package";
+import { getLatestProposal } from "@/lib/proposal/latest";
 import type { RiskCardRow } from "@/lib/review";
 
 export async function saveProposal(
@@ -20,11 +21,12 @@ export async function saveProposal(
   sections: ProposalSection[],
 ): Promise<{ ok: boolean }> {
   const supabase = await createClient();
+  const latest = await getLatestProposal(supabase, projectId);
+  if (!latest) return { ok: false };
   const { error } = await supabase
     .from("proposals")
     .update({ sections })
-    .eq("project_id", projectId)
-    .eq("version", 1);
+    .eq("id", latest.id);
   if (!error) revalidatePath(`/dashboard/projects/${projectId}/proposal`);
   return { ok: !error };
 }
@@ -40,14 +42,9 @@ export async function rebuildProposal(
   const studio = await getStudio();
   if (!studio) return { ok: false };
 
-  const { data: proposal } = await supabase
-    .from("proposals")
-    .select("id, status")
-    .eq("project_id", projectId)
-    .eq("version", 1)
-    .maybeSingle();
+  const proposal = await getLatestProposal(supabase, projectId);
   if (!proposal) return { ok: false };
-  if ((proposal as { status?: string }).status === "sent") {
+  if (proposal.status === "sent") {
     return { ok: false, reason: "sent" };
   }
 
@@ -110,7 +107,7 @@ export async function rebuildProposal(
   const { error } = await supabase
     .from("proposals")
     .update({ sections })
-    .eq("id", (proposal as { id: string }).id);
+    .eq("id", proposal.id);
   if (error) return { ok: false };
 
   revalidatePath(`/dashboard/projects/${projectId}/proposal`);
@@ -122,11 +119,12 @@ export async function sendProposal(projectId: string): Promise<{ ok: boolean }> 
   const studio = await getStudio();
   if (!studio) return { ok: false };
 
+  const latest = await getLatestProposal(supabase, projectId);
+  if (!latest) return { ok: false };
   const { data: proposal, error } = await supabase
     .from("proposals")
     .update({ status: "sent", sent_at: new Date().toISOString() })
-    .eq("project_id", projectId)
-    .eq("version", 1)
+    .eq("id", latest.id)
     .select("id")
     .maybeSingle();
 

@@ -173,7 +173,7 @@
   — единственный источник текущих ревизий в проекции.
 
 ### 3a.7 — чтение executor-скриптов (закрытие −2 баллов M2)
-- Отчёт `docs/product-intelligence/M2_EXECUTOR_SCRIPTS_REVIEW_2026-08-24.md`
+- Отчёт `docs/product-intelligence/M2_EXECUTOR_SCRIPTS_REVIEW_STREAM3_2026-08-24.md`
   (docs-only коммит): все 4 shell-исполняемых файла построчно, allowlist
   (digest-сверка VERIFIED), 9 TS-модулей, 6 тестов. 7 дефектов (2 major).
 - Отдельным коммитом (не docs) исправлены оба major: D1 — харвест не писал

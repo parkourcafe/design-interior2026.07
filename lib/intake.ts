@@ -14,10 +14,13 @@ export interface IntakeProject {
 export async function getProjectByIntakeToken(token: string): Promise<IntakeProject | null> {
   if (!token) return null;
   const admin = createAdminClient();
+  // B4 (Фаза 2): токен с истёкшим сроком неотличим от несуществующего —
+  // наружу не утекает даже факт его бывшего существования.
   const { data } = await admin
     .from("projects")
-    .select("id, designer_id, client_name, status, custom_questions")
+    .select("id, designer_id, client_name, status, custom_questions, intake_expires_at")
     .eq("intake_token", token)
+    .or("intake_expires_at.is.null,intake_expires_at.gt.now()")
     .maybeSingle();
   if (!data) return null;
   return {
