@@ -8,6 +8,7 @@ import { ru } from "@/lib/i18n/ru";
 import type { AnswersMap, Passport, PricingConfig, ProposalDefaults, ProposalSection } from "@/lib/types";
 import { calcPrice, type PriceResult } from "@/lib/pricing/calc";
 import { buildProposalSections } from "@/lib/proposal/build";
+import { getLatestProposal, nextProposalVersion } from "@/lib/proposal/latest";
 import { derivePackageRecommendation } from "@/lib/proposal/package";
 import { RESPONSE_TYPES } from "@/lib/proposal/respond";
 import type { RiskCardRow } from "@/lib/review";
@@ -75,12 +76,7 @@ export default async function ProposalPage({ params }: { params: Promise<{ id: s
   }
 
   // Обеспечить наличие черновика КП (public_token + событие proposal_created).
-  const { data: existing } = await supabase
-    .from("proposals")
-    .select("id, sections, status, public_token")
-    .eq("project_id", p.id)
-    .eq("version", 1)
-    .maybeSingle();
+  const existing = await getLatestProposal(supabase, p.id);
 
   let sections: ProposalSection[];
   let publicToken: string;
@@ -106,7 +102,7 @@ export default async function ProposalPage({ params }: { params: Promise<{ id: s
       publicToken = makeToken();
       await supabase.from("proposals").insert({
         project_id: p.id,
-        version: 1,
+        version: await nextProposalVersion(supabase, p.id),
         sections,
         status: "draft",
         public_token: publicToken,
