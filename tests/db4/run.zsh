@@ -79,7 +79,8 @@ for sql in \
   "${repo_root}/tests/db4/47_telegram_pending_ambiguity.sql" \
   "${repo_root}/tests/db4/49_platform_facts_operations.sql" \
   "${repo_root}/tests/db4/50_platform_ai_calls_operations.sql" \
-  "${repo_root}/tests/db4/51_platform_approval_requests_operations.sql"; do
+  "${repo_root}/tests/db4/51_platform_approval_requests_operations.sql" \
+  "${repo_root}/tests/db4/52_platform_workflow_templates_operations.sql"; do
   print -r -- "Running ${sql:t}"
   run_file "${sql}"
 done
