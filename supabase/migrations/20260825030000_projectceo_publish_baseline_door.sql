@@ -42,10 +42,15 @@ begin;
 
 set local check_function_bodies = on;
 
--- Словарь операций леджера: + `publish_baseline_atomic`. Полное перечисление —
--- потому что CHECK не расширяется на месте; guard ниже роняет миграцию, если
--- при переписывании потерялась хоть одна прежняя операция (образец —
--- `20260812020000`).
+-- Словарь операций леджера: + `publish_baseline_atomic`. CHECK не расширяется
+-- на месте, поэтому пересобирается — но АДДИТИВНО ПО ПОСТРОЕНИЮ: новый список
+-- строится из фактического текущего множества операций, а не из копии,
+-- зашитой в этот файл. Урок слияния с Фазой 2 (24-25.08.2026): за одну ночь
+-- словарь расширяли `20260824130000` (create_project_fact) и
+-- `20260824150000` (инвайты/гости/approval requests), и каждый раз зашитая
+-- копия теряла чужие значения — guard ниже (образец `20260812020000`)
+-- честно ронял миграцию. Динамическая пересборка не может потерять значение;
+-- guard оставлен страховкой от регрессии самой пересборки.
 do $operation_dictionary$
 declare
   v_old text[];
@@ -60,30 +65,23 @@ begin
   where constraint_row.conname = 'command_records_operation_check'
     and constraint_row.conrelid = 'projectceo_product.command_records'::regclass;
 
+  if v_old is null then
+    raise exception 'PROJECTCEO_COMMAND_OPERATION_CHECK_MISSING';
+  end if;
+
   alter table projectceo_product.command_records
     drop constraint command_records_operation_check;
-  alter table projectceo_product.command_records
-    add constraint command_records_operation_check check (operation in (
-      'append_decision_revision', 'append_selection_revision', 'append_price_observation',
-      'append_system_decision_revision', 'append_system_selection_revision',
-      'create_approval_package', 'submit_approval_package', 'review_approval_package',
-      'publish_project_baseline', 'publish_production_package_version', 'build_release_artifact',
-      'distribute_release', 'distribute_release_request_bound',
-      'acknowledge_release', 'acknowledge_release_request_bound',
-      'approve_no_change', 'submit_change_request',
-      'calculate_change_impact', 'review_change_impact', 'define_milestone',
-      'register_photo_evidence', 'review_photo_evidence', 'accept_milestone',
-      'register_handover_document', 'build_construction_handover', 'append_m2_room_revision',
-      'append_m2_variant_revision', 'append_m2_material_revision', 'append_m2_budget_revision',
-      'append_m2_client_handoff_revision', 'append_m2_approved_commit_revision',
-      'append_m2_layout_version_revision', 'submit_m2_client_review',
-      'review_m2_client_submission', 'publish_m2_m3_handoff',
-      'register_m3_documentation_sheet', 'attach_m3_documentation_sheet_specifications',
-      'acknowledge_impact_truncation',
-      -- `create_project_fact` — платформенный фундамент A1 (`20260824130000`),
-      -- идёт раньше по номеру: перечисление обязано его сохранить.
-      'create_project_fact', 'publish_baseline_atomic'
-    ));
+  execute format(
+    'alter table projectceo_product.command_records
+       add constraint command_records_operation_check check (operation = any (array[%s]))',
+    (
+      select string_agg(quote_literal(op.value), ', ' order by op.value)
+      from (
+        select distinct value
+        from unnest(v_old || array['publish_baseline_atomic']) value
+      ) op
+    )
+  );
 
   select array_agg(match[1] order by match[1]) into v_new
   from pg_catalog.pg_constraint constraint_row,
@@ -99,6 +97,9 @@ begin
   limit 1;
   if v_lost is not null then
     raise exception 'PROJECTCEO_COMMAND_OPERATION_DROPPED:%', v_lost;
+  end if;
+  if not 'publish_baseline_atomic' = any(v_new) then
+    raise exception 'PROJECTCEO_COMMAND_OPERATION_NOT_ADDED:publish_baseline_atomic';
   end if;
 end
 $operation_dictionary$;

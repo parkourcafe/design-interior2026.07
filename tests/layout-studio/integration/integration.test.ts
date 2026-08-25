@@ -281,26 +281,26 @@ describe("Layout Studio delivery/UI slice", () => {
       // Фаза 3a (24.08.2026): авторитетный DB-state включения модулей M3 и
       // M4-инкремент-1 — журнал переключений, open/close, is_module_open.
       // К Layout Studio отношения не имеет.
-      "20260824150000_projectceo_platform_module_switch.sql",
+      "20260825010000_projectceo_platform_module_switch.sql",
       // Фаза 3a: read-only проекция released archive (M3 backlog #4).
       // К Layout Studio отношения не имеет.
-      "20260824160000_projectceo_released_archive_read.sql",
+      "20260825020000_projectceo_released_archive_read.sql",
       // Фаза 3a: атомарная дверь публикации baseline (M3 backlog #6/#7),
       // composition выводится сервером. К Layout Studio отношения не имеет.
-      "20260824170000_projectceo_publish_baseline_door.sql",
+      "20260825030000_projectceo_publish_baseline_door.sql",
       // Фаза 3a: воркерный контур ingest_source_graph (M3 backlog #5) —
       // очередь, системная дверь, durable-отказы DEC-036. К Layout Studio
       // отношения не имеет.
-      "20260824180000_projectceo_source_ingest_worker.sql",
+      "20260825040000_projectceo_source_ingest_worker.sql",
       // Фаза 3a: гейт читающих RPC по состоянию модуля M3 (backlog #2).
       // К Layout Studio отношения не имеет.
-      "20260824190000_projectceo_m3_read_gate.sql",
+      "20260825050000_projectceo_m3_read_gate.sql",
       // Фаза 3a: вывод legacy-дверей выдачи/подтверждения из строя
       // (M4 backlog #2). К Layout Studio отношения не имеет.
-      "20260824200000_projectceo_m4_retire_legacy_release_doors.sql",
+      "20260825060000_projectceo_m4_retire_legacy_release_doors.sql",
       // Фаза 3a: v10 чтения — approvalSupersededEntities (M4 backlog #5).
       // К Layout Studio отношения не имеет.
-      "20260824210000_projectceo_workspace_read_v10_superseded_approvals.sql",
+      "20260825070000_projectceo_workspace_read_v10_superseded_approvals.sql",
     ];
     const actual = readdirSync(join(repoRoot, "supabase/migrations"), { withFileTypes: true })
       // Предмет проверки — миграции, а не всё содержимое папки. Рядом с ними
@@ -332,6 +332,8 @@ describe("Layout Studio delivery/UI slice", () => {
       "20260824130000_projectceo_platform_facts.sql",
       // Фаза 2, A2 (DEC-009): учёт вызовов AI без текстов промптов.
       "20260824140000_projectceo_platform_ai_calls.sql",
+      // Фаза 2, A4 (DEC-010): переиспользуемый Approval Requests gate.
+      "20260824150000_projectceo_platform_approval_requests.sql",
     ]);
   });
 
