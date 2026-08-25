@@ -17,6 +17,11 @@ import { getStudio } from "@/lib/studio";
 import { missingFields, firstMeetingQuestions, type RiskCardRow } from "@/lib/review";
 import PassportView from "@/components/passport-view";
 import IntakeLink from "@/components/intake-link";
+import {
+  extendIntakeLink,
+  regenerateIntakeToken,
+  revokeIntakeLink,
+} from "./intake-actions";
 import CopyTextButton from "@/components/copy-text-button";
 import ReviewCards from "./review";
 import CustomQuestions from "./custom-questions";
@@ -75,7 +80,51 @@ export default async function ProjectPage({ params }: { params: Promise<{ id: st
 
       {!briefDone ? (
         <div className="space-y-4">
-          {profileReady ? <IntakeLink url={intakeUrl} /> : <ProfileGate />}
+          {profileReady ? (
+            <>
+              <IntakeLink url={intakeUrl} />
+              <form className="flex gap-2 text-sm">
+                <button
+                  type="submit"
+                  formAction={async (fd: FormData) => {
+                    "use server";
+                    await extendIntakeLink(String(fd.get("projectId")));
+                  }}
+                  name="projectId"
+                  value={p.id}
+                  className="btn-ghost"
+                >
+                  Продлить ссылку на 30 дней
+                </button>
+                <button
+                  type="submit"
+                  formAction={async (fd: FormData) => {
+                    "use server";
+                    await revokeIntakeLink(String(fd.get("projectId")));
+                  }}
+                  name="projectId"
+                  value={p.id}
+                  className="btn-ghost"
+                >
+                  Отозвать ссылку
+                </button>
+                <button
+                  type="submit"
+                  formAction={async (fd: FormData) => {
+                    "use server";
+                    await regenerateIntakeToken(String(fd.get("projectId")));
+                  }}
+                  name="projectId"
+                  value={p.id}
+                  className="btn-ghost"
+                >
+                  Новый токен
+                </button>
+              </form>
+            </>
+          ) : (
+            <ProfileGate />
+          )}
           <CustomQuestions
             projectId={p.id}
             initial={customQuestions}
