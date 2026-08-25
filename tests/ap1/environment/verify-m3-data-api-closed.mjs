@@ -141,13 +141,32 @@ for (const [schema, name, payload] of denied) {
 }
 
 // 4. Приватная схема не отдана Data API вовсе.
-const privateSchema = await fetch(`${url}/rest/v1/`, {
+//
+// Корневой эндпоинт `/rest/v1/` на новых hosted-проектах отвечает
+// 401 `UNAUTHORIZED_INVALID_API_KEY_TYPE` на статические ключи любого типа
+// (шлюз закрыл OpenAPI-корень), поэтому при таком отказе схема проверяется
+// пробой реальной таблицы: неэкспонированная схема отвечает
+// 406 `Invalid schema`, экспонированная отдала бы таблицу (200) или
+// её отсутствие (404), но не 406.
+let privateSchema = await fetch(`${url}/rest/v1/`, {
   headers: {
     apikey: anonKey,
     Authorization: `Bearer ${token}`,
     "Accept-Profile": "project_intelligence_api",
   },
 });
+if (
+  privateSchema.status === 401
+  && (privateSchema.headers.get("sb-error-code") ?? "") === "UNAUTHORIZED_INVALID_API_KEY_TYPE"
+) {
+  privateSchema = await fetch(`${url}/rest/v1/events?select=*&limit=0`, {
+    headers: {
+      apikey: anonKey,
+      Authorization: `Bearer ${token}`,
+      "Accept-Profile": "project_intelligence_api",
+    },
+  });
+}
 if (privateSchema.status !== 406) {
   throw new Error(
     `AP1_M3_PRIVATE_SCHEMA_EXPOSED:${privateSchema.status}`,
