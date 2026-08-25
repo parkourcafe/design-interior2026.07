@@ -309,6 +309,8 @@ describe("Layout Studio delivery/UI slice", () => {
       "20260824130000_projectceo_platform_facts.sql",
       // Фаза 2, A2 (DEC-009): учёт вызовов AI без текстов промптов.
       "20260824140000_projectceo_platform_ai_calls.sql",
+      // Фаза 2, A4 (DEC-010): переиспользуемый Approval Requests gate.
+      "20260824150000_projectceo_platform_approval_requests.sql",
     ]);
   });
 
