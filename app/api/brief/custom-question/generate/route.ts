@@ -73,7 +73,10 @@ export async function POST(request: Request) {
   if (!context.success) return NextResponse.json({ error: "bad_request" }, { status: 400 });
 
   const prompt = buildBriefPackPrompt(context.data);
-  const result = await completeJSON(prompt, briefPackSchema);
+  const result = await completeJSON(prompt, briefPackSchema, {
+      module: "brief",
+      purpose: "custom_question",
+    });
 
   if (result.ok) {
     const questions = flattenBriefPack(result.data);

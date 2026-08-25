@@ -30,7 +30,10 @@ export async function POST(request: Request) {
 
   const phrase = sanitizeDesignerPrompt(parsed.data.phrase);
   const prompt = buildCustomQuestionPrompt(phrase);
-  const result = await completeJSON(prompt, llmStructuredQuestionSchema);
+  const result = await completeJSON(prompt, llmStructuredQuestionSchema, {
+      module: "brief",
+      purpose: "question_structure",
+    });
 
   if (result.ok) {
     const normalized = customBriefQuestionSchema.safeParse({
