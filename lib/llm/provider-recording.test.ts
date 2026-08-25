@@ -36,7 +36,7 @@ describe("completeJSON — учёт вызовов AI (DEC-009, A2)", () => {
 
     expect(result.ok).toBe(true);
     expect(recordMock).toHaveBeenCalledTimes(1);
-    const entry = recordMock.mock.calls[0][0];
+    const entry = recordMock.mock.calls[0]?.[0];
     expect(entry).toMatchObject({
       provider: "yandex",
       model: "yandexgpt-lite",
@@ -62,8 +62,8 @@ describe("completeJSON — учёт вызовов AI (DEC-009, A2)", () => {
 
     expect(result.ok).toBe(false);
     expect(recordMock).toHaveBeenCalledTimes(1);
-    const entry = recordMock.mock.calls[0][0];
-    expect(entry.status).toBe("error");
+    const entry = recordMock.mock.calls[0]?.[0];
+    expect(entry?.status).toBe("error");
     // Тело ответа провайдера (может нести эхо промпта) в код не попадает.
     expect(entry.errorCode).toBe("yandex_http_429");
     expect(entry.completionText).toBeNull();
@@ -78,10 +78,10 @@ describe("completeJSON — учёт вызовов AI (DEC-009, A2)", () => {
 
     expect(result).toMatchObject({ ok: true, repaired: true });
     expect(recordMock).toHaveBeenCalledTimes(2);
-    expect(recordMock.mock.calls[0][0].status).toBe("ok");
-    expect(recordMock.mock.calls[1][0].status).toBe("ok");
+    expect(recordMock.mock.calls[0]?.[0].status).toBe("ok");
+    expect(recordMock.mock.calls[1]?.[0].status).toBe("ok");
     // Вторая запись — про repair-промпт, не про исходный.
-    expect(recordMock.mock.calls[1][0].prompt).toContain("не прошёл валидацию");
+    expect(recordMock.mock.calls[1]?.[0].prompt).toContain("не прошёл валидацию");
   });
 
   it("падение учёта не роняет основной вызов (best-effort)", async () => {
@@ -103,7 +103,8 @@ describe("completeJSON — учёт вызовов AI (DEC-009, A2)", () => {
       organizationId: "org-1",
     });
 
-    expect(recordMock.mock.calls[0][0].ctx).toEqual({
+    const entry = recordMock.mock.calls[0]?.[0];
+    expect(entry?.ctx).toEqual({
       module: "platform",
       purpose: "unit_probe",
       organizationId: "org-1",

@@ -307,6 +307,8 @@ describe("Layout Studio delivery/UI slice", () => {
       "20260824120000_projectceo_auth_hook_email_verified_password.sql",
       // Фаза 2, A1 (DEC-038): платформенный реестр фактов с провенансом.
       "20260824130000_projectceo_platform_facts.sql",
+      // Фаза 2, A2 (DEC-009): учёт вызовов AI без текстов промптов.
+      "20260824140000_projectceo_platform_ai_calls.sql",
     ]);
   });
 
