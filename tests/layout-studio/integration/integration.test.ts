@@ -311,6 +311,8 @@ describe("Layout Studio delivery/UI slice", () => {
       "20260824140000_projectceo_platform_ai_calls.sql",
       // Фаза 2, A4 (DEC-010): переиспользуемый Approval Requests gate.
       "20260824150000_projectceo_platform_approval_requests.sql",
+      // Фаза 2, A5: persistence каталога воркфлоу v1.
+      "20260824160000_projectceo_platform_workflow_templates.sql",
     ]);
   });
 
