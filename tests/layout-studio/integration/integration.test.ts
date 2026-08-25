@@ -301,6 +301,10 @@ describe("Layout Studio delivery/UI slice", () => {
       // Контракт документа 0.2: валидатор публикации принимает обе версии,
       // каждую по её правилам (см. миграцию и db4/36).
       "20260810030000_projectceo_m2_layout_document_v02.sql",
+      // DEC-038/Фаза 1: hosted GoTrue не кладёт email_verified в JWT при
+      // password-логине; хук ставит claim из правды базы
+      // (REMHAOS_AP1_PILOT_EVIDENCE_2026-08-24.md, FIND-01).
+      "20260824120000_projectceo_auth_hook_email_verified_password.sql",
     ]);
   });
 
