@@ -76,7 +76,8 @@ for sql in \
   "${repo_root}/tests/db4/42_telegram_bridge_boundary.sql" \
   "${repo_root}/tests/db4/43_telegram_inbox_vertical.sql" \
   "${repo_root}/tests/db4/44_telegram_bridge_correction.sql" \
-  "${repo_root}/tests/db4/47_telegram_pending_ambiguity.sql"; do
+  "${repo_root}/tests/db4/47_telegram_pending_ambiguity.sql" \
+  "${repo_root}/tests/db4/49_platform_facts_operations.sql"; do
   print -r -- "Running ${sql:t}"
   run_file "${sql}"
 done
