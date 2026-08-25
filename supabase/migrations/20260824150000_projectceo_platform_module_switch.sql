@@ -49,7 +49,11 @@ begin;
 
 set local check_function_bodies = on;
 
-create schema projectceo_platform authorization pi_table_owner;
+-- Схему первой создаёт `20260824130000` (платформенный фундамент A1,
+-- Фаза 2) — эта миграция шла раньше по номеру, но после слияния веток
+-- перенумерована позже неё; создание оставлено терпимым, revoke ниже
+-- идемпотентен и ужесточает исполнителей сверх набора A1.
+create schema if not exists projectceo_platform authorization pi_table_owner;
 revoke all on schema projectceo_platform
   from public, anon, authenticated, service_role,
        pi_human_executor, pi_worker_executor;

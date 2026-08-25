@@ -94,7 +94,10 @@ export async function generateLlmRisks(
   passport: Passport,
   answers: Record<string, unknown>,
 ): Promise<LlmRisksResult> {
-  const result = await completeJSON(buildRiskPrompt(passport, answers), RiskCardsLlmSchema);
+  const result = await completeJSON(buildRiskPrompt(passport, answers), RiskCardsLlmSchema, {
+    module: "risks",
+    purpose: "risk_cards",
+  });
   if (!result.ok) return { ok: false, cards: [], error: result.error };
 
   const cards: RiskCard[] = result.data.map((c) => ({ ...c, source: "llm" as const }));

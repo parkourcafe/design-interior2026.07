@@ -79,7 +79,10 @@ begin
       'append_m2_layout_version_revision', 'submit_m2_client_review',
       'review_m2_client_submission', 'publish_m2_m3_handoff',
       'register_m3_documentation_sheet', 'attach_m3_documentation_sheet_specifications',
-      'acknowledge_impact_truncation', 'publish_baseline_atomic'
+      'acknowledge_impact_truncation',
+      -- `create_project_fact` — платформенный фундамент A1 (`20260824130000`),
+      -- идёт раньше по номеру: перечисление обязано его сохранить.
+      'create_project_fact', 'publish_baseline_atomic'
     ));
 
   select array_agg(match[1] order by match[1]) into v_new

@@ -30,7 +30,7 @@
 ## 1. Что построено (по пунктам ТЗ §4)
 
 ### 3a.4 — авторитетный DB-state включения модулей (M3 №2/№8 предпосылка + M4 №3)
-- Миграция `supabase/migrations/20260824010000_projectceo_platform_module_switch.sql`:
+- Миграция `supabase/migrations/20260824150000_projectceo_platform_module_switch.sql`:
   схема `projectceo_platform`, журнал `module_switch_log` (actor/basis
   обязательны, порядок по счётчику `entry_no`), операции
   `open_module_production` / `close_module_production` /
@@ -49,7 +49,7 @@
   остаётся решением владельца (ТЗ §6).
 
 ### 3a.1 — read-only проекция released archive (M3 №4)
-- `20260824020000_projectceo_released_archive_read.sql`:
+- `20260824160000_projectceo_released_archive_read.sql`:
   `projectceo_read_api.get_released_archive_read_v1` — версии
   производственных пакетов, артефакты, листы выпущенных пакетов; DTO без
   приватных имён отношений, `logical_content`, `semantic_content`, исходных
@@ -64,7 +64,7 @@
   сцепка артефакт→версия. VERIFIED.
 
 ### 3a.2 — SQL-дверь baseline одной транзакцией + четыре теста (M3 №6+№7)
-- `20260824030000_projectceo_publish_baseline_door.sql`:
+- `20260824170000_projectceo_publish_baseline_door.sql`:
   `projectceo_product_api.publish_baseline_atomic` — авторизация → replay →
   `publish_version` → серверная деривация состава → `publish_project_baseline`
   → запись двери в общий леджер, всё одной транзакцией. Гонка «новая команда
@@ -91,7 +91,7 @@
   VERIFIED.
 
 ### 3a.3 — воркерный `ingest_source_graph` (M3 №5)
-- `20260824040000_projectceo_source_ingest_worker.sql`: очередь
+- `20260824180000_projectceo_source_ingest_worker.sql`: очередь
   `list_source_ingest_backlog` (только materialized-инвентарь без графа,
   минус dead-letter/бэкофф; DTO без sanitized_name и ключей планировки);
   системная дверь `ingest_source_graph_system` — ВЕСЬ граф синтезируется
@@ -124,7 +124,7 @@
   отказа не роняет проход; ломаный конверт роняет весь проход). VERIFIED.
 
 ### M3 №2 — гейт читающих RPC
-- `20260824050000_projectceo_m3_read_gate.sql`: при выключенном M3 Data API
+- `20260824190000_projectceo_m3_read_gate.sql`: при выключенном M3 Data API
   не отдаёт source/sheet данные. Базовое чтение правится хирургией
   `pg_get_functiondef` (приём `20260801120000` — тело в базе уже не равно
   тексту миграции после auth-rewrite; копия реинтродуцировала бы
@@ -144,7 +144,7 @@
   request-bound; P1103 чужой получатель; P1107 чужой хеш СО СВЕЖИМ КЛЮЧОМ —
   у request-bound хеш входит в request digest, повтор ключа дал бы P1108
   раньше проверки; НОВОЕ покрытие P1109 RECIPIENT_SCOPE_REQUIRED — его не
-  было нигде), ЗАТЕМ `20260824060000` заменяет тела
+  было нигде), ЗАТЕМ `20260824200000` заменяет тела
   `distribute_release`/`acknowledge_release` безусловным отказом
   `LEGACY_DOOR_RETIRED_USE_REQUEST_BOUND`. Гипотеза §5.4 ТЗ выполнена в
   форме «дверь мертва при любом гранте»: guard миграции зовёт двери от
@@ -157,7 +157,7 @@
 - VERIFIED (DB4 и DB5 — db4/20 гоняется в обоих).
 
 ### 3a.6 — не предлагать публикацию при устаревшей ревизии (M4 №5, SQL-половина)
-- `20260824070000_projectceo_workspace_read_v10_superseded_approvals.sql`:
+- `20260824210000_projectceo_workspace_read_v10_superseded_approvals.sql`:
   v10 оборачивает v9 (конвенция версий) и добавляет
   `data.approvalSupersededEntities` — сущности, чья победившая одобренная
   ревизия уже не текущая в графе и текущая не переодобрена. Непустой список

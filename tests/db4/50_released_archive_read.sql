@@ -1,6 +1,6 @@
 \set ON_ERROR_STOP on
 
--- Read-only проекция released archive (`20260824020000`, M3 backlog #4):
+-- Read-only проекция released archive (`20260824160000`, M3 backlog #4):
 -- владелец видит свой архив; участник без студийной роли не видит листов;
 -- чужая организация — P1103; выключенный модуль — P1113 module_disabled;
 -- DTO не содержит приватных имён, исходных имён файлов и signed URL.

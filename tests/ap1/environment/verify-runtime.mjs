@@ -15,6 +15,7 @@ const allowedSchemas = [
   "projectceo_product_api",
   "projectceo_m3_api",
   "projectceo_m4_api",
+  "projectceo_platform_api",
 ];
 const privateSchemas = [
   "project_intelligence",
