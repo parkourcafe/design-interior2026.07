@@ -20,7 +20,7 @@ export const dynamic = "force-dynamic";
 
 export async function GET(
   request: NextRequest,
-  context: RouteContext<"/api/integrations/[provider]/oauth/callback">,
+context: { params: Promise<{ provider: string }> },
 ) {
   if (!integrationGatewayEnabled()) return integrationGatewayDisabledResponse();
   const { provider } = await context.params;

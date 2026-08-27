@@ -23,7 +23,7 @@ const bindBodySchema = z.object({
 
 export async function GET(
   _request: NextRequest,
-  context: RouteContext<"/api/projects/[projectId]/connections">,
+context: { params: Promise<{ projectId: string }> },
 ) {
   if (!integrationGatewayEnabled()) return integrationGatewayDisabledResponse();
   try {
@@ -40,7 +40,7 @@ export async function GET(
 
 export async function POST(
   request: NextRequest,
-  context: RouteContext<"/api/projects/[projectId]/connections">,
+context: { params: Promise<{ projectId: string }> },
 ) {
   if (!integrationGatewayEnabled()) return integrationGatewayDisabledResponse();
   try {

@@ -20,7 +20,7 @@ const unbindBodySchema = z.object({ reason: z.string().trim().min(1).max(512) })
 
 export async function POST(
   request: NextRequest,
-  context: RouteContext<"/api/projects/[projectId]/connections/[connectionId]/unbind">,
+context: { params: Promise<{ projectId: string; connectionId: string }> },
 ) {
   if (!integrationGatewayEnabled()) return integrationGatewayDisabledResponse();
   try {

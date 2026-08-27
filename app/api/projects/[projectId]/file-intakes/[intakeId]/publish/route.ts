@@ -15,7 +15,7 @@ export const dynamic = "force-dynamic";
 
 export async function POST(
   request: NextRequest,
-  context: RouteContext<"/api/projects/[projectId]/file-intakes/[intakeId]/publish">,
+context: { params: Promise<{ projectId: string; intakeId: string }> },
 ) {
   if (!fileIntakeEnabled()) return fileIntakeDisabledResponse();
   try {

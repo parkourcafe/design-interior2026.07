@@ -21,7 +21,7 @@ const disconnectBodySchema = z.object({ reason: z.string().trim().min(1).max(512
 
 export async function POST(
   request: NextRequest,
-  context: RouteContext<"/api/integrations/connections/[connectionId]">,
+context: { params: Promise<{ connectionId: string }> },
 ) {
   if (!integrationGatewayEnabled()) return integrationGatewayDisabledResponse();
   try {

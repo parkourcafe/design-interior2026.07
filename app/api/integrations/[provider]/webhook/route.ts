@@ -18,7 +18,7 @@ export const dynamic = "force-dynamic";
 
 export async function POST(
   request: NextRequest,
-  context: RouteContext<"/api/integrations/[provider]/webhook">,
+context: { params: Promise<{ provider: string }> },
 ) {
   if (!integrationGatewayEnabled()) return integrationGatewayDisabledResponse();
   try {

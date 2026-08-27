@@ -21,7 +21,7 @@ const bodySchema = z.object({
 
 export async function POST(
   request: NextRequest,
-  context: RouteContext<"/api/projects/[projectId]/file-intakes/[intakeId]/review">,
+context: { params: Promise<{ projectId: string; intakeId: string }> },
 ) {
   if (!fileIntakeEnabled()) return fileIntakeDisabledResponse();
   try {

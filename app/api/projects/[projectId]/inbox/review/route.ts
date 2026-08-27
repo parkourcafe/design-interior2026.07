@@ -24,7 +24,7 @@ const reviewBodySchema = z.object({
 
 export async function POST(
   request: NextRequest,
-  context: RouteContext<"/api/projects/[projectId]/inbox/review">,
+context: { params: Promise<{ projectId: string }> },
 ) {
   if (!integrationGatewayEnabled()) return integrationGatewayDisabledResponse();
   try {

@@ -31,7 +31,7 @@ const importRequestSchema = z.object({
 
 export async function GET(
   request: NextRequest,
-  context: RouteContext<"/api/projects/[projectId]/imports">,
+context: { params: Promise<{ projectId: string }> },
 ) {
   if (!integrationGatewayEnabled()) return integrationGatewayDisabledResponse();
   try {
@@ -49,7 +49,7 @@ export async function GET(
 
 export async function POST(
   request: NextRequest,
-  context: RouteContext<"/api/projects/[projectId]/imports">,
+context: { params: Promise<{ projectId: string }> },
 ) {
   if (!integrationGatewayEnabled()) return integrationGatewayDisabledResponse();
   try {

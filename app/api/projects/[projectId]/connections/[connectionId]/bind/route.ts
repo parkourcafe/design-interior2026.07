@@ -22,7 +22,7 @@ const bindBodySchema = z.object({
 
 export async function POST(
   request: NextRequest,
-  context: RouteContext<"/api/projects/[projectId]/connections/[connectionId]/bind">,
+context: { params: Promise<{ projectId: string; connectionId: string }> },
 ) {
   if (!integrationGatewayEnabled()) return integrationGatewayDisabledResponse();
   try {

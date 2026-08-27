@@ -26,7 +26,7 @@ const connectIntentBodySchema = z.object({
 
 export async function POST(
   request: NextRequest,
-  context: RouteContext<"/api/integrations/[provider]/connect-intent">,
+context: { params: Promise<{ provider: string }> },
 ) {
   if (!integrationGatewayEnabled()) return integrationGatewayDisabledResponse();
   try {

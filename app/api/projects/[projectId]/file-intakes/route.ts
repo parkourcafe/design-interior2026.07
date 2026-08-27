@@ -18,7 +18,7 @@ export const dynamic = "force-dynamic";
 
 export async function GET(
   _request: NextRequest,
-  context: RouteContext<"/api/projects/[projectId]/file-intakes">,
+context: { params: Promise<{ projectId: string }> },
 ) {
   if (!fileIntakeEnabled()) return fileIntakeDisabledResponse();
   try {
@@ -34,7 +34,7 @@ export async function GET(
 
 export async function POST(
   request: NextRequest,
-  context: RouteContext<"/api/projects/[projectId]/file-intakes">,
+context: { params: Promise<{ projectId: string }> },
 ) {
   if (!fileIntakeEnabled()) return fileIntakeDisabledResponse();
   try {
