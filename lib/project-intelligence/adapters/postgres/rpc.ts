@@ -8,7 +8,8 @@ export async function callRpc(
     | "projectceo_m3_api"
     | "projectceo_m4_api"
     | "projectceo_read_api"
-    | "project_intelligence_api",
+    | "project_intelligence_api"
+    | "remhaos_integration_api",
   functionName: string,
   args: Readonly<Record<string, unknown>> = {},
 ): Promise<unknown> {

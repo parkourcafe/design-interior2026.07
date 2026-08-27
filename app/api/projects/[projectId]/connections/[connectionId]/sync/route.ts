@@ -1,0 +1,44 @@
+import { NextResponse, type NextRequest } from "next/server";
+import { z } from "zod";
+import { createProjectCeoRequestContext } from "@/lib/project-intelligence/delivery/projectceo/request-context";
+import { IntegrationConnectionService } from "@/lib/integration-gateway/registry/connection-service";
+import {
+  assertIntegrationMutation,
+  integrationGatewayDisabledResponse,
+  integrationGatewayEnabled,
+  integrationGatewayErrorResponse,
+  integrationGatewayIdempotencyKey,
+  integrationProjectIdPattern,
+  IntegrationGatewayRequestError,
+  privateJsonHeaders,
+} from "@/lib/integration-gateway/registry/http";
+
+export const dynamic = "force-dynamic";
+
+export async function POST(
+  request: NextRequest,
+  context: { params: Promise<{ projectId: string; connectionId: string }> },
+) {
+  if (!integrationGatewayEnabled()) return integrationGatewayDisabledResponse();
+  try {
+    assertIntegrationMutation(request);
+    const { projectId, connectionId } = await context.params;
+    if (
+      !integrationProjectIdPattern.test(projectId)
+      || !z.string().uuid().safeParse(connectionId).success
+    ) {
+      throw new IntegrationGatewayRequestError();
+    }
+    const idempotencyKey = integrationGatewayIdempotencyKey(request);
+    const requestContext = await createProjectCeoRequestContext();
+    const data = await new IntegrationConnectionService(requestContext.client)
+      .requestManualIntegrationSync({
+        projectId,
+        projectConnectionId: connectionId,
+        idempotencyKey,
+      });
+    return NextResponse.json({ data }, { status: 202, headers: privateJsonHeaders() });
+  } catch (error) {
+    return integrationGatewayErrorResponse(error);
+  }
+}
