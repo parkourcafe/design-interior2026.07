@@ -212,7 +212,6 @@ jobs:
       # возврат на адрес, которого там нет.
       AP5_APP_URL: http://127.0.0.1:3100
       AP1_EMAIL_DOMAIN: remhaos.test
-      AP1_TEST_PASSWORD: ap5-local-only-password
       AP1_CONFIRM_DISPOSABLE: "yes"
       NEXT_PUBLIC_APP_URL: http://127.0.0.1:3100
       # Модули, которые должна видеть матрица ролей. Оба флага сравниваются со
@@ -237,6 +236,19 @@ jobs:
         with:
           # Версия зафиксирована контрактом supabase/config.toml.
           version: 2.109.1
+
+      # Старый job-level пароль печатался GitHub Actions вместе с env каждого
+      # шага. Credential нужен только живому disposable-стеку этого запуска:
+      # создаём новый для каждого run, маскируем до записи в GITHUB_ENV и не
+      # помещаем его в job-level env, который Actions печатает автоматически.
+      - name: Generate and mask disposable AP1 credential
+        shell: bash
+        run: |
+          set -euo pipefail
+          credential="$(openssl rand -hex 24)"
+          echo "::add-mask::${credential}"
+          printf 'AP1_TEST_PASSWORD=%s\n' "${credential}" >> "${GITHUB_ENV}"
+
       - run: npm ci
 
       # Стек поднимается из репозиторного config.toml: порты, список схем в
