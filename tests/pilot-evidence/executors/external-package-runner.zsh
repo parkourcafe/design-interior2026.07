@@ -15,10 +15,9 @@ set -euo pipefail
 #   $3 external manifest path     $7 kora producer path
 #   $4 executor verification id   $8 kora producer digest
 #
-# Environment (supplied by the operator running the disposable stack):
-#   EXTERNAL_RUN_ORIGIN       base URL of the running application
-#   EXTERNAL_RUN_DB_CONTAINER postgres container of the disposable database
-#   EXTERNAL_RUN_COOKIE_DIR   directory holding one cookie jar per role
+# Optional environment overrides are accepted for local diagnosis only. The
+# canonical Cycle 7 wrapper supplies none: origin, database and cookie window
+# are discovered from the named disposable AP1 profile.
 #
 # NOTE: the command payload bodies are derived from the manifest below. The
 # manifest shape is fixed by tests/pilot-evidence/m2-pilot-evidence-contract.ts,
@@ -53,17 +52,27 @@ if [[ ! -r ${manifest_path} ]]; then
   exit 66
 fi
 
-origin=${EXTERNAL_RUN_ORIGIN:-}
-db_container=${EXTERNAL_RUN_DB_CONTAINER:-}
-cookie_dir=${EXTERNAL_RUN_COOKIE_DIR:-}
-if [[ -z ${origin} || -z ${db_container} || -z ${cookie_dir} || ! -d ${cookie_dir} ]]; then
-  print -u2 -r -- 'EXTERNAL_RUNNER_DISPOSABLE_ENVIRONMENT_REQUIRED'
+origin=${EXTERNAL_RUN_ORIGIN:-http://127.0.0.1:3100}
+db_container=${EXTERNAL_RUN_DB_CONTAINER:-supabase_db_archidom-ap1-disposable}
+cookie_dir=${EXTERNAL_RUN_COOKIE_DIR:-/private/tmp/projectceo-ap1-evidence}
+if [[ ! -d ${cookie_dir} ]]; then
+  print -u2 -r -- 'EXTERNAL_RUNNER_COOKIE_WINDOW_MISSING'
   exit 67
 fi
 if [[ ${origin} != http://127.0.0.1:* && ${origin} != http://localhost:* ]]; then
   print -u2 -r -- 'EXTERNAL_RUNNER_NON_LOOPBACK_ORIGIN_REJECTED'
   exit 67
 fi
+db_candidates=(${(f)"$(docker ps --filter "name=^/${db_container}$" --format '{{.Names}}')"})
+if (( ${#db_candidates} != 1 )); then
+  print -u2 -r -- 'EXTERNAL_RUNNER_DB_CONTAINER_AMBIGUOUS'
+  exit 67
+fi
+db_label=$(docker inspect --format '{{index .Config.Labels "com.supabase.cli.project"}}' "${db_container}")
+[[ ${db_label} == archidom-ap1-disposable ]] || {
+  print -u2 -r -- 'EXTERNAL_RUNNER_DB_CONTAINER_OWNERSHIP_REJECTED'
+  exit 67
+}
 
 executor_absolute=${0:a}
 executor_relative=${executor_absolute#${repo_root}/}
@@ -95,9 +104,31 @@ query_db() {
     psql -X -qAt --set ON_ERROR_STOP=1 --username postgres --dbname postgres
 }
 
+harvest_db_command() {
+  local operation=$1
+  query_db <<SQL
+select json_build_object(
+  'commandId', command.command_id,
+  'actorUserId', command.actor_user_id,
+  'resultingStateRevision', command.resulting_state_revision,
+  'logicalResult', command.logical_result,
+  'auditEventId', audit.audit_event_id
+)::text
+from projectceo_product.command_records command
+join projectceo_product.audit_events audit
+  on audit.organization_id = command.organization_id
+ and audit.project_id = command.project_id
+ and audit.command_id = command.command_id
+where command.project_id = '${project_id}'::uuid
+  and command.operation = '${operation}'
+order by command.completed_at desc
+limit 1;
+SQL
+}
+
 # One authenticated POST under the given role's own cookie jar.
 post_command() {
-  local role=$1 payload=$2 output=$3
+  local role=$1 payload=$2 output=$3 operation=${4:-unknown}
   local jar="${cookie_dir}/${role}.cookies"
   if [[ ! -r ${jar} ]]; then
     print -u2 -r -- "EXTERNAL_RUNNER_COOKIE_JAR_MISSING role=${role}"
@@ -109,9 +140,20 @@ post_command() {
     -H "Origin: ${origin}" -H 'Content-Type: application/json' \
     --data "${payload}" "${origin}/api/projectceo/commands")
   [[ ${http} == 200 ]] || {
-    print -u2 -r -- "EXTERNAL_RUNNER_COMMAND_HTTP operation=${4:-unknown} status=${http}"
+    print -u2 -r -- "EXTERNAL_RUNNER_COMMAND_HTTP operation=${operation} status=${http}"
     exit 68
   }
+}
+
+publish_layout_preflight() {
+  local payload=$1 variant_id=$2
+  local command_id=$(cat /proc/sys/kernel/random/uuid)
+  local first="${work_dir}/layout-${variant_id}.json"
+  local second="${work_dir}/layout-${variant_id}-replay.json"
+  post_command owner "$(command_payload publish_m2_layout_version "${command_id}" "${payload}")" "${first}" publish_m2_layout_version
+  jq -e '.status == "completed" and .replay == false' "${first}" >/dev/null
+  post_command owner "$(command_payload publish_m2_layout_version "${command_id}" "${payload}")" "${second}" publish_m2_layout_version
+  jq -e --slurpfile first "${first}" '.status == "completed" and .replay == true and .result == $first[0].result' "${second}" >/dev/null
 }
 
 # Sends the exact same command twice and records both digests. The builder
@@ -129,23 +171,50 @@ send_command() {
   result_digest=$(jq -cS '.result' "${first}" | shasum -a 256 | awk '{print "sha256:"$1}')
   replay_digest=$(jq -cS '.result' "${second}" | shasum -a 256 | awk '{print "sha256:"$1}')
   request_id=$(jq -er '.requestId' "${first}")
-  state_revision=$(jq -er '.stateRevision' "${first}")
+  db_record=$(harvest_db_command "${operation}" | tail -1)
+  [[ -n ${db_record} ]] || { print -u2 -r -- "EXTERNAL_RUNNER_DB_COMMAND_MISSING operation=${operation}"; exit 68; }
+  state_revision=$(jq -er '.resultingStateRevision' <<<"${db_record}")
   previous_state_revision=$(( state_revision - 1 ))
-  audit_event_id=$(query_db <<SQL
-select audit_event_id from projectceo_product.audit_events
-where command_id = '${command_id}'::uuid order by created_at desc limit 1;
-SQL
-  )
-  audit_event_id=$(print -r -- "${audit_event_id}" | tail -1 | tr -d '[:space:]')
+  command_id=$(jq -er '.commandId' <<<"${db_record}")
+  audit_event_id=$(jq -er '.auditEventId' <<<"${db_record}")
+  actor_user_id=$(jq -er '.actorUserId' <<<"${db_record}")
+  actor_session_id=$(jq -er --arg role "${role}" '.[] | select(.role == $role) | .sessionId' "${sessions_file}")
 
   jq --arg operation "${operation}" --arg commandId "${command_id}" --arg requestId "${request_id}" \
-    --arg auditEventId "${audit_event_id}" --arg role "${role}" \
+    --arg auditEventId "${audit_event_id}" --arg actorUserId "${actor_user_id}" --arg actorSessionId "${actor_session_id}" --arg role "${role}" \
     --argjson previous "${previous_state_revision}" --argjson resulting "${state_revision}" \
     --arg resultDigest "${result_digest}" --arg replayDigest "${replay_digest}" \
     '. += [{operation: $operation, commandId: $commandId, requestId: $requestId,
-            auditEventId: $auditEventId, role: $role,
+            auditEventId: $auditEventId, actorUserId: $actorUserId, actorSessionId: $actorSessionId, role: $role,
             previousStateRevision: $previous, resultingStateRevision: $resulting,
             resultDigest: $resultDigest, replayDigest: $replayDigest}]' \
+    "${commands_file}" > "${commands_file}.next"
+  mv -- "${commands_file}.next" "${commands_file}"
+}
+
+# `review_m2_client_submission(approved)` appends this command in the same
+# database transaction. It has no second HTTP door by design. Harvesting the
+# actual command record preserves the five-entry receipt without inventing a
+# public API or issuing a duplicate approved commit.
+record_approved_commit_side_effect() {
+  local operation=append_m2_approved_commit_revision
+  local db_record result_digest state_revision previous_state_revision command_id audit_event_id actor_user_id actor_session_id
+  db_record=$(harvest_db_command "${operation}" | tail -1)
+  [[ -n ${db_record} ]] || { print -u2 -r -- 'EXTERNAL_RUNNER_APPROVED_COMMIT_SIDE_EFFECT_MISSING'; exit 68; }
+  command_id=$(jq -er '.commandId' <<<"${db_record}")
+  audit_event_id=$(jq -er '.auditEventId' <<<"${db_record}")
+  actor_user_id=$(jq -er '.actorUserId' <<<"${db_record}")
+  state_revision=$(jq -er '.resultingStateRevision' <<<"${db_record}")
+  previous_state_revision=$(( state_revision - 1 ))
+  actor_session_id=$(jq -er '.[] | select(.role == "client_approver") | .sessionId' "${sessions_file}")
+  result_digest=$(jq -cS '.logicalResult' <<<"${db_record}" | shasum -a 256 | awk '{print "sha256:"$1}')
+  jq --arg operation "${operation}" --arg commandId "${command_id}" --arg requestId "${audit_event_id}" \
+    --arg auditEventId "${audit_event_id}" --arg actorUserId "${actor_user_id}" --arg actorSessionId "${actor_session_id}" \
+    --argjson previous "${previous_state_revision}" --argjson resulting "${state_revision}" --arg digest "${result_digest}" \
+    '. += [{operation: $operation, commandId: $commandId, requestId: $requestId,
+            auditEventId: $auditEventId, actorUserId: $actorUserId, actorSessionId: $actorSessionId,
+            previousStateRevision: $previous, resultingStateRevision: $resulting,
+            resultDigest: $digest, replayDigest: $digest}]' \
     "${commands_file}" > "${commands_file}.next"
   mv -- "${commands_file}.next" "${commands_file}"
 }
@@ -188,17 +257,40 @@ command_payload() {
     '{contractVersion:"projectceo-command/0.1",kind:$kind,projectId:$projectId,commandId:$commandId,payload:$payload}'
 }
 
+# The submission contract requires all three published variants. Publish the
+# value-engineered and premium variants through the same authenticated command
+# door as the receipt chain; no private-table fixture writes are used.
+while IFS= read -r preflight_payload; do
+  preflight_variant_id=$(jq -er '.variantId' <<<"${preflight_payload}")
+  publish_layout_preflight "${preflight_payload}" "${preflight_variant_id}"
+done < <(jq -c --arg packageId "${package_id}" --arg roomId "${room_id}" \
+  '.m2.variants[] | select(.role != "preferred") |
+   {packageId: $packageId, documentId: .layoutDocumentId, versionId: .layoutVersionId,
+    revisionId: .layoutRevisionId, expectedRevisionId: null, roomId: $roomId,
+    variantId, role, semanticHash, schemaVersion: "project-ceo-m2-layout/0.1",
+    layoutContent, reason: "Операторская публикация внешнего варианта AP6."}' \
+  "${manifest_path}")
+
 layout_command_id=$(cat /proc/sys/kernel/random/uuid)
 layout_payload=$(jq -c --arg packageId "${package_id}" --arg roomId "${room_id}" \
-  '{packageId: $packageId, roomId: $roomId, variants: [.m2.variants[] | {role, layoutRevisionId, semanticHash, selections}]}' \
+  '.m2.variants[] | select(.role == "preferred") |
+   {packageId: $packageId, documentId: .layoutDocumentId, versionId: .layoutVersionId,
+    revisionId: .layoutRevisionId, expectedRevisionId: null, roomId: $roomId,
+    variantId, role, semanticHash, schemaVersion: "project-ceo-m2-layout/0.1",
+    layoutContent, reason: "Операторская публикация внешнего варианта AP6."}' \
   "${manifest_path}")
 send_command owner publish_m2_layout_version \
   "$(command_payload publish_m2_layout_version "${layout_command_id}" "${layout_payload}")" \
   "${layout_command_id}"
 
 submit_command_id=$(cat /proc/sys/kernel/random/uuid)
-submit_payload=$(jq -c --arg packageId "${package_id}" --arg roomId "${room_id}" \
-  '{packageId: $packageId, roomId: $roomId, chosenVariantRole: (.m2.variants[0].role)}' "${manifest_path}")
+submit_payload=$(jq -c --arg packageId "${package_id}" \
+  '.m2 | {packageId: $packageId, submissionId, revisionId: .submissionRevisionId,
+    expectedRevisionId: null, approvalPackageId, roomId, designIntentRevisionId,
+    variants: [.variants[] | {variantId, role, layoutDocumentId, layoutVersionId,
+      layoutRevisionId, semanticHash, selectionRevisionIds, budget}],
+    budgetAsOf, staleAfterDays, reason: "Внешний пакет передан на согласование оператором AP6."}' \
+  "${manifest_path}")
 send_command owner submit_m2_client_review \
   "$(command_payload submit_m2_client_review "${submit_command_id}" "${submit_payload}")" \
   "${submit_command_id}"
@@ -209,43 +301,44 @@ review_command_id=$(cat /proc/sys/kernel/random/uuid)
 # доказательство не должно выглядеть как настоящее клиентское согласование.
 # Осмысленную причину можно передать через EXTERNAL_RUN_REVIEW_REASON.
 review_reason=${EXTERNAL_RUN_REVIEW_REASON:-"Проверочный прогон цикла 7: решение принято оператором проверки, не заказчиком"}
-review_payload=$(jq -nc --arg reason "${review_reason}" '{decision:"approved",reason:$reason}')
+review_payload=$(jq -c --arg packageId "${package_id}" --arg reason "${review_reason}" \
+  '.m2 | {packageId: $packageId, submissionId, revisionId: .reviewRevisionId,
+    expectedRevisionId: .submissionRevisionId, chosenVariantId: .variants[0].variantId,
+    decision: "approved", reason: $reason}' "${manifest_path}")
 send_command client review_m2_client_submission \
   "$(command_payload review_m2_client_submission "${review_command_id}" "${review_payload}")" \
   "${review_command_id}"
 
-append_command_id=$(cat /proc/sys/kernel/random/uuid)
-append_payload=$(jq -c --arg packageId "${package_id}" --arg roomId "${room_id}" \
-  '{packageId: $packageId, roomId: $roomId}' "${manifest_path}")
-send_command owner append_m2_approved_commit_revision \
-  "$(command_payload append_m2_approved_commit_revision "${append_command_id}" "${append_payload}")" \
-  "${append_command_id}"
+record_approved_commit_side_effect
 
 handoff_command_id=$(cat /proc/sys/kernel/random/uuid)
-handoff_payload=$(jq -c --arg packageId "${package_id}" --arg roomId "${room_id}" \
-  '{packageId: $packageId, roomId: $roomId}' "${manifest_path}")
+handoff_payload=$(jq -c --arg packageId "${package_id}" \
+  '.m2 | {packageId: $packageId, handoffId, revisionId: .handoffRevisionId,
+    expectedRevisionId: null, approvedCommitId, approvedCommitRevisionId,
+    reason: "Передача согласованного внешнего пакета в контур M3."}' "${manifest_path}")
 send_command owner publish_m2_m3_handoff \
   "$(command_payload publish_m2_m3_handoff "${handoff_command_id}" "${handoff_payload}")" \
   "${handoff_command_id}"
 
 # Lineage and proof receipts come out of the operations that just ran.
 lineage=$(jq -n \
+  --arg submissionId "$(jq -er '.m2.submissionId' "${manifest_path}")" \
+  --arg submissionRevisionId "$(jq -er '.m2.submissionRevisionId' "${manifest_path}")" \
+  --arg reviewId "$(jq -er '.m2.submissionId' "${manifest_path}")" \
+  --arg reviewRevisionId "$(jq -er '.m2.reviewRevisionId' "${manifest_path}")" \
+  --arg approvedCommitId "$(jq -er '.m2.approvedCommitId' "${manifest_path}")" \
+  --arg approvedCommitRevisionId "$(jq -er '.m2.approvedCommitRevisionId' "${manifest_path}")" \
+  --arg handoffId "$(jq -er '.m2.handoffId' "${manifest_path}")" \
+  --arg handoffRevisionId "$(jq -er '.m2.handoffRevisionId' "${manifest_path}")" \
   --slurpfile submit "${work_dir}/submit_m2_client_review.json" \
-  --slurpfile review "${work_dir}/review_m2_client_submission.json" \
-  --slurpfile append "${work_dir}/append_m2_approved_commit_revision.json" \
   --slurpfile handoff "${work_dir}/publish_m2_m3_handoff.json" '
-  {submissionId: $submit[0].result.submissionId,
-   submissionRevisionId: $submit[0].result.submissionRevisionId,
-   reviewId: $review[0].result.reviewId,
-   reviewRevisionId: $review[0].result.reviewRevisionId,
-   approvedCommitId: $append[0].result.approvedCommitId,
-   approvedCommitRevisionId: $append[0].result.approvedCommitRevisionId,
-   clientSubmissionId: $submit[0].result.submissionId,
-   clientReviewRevisionId: $review[0].result.reviewRevisionId,
-   handoffId: $handoff[0].result.handoffId,
-   handoffRevisionId: $handoff[0].result.handoffRevisionId,
-   handoffApprovedCommitId: $append[0].result.approvedCommitId,
-   handoffApprovedCommitRevisionId: $append[0].result.approvedCommitRevisionId}')
+  {submissionId: $submissionId, submissionRevisionId: $submissionRevisionId,
+   reviewId: $reviewId, reviewRevisionId: $reviewRevisionId,
+   approvedCommitId: $approvedCommitId, approvedCommitRevisionId: $approvedCommitRevisionId,
+   clientSubmissionId: $submissionId, clientReviewRevisionId: $reviewRevisionId,
+   handoffId: $handoffId, handoffRevisionId: $handoffRevisionId,
+   handoffApprovedCommitId: $approvedCommitId,
+   handoffApprovedCommitRevisionId: $approvedCommitRevisionId}')
 
 proofs="${work_dir}/proofs.json"
 print -r -- '{}' > "${proofs}"

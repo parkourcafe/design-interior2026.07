@@ -46,6 +46,7 @@ run_log="${work_dir}/ap1-run.log"
 evidence_dir=""
 runtime_root=""
 next_pid=""
+preserve_evidence=${KORA_KEEP_EVIDENCE:-0}
 
 # AP1_KEEP_EVIDENCE suppresses AP1's own teardown so the session file and cookie
 # jars survive the harvest window. Everything it skipped is torn down here.
@@ -53,6 +54,10 @@ cleanup() {
   # `status` is a read-only special parameter in zsh: declaring it local aborts
   # this function on its first line and silently skips the teardown below.
   local exit_status=$?
+  if (( preserve_evidence == 1 )) && (( exit_status == 0 )); then
+    print -r -- "KORA_PRESERVED_EVIDENCE_WINDOW evidence=${evidence_dir} runtime=${runtime_root:-unset} next_pid=${next_pid:-unset}"
+    return 0
+  fi
   if [[ -n ${next_pid} ]]; then
     kill "${next_pid}" >/dev/null 2>&1 || true
     wait "${next_pid}" >/dev/null 2>&1 || true

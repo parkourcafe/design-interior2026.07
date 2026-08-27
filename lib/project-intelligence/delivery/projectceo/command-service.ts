@@ -23,7 +23,9 @@ import { DOCUMENTATION_PUBLICATION, isDocumentationModuleEnabled } from "./docum
 import {
   EXECUTION_NOT_AUTHORIZED_COMMANDS,
   EXECUTION_MODULE,
+  EXECUTION_V2_V3_COMMANDS,
   isExecutionModuleEnabled,
+  isExecutionV2V3Enabled,
 } from "./execution-flag";
 import {
   computeBaselineSemanticHash,
@@ -173,6 +175,8 @@ export interface ProjectCeoCommandDependencies {
   readonly now?: () => Date;
   /** Значение REMHAOS_EXECUTION_ENABLED; по умолчанию читается из окружения. */
   readonly executionEnabled?: string;
+  /** Значение REMHAOS_M4_V2_V3_ENABLED; только disposable AP1/AP6. */
+  readonly m4V2V3Enabled?: string;
   /** Значение REMHAOS_DOCUMENTATION_ENABLED; по умолчанию читается из окружения. */
   readonly documentationEnabled?: string;
 }
@@ -257,6 +261,12 @@ export class ProjectCeoCommandService {
     if (
       EXECUTION_MODULE.has(command.kind)
       && !isExecutionModuleEnabled(this.dependencies.executionEnabled)
+    ) {
+      return failure(requestId, "unavailable", "operation_unavailable");
+    }
+    if (
+      EXECUTION_V2_V3_COMMANDS.has(command.kind)
+      && !isExecutionV2V3Enabled(this.dependencies.m4V2V3Enabled)
     ) {
       return failure(requestId, "unavailable", "operation_unavailable");
     }

@@ -78,6 +78,22 @@ export const EXECUTION_V1_IMPACT = [
 ] as const;
 
 /**
+ * M4 V2/V3 disposable GO: photo evidence and milestone acceptance are opened
+ * only by an explicit AP1/AP6 environment flag, never by the general M4 flag.
+ */
+export const EXECUTION_V2_V3 = [
+  "upload_photo_evidence",
+  "review_photo_evidence",
+  "accept_milestone",
+] as const;
+
+export function isExecutionV2V3Enabled(
+  value = process.env.REMHAOS_M4_V2_V3_ENABLED,
+): boolean {
+  return value === "true";
+}
+
+/**
  * DEC-034 (OWNER CONTINUE 12.08.2026, поверх DEC-033 LOCKED): закрыта
  * НАВСЕГДА, не «пока не авторизована». PR #94 открыл её тем же GO, что
  * `review_change_impact` — DEC-033 запрещает human override усечённого
@@ -115,13 +131,9 @@ export const EXECUTION_V1_IMPACT_COMMANDS: ReadonlySet<ProjectCeoCommand["kind"]
  * Закрыто НЕЗАВИСИМО от флага.
  *
  * Флаг отвечает на вопрос «включён ли модуль», а эти команды закрыты не этим:
- * их не авторизовал ни один подписанный документ (A6 §1.1) и ни один
- * последующий GO, и до отдельного решения о своих вертикалях они обязаны
- * оставаться закрытыми даже там, где модуль намеренно открыт. Поэтому проверка
- * отдельная и стоит до флага: иначе «включить M4» означало бы «включить и то,
- * что никто не разрешал». `acknowledge_impact_truncation` (DEC-034) входит
- * сюда же тем же списком, тем же кодом ответа: у неё нет отдельного статуса —
- * она так же навсегда недоступна, как V2/V3.
+ * `build_handover` остаётся worker-only, а `acknowledge_impact_truncation`
+ * (DEC-034) закрыта навсегда. Временное открытие V2/V3 живёт отдельным
+ * `isExecutionV2V3Enabled`, чтобы общий флаг M4 не стал скрытым rollout.
  *
  * Множество выводится вычитанием, а не переписывается руками: пока это был
  * второй список рядом с первым, открытие одной команды означало правку в двух
@@ -129,7 +141,9 @@ export const EXECUTION_V1_IMPACT_COMMANDS: ReadonlySet<ProjectCeoCommand["kind"]
  */
 export const EXECUTION_NOT_AUTHORIZED_COMMANDS: ReadonlySet<ProjectCeoCommand["kind"]> =
   new Set([
-    ...(EXECUTION_INCREMENT_2 as readonly ProjectCeoCommand["kind"][])
-      .filter((kind) => !EXECUTION_V1_IMPACT_COMMANDS.has(kind)),
+    "build_handover",
     ...EXECUTION_PERMANENTLY_CLOSED,
   ] as readonly ProjectCeoCommand["kind"][]);
+
+export const EXECUTION_V2_V3_COMMANDS: ReadonlySet<ProjectCeoCommand["kind"]> =
+  new Set(EXECUTION_V2_V3 as readonly ProjectCeoCommand["kind"][]);

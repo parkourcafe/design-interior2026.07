@@ -20,6 +20,14 @@ fi
 mkdir -p "${cli_home}" "${cli_cache}"
 
 supabase_cli() {
+  if [[ -n ${AP1_SUPABASE_BIN:-} ]]; then
+    env HOME="${cli_home}" DOCKER_HOST="${docker_host}" "${AP1_SUPABASE_BIN}" "$@"
+    return
+  fi
+  if command -v supabase >/dev/null 2>&1 && [[ "$(env HOME="${cli_home}" supabase --version 2>/dev/null)" == "${cli_version}" ]]; then
+    env HOME="${cli_home}" DOCKER_HOST="${docker_host}" supabase "$@"
+    return
+  fi
   env \
     HOME="${cli_home}" \
     npm_config_cache="${cli_cache}" \

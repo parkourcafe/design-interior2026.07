@@ -57,7 +57,9 @@ import { isDocumentationModuleEnabled } from "./documentation-flag";
 import {
   EXECUTION_NOT_AUTHORIZED_COMMANDS,
   EXECUTION_MODULE,
+  EXECUTION_V2_V3_COMMANDS,
   isExecutionModuleEnabled,
+  isExecutionV2V3Enabled,
 } from "./execution-flag";
 import { buildBaselineSnapshot } from "../../modules/decisions";
 import { buildReleaseSnapshot } from "../../modules/package/release-snapshot";
@@ -1020,10 +1022,12 @@ function operationStates(input: {
   readonly m4: readonly ExecutionDeliveryEnvelope[];
   readonly documentationEnabled?: boolean;
   readonly executionEnabled?: boolean;
+  readonly executionV2V3Enabled?: boolean;
 }): ProjectCeoOperationStates {
   const documentationEnabled = input.documentationEnabled
     ?? isDocumentationModuleEnabled();
   const executionEnabled = input.executionEnabled ?? isExecutionModuleEnabled();
+  const executionV2V3Enabled = input.executionV2V3Enabled ?? isExecutionV2V3Enabled();
   const supports = (capability: Parameters<typeof can>[1]): ProjectCeoOperationState => (
     can(input.role, capability) ? { status: "available" } : unavailable("capability_missing")
   );
@@ -1336,13 +1340,14 @@ function operationStates(input: {
     for (const kind of EXECUTION_MODULE) disabled[kind] = unavailable("module_disabled");
     return disabled as ProjectCeoOperationStates;
   }
-  // Модуль включён — но открыты только инкремент 1 (A6 §1.1, DEC-025) и
-  // `review_change_impact` (GO на V1 от 12.08.2026). Оставшиеся четыре команды
-  // не авторизованы ничем, и предлагать их нельзя даже тогда, когда
-  // предпосылки для них однажды появятся: сервер их отклонит
-  // (`command-service.ts`), а поверхность не обещает того, чего сервер не
-  // выполнит (A6 §4.2.5).
+  // Модуль включён. V2/V3 получают обычное precondition-driven состояние только
+  // в disposable GO; без второго флага они остаются честно закрытыми.
   const authorized: Record<string, ProjectCeoOperationState> = { ...states };
+  if (!executionV2V3Enabled) {
+    for (const kind of EXECUTION_V2_V3_COMMANDS) {
+      authorized[kind] = unavailable("increment_not_authorized");
+    }
+  }
   for (const kind of EXECUTION_NOT_AUTHORIZED_COMMANDS) {
     authorized[kind] = unavailable("increment_not_authorized");
   }

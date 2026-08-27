@@ -86,6 +86,7 @@ run_sql tests/ap1/environment/reset-disposable-data.sql
 run_sql tests/db3/20_foundation_operations.sql
 run_sql tests/db4/20_product_operations.sql
 run_sql tests/db5/20_execution_operations.sql
+run_sql tests/ap1/environment/enable-m4-v2-v3.sql
 
 AP1_API_URL="${api_url}" \
 AP1_ANON_KEY="${anon_key}" \
@@ -165,6 +166,9 @@ run_isolated_next() {
     NEXT_PUBLIC_SUPABASE_ANON_KEY="${anon_key}" \
     NEXT_PUBLIC_APP_URL="${next_origin}" \
     PROJECTCEO_TOKEN_SECRET="${projectceo_token_secret}" \
+    REMHAOS_EXECUTION_ENABLED=true \
+    REMHAOS_M4_V2_V3_ENABLED=true \
+    REMHAOS_DOCUMENTATION_ENABLED=true \
     NEXT_DIST_DIR=.next-ap1 \
     "$@"
 }

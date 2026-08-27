@@ -18,6 +18,40 @@ const PACKAGE_IDS = {
   site: "49999999-9999-4999-8999-999999999996",
 } as const;
 
+const EXTERNAL_ORGANIZATION_ID = "a1111111-1111-4111-8111-111111111111";
+const EXTERNAL_PROJECT_ID = "a2222222-2222-4222-8222-222222222222";
+const EXTERNAL_PACKAGE_ID = "a3333333-3333-4333-8333-333333333333";
+const EXTERNAL_AREA_NODE_ID = "tashkent-area";
+const EXTERNAL_DESIGN_INTENT_NODE_ID = "tashkent-design-intent";
+const EXTERNAL_DESIGN_INTENT_REVISION_ID = "tashkent-design-intent-r1";
+
+type ExternalManifest = {
+  readonly scope: { readonly organizationId: string; readonly projectId: string; readonly packageId: string };
+  readonly sources: readonly { readonly externalRef: string; readonly checksum: string; readonly sheet: string; readonly fragment: string; readonly page: number }[];
+  readonly m2: {
+    readonly roomId: string;
+    readonly approvalPackageId: string;
+    readonly budgetAsOf: string;
+    readonly staleAfterDays: number;
+    readonly submissionId: string;
+    readonly submissionRevisionId: string;
+    readonly reviewRevisionId: string;
+    readonly handoffId: string;
+    readonly handoffRevisionId: string;
+    readonly variants: readonly {
+      readonly variantId: string;
+      readonly role: string;
+      readonly layoutDocumentId: string;
+      readonly layoutVersionId: string;
+      readonly layoutRevisionId: string;
+      readonly semanticHash: string;
+      readonly selectionRevisionIds: readonly string[];
+      readonly budget: { readonly amountRub: number };
+      readonly layoutContent: Record<string, unknown>;
+    }[];
+  };
+};
+
 const GOLDEN_PACKAGE_MAP = new Map<string, string>([
   ["33333333-3333-4333-8333-333333333333", ROOT_PACKAGE_ID],
   ["44444444-4444-4444-8444-444444444441", PACKAGE_IDS.architecture],
@@ -107,6 +141,210 @@ function koraInventory(): readonly KoraInventoryRecord[] {
       },
     };
   });
+}
+
+function externalManifest(): ExternalManifest {
+  return JSON.parse(readFileSync("tests/fixtures/cycle7/external-package.manifest.json", "utf8")) as ExternalManifest;
+}
+
+async function provisionExternalPackage(
+  ownerClient: SupabaseClient,
+  clientClient: SupabaseClient,
+  dbContainer: string,
+  users: readonly ProvisionedUser[],
+): Promise<void> {
+  const manifest = externalManifest();
+  const owner = users.find((user) => user.role === "owner")!;
+  const architect = users.find((user) => user.role === "architect")!;
+  const builder = users.find((user) => user.role === "builder")!;
+  const client = users.find((user) => user.role === "client")!;
+  if (manifest.scope.organizationId !== EXTERNAL_ORGANIZATION_ID
+    || manifest.scope.projectId !== EXTERNAL_PROJECT_ID
+    || manifest.scope.packageId !== EXTERNAL_PACKAGE_ID) {
+    throw new Error("AP6_MANIFEST_SCOPE_MISMATCH");
+  }
+
+  psql(dbContainer, `
+begin;
+insert into public.projects (id, designer_id, client_name, status, intake_token, passport)
+values ('${EXTERNAL_PROJECT_ID}'::uuid, '${owner.id}'::uuid,
+  'Tashkent Courtyard House', 'active_project', 'ap6-tashkent-external',
+  '{"project_name":"Tashkent Courtyard House","object":{"area_m2":340,"city":"Ташкент","type":"house"}}'::jsonb)
+on conflict (id) do update set client_name = excluded.client_name, passport = excluded.passport;
+
+insert into project_intelligence.organizations (id, cell_code, edition, legacy_designer_id, status)
+values ('${EXTERNAL_ORGANIZATION_ID}'::uuid, 'ru', 'renovation', null, 'active')
+on conflict (id) do nothing;
+insert into project_intelligence.organization_members (organization_id, user_id, role, status)
+values
+  ('${EXTERNAL_ORGANIZATION_ID}'::uuid, '${owner.id}'::uuid, 'owner', 'active'),
+  ('${EXTERNAL_ORGANIZATION_ID}'::uuid, '${architect.id}'::uuid, 'member', 'active'),
+  ('${EXTERNAL_ORGANIZATION_ID}'::uuid, '${builder.id}'::uuid, 'member', 'active'),
+  ('${EXTERNAL_ORGANIZATION_ID}'::uuid, '${client.id}'::uuid, 'member', 'active')
+on conflict (organization_id, user_id) do nothing;
+insert into project_intelligence.member_capabilities (organization_id, user_id, capability)
+select '${EXTERNAL_ORGANIZATION_ID}'::uuid, '${owner.id}'::uuid, capability
+from unnest(array['review_claim','publish_version','revise_decision','calculate_change_impact','review_change_impact','build_logical_handoff']::text[]) capability
+on conflict do nothing;
+insert into project_intelligence.project_workflows (organization_id, project_id, state_revision)
+values ('${EXTERNAL_ORGANIZATION_ID}'::uuid, '${EXTERNAL_PROJECT_ID}'::uuid, 0)
+on conflict (organization_id, project_id) do nothing;
+insert into projectceo_foundation.project_packages
+  (organization_id, project_id, id, stable_key, kind, parent_package_id, name)
+values ('${EXTERNAL_ORGANIZATION_ID}'::uuid, '${EXTERNAL_PROJECT_ID}'::uuid,
+  '${EXTERNAL_PACKAGE_ID}'::uuid, 'tashkent-external-package', 'work_package',
+  '${EXTERNAL_PROJECT_ID}'::uuid, 'Ташкентский внешний пакет AP6')
+on conflict (organization_id, project_id, id) do nothing;
+insert into projectceo_foundation.project_memberships
+  (organization_id, project_id, user_id, role, status)
+values
+  ('${EXTERNAL_ORGANIZATION_ID}'::uuid, '${EXTERNAL_PROJECT_ID}'::uuid, '${owner.id}'::uuid, 'owner_lead', 'active'),
+  ('${EXTERNAL_ORGANIZATION_ID}'::uuid, '${EXTERNAL_PROJECT_ID}'::uuid, '${architect.id}'::uuid, 'architect', 'active'),
+  ('${EXTERNAL_ORGANIZATION_ID}'::uuid, '${EXTERNAL_PROJECT_ID}'::uuid, '${builder.id}'::uuid, 'builder', 'active'),
+  ('${EXTERNAL_ORGANIZATION_ID}'::uuid, '${EXTERNAL_PROJECT_ID}'::uuid, '${client.id}'::uuid, 'client_approver', 'active')
+on conflict (organization_id, project_id, user_id) do nothing;
+insert into projectceo_foundation.project_member_capabilities
+  (organization_id, project_id, user_id, capability)
+select membership.organization_id, membership.project_id, membership.user_id, preset.capability
+from projectceo_foundation.project_memberships membership
+cross join lateral projectceo_foundation._role_capabilities(membership.role) preset
+where membership.organization_id = '${EXTERNAL_ORGANIZATION_ID}'::uuid
+  and membership.project_id = '${EXTERNAL_PROJECT_ID}'::uuid
+on conflict do nothing;
+insert into projectceo_foundation.package_memberships
+  (organization_id, project_id, package_id, user_id, role)
+values
+  ('${EXTERNAL_ORGANIZATION_ID}'::uuid, '${EXTERNAL_PROJECT_ID}'::uuid, '${EXTERNAL_PACKAGE_ID}'::uuid, '${architect.id}'::uuid, 'architect'),
+  ('${EXTERNAL_ORGANIZATION_ID}'::uuid, '${EXTERNAL_PROJECT_ID}'::uuid, '${EXTERNAL_PACKAGE_ID}'::uuid, '${builder.id}'::uuid, 'builder'),
+  ('${EXTERNAL_ORGANIZATION_ID}'::uuid, '${EXTERNAL_PROJECT_ID}'::uuid, '${EXTERNAL_PACKAGE_ID}'::uuid, '${client.id}'::uuid, 'client_approver')
+on conflict (organization_id, project_id, package_id, user_id) do nothing;
+insert into project_intelligence.graph_nodes
+  (organization_id, project_id, node_id, kind, stable_key, current_revision_id)
+values ('${EXTERNAL_ORGANIZATION_ID}'::uuid, '${EXTERNAL_PROJECT_ID}'::uuid,
+  '${EXTERNAL_AREA_NODE_ID}', 'area', 'area:tashkent-ground-floor', 'tashkent-area-r1')
+on conflict (organization_id, project_id, node_id) do nothing;
+insert into project_intelligence.graph_node_revisions
+  (organization_id, project_id, revision_id, node_id, revision_no, title, payload,
+   origin, claim_status, unknown_reason, replaces_revision_id, content_digest,
+   created_by_type, created_by_id)
+values ('${EXTERNAL_ORGANIZATION_ID}'::uuid, '${EXTERNAL_PROJECT_ID}'::uuid,
+  'tashkent-area-r1', '${EXTERNAL_AREA_NODE_ID}', 1, 'Ташкентский первый этаж',
+  '{"schemaVersion":"project-ceo/area/0.1","name":"Кухня и гостиная первого этажа"}'::jsonb,
+  'human', 'human_origin', null, null,
+  project_intelligence._sha256_jsonb('{"schemaVersion":"project-ceo/area/0.1","name":"Кухня и гостиная первого этажа"}'::jsonb),
+  'human', '${owner.id}')
+on conflict (organization_id, project_id, node_id, revision_id) do nothing;
+commit;
+`);
+
+  const scope = async (): Promise<number> => {
+    const portfolio = await rpc<{ readonly data: readonly { readonly projectId: string; readonly stateRevision: number }[] }>(
+      ownerClient, "projectceo_api", "list_projects",
+    );
+    const current = portfolio.data.find((entry) => entry.projectId === EXTERNAL_PROJECT_ID);
+    if (!current) throw new Error("AP6_EXTERNAL_SCOPE_MISSING");
+    return current.stateRevision;
+  };
+  for (const source of manifest.sources) {
+    const suffix = source.fragment.replace("tashkent-fragment-", "");
+    const sourceId = `tashkent-source-${suffix}`;
+    const sourceRevisionId = `${sourceId}-r1`;
+    const nodeId = `tashkent-node-${suffix}`;
+    const payload = { sourceId, sourceRevisionId, checksum: source.checksum, sheet: source.sheet };
+    const current = await scope();
+    await rpc(ownerClient, "projectceo_api", "ingest_source_graph", {
+      project_id: EXTERNAL_PROJECT_ID,
+      source: {
+        sourceId, sourceRevisionId, kind: "pdf", checksumHex: source.checksum.slice("sha256:".length),
+        packageId: EXTERNAL_PACKAGE_ID,
+        metadata: { originalFilename: source.externalRef.split("/").at(-1) ?? source.externalRef, mediaType: "application/pdf", sizeBytes: 1,
+          extension: "pdf", sourceRole: "external-drawing", declaredRevision: null, documentStatus: "current" },
+      },
+      fragments: [{ fragmentId: source.fragment, sourceId, locatorKind: "pdf", locator: { kind: "pdf", page: source.page ?? 1 } }],
+      nodes: [{ nodeId, kind: "source", stableKey: `source:${sourceId}`, currentRevisionId: sourceRevisionId }],
+      revisions: [{ revisionId: sourceRevisionId, nodeId, revisionNo: 1, title: source.sheet, payload,
+        origin: "import", claimStatus: "extracted", unknownReason: null, replacesRevisionId: null,
+        contentDigestHex: createHash("sha256").update(JSON.stringify(payload)).digest("hex") }],
+      evidence_links: [{ evidenceLinkId: `tashkent-evidence-${suffix}`, nodeRevisionId: sourceRevisionId, sourceFragmentId: source.fragment }],
+      edges: [], expected_state_revision: current, idempotency_key: `ap6:tashkent:ingest:${suffix}`,
+    });
+  }
+
+  const afterIngestion = await scope();
+  const published = await rpc<{ readonly result: { readonly versionId: string } }>(
+    ownerClient, "project_intelligence_api", "publish_version", {
+      project_id: EXTERNAL_PROJECT_ID, expected_latest_version_id: null,
+      expected_state_revision: afterIngestion, label: "Tashkent external source set",
+      selected_revisions: [], idempotency_key: "ap6:tashkent:publish-source-set",
+    },
+  );
+  const versionId = published.result.versionId;
+  const evidenceFor = (suffix: string) => ({
+    evidenceVersionId: versionId,
+    evidenceLinkId: `tashkent-evidence-${suffix}`,
+    sourceId: `tashkent-source-${suffix}`,
+    sourceNodeId: `tashkent-node-${suffix}`,
+    sourceRevisionId: `tashkent-source-${suffix}-r1`,
+    fragmentId: `tashkent-fragment-${suffix}`,
+  });
+  const decision = await rpc<{ readonly result: { readonly revisionId: string } }>(
+    ownerClient, "projectceo_product_api", "append_decision_revision", {
+      project_id: EXTERNAL_PROJECT_ID, package_id: EXTERNAL_PACKAGE_ID,
+      node_id: EXTERNAL_DESIGN_INTENT_NODE_ID, revision_id: EXTERNAL_DESIGN_INTENT_REVISION_ID,
+      expected_revision_id: null, claim_status: "interpreted", title: "Кухня и гостиная первого этажа",
+      resolution: "Сформировать три операторских варианта отделки и комплектации для Ташкента.",
+      area_node_id: EXTERNAL_AREA_NODE_ID, decision_status: "proposed",
+      evidence: [evidenceFor("plan-ground")], reason: "Операторская интерпретация внешнего PDF-пакета.",
+      expected_state_revision: await scope(), idempotency_key: "ap6:tashkent:design-intent-r1",
+    },
+  );
+  const selectionSpecs = [
+    ["tashkent-selection-floor", "Напольное покрытие", { item: "Floor finish", unit: "m2", amountRub: 1258 }],
+    ["tashkent-selection-wall", "Отделка стен", { item: "Wall finish", unit: "m2", amountRub: 986 }],
+    ["tashkent-selection-kitchen", "Кухонный комплект", { item: "Kitchen fronts and carcass", unit: "set", amountRub: 125800 }],
+  ] as const;
+  for (const [nodeId, title, specification] of selectionSpecs) {
+    await rpc(ownerClient, "projectceo_product_api", "append_selection_revision", {
+      project_id: EXTERNAL_PROJECT_ID, package_id: EXTERNAL_PACKAGE_ID, node_id: nodeId,
+      revision_id: `${nodeId}-r1`, expected_revision_id: null, claim_status: "interpreted", title,
+      area_node_id: EXTERNAL_AREA_NODE_ID, decision_revision_id: decision.result.revisionId,
+      specification, evidence: [evidenceFor("plan-ground")], reason: "Операторская подготовка выбора по внешнему пакету.",
+      expected_state_revision: await scope(), idempotency_key: `ap6:tashkent:${nodeId}:r1`,
+    });
+  }
+  for (const [nodeId, , specification] of selectionSpecs) {
+    await rpc(ownerClient, "projectceo_product_api", "append_price_observation", {
+      project_id: EXTERNAL_PROJECT_ID, selection_revision_id: `${nodeId}-r1`,
+      observation_id: `${nodeId}-price-uzs-rub`, amount_rub: specification.amountRub,
+      evidence: evidenceFor("plan-ground"), supplier_ref: "operator-tashkent-worksheet",
+      expected_state_revision: await scope(), idempotency_key: `ap6:tashkent:${nodeId}:price-r1`,
+    });
+  }
+  const items = [
+    { targetKind: "decision_revision", entityId: EXTERNAL_DESIGN_INTENT_NODE_ID, revisionId: decision.result.revisionId },
+    ...selectionSpecs.map(([nodeId]) => ({ targetKind: "selection_revision", entityId: nodeId, revisionId: `${nodeId}-r1` })),
+  ];
+  const createdApproval = await rpc<{ readonly result: unknown }>(ownerClient, "projectceo_product_api", "create_approval_package", {
+    project_id: EXTERNAL_PROJECT_ID, package_id: EXTERNAL_PACKAGE_ID,
+    approval_package_id: manifest.m2.approvalPackageId, items,
+    expected_state_revision: await scope(), idempotency_key: "ap6:tashkent:create-approval",
+  });
+  void createdApproval;
+  await rpc(ownerClient, "projectceo_product_api", "submit_approval_package", {
+    project_id: EXTERNAL_PROJECT_ID, approval_package_id: manifest.m2.approvalPackageId,
+    expected_status: "draft", expected_state_revision: await scope(), idempotency_key: "ap6:tashkent:submit-approval",
+  });
+  const clientScope = await rpc<{ readonly data: readonly { readonly projectId: string; readonly stateRevision: number }[] }>(
+    clientClient, "projectceo_api", "list_projects",
+  );
+  const clientExternal = clientScope.data.find((entry) => entry.projectId === EXTERNAL_PROJECT_ID);
+  if (!clientExternal) throw new Error("AP6_CLIENT_EXTERNAL_SCOPE_MISSING");
+  await rpc(clientClient, "projectceo_product_api", "review_approval_package", {
+    project_id: EXTERNAL_PROJECT_ID, approval_package_id: manifest.m2.approvalPackageId,
+    expected_status: "submitted", decision: "approved", reason: "Owner gate: пакет проверен оператором AP6.",
+    expected_state_revision: clientExternal.stateRevision, idempotency_key: "ap6:tashkent:review-approval",
+  });
+
 }
 
 async function main(): Promise<void> {
@@ -234,6 +472,17 @@ commit;
   }>(ownerClient, "projectceo_api", "list_projects");
   const scope = portfolio.data.find((entry) => entry.projectId === PROJECT_ID);
   if (!scope) throw new Error("AP1_OWNER_PROJECT_SCOPE_MISSING");
+
+  const clientUser = users.find((user) => user.role === "client")!;
+  const clientClient = createClient(apiUrl, anonKey, {
+    auth: { autoRefreshToken: false, persistSession: false },
+  });
+  const { error: clientSignInError } = await clientClient.auth.signInWithPassword({
+    email: clientUser.email,
+    password: clientUser.password,
+  });
+  if (clientSignInError) throw new Error("AP6_CLIENT_PASSWORD_SESSION_FAILED");
+  await provisionExternalPackage(ownerClient, clientClient, dbContainer, users);
 
   const inventory = koraInventory();
   const importPlan = planSourceImport(inventory);
