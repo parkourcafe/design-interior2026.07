@@ -5,6 +5,7 @@
 - Base: `origin/main` at `7c7f5c982e99c63331cb6aefe680390826298e8a`.
 - Branch: `codex/remhaos-integration-gateway-v2`.
 - Code checkpoint: `2a055a761122ee971e63c5c648b119711213beb3`.
+- CI portability fix: `b7c77c743be560478ca35a5a3a69aae3213a7076`; replaced generated-only `RouteContext` types with explicit route parameter types, verified by typecheck after removing `.next`.
 - This report is committed after the code checkpoint; obtain final branch SHA with `git rev-parse HEAD`.
 - Source was PR #115 head only as a read-only file source. No PR #115 merge, rebase, or wholesale cherry-pick was used.
 - Canonical projection `20260826059000_projectceo_published_role_projection.sql` is inherited unchanged from base.

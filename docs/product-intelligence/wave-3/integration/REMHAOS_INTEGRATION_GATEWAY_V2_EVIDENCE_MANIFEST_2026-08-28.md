@@ -3,6 +3,7 @@
 - `base_sha`: `7c7f5c982e99c63331cb6aefe680390826298e8a`
 - `branch`: `codex/remhaos-integration-gateway-v2`
 - `code_checkpoint_sha`: `2a055a761122ee971e63c5c648b119711213beb3`
+- `ci_portability_fix_sha`: `b7c77c743be560478ca35a5a3a69aae3213a7076`
 - `final_sha_command`: `git rev-parse HEAD`
 - `changed_path_count_at_code_checkpoint`: `156`
 - `migration_count`: `18`
