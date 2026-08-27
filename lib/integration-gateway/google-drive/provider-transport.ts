@@ -38,6 +38,16 @@ const userInfoSchema = z.object({
 const MAX_DRIVE_OBJECT_BYTES = 50 * 1024 * 1024;
 const GOOGLE_USERINFO_ENDPOINT = "https://openidconnect.googleapis.com/v1/userinfo";
 const GOOGLE_DRIVE_FILES_ENDPOINT = "https://www.googleapis.com/drive/v3/files";
+const GOOGLE_DRIVE_CHANNEL_STOP_ENDPOINT = "https://www.googleapis.com/drive/v3/channels/stop";
+
+const driveWatchResponseSchema = z.object({
+  id: z.string().min(1).max(64),
+  resourceId: z.string().min(1).max(1024),
+  expiration: z.coerce.number().int().positive(),
+  kind: z.string().optional(),
+  resourceUri: z.string().max(2048).optional(),
+  token: z.string().max(256).optional(),
+}).strict();
 
 export interface GoogleDriveCredentialResolver {
   getTokenSet(connectionId: string): Promise<{
@@ -257,6 +267,91 @@ export class GoogleDriveProviderTransport implements GoogleDriveTransport {
       filename: actual.displayName,
       providerMediaType: actual.mimeType,
     };
+  }
+
+  async watchSelectedFile(input: {
+    readonly actor: RequestActorContext;
+    readonly connection: ConnectionRef;
+    readonly selected: GoogleDriveSelectedObject;
+    readonly channelId: string;
+    readonly notificationAddress: string;
+    readonly expiresAt: string;
+  }): Promise<{ readonly channelId: string; readonly resourceId: string; readonly expiresAt: string }> {
+    assertConnection(input.connection, input.actor);
+    const selected = assertGoogleDriveImportableFile(input.selected);
+    if (
+      !/^[A-Za-z0-9][A-Za-z0-9._:-]{0,63}$/u.test(input.channelId)
+      || input.notificationAddress.length > 2048
+    ) throw new Error("google_drive_channel_input_invalid");
+    let address: URL;
+    let expiresAt: Date;
+    try {
+      address = new URL(input.notificationAddress);
+      expiresAt = new Date(input.expiresAt);
+    } catch {
+      throw new Error("google_drive_channel_input_invalid");
+    }
+    if (
+      address.protocol !== "https:"
+      || address.username
+      || address.password
+      || address.hash
+      || Number.isNaN(expiresAt.getTime())
+      || expiresAt.getTime() <= this.now().getTime()
+      || expiresAt.getTime() > this.now().getTime() + 24 * 60 * 60 * 1000
+    ) throw new Error("google_drive_channel_input_invalid");
+    const token = await this.token(input.connection);
+    const url = new URL(`${GOOGLE_DRIVE_FILES_ENDPOINT}/${encodeURIComponent(selected.opaqueKey)}/watch`);
+    const response = await this.fetchImpl(url, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${token}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        id: input.channelId,
+        type: "web_hook",
+        address: address.toString(),
+        expiration: expiresAt.getTime(),
+      }),
+    });
+    if (response.status === 401) throw new GoogleDriveProviderError("reauth_required");
+    if (!response.ok) throw new GoogleDriveProviderError("provider_unavailable");
+    const channel = driveWatchResponseSchema.parse(await readBoundedJson(response));
+    if (channel.id !== input.channelId || channel.expiration <= this.now().getTime()) {
+      throw new Error("google_drive_channel_response_invalid");
+    }
+    return {
+      channelId: channel.id,
+      resourceId: channel.resourceId,
+      expiresAt: new Date(channel.expiration).toISOString(),
+    };
+  }
+
+  async stopWebhookChannel(input: {
+    readonly actor: RequestActorContext;
+    readonly connection: ConnectionRef;
+    readonly channelId: string;
+    readonly resourceId: string;
+  }): Promise<void> {
+    assertConnection(input.connection, input.actor);
+    if (
+      !/^[A-Za-z0-9][A-Za-z0-9._:-]{0,63}$/u.test(input.channelId)
+      || !input.resourceId
+      || input.resourceId.length > 1024
+      || /[\u0000-\u001f\u007f]/u.test(input.resourceId)
+    ) throw new Error("google_drive_channel_input_invalid");
+    const token = await this.token(input.connection);
+    const response = await this.fetchImpl(GOOGLE_DRIVE_CHANNEL_STOP_ENDPOINT, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${token}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ id: input.channelId, resourceId: input.resourceId }),
+    });
+    if (response.status === 401) throw new GoogleDriveProviderError("reauth_required");
+    if (!response.ok) throw new GoogleDriveProviderError("provider_unavailable");
   }
 
   async importObject(_input: Parameters<GoogleDriveTransport["importObject"]>[0]): Promise<ImportCandidateResult> {

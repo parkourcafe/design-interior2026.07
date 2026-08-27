@@ -93,4 +93,41 @@ describe("Google Drive provider transport", () => {
       connection,
     })).rejects.toThrow("reauth_required");
   });
+
+  it("creates and stops a selected-file webhook channel server-side", async () => {
+    const fetchImpl = vi.fn<typeof fetch>()
+      .mockResolvedValueOnce(new Response(JSON.stringify({
+        kind: "api#channel",
+        id: "channel-1",
+        resourceId: "resource-1",
+        resourceUri: "https://www.googleapis.com/drive/v3/files/drive-file-1",
+        expiration: Date.parse("2026-08-27T01:00:00.000Z"),
+      }), { status: 200 }))
+      .mockResolvedValueOnce(new Response(null, { status: 204 }));
+    const provider = new GoogleDriveProviderTransport(credentials(), fetchImpl, () => new Date("2026-08-27T00:00:00.000Z"));
+    await expect(provider.watchSelectedFile({
+      actor,
+      connection,
+      selected,
+      channelId: "channel-1",
+      notificationAddress: "https://staging.example.test/api/integrations/google_drive/webhook",
+      expiresAt: "2026-08-27T00:30:00.000Z",
+    })).resolves.toEqual({
+      channelId: "channel-1",
+      resourceId: "resource-1",
+      expiresAt: "2026-08-27T01:00:00.000Z",
+    });
+    await provider.stopWebhookChannel({
+      actor,
+      connection,
+      channelId: "channel-1",
+      resourceId: "resource-1",
+    });
+    expect(fetchImpl).toHaveBeenCalledTimes(2);
+    expect(String(fetchImpl.mock.calls[0]?.[0])).toContain("/files/drive-file-1/watch");
+    expect(String((fetchImpl.mock.calls[0]?.[1] as RequestInit).body)).not.toContain("access-token");
+    expect(String((fetchImpl.mock.calls[1]?.[1] as RequestInit).body)).toBe(
+      JSON.stringify({ id: "channel-1", resourceId: "resource-1" }),
+    );
+  });
 });

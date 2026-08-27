@@ -51,6 +51,7 @@ describe("Google Drive staging boundary", () => {
     expect(runtime).toContain("createGoogleDriveSelectionStore");
     expect(migration).toContain("get_integration_credential_ref");
     expect(migration).toContain("claim_selected_google_drive_import_jobs");
+    expect(migration).toContain("list_google_drive_webhook_channels");
     expect(migration).toContain("cancel_integration_jobs_on_disconnect");
     expect(migration).toContain("request_selected_google_drive_import");
     expect(migration).not.toMatch(/grant execute[\s\S]{0,400}to authenticated[\s\S]{0,400}get_integration_credential_ref/i);

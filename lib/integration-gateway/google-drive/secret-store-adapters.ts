@@ -1,4 +1,5 @@
 import type { SecretStore } from "../core/secret-store";
+import { z } from "zod";
 import type {
   GoogleDriveCredentialStore,
   GoogleDrivePkceSecretStore,
@@ -134,5 +135,47 @@ export class SecretStoreGoogleDriveSelectionStore {
       modifiedAt: record.value.modified_at || null,
     });
     return parsed.success ? parsed.data : null;
+  }
+}
+
+const channelIdSchema = z.string().uuid();
+
+export interface GoogleDriveChannelSecret {
+  readonly providerChannelId: string;
+  readonly providerResourceId: string;
+  readonly expiresAt: string;
+}
+
+export class SecretStoreGoogleDriveChannelStore {
+  constructor(private readonly store: SecretStore) {}
+
+  private ref(channelId: string): string {
+    return `channel:google-drive:${channelIdSchema.parse(channelId)}`;
+  }
+
+  async put(input: { readonly channelId: string; readonly secret: GoogleDriveChannelSecret }): Promise<void> {
+    await this.store.put({
+      ref: this.ref(input.channelId),
+      value: {
+        provider_channel_id: input.secret.providerChannelId,
+        provider_resource_id: input.secret.providerResourceId,
+      },
+      expiresAt: input.secret.expiresAt,
+    });
+  }
+
+  async get(channelId: string): Promise<GoogleDriveChannelSecret | null> {
+    const record = await this.store.get(this.ref(channelId));
+    if (!record) return null;
+    if (!record.value.provider_channel_id || !record.value.provider_resource_id) return null;
+    return {
+      providerChannelId: record.value.provider_channel_id,
+      providerResourceId: record.value.provider_resource_id,
+      expiresAt: record.expiresAt,
+    };
+  }
+
+  delete(channelId: string): Promise<void> {
+    return this.store.delete(this.ref(channelId));
   }
 }

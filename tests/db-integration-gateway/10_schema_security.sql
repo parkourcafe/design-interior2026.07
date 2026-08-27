@@ -234,6 +234,7 @@ begin
     ,('remhaos_integration_api.resolve_telegram_webhook_binding(bigint)')
     ,('remhaos_integration_api.get_integration_credential_ref(uuid)')
     ,('remhaos_integration_api.claim_selected_google_drive_import_jobs(integer,integer)')
+    ,('remhaos_integration_api.list_google_drive_webhook_channels(uuid)')
     ,('remhaos_integration_api.request_selected_google_drive_import(uuid,uuid,text,text,text)')
   ) expected(signature)
   where to_regprocedure(expected.signature) is null
@@ -247,7 +248,7 @@ begin
   join pg_namespace n on n.oid = p.pronamespace
   where n.nspname = 'remhaos_integration_api'
     and p.prokind = 'f';
-  if v_count <> 55 then
+  if v_count <> 56 then
     raise exception 'DBIG_UNEXPECTED_RPC_COUNT:%', v_count;
   end if;
 
@@ -313,7 +314,8 @@ begin
             'mark_google_drive_reauth_required',
             'resolve_telegram_webhook_binding',
             'get_integration_credential_ref',
-            'claim_selected_google_drive_import_jobs'
+            'claim_selected_google_drive_import_jobs',
+            'list_google_drive_webhook_channels'
           ]::text[])
         )
       or has_function_privilege('pi_worker_executor', p.oid, 'EXECUTE')
@@ -343,7 +345,8 @@ begin
             'mark_google_drive_reauth_required',
             'resolve_telegram_webhook_binding',
             'get_integration_credential_ref',
-            'claim_selected_google_drive_import_jobs'
+            'claim_selected_google_drive_import_jobs',
+            'list_google_drive_webhook_channels'
           ]::text[])
         )
       or has_function_privilege('pi_human_executor', p.oid, 'EXECUTE')

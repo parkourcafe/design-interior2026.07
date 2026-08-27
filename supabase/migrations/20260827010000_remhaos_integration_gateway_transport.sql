@@ -144,6 +144,27 @@ begin
 end
 $function$;
 
+create function remhaos_integration_api.list_google_drive_webhook_channels(
+  p_connection_id uuid
+)
+returns jsonb
+language sql
+stable
+security definer
+set search_path = ''
+as $function$
+  select coalesce(jsonb_agg(
+    jsonb_build_object(
+      'channelId', channel.channel_id,
+      'status', channel.status,
+      'expiresAt', channel.expires_at
+    ) order by channel.created_at, channel.channel_id
+  ), '[]'::jsonb)
+  from remhaos_integration.google_drive_webhook_channels channel
+  where channel.connection_id = p_connection_id
+    and channel.status = 'active'
+$function$;
+
 create function remhaos_integration.cancel_integration_jobs_on_disconnect()
 returns trigger
 language plpgsql
@@ -277,6 +298,8 @@ alter function remhaos_integration_api.get_integration_credential_ref(uuid)
   owner to pi_table_owner;
 alter function remhaos_integration_api.claim_selected_google_drive_import_jobs(integer, integer)
   owner to pi_table_owner;
+alter function remhaos_integration_api.list_google_drive_webhook_channels(uuid)
+  owner to pi_table_owner;
 alter function remhaos_integration.cancel_integration_jobs_on_disconnect()
   owner to pi_table_owner;
 alter function remhaos_integration_api.request_selected_google_drive_import(uuid, uuid, text, text, text)
@@ -288,6 +311,8 @@ revoke all on function remhaos_integration_api.get_integration_credential_ref(uu
   from public, anon, authenticated, service_role, pi_human_executor, pi_worker_executor;
 revoke all on function remhaos_integration_api.claim_selected_google_drive_import_jobs(integer, integer)
   from public, anon, authenticated, service_role, pi_human_executor, pi_worker_executor;
+revoke all on function remhaos_integration_api.list_google_drive_webhook_channels(uuid)
+  from public, anon, authenticated, service_role, pi_human_executor, pi_worker_executor;
 revoke all on function remhaos_integration.cancel_integration_jobs_on_disconnect()
   from public, anon, authenticated, service_role, pi_human_executor, pi_worker_executor;
 revoke all on function remhaos_integration_api.request_selected_google_drive_import(uuid, uuid, text, text, text)
@@ -298,6 +323,8 @@ grant execute on function remhaos_integration_api.resolve_telegram_webhook_bindi
 grant execute on function remhaos_integration_api.get_integration_credential_ref(uuid)
   to service_role, pi_worker_executor;
 grant execute on function remhaos_integration_api.claim_selected_google_drive_import_jobs(integer, integer)
+  to service_role, pi_worker_executor;
+grant execute on function remhaos_integration_api.list_google_drive_webhook_channels(uuid)
   to service_role, pi_worker_executor;
 grant execute on function remhaos_integration_api.request_selected_google_drive_import(uuid, uuid, text, text, text)
   to authenticated;

@@ -27,6 +27,11 @@ const reauthResultSchema = z.object({
   providerCode: z.literal("google_drive"),
   status: z.literal("reauth_required"),
 });
+const channelListSchema = z.array(z.object({
+  channelId: z.string().uuid(),
+  status: z.literal("active"),
+  expiresAt: z.string(),
+}).strict());
 
 export class GoogleDriveChannelWorker {
   constructor(private readonly client: PostgresRpcClient) {}
@@ -88,6 +93,15 @@ export class GoogleDriveChannelWorker {
       replay: command.replay,
       result: channelResultSchema.parse(command.result),
     };
+  }
+
+  async listActiveChannels(connectionId: string) {
+    return channelListSchema.parse(await callRpc(
+      this.client,
+      "remhaos_integration_api",
+      "list_google_drive_webhook_channels",
+      { p_connection_id: connectionId },
+    ));
   }
 
   async expireChannels() {
