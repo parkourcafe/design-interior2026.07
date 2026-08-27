@@ -8,7 +8,8 @@ cli_home=${AP1_CLI_HOME:-/private/tmp/archidom-ap1-home}
 cli_cache=${AP1_NPM_CACHE:-/private/tmp/projectceo-ap1-npm-cache}
 docker_host=${DOCKER_HOST:-unix://${HOME}/.colima/archidom-ap1/docker.sock}
 
-if [[ "${docker_host}" != unix://*/.colima/archidom-ap1/docker.sock ]]; then
+if [[ "${docker_host}" != unix://*/.colima/archidom-ap1/docker.sock \
+  && ! ( "${GITHUB_ACTIONS:-false}" == "true" && "${docker_host}" == "unix:///var/run/docker.sock" ) ]]; then
   print -u2 -r -- "AP1_DOCKER_HOST_REJECTED"
   exit 65
 fi
