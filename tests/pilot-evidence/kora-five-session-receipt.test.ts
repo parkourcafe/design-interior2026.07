@@ -288,12 +288,14 @@ describe("Cycle 7 shell teardown", () => {
   });
 
   const zshAvailable = spawnSync("zsh", ["--version"], { encoding: "utf8" }).status === 0;
-  it.skipIf(!zshAvailable)("runs the runner's cleanup instead of aborting it on a not_supplied exit", () => {
-    const env = { ...process.env };
-    delete env.ARCHIDOM_EXTERNAL_PILOT_MANIFEST;
+  it.skipIf(!zshAvailable)("runs the runner's cleanup instead of aborting it on a missing manifest exit", () => {
+    const env = {
+      ...process.env,
+      ARCHIDOM_EXTERNAL_PILOT_MANIFEST: join(tmpdir(), `missing-cycle7-manifest-${process.pid}.json`),
+    };
     const run = spawnSync("zsh", ["tests/pilot-evidence/run-m2-pilot-evidence.zsh"], { encoding: "utf8", env });
     expect(run.status).toBe(66);
-    expect(run.stderr).toContain('"status":"not_supplied"');
+    expect(run.stderr).toContain("CYCLE7_EXTERNAL_MANIFEST_REQUIRED");
     expect(run.stderr).not.toContain("read-only variable");
   });
 });
