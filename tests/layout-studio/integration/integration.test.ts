@@ -318,6 +318,8 @@ describe("Layout Studio delivery/UI slice", () => {
       "20260824160000_projectceo_platform_workflow_templates.sql",
       // Фаза 2, B-блок: immutable паспорт, версии КП, договор, срок брифа.
       "20260824170000_projectceo_m1_passport_versions_contract.sql",
+      // Shared M4/AP1 prerequisite: published role-safe archive projection.
+      "20260826059000_projectceo_published_role_projection.sql",
     ]);
   });
 
