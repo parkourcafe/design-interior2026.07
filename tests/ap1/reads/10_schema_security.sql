@@ -19,6 +19,11 @@ begin
     raise exception 'AP1_READ_RPC_MISSING';
   end if;
   if to_regprocedure(
+    'projectceo_read_api.get_project_workspace_read_unfiltered(uuid,uuid)'
+  ) is null then
+    raise exception 'AP1_UNFILTERED_READ_INTERNAL_MISSING';
+  end if;
+  if to_regprocedure(
     'projectceo_product_api.distribute_release_request_bound(uuid,text,uuid,bigint,text)'
   ) is null or to_regprocedure(
     'projectceo_product_api.acknowledge_release_request_bound(uuid,uuid,text,bigint,text)'
@@ -105,6 +110,14 @@ begin
   ) or has_function_privilege(
     'pi_worker_executor',
     'projectceo_read_api.get_project_workspace_read(uuid,uuid)',
+    'EXECUTE'
+  ) or has_function_privilege(
+    'authenticated',
+    'projectceo_read_api.get_project_workspace_read_unfiltered(uuid,uuid)',
+    'EXECUTE'
+  ) or has_function_privilege(
+    'authenticated',
+    'projectceo_read_api._published_role_projection(jsonb,text,uuid,uuid)',
     'EXECUTE'
   ) then
     raise exception 'AP1_READ_FUNCTION_ACL_INVALID';
