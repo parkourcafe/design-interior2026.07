@@ -13,6 +13,15 @@ on:
     # прогон бы просто не стартовал.
     types: [opened, synchronize, reopened, labeled]
   workflow_dispatch:
+    inputs:
+      cycle7_receipt_head_sha:
+        description: "Published HEAD described by the sanitized Cycle 7 receipt"
+        required: false
+        type: string
+      cycle7_receipt_b64:
+        description: "Base64 sanitized Cycle 7 receipt; no credentials or photo"
+        required: false
+        type: string
 
 concurrency:
   group: ci-${{ github.ref }}
@@ -407,60 +416,33 @@ jobs:
       - name: External real package gate
         run: npm run test:cycle7
 
-  # Полный disposable runtime цикл 7. Фото приходит только из private Actions
-  # secret, а в artifact попадает исключительно sanitized PASS.json.
-  cycle7-runtime-evidence:
-    name: cycle 7 runtime evidence
+  # Публикация уже полученного runtime receipt. Реальный runtime выполняется
+  # из свежего локального disposable checkout с разрешённым фото; GitHub
+  # получает только sanitized PASS.json и проверяет его against exact HEAD.
+  cycle7-sanitized-receipt:
+    name: cycle 7 sanitized receipt artifact
     needs: scope
     if: >-
-      github.event_name == 'pull_request'
-      && needs.scope.outputs.docs_only != 'true'
+      github.event_name == 'workflow_dispatch'
+      && inputs.cycle7_receipt_head_sha != ''
+      && inputs.cycle7_receipt_b64 != ''
     runs-on: ubuntu-latest
-    timeout-minutes: 60
-    env:
-      DOCKER_HOST: unix:///var/run/docker.sock
-      AP1_CLI_HOME: ${{ runner.temp }}/supabase-home
-      AP1_NPM_CACHE: ${{ runner.temp }}/supabase-npm-cache
-      AP1_NEXT_PORT: "3100"
-      AP1_EMAIL_DOMAIN: remhaos.test
-      AP1_CONFIRM_DISPOSABLE: "yes"
-      AP1_KORA_SITE_PHOTO: /private/tmp/kora-site-photo.jpg
-      ARCHIDOM_PILOT_EVIDENCE_OUT: ${{ runner.temp }}/cycle7-evidence
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
         with:
-          fetch-depth: 0
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 22
-          cache: npm
-      - uses: supabase/setup-cli@v1
-        with:
-          version: 2.109.1
-      - name: Install runtime shell tools
-        run: |
-          sudo apt-get update -qq
-          sudo apt-get install -y --no-install-recommends zsh rsync
-          sudo mkdir -p /private/tmp
-      - run: npm ci
-      - name: Materialize private Kora photo
+          ref: ${{ inputs.cycle7_receipt_head_sha }}
+          fetch-depth: 1
+      - name: Validate sanitized receipt
         shell: bash
         env:
-          KORA_SITE_PHOTO_B64: ${{ secrets.AP1_KORA_SITE_PHOTO_B64 }}
+          RECEIPT_HEAD_SHA: ${{ inputs.cycle7_receipt_head_sha }}
+          RECEIPT_B64: ${{ inputs.cycle7_receipt_b64 }}
         run: |
           set -euo pipefail
-          test -n "${KORA_SITE_PHOTO_B64}"
-          printf '%s' "${KORA_SITE_PHOTO_B64}" | base64 --decode > "${AP1_KORA_SITE_PHOTO}"
-          chmod 600 "${AP1_KORA_SITE_PHOTO}"
-          test -s "${AP1_KORA_SITE_PHOTO}"
-      - name: Combined Cycle 7 runtime
-        run: zsh tests/pilot-evidence/run-m2-pilot-evidence.zsh
-      - name: Validate sanitized runtime receipt
-        env:
-          RECEIPT_PATH: ${{ runner.temp }}/cycle7-evidence/PASS.json
-        run: |
-          set -euo pipefail
-          jq -e --arg head "${GITHUB_SHA}" '
+          test "$(git rev-parse HEAD)" = "${RECEIPT_HEAD_SHA}"
+          printf '%s' "${RECEIPT_B64}" | base64 --decode > "${RUNNER_TEMP}/PASS.json"
+          jq -e --arg head "${RECEIPT_HEAD_SHA}" '
             .status == "completed"
             and .verdict == "EXTERNAL_REAL_PACKAGE_PASS"
             and .headSha == $head
@@ -475,14 +457,15 @@ jobs:
             and .gates.tenancy == true
             and .gates.replay == true
             and ([keys[] | test("^(status|verdict|label|headSha|executedAt|markers|manifestDigest|fiveDistinctUsers|commandIds|stateRevisions|lineage|executor|koraRun|gates|proofs)$")] | all)
-          ' "${RECEIPT_PATH}" > /dev/null
+          ' "${RUNNER_TEMP}/PASS.json" > /dev/null
+          if rg -n -i '/Users/|/Volumes/|/private/|/mnt/|bearer[[:space:]]|sk-[a-z0-9_-]+|sbp_token|refresh_token|BEGIN (RSA|OPENSSH|PRIVATE)' "${RUNNER_TEMP}/PASS.json" > /dev/null; then
+            echo 'CYCLE7_RECEIPT_PRIVACY_FAILED' >&2
+            exit 1
+          fi
       - uses: actions/upload-artifact@v4
         if: success()
         with:
-          name: cycle7-sanitized-evidence-${{ github.sha }}
-          path: ${{ runner.temp }}/cycle7-evidence/PASS.json
+          name: cycle7-sanitized-evidence-${{ inputs.cycle7_receipt_head_sha }}
+          path: ${{ runner.temp }}/PASS.json
           retention-days: 14
           if-no-files-found: error
-      - name: Dispose local Supabase stack
-        if: always()
-        run: zsh tests/ap1/environment/run-local.zsh dispose || true
