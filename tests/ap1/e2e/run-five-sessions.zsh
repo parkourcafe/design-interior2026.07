@@ -20,6 +20,7 @@ session_file=/private/tmp/projectceo-ap1-sessions.json
 next_log=/private/tmp/projectceo-ap1-next.log
 evidence_dir=/private/tmp/projectceo-ap1-evidence
 runtime_root=""
+run_completed=0
 
 export DOCKER_HOST=${docker_host}
 if [[ "${docker_host}" != "unix://${HOME}/.colima/archidom-ap1/docker.sock" \
@@ -39,7 +40,7 @@ mkdir -p "${evidence_dir}"
 chmod 700 "${evidence_dir}"
 
 cleanup() {
-  if [[ "${AP1_KEEP_EVIDENCE:-0}" == "1" && ${exit_status} -eq 0 ]]; then
+  if [[ "${AP1_KEEP_EVIDENCE:-0}" == "1" && ${run_completed} -eq 1 ]]; then
     print -r -- "AP1_KEEP_EVIDENCE_ACTIVE evidence=${evidence_dir} runtime=${runtime_root:-unset} next_pid=${next_pid:-unset}"
     return
   fi
@@ -649,4 +650,5 @@ jq -n '{
   gates:{invitationAccept:true,distributionAcknowledgement:true,changeImpactReview:true,photoEvidenceReview:true,milestoneAcceptance:true,exactRetry:true,csrf:true,tenantIsolation:true,guestExactTokenScope:true}
 }' > "${evidence_dir}/summary.json"
 
+run_completed=1
 print -r -- "AP1_SUPPORTED_SLICE_E2E_OK users=5 auth=magiclink kora_registry=209 foundation_fixtures=4 site_photos=1 area_m2=1800 invite_accept=true distribution_ack=true change_impact=true photo_review=true milestone_accept=true replay=true csrf=true isolation=true seeded_preconditions=true production_changed=false"

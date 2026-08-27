@@ -250,8 +250,11 @@ describe("Kora five-session producer executable", () => {
 
   it("restores the cleanup that AP1_KEEP_EVIDENCE suppresses so no session file survives", () => {
     const source = shell();
+    const fiveSessionRunner = readFileSync(FIVE_SESSION_RUNNER_PATH, "utf8");
     expect(source).toContain("AP1_KEEP_EVIDENCE=1");
     expect(source).toContain("AP1_KEEP_EVIDENCE_ACTIVE");
+    expect(fiveSessionRunner).toContain("run_completed=0");
+    expect(fiveSessionRunner.indexOf("run_completed=1")).toBeLessThan(fiveSessionRunner.indexOf("AP1_SUPPORTED_SLICE_E2E_OK"));
     for (const handle of ["next_pid", "runtime", "projectceo-ap1-sessions.json", "projectceo-ap1-next.log"]) {
       expect(source).toContain(handle);
     }
