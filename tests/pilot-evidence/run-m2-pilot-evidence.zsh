@@ -126,6 +126,6 @@ PI_DB_IMAGE=postgres:17-alpine zsh tests/db4/run.zsh
 [[ -s ${receipt_artifact} ]] || { print -u2 -r -- 'CYCLE7_MACHINE_RECEIPT_REQUIRED'; exit 68; }
 
 ./node_modules/.bin/tsx tests/pilot-evidence/finalize-m2-pilot-evidence-cli.ts \
-  "${receipt_artifact}" "${evidence_dir}" "${pending_artifact}" "${kora_five_receipt}" "External real package"
+  "${receipt_artifact}" "${evidence_dir}" "${pending_artifact}" "${kora_five_receipt}" "External real package" "${external_manifest}"
 print -r -- "KORA_LOCAL_AUTHENTICATED_PASS evidence=${evidence_dir}/PASS.json"
 print -r -- "EXTERNAL_REAL_PACKAGE_PASS evidence=${evidence_dir}/PASS.json"

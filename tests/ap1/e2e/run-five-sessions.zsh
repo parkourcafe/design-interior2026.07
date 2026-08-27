@@ -9,14 +9,21 @@ project_id=41111111-1111-4111-8111-111111111111
 supabase_project=archidom-ap1-disposable
 docker_host=${DOCKER_HOST:-unix://${HOME}/.colima/archidom-ap1/docker.sock}
 db_container="supabase_db_${supabase_project}"
-next_origin=http://127.0.0.1:3100
+db_psql_user=${AP1_DB_PSQL_USER:-supabase_admin}
+next_port=${AP1_NEXT_PORT:-3100}
+[[ ${next_port} =~ '^[0-9]+$' ]] || {
+  print -u2 -r -- "AP1_NEXT_PORT_INVALID"
+  exit 65
+}
+next_origin="http://127.0.0.1:${next_port}"
 session_file=/private/tmp/projectceo-ap1-sessions.json
 next_log=/private/tmp/projectceo-ap1-next.log
 evidence_dir=/private/tmp/projectceo-ap1-evidence
 runtime_root=""
 
 export DOCKER_HOST=${docker_host}
-if [[ "${docker_host}" != "unix://${HOME}/.colima/archidom-ap1/docker.sock" ]]; then
+if [[ "${docker_host}" != "unix://${HOME}/.colima/archidom-ap1/docker.sock" \
+  && ! ( "${GITHUB_ACTIONS:-false}" == "true" && "${docker_host}" == "unix:///var/run/docker.sock" ) ]]; then
   print -u2 -r -- "AP1_DOCKER_HOST_REJECTED"
   exit 65
 fi
@@ -32,7 +39,7 @@ mkdir -p "${evidence_dir}"
 chmod 700 "${evidence_dir}"
 
 cleanup() {
-  if [[ "${AP1_KEEP_EVIDENCE:-0}" == "1" ]]; then
+  if [[ "${AP1_KEEP_EVIDENCE:-0}" == "1" && ${exit_status} -eq 0 ]]; then
     print -r -- "AP1_KEEP_EVIDENCE_ACTIVE evidence=${evidence_dir} runtime=${runtime_root:-unset} next_pid=${next_pid:-unset}"
     return
   fi
@@ -75,7 +82,7 @@ fi
 run_sql() {
   local file=$1
   docker exec -i "${db_container}" \
-    psql -X --set ON_ERROR_STOP=1 --username postgres --dbname postgres \
+    psql -X --set ON_ERROR_STOP=1 --username "${db_psql_user}" --dbname postgres \
     < "${file}" > "${evidence_dir}/${file:t}.log"
 }
 
@@ -83,6 +90,11 @@ run_sql() {
 # release, change-impact, photo, milestone and handover chain. They run only in
 # the disposable local database and are followed by real GoTrue user sessions.
 run_sql tests/ap1/environment/reset-disposable-data.sql
+run_sql tests/ap1/environment/cleanup-repeatable-run.sql
+run_sql tests/ap1/environment/enable-m3-publication.sql
+run_sql tests/ap1/environment/enable-m4-increment-1.sql
+run_sql tests/ap1/environment/enable-m4-v1-impact.sql
+run_sql tests/db5/06_execution_test_role.sql
 run_sql tests/db3/20_foundation_operations.sql
 run_sql tests/db4/20_product_operations.sql
 run_sql tests/db5/20_execution_operations.sql
@@ -105,7 +117,7 @@ owner_user_id=$(jq -er '.sessions.owner.userId' "${session_file}")
 # intentionally does not expose schedule authoring yet. It is created by the
 # accepted DB human contract, never by the application service role.
 milestone_id=$(docker exec -i "${db_container}" \
-  psql -X -qAt --set ON_ERROR_STOP=1 --username postgres --dbname postgres <<SQL
+  psql -X -qAt --set ON_ERROR_STOP=1 --username "${db_psql_user}" --dbname postgres <<SQL
 begin;
 set local role authenticated;
 set local request.jwt.claim.sub =
@@ -144,7 +156,7 @@ runtime_root=$(mktemp -d "${repo_root}/.projectceo-ap1-runtime.XXXXXX")
 for runtime_dir in app components fixtures lib public; do
   rsync -a "${repo_root}/${runtime_dir}" "${runtime_root}/"
 done
-for runtime_file in package.json package-lock.json next-env.d.ts \
+for runtime_file in package.json package-lock.json \
   postcss.config.mjs proxy.ts tailwind.config.ts tsconfig.json; do
   rsync -a "${repo_root}/${runtime_file}" "${runtime_root}/${runtime_file}"
 done
@@ -185,7 +197,7 @@ fi
 (
   cd "${runtime_root}"
   run_isolated_next "${repo_root}/node_modules/.bin/next" start . \
-    --hostname 127.0.0.1 --port 3100
+    --hostname 127.0.0.1 --port "${next_port}"
 ) >> "${next_log}" 2>&1 &
 next_pid=$!
 
@@ -213,9 +225,14 @@ magic_login() {
   jar=$(cookie_path "${role}")
   : > "${jar}"
   chmod 600 "${jar}"
-  curl -fsS -L -c "${jar}" -b "${jar}" \
-    "${next_origin}/auth/callback?token_hash=${encoded}&type=magiclink&next=%2Fdashboard%2Fprojectceo" \
-    > "${evidence_dir}/${role}-login.html"
+  local http_status
+  http_status=$(curl -sS -L -c "${jar}" -b "${jar}" -w '%{http_code}' \
+    -o "${evidence_dir}/${role}-login.html" \
+    "${next_origin}/auth/callback?token_hash=${encoded}&type=magiclink&next=%2Fdashboard%2Fprojectceo")
+  if [[ ${http_status} != 2* ]]; then
+    print -u2 -r -- "AP1_LOGIN_FAILURE role=${role} status=${http_status}"
+    return 1
+  fi
 }
 
 for role in owner architect builder client guest; do
@@ -278,8 +295,15 @@ get_json() {
   local role=$1
   local endpoint=$2
   local output=$3
-  curl -fsS -c "$(cookie_path "${role}")" -b "$(cookie_path "${role}")" \
-    "${next_origin}${endpoint}" > "${output}"
+  local http_status
+  http_status=$(curl -sS -c "$(cookie_path "${role}")" -b "$(cookie_path "${role}")" \
+    -w '%{http_code}' -o "${output}" "${next_origin}${endpoint}")
+  if [[ ${http_status} != 2* ]]; then
+    local error_code
+    error_code=$(jq -r '.error.code // "unknown"' "${output}" 2>/dev/null || print -r -- unknown)
+    print -u2 -r -- "AP1_HTTP_FAILURE role=${role} endpoint=${endpoint} status=${http_status} code=${error_code}"
+    return 1
+  fi
 }
 
 assert_exact_replay() {
@@ -404,14 +428,14 @@ impact_payload=$(jq -nc \
   --arg changeRequestId "${change_request_id}" \
   --argjson expectedStateRevision "${change_state_revision}" \
   --arg key "ap1:worker:impact:${change_command_id}" \
-  '{project_id:$projectId,change_request_id:$changeRequestId,max_depth:3,expected_state_revision:$expectedStateRevision,idempotency_key:$key}')
+  '{project_id:$projectId,change_request_id:$changeRequestId,expected_state_revision:$expectedStateRevision,idempotency_key:$key}')
 curl -fsS \
   -H "apikey: ${service_role_key}" \
   -H "Authorization: Bearer ${service_role_key}" \
   -H 'Content-Type: application/json' \
   -H 'Content-Profile: projectceo_m4_api' \
   --data "${impact_payload}" \
-  "${api_url}/rest/v1/rpc/calculate_change_impact" \
+  "${api_url}/rest/v1/rpc/calculate_change_impact_policy_bound" \
   > "${evidence_dir}/impact-worker.json"
 jq -e '.result.impactCount > 0 and (.result.impacts | length) > 0' "${evidence_dir}/impact-worker.json" >/dev/null
 impact_run_id=$(jq -er '.result.id' "${evidence_dir}/impact-worker.json")
@@ -485,7 +509,7 @@ assert_exact_replay "${evidence_dir}/milestone.json" "${evidence_dir}/milestone-
 # Prove retries did not create duplicate domain rows and every calculated
 # impact received exactly one human review.
 docker exec -i "${db_container}" \
-  psql -X -qAt --set ON_ERROR_STOP=1 --username postgres --dbname postgres \
+  psql -X -qAt --set ON_ERROR_STOP=1 --username "${db_psql_user}" --dbname postgres \
   > "${evidence_dir}/mutation-cardinality.json" <<SQL
 select jsonb_build_object(
   'distributionRows', (select count(*) from projectceo_product.release_distributions where distribution_id = '${distribution_id}'::uuid),
@@ -557,9 +581,13 @@ cross_origin_status=$(curl -sS -o "${evidence_dir}/cross-origin.json" -w '%{http
 [[ ${cross_origin_status} == 403 ]] || { print -u2 -r -- "AP1_CSRF_GUARD status=${cross_origin_status}"; exit 1; }
 
 for role in owner architect builder client; do
-  curl -fsS -c "$(cookie_path "${role}")" -b "$(cookie_path "${role}")" \
-    "${next_origin}/dashboard/projectceo/projects/${project_id}" \
-    > "${evidence_dir}/${role}-workspace.html"
+  http_status=$(curl -sS -c "$(cookie_path "${role}")" -b "$(cookie_path "${role}")" \
+    -w '%{http_code}' -o "${evidence_dir}/${role}-workspace.html" \
+    "${next_origin}/dashboard/projectceo/projects/${project_id}")
+  if [[ ${http_status} != 2* ]]; then
+    print -u2 -r -- "AP1_BROWSER_HTTP_FAILURE role=${role} status=${http_status}"
+    exit 1
+  fi
   rg -q 'Kora Food Hall' "${evidence_dir}/${role}-workspace.html"
   rg -q '1.?800' "${evidence_dir}/${role}-workspace.html"
 done
@@ -568,6 +596,49 @@ if [[ ${AP1_BROWSER_QA:-0} == 1 ]]; then
   node tests/ap1/e2e/capture-browser-evidence.mjs \
     "${next_origin}" "${project_id}" "${evidence_dir}"
 fi
+
+# Harvest the five Kora bindings before adding the second disposable project:
+# the portfolio endpoint intentionally rejects a multi-project owner scope.
+kora_harvest_file="${evidence_dir}/kora-session-harvest.json"
+print -r -- '{}' > "${kora_harvest_file}"
+for role in owner architect client builder guest; do
+  user_id=$(jq -er --arg role "${role}" '.sessions[$role].userId' "${session_file}")
+  session_id=$(docker exec -i "${db_container}" \
+    psql -X -qAt --set ON_ERROR_STOP=1 --username "${db_psql_user}" --dbname postgres <<SQL
+select id from auth.sessions where user_id = '${user_id}'::uuid order by created_at desc limit 1;
+SQL
+  )
+  session_id=$(print -r -- "${session_id}" | tail -1 | tr -d '[:space:]')
+  portfolio_response="${evidence_dir}/${role}-portfolio-harvest.json"
+  portfolio_http=$(curl -sS -c "$(cookie_path "${role}")" -b "$(cookie_path "${role}")" \
+    -w '%{http_code}' -o "${portfolio_response}" "${next_origin}/api/projectceo/portfolio")
+  if [[ ${portfolio_http} != 2* ]]; then
+    error_code=$(jq -r '.error.code // "unknown"' "${portfolio_response}" 2>/dev/null || print -r -- unknown)
+    print -u2 -r -- "AP1_KORA_HARVEST_HTTP role=${role} status=${portfolio_http} code=${error_code}"
+    exit 1
+  fi
+  if ! request_id=$(jq -er '.requestId' "${portfolio_response}"); then
+    print -u2 -r -- "AP1_KORA_HARVEST_REQUEST_ID_MISSING role=${role}"
+    exit 1
+  fi
+  jq --arg role "${role}" --arg userId "${user_id}" --arg sessionId "${session_id}" \
+    --arg requestId "${request_id}" \
+    '.[$role] = {userId: $userId, sessionId: $sessionId, requestId: $requestId}' \
+    "${kora_harvest_file}" > "${kora_harvest_file}.next"
+  mv -- "${kora_harvest_file}.next" "${kora_harvest_file}"
+done
+chmod 600 "${kora_harvest_file}"
+
+# The external package shares these disposable users but is added only after
+# all Kora HTTP assertions and the binding harvest above have completed.
+AP1_EXTERNAL_ONLY=1 \
+AP1_API_URL="${api_url}" \
+AP1_ANON_KEY="${anon_key}" \
+AP1_SERVICE_ROLE_KEY="${service_role_key}" \
+AP1_SESSION_FILE="${session_file}" \
+AP1_DB_CONTAINER="${db_container}" \
+AP1_NEXT_ORIGIN="${next_origin}" \
+  ./node_modules/.bin/tsx tests/ap1/e2e/provision-kora.ts
 
 jq -n '{
   contractVersion:"archidom-ap1-five-session-evidence/0.1",

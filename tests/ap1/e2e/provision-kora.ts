@@ -77,6 +77,8 @@ interface ProvisionedUser {
   readonly password: string;
 }
 
+type ExternalUser = Pick<ProvisionedUser, "role" | "email" | "id">;
+
 function required(value: string | undefined, name: string): string {
   if (!value) throw new Error(`AP1_MISSING_${name}`);
   return value;
@@ -119,7 +121,13 @@ async function rpc<T>(
   args: Record<string, unknown> = {},
 ): Promise<T> {
   const { data, error } = await client.schema(schema).rpc(fn, args);
-  if (error) throw new Error(`AP1_RPC_${fn.toUpperCase()}_${error.code ?? "ERROR"}`);
+  if (error) {
+    const reason = [error.code, error.message, error.details, error.hint]
+      .filter(Boolean)
+      .join(" ")
+      .replace(/(?:password|token|secret|key|jwt|dsn)\s*[:=]\s*\S+/gi, "credential=[REDACTED]");
+    throw new Error(`AP1_RPC_${fn.toUpperCase()}_${reason || "ERROR"}`);
+  }
   return data as T;
 }
 
@@ -151,7 +159,7 @@ async function provisionExternalPackage(
   ownerClient: SupabaseClient,
   clientClient: SupabaseClient,
   dbContainer: string,
-  users: readonly ProvisionedUser[],
+  users: readonly ExternalUser[],
 ): Promise<void> {
   const manifest = externalManifest();
   const owner = users.find((user) => user.role === "owner")!;
@@ -166,6 +174,9 @@ async function provisionExternalPackage(
 
   psql(dbContainer, `
 begin;
+insert into public.designers (id, name, studio_name)
+values ('${owner.id}'::uuid, 'AP6 Owner', 'ArchiDom AP6')
+on conflict (id) do nothing;
 insert into public.projects (id, designer_id, client_name, status, intake_token, passport)
 values ('${EXTERNAL_PROJECT_ID}'::uuid, '${owner.id}'::uuid,
   'Tashkent Courtyard House', 'active_project', 'ap6-tashkent-external',
@@ -258,7 +269,7 @@ commit;
         sourceId, sourceRevisionId, kind: "pdf", checksumHex: source.checksum.slice("sha256:".length),
         packageId: EXTERNAL_PACKAGE_ID,
         metadata: { originalFilename: source.externalRef.split("/").at(-1) ?? source.externalRef, mediaType: "application/pdf", sizeBytes: 1,
-          extension: "pdf", sourceRole: "external-drawing", declaredRevision: null, documentStatus: "current" },
+          extension: "pdf", sourceRole: "document", declaredRevision: null, documentStatus: "current" },
       },
       fragments: [{ fragmentId: source.fragment, sourceId, locatorKind: "pdf", locator: { kind: "pdf", page: source.page ?? 1 } }],
       nodes: [{ nodeId, kind: "source", stableKey: `source:${sourceId}`, currentRevisionId: sourceRevisionId }],
@@ -271,14 +282,14 @@ commit;
   }
 
   const afterIngestion = await scope();
-  const published = await rpc<{ readonly result: { readonly versionId: string } }>(
-    ownerClient, "project_intelligence_api", "publish_version", {
+  const published = await rpc<{ readonly result: { readonly version: { readonly id: string } } }>(
+    ownerClient, "projectceo_api", "publish_version", {
       project_id: EXTERNAL_PROJECT_ID, expected_latest_version_id: null,
       expected_state_revision: afterIngestion, label: "Tashkent external source set",
       selected_revisions: [], idempotency_key: "ap6:tashkent:publish-source-set",
     },
   );
-  const versionId = published.result.versionId;
+  const versionId = published.result.version.id;
   const evidenceFor = (suffix: string) => ({
     evidenceVersionId: versionId,
     evidenceLinkId: `tashkent-evidence-${suffix}`,
@@ -347,7 +358,63 @@ commit;
 
 }
 
+async function provisionExternalOnly(): Promise<void> {
+  const sessionPath = required(process.env.AP1_SESSION_FILE, "SESSION_FILE");
+  const dbContainer = required(process.env.AP1_DB_CONTAINER, "DB_CONTAINER");
+  const nextOrigin = required(process.env.AP1_NEXT_ORIGIN, "NEXT_ORIGIN");
+  const apiUrl = required(process.env.AP1_API_URL, "API_URL");
+  const anonKey = required(process.env.AP1_ANON_KEY, "ANON_KEY");
+  const serviceRoleKey = required(process.env.AP1_SERVICE_ROLE_KEY, "SERVICE_ROLE_KEY");
+  assertLoopback(nextOrigin);
+  assertLoopback(apiUrl);
+
+  const session = JSON.parse(readFileSync(sessionPath, "utf8")) as {
+    readonly sessions: Record<Ap1Role, { readonly email: string; readonly userId: string }>;
+  };
+  const users: readonly ExternalUser[] = (Object.keys(session.sessions) as Ap1Role[]).map((role) => ({
+    role,
+    email: session.sessions[role].email,
+    id: session.sessions[role].userId,
+  }));
+  const admin = createClient(apiUrl, serviceRoleKey, {
+    auth: { autoRefreshToken: false, persistSession: false },
+  });
+
+  const authenticate = async (role: Ap1Role): Promise<SupabaseClient> => {
+    const user = session.sessions[role];
+    const { data, error } = await admin.auth.admin.generateLink({
+      type: "magiclink",
+      email: user.email,
+      options: { redirectTo: `${nextOrigin}/auth/callback` },
+    });
+    if (error || !data.properties.hashed_token) {
+      throw new Error(`AP1_EXTERNAL_${role.toUpperCase()}_MAGICLINK_FAILED`);
+    }
+    const client = createClient(apiUrl, anonKey, {
+      auth: { autoRefreshToken: false, persistSession: false },
+    });
+    const { error: verifyError } = await client.auth.verifyOtp({
+      token_hash: data.properties.hashed_token,
+      type: "magiclink",
+    });
+    if (verifyError) throw new Error(`AP1_EXTERNAL_${role.toUpperCase()}_SESSION_FAILED`);
+    return client;
+  };
+
+  await provisionExternalPackage(
+    await authenticate("owner"),
+    await authenticate("client"),
+    dbContainer,
+    users,
+  );
+  process.stdout.write("AP1_EXTERNAL_PACKAGE_PROVISIONED environment=disposable production_changed=false\n");
+}
+
 async function main(): Promise<void> {
+  if (process.env.AP1_EXTERNAL_ONLY === "1") {
+    await provisionExternalOnly();
+    return;
+  }
   const sessionPath = required(process.env.AP1_SESSION_FILE, "SESSION_FILE");
   const dbContainer = required(process.env.AP1_DB_CONTAINER, "DB_CONTAINER");
   const nextOrigin = required(process.env.AP1_NEXT_ORIGIN, "NEXT_ORIGIN");
@@ -400,6 +467,10 @@ async function main(): Promise<void> {
   const owner = users.find((user) => user.role === "owner")!;
   psql(dbContainer, `
 begin;
+
+insert into public.designers (id, name, studio_name)
+values ('${owner.id}'::uuid, 'Kora Owner', 'ArchiDom Kora')
+on conflict (id) do nothing;
 
 update public.projects
 set client_name = 'Kora Food Hall',
@@ -472,17 +543,6 @@ commit;
   }>(ownerClient, "projectceo_api", "list_projects");
   const scope = portfolio.data.find((entry) => entry.projectId === PROJECT_ID);
   if (!scope) throw new Error("AP1_OWNER_PROJECT_SCOPE_MISSING");
-
-  const clientUser = users.find((user) => user.role === "client")!;
-  const clientClient = createClient(apiUrl, anonKey, {
-    auth: { autoRefreshToken: false, persistSession: false },
-  });
-  const { error: clientSignInError } = await clientClient.auth.signInWithPassword({
-    email: clientUser.email,
-    password: clientUser.password,
-  });
-  if (clientSignInError) throw new Error("AP6_CLIENT_PASSWORD_SESSION_FAILED");
-  await provisionExternalPackage(ownerClient, clientClient, dbContainer, users);
 
   const inventory = koraInventory();
   const importPlan = planSourceImport(inventory);

@@ -32,7 +32,8 @@ producer_digest=$(shasum -a 256 "${producer_absolute}" | awk '{print "sha256:"$1
 
 supabase_project=archidom-ap1-disposable
 db_container="supabase_db_${supabase_project}"
-next_origin=http://127.0.0.1:3100
+next_port=${AP1_NEXT_PORT:-3100}
+next_origin="http://127.0.0.1:${next_port}"
 session_file=/private/tmp/projectceo-ap1-sessions.json
 # Next's own log records the magic-link callback URLs, so it carries token
 # hashes. AP1 destroys it on its normal path but keeps it under KEEP_EVIDENCE.
@@ -93,33 +94,17 @@ if [[ -z ${evidence_dir} || ! -d ${evidence_dir} || ! -r ${session_file} ]]; the
   exit 66
 fi
 
-# Harvest one real binding per AP1 login: the provisioned user, the GoTrue
-# session row that login created, and the request id the application minted for
-# a live authenticated read by that same cookie jar.
+# Harvest one real binding per AP1 login. run-five-sessions performs the live
+# portfolio reads before it adds the second disposable project and persists the
+# protected result for this producer.
 harvest_file="${work_dir}/harvest.json"
 harvest_sessions="${work_dir}/sessions.json"
-print -r -- '{}' > "${harvest_sessions}"
-for ap1_role in owner architect client builder guest; do
-  user_id=$(jq -er --arg role "${ap1_role}" '.sessions[$role].userId' "${session_file}")
-  session_id=$(docker exec -i "${db_container}" \
-    psql -X -qAt --set ON_ERROR_STOP=1 --username postgres --dbname postgres <<SQL
-select id from auth.sessions where user_id = '${user_id}'::uuid order by created_at desc limit 1;
-SQL
-  )
-  session_id=$(print -r -- "${session_id}" | tail -1 | tr -d '[:space:]')
-  cookie_jar="${evidence_dir}/${ap1_role}.cookies"
-  if [[ ! -r ${cookie_jar} ]]; then
-    print -u2 -r -- "KORA_PRODUCER_COOKIE_JAR_MISSING role=${ap1_role}"
-    exit 66
-  fi
-  request_id=$(curl -fsS -c "${cookie_jar}" -b "${cookie_jar}" \
-    "${next_origin}/api/projectceo/portfolio" | jq -er '.requestId')
-  jq --arg role "${ap1_role}" --arg userId "${user_id}" --arg sessionId "${session_id}" \
-    --arg requestId "${request_id}" \
-    '.[$role] = {userId: $userId, sessionId: $sessionId, requestId: $requestId}' \
-    "${harvest_sessions}" > "${harvest_sessions}.next"
-  mv -- "${harvest_sessions}.next" "${harvest_sessions}"
-done
+jq -e 'all([.owner, .architect, .client, .builder, .guest][]; (.userId | type == "string") and (.sessionId | type == "string") and (.requestId | type == "string"))' \
+  "${evidence_dir}/kora-session-harvest.json" > /dev/null || {
+  print -u2 -r -- 'KORA_PRODUCER_SESSION_HARVEST_INVALID'
+  exit 66
+}
+jq '.' "${evidence_dir}/kora-session-harvest.json" > "${harvest_sessions}"
 jq -n --arg runMarker "${run_marker}" --slurpfile sessions "${harvest_sessions}" \
   '{runMarker: $runMarker, sessions: $sessions[0]}' > "${harvest_file}"
 

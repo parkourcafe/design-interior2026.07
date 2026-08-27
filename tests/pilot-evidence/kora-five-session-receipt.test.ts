@@ -1,7 +1,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any -- adversarial harvest mutations intentionally cross the runtime trust boundary */
 import { spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
-import { existsSync, mkdtempSync, readFileSync, rmSync, statSync } from "node:fs";
+import { existsSync, mkdtempSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
@@ -23,9 +23,15 @@ const CYCLE7_ROLES = ["owner_lead", "architect", "client_approver", "builder", "
 const AP1_ROLES = ["owner", "architect", "client", "builder", "guest"];
 const NONCE = "cycle7-challenge-7f0d9c2b41ae";
 const PRODUCER_PATH = "tests/pilot-evidence/executors/kora-five-session-producer.zsh";
+const FIVE_SESSION_RUNNER_PATH = "tests/ap1/e2e/run-five-sessions.zsh";
 const RUN_MARKER = "AP1_SUPPORTED_SLICE_E2E_OK users=5 auth=magiclink area_m2=1800 replay=true production_changed=false";
 
 function outputDir() { const root = mkdtempSync(join(tmpdir(), "cycle7-kora-receipt-")); roots.push(root); return root; }
+function inputManifest(dir: string) {
+  const path = join(dir, "external-manifest.json");
+  writeFileSync(path, JSON.stringify({ status: "pending" }));
+  return path;
+}
 
 function harvest(overrides: Record<string, any> = {}) {
   const sessions = Object.fromEntries(AP1_ROLES.map((role, index) => [role, {
@@ -173,7 +179,8 @@ describe("Kora five-session receipt builder", () => {
     const executorPath = "tests/pilot-evidence/run-m2-pilot-evidence.zsh";
     const executorDigest = sha(readFileSync(executorPath));
     const verificationReceiptId = uuid(41);
-    const manifestDigest = sha("external-manifest");
+    const manifestPath = inputManifest(dir);
+    const manifestDigest = sha(readFileSync(manifestPath));
     const pendingPath = join(dir, "PENDING.json");
     const pending = prepareM2PilotEvidence({
       outputPath: pendingPath, challengeNonce: NONCE, manifestDigest,
@@ -204,7 +211,7 @@ describe("Kora five-session receipt builder", () => {
         { queryReceiptId: uuid(90 + index), auditReceiptId: uuid(100 + index), digest: sha(`proof-${index}`) }])),
       runFiveSessions: koraReceipt,
       pendingBinding: (pending as any).pendingBinding,
-    }, { outputDir: dir, pending, pendingPath, koraReceiptPath, label: "External real package" });
+    }, { outputDir: dir, pending, pendingPath, koraReceiptPath, manifestPath, label: "External real package" });
 
     expect(existsSync(join(dir, "PASS.json"))).toBe(true);
     const pass = JSON.parse(readFileSync(join(dir, "PASS.json"), "utf8"));
@@ -234,8 +241,9 @@ describe("Kora five-session producer executable", () => {
 
   it("takes session identifiers from the live run instead of generating them", () => {
     const source = shell();
-    expect(source).toContain("auth.sessions");
-    expect(source).toContain("/api/projectceo/portfolio");
+    const liveRunner = readFileSync(FIVE_SESSION_RUNNER_PATH, "utf8");
+    expect(liveRunner).toContain("auth.sessions");
+    expect(liveRunner).toContain("/api/projectceo/portfolio");
     expect(source).toMatch(/\.requestId/);
     expect(source).not.toMatch(/uuidgen[^)]*(user|session|request)_id/i);
   });

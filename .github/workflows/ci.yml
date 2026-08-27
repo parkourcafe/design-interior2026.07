@@ -389,16 +389,14 @@ jobs:
         if: always()
         run: kill "$(cat "${RUNNER_TEMP}/app.pid")" 2>/dev/null || true
 
-  # Гейт цикла 7 намеренно красный, пока не предоставлен внешний реальный
-  # пакет, поэтому он не входит в блокирующий CI. Здесь он запускается только
-  # чтобы его состояние было видно, и не роняет прогон.
+  # Статический контракт цикла 7 остаётся отдельным от runtime: он проверяет,
+  # что committed input не подменён completed receipt.
   cycle7-evidence:
     name: cycle 7 evidence (informational)
     needs: scope
     if: needs.scope.outputs.docs_only != 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 15
-    continue-on-error: true
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -408,3 +406,83 @@ jobs:
       - run: npm ci
       - name: External real package gate
         run: npm run test:cycle7
+
+  # Полный disposable runtime цикл 7. Фото приходит только из private Actions
+  # secret, а в artifact попадает исключительно sanitized PASS.json.
+  cycle7-runtime-evidence:
+    name: cycle 7 runtime evidence
+    needs: scope
+    if: >-
+      github.event_name == 'pull_request'
+      && needs.scope.outputs.docs_only != 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    env:
+      DOCKER_HOST: unix:///var/run/docker.sock
+      AP1_CLI_HOME: ${{ runner.temp }}/supabase-home
+      AP1_NPM_CACHE: ${{ runner.temp }}/supabase-npm-cache
+      AP1_NEXT_PORT: "3100"
+      AP1_EMAIL_DOMAIN: remhaos.test
+      AP1_CONFIRM_DISPOSABLE: "yes"
+      AP1_KORA_SITE_PHOTO: /private/tmp/kora-site-photo.jpg
+      ARCHIDOM_PILOT_EVIDENCE_OUT: ${{ runner.temp }}/cycle7-evidence
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - uses: supabase/setup-cli@v1
+        with:
+          version: 2.109.1
+      - name: Install runtime shell tools
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends zsh rsync
+          sudo mkdir -p /private/tmp
+      - run: npm ci
+      - name: Materialize private Kora photo
+        shell: bash
+        env:
+          KORA_SITE_PHOTO_B64: ${{ secrets.AP1_KORA_SITE_PHOTO_B64 }}
+        run: |
+          set -euo pipefail
+          test -n "${KORA_SITE_PHOTO_B64}"
+          printf '%s' "${KORA_SITE_PHOTO_B64}" | base64 --decode > "${AP1_KORA_SITE_PHOTO}"
+          chmod 600 "${AP1_KORA_SITE_PHOTO}"
+          test -s "${AP1_KORA_SITE_PHOTO}"
+      - name: Combined Cycle 7 runtime
+        run: zsh tests/pilot-evidence/run-m2-pilot-evidence.zsh
+      - name: Validate sanitized runtime receipt
+        env:
+          RECEIPT_PATH: ${{ runner.temp }}/cycle7-evidence/PASS.json
+        run: |
+          set -euo pipefail
+          jq -e --arg head "${GITHUB_SHA}" '
+            .status == "completed"
+            and .verdict == "EXTERNAL_REAL_PACKAGE_PASS"
+            and .headSha == $head
+            and (.executedAt | type == "string")
+            and .markers == ["KORA_LOCAL_AUTHENTICATED_PASS", "EXTERNAL_REAL_PACKAGE_PASS"]
+            and (.manifestDigest | test("^sha256:[0-9a-f]{64}$"))
+            and .gates.koraAuthenticatedFiveRole == true
+            and .gates.externalRealPackage == true
+            and .gates.audit == true
+            and .gates.authenticatedRead == true
+            and .gates.privacy == true
+            and .gates.tenancy == true
+            and .gates.replay == true
+            and ([keys[] | test("^(status|verdict|label|headSha|executedAt|markers|manifestDigest|fiveDistinctUsers|commandIds|stateRevisions|lineage|executor|koraRun|gates|proofs)$")] | all)
+          ' "${RECEIPT_PATH}" > /dev/null
+      - uses: actions/upload-artifact@v4
+        if: success()
+        with:
+          name: cycle7-sanitized-evidence-${{ github.sha }}
+          path: ${{ runner.temp }}/cycle7-evidence/PASS.json
+          retention-days: 14
+          if-no-files-found: error
+      - name: Dispose local Supabase stack
+        if: always()
+        run: zsh tests/ap1/environment/run-local.zsh dispose || true

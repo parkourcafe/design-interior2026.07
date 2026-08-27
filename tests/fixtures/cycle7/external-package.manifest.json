@@ -1,5 +1,6 @@
 {
   "contractVersion": "archidom.m2-pilot-evidence/0.1",
+  "status": "pending",
   "evidenceClass": "external_real_package_operator_prepared",
   "synthetic": false,
   "provenance": {
@@ -124,11 +125,11 @@
         "layoutVersionId": "tashkent-layout-preferred-v1",
         "layoutRevisionId": "a7777777-7777-4777-8777-777777777777",
         "semanticHash": "sha256:dfddaf154b51e0e6544f4d463cafc11ced65dda82266b7aaa340829e3d1c479a",
-        "selectionRevisionIds": ["tashkent-selection-floor", "tashkent-selection-wall", "tashkent-selection-kitchen"],
+        "selectionRevisionIds": ["tashkent-selection-floor-r1", "tashkent-selection-wall-r1", "tashkent-selection-kitchen-r1"],
         "selections": [
-          { "revisionId": "tashkent-selection-floor", "item": "Floor finish", "priceObservation": { "amountRub": 1258, "observedAt": "2026-08-27T00:00:00Z", "evidence": { "sourceRevisionId": "tashkent-source-facade-r1", "evidenceLinkId": "tashkent-evidence-facade", "fragmentId": "tashkent-fragment-facade" } } },
-          { "revisionId": "tashkent-selection-wall", "item": "Wall finish", "priceObservation": { "amountRub": 986, "observedAt": "2026-08-27T00:00:00Z", "evidence": { "sourceRevisionId": "tashkent-source-plan-ground-r1", "evidenceLinkId": "tashkent-evidence-ground", "fragmentId": "tashkent-fragment-ground" } } },
-          { "revisionId": "tashkent-selection-kitchen", "item": "Kitchen fronts and carcass", "priceObservation": { "amountRub": 125800, "observedAt": "2026-08-27T00:00:00Z", "evidence": { "sourceRevisionId": "tashkent-source-plan-ground-r1", "evidenceLinkId": "tashkent-evidence-ground", "fragmentId": "tashkent-fragment-ground" } } }
+          { "revisionId": "tashkent-selection-floor-r1", "item": "Floor finish", "priceObservation": { "amountRub": 1258, "observedAt": "2026-08-27T00:00:00Z", "evidence": { "sourceRevisionId": "tashkent-source-facade-r1", "evidenceLinkId": "tashkent-evidence-facade", "fragmentId": "tashkent-fragment-facade" } } },
+          { "revisionId": "tashkent-selection-wall-r1", "item": "Wall finish", "priceObservation": { "amountRub": 986, "observedAt": "2026-08-27T00:00:00Z", "evidence": { "sourceRevisionId": "tashkent-source-plan-ground-r1", "evidenceLinkId": "tashkent-evidence-ground", "fragmentId": "tashkent-fragment-ground" } } },
+          { "revisionId": "tashkent-selection-kitchen-r1", "item": "Kitchen fronts and carcass", "priceObservation": { "amountRub": 125800, "observedAt": "2026-08-27T00:00:00Z", "evidence": { "sourceRevisionId": "tashkent-source-plan-ground-r1", "evidenceLinkId": "tashkent-evidence-ground", "fragmentId": "tashkent-fragment-ground" } } }
         ],
         "budget": { "amountRub": 128044, "staleSelectionRevisionIds": [], "missingPriceSelectionRevisionIds": [] },
         "layoutContent": {
@@ -154,11 +155,11 @@
         "layoutVersionId": "tashkent-layout-value-v1",
         "layoutRevisionId": "a8888888-8888-4888-8888-888888888888",
         "semanticHash": "sha256:d3f415b90fa052f5f7329c8368963af7d6eae8940acebdf54d8fb7e972b1fd6d",
-        "selectionRevisionIds": ["tashkent-selection-floor", "tashkent-selection-wall", "tashkent-selection-kitchen"],
+        "selectionRevisionIds": ["tashkent-selection-floor-r1", "tashkent-selection-wall-r1", "tashkent-selection-kitchen-r1"],
         "selections": [
-          { "revisionId": "tashkent-selection-floor", "item": "Floor finish", "priceObservation": { "amountRub": 1258, "observedAt": "2026-08-27T00:00:00Z", "evidence": { "sourceRevisionId": "tashkent-source-facade-r1", "evidenceLinkId": "tashkent-evidence-facade", "fragmentId": "tashkent-fragment-facade" } } },
-          { "revisionId": "tashkent-selection-wall", "item": "Wall finish", "priceObservation": { "amountRub": 986, "observedAt": "2026-08-27T00:00:00Z", "evidence": { "sourceRevisionId": "tashkent-source-plan-ground-r1", "evidenceLinkId": "tashkent-evidence-ground", "fragmentId": "tashkent-fragment-ground" } } },
-          { "revisionId": "tashkent-selection-kitchen", "item": "Kitchen fronts and carcass", "priceObservation": { "amountRub": 125800, "observedAt": "2026-08-27T00:00:00Z", "evidence": { "sourceRevisionId": "tashkent-source-plan-ground-r1", "evidenceLinkId": "tashkent-evidence-ground", "fragmentId": "tashkent-fragment-ground" } } }
+          { "revisionId": "tashkent-selection-floor-r1", "item": "Floor finish", "priceObservation": { "amountRub": 1258, "observedAt": "2026-08-27T00:00:00Z", "evidence": { "sourceRevisionId": "tashkent-source-facade-r1", "evidenceLinkId": "tashkent-evidence-facade", "fragmentId": "tashkent-fragment-facade" } } },
+          { "revisionId": "tashkent-selection-wall-r1", "item": "Wall finish", "priceObservation": { "amountRub": 986, "observedAt": "2026-08-27T00:00:00Z", "evidence": { "sourceRevisionId": "tashkent-source-plan-ground-r1", "evidenceLinkId": "tashkent-evidence-ground", "fragmentId": "tashkent-fragment-ground" } } },
+          { "revisionId": "tashkent-selection-kitchen-r1", "item": "Kitchen fronts and carcass", "priceObservation": { "amountRub": 125800, "observedAt": "2026-08-27T00:00:00Z", "evidence": { "sourceRevisionId": "tashkent-source-plan-ground-r1", "evidenceLinkId": "tashkent-evidence-ground", "fragmentId": "tashkent-fragment-ground" } } }
         ],
         "budget": { "amountRub": 128044, "staleSelectionRevisionIds": [], "missingPriceSelectionRevisionIds": [] },
         "layoutContent": {
@@ -184,11 +185,11 @@
         "layoutVersionId": "tashkent-layout-premium-v1",
         "layoutRevisionId": "a9999999-9999-4999-8999-999999999999",
         "semanticHash": "sha256:8589e7bab79d3d514cd9262d8a7dc6b0d819ec2e50f6a6b40472414c46c68d47",
-        "selectionRevisionIds": ["tashkent-selection-floor", "tashkent-selection-wall", "tashkent-selection-kitchen"],
+        "selectionRevisionIds": ["tashkent-selection-floor-r1", "tashkent-selection-wall-r1", "tashkent-selection-kitchen-r1"],
         "selections": [
-          { "revisionId": "tashkent-selection-floor", "item": "Floor finish", "priceObservation": { "amountRub": 1258, "observedAt": "2026-08-27T00:00:00Z", "evidence": { "sourceRevisionId": "tashkent-source-facade-r1", "evidenceLinkId": "tashkent-evidence-facade", "fragmentId": "tashkent-fragment-facade" } } },
-          { "revisionId": "tashkent-selection-wall", "item": "Wall finish", "priceObservation": { "amountRub": 986, "observedAt": "2026-08-27T00:00:00Z", "evidence": { "sourceRevisionId": "tashkent-source-plan-ground-r1", "evidenceLinkId": "tashkent-evidence-ground", "fragmentId": "tashkent-fragment-ground" } } },
-          { "revisionId": "tashkent-selection-kitchen", "item": "Kitchen fronts and carcass", "priceObservation": { "amountRub": 125800, "observedAt": "2026-08-27T00:00:00Z", "evidence": { "sourceRevisionId": "tashkent-source-plan-ground-r1", "evidenceLinkId": "tashkent-evidence-ground", "fragmentId": "tashkent-fragment-ground" } } }
+          { "revisionId": "tashkent-selection-floor-r1", "item": "Floor finish", "priceObservation": { "amountRub": 1258, "observedAt": "2026-08-27T00:00:00Z", "evidence": { "sourceRevisionId": "tashkent-source-facade-r1", "evidenceLinkId": "tashkent-evidence-facade", "fragmentId": "tashkent-fragment-facade" } } },
+          { "revisionId": "tashkent-selection-wall-r1", "item": "Wall finish", "priceObservation": { "amountRub": 986, "observedAt": "2026-08-27T00:00:00Z", "evidence": { "sourceRevisionId": "tashkent-source-plan-ground-r1", "evidenceLinkId": "tashkent-evidence-ground", "fragmentId": "tashkent-fragment-ground" } } },
+          { "revisionId": "tashkent-selection-kitchen-r1", "item": "Kitchen fronts and carcass", "priceObservation": { "amountRub": 125800, "observedAt": "2026-08-27T00:00:00Z", "evidence": { "sourceRevisionId": "tashkent-source-plan-ground-r1", "evidenceLinkId": "tashkent-evidence-ground", "fragmentId": "tashkent-fragment-ground" } } }
         ],
         "budget": { "amountRub": 128044, "staleSelectionRevisionIds": [], "missingPriceSelectionRevisionIds": [] },
         "layoutContent": {
@@ -213,14 +214,14 @@
     "environment": "disposable",
     "productionChanged": false,
     "operations": [
-      { "kind": "publish_m2_layout_version", "status": "completed", "replayVerified": true },
-      { "kind": "submit_m2_client_review", "status": "completed", "replayVerified": true },
-      { "kind": "review_m2_client_submission", "status": "completed", "replayVerified": true },
-      { "kind": "publish_m2_m3_handoff", "status": "completed", "replayVerified": true }
+      { "kind": "publish_m2_layout_version", "status": "pending", "replayVerified": false },
+      { "kind": "submit_m2_client_review", "status": "pending", "replayVerified": false },
+      { "kind": "review_m2_client_submission", "status": "pending", "replayVerified": false },
+      { "kind": "publish_m2_m3_handoff", "status": "pending", "replayVerified": false }
     ],
-    "auditVerified": true,
-    "privacyVerified": true,
-    "tenancyVerified": true,
-    "restartVerified": true
+    "auditVerified": false,
+    "privacyVerified": false,
+    "tenancyVerified": false,
+    "restartVerified": false
   }
 }

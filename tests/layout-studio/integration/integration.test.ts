@@ -278,6 +278,9 @@ describe("Layout Studio delivery/UI slice", () => {
       // К Layout Studio отношения не имеет.
       "20260813040000_projectceo_publish_version_timeout.sql",
       "20260817010000_projectceo_m4_v1_impact_recovery_dec037.sql",
+      // Additive M2 retry/idempotency correction. К Layout Studio отношения не
+      // имеет.
+      "20260827150000_projectceo_m2_retry_idempotency.sql",
     ];
     const actual = readdirSync(join(repoRoot, "supabase/migrations"), { withFileTypes: true })
       // Предмет проверки — миграции, а не всё содержимое папки. Рядом с ними

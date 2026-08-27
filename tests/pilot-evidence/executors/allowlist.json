@@ -3,7 +3,7 @@
   "executors": [
     {
       "path": "tests/pilot-evidence/run-m2-pilot-evidence.zsh",
-      "digest": "sha256:c65b09bd354e9f4493c7d133fc10c0d51b47858e7e865aec14fc89c7e8c7423f"
+      "digest": "sha256:96953048e39f67de16824b53590b24095c54ecf3cb505b0273c4db32001afa8e"
     },
     {
       "path": "tests/pilot-evidence/executors/pending-external-system.zsh",
@@ -11,11 +11,11 @@
     },
     {
       "path": "tests/pilot-evidence/executors/kora-five-session-producer.zsh",
-      "digest": "sha256:0be4dc28dc8b694505e7f539f147a3d8217d858ee017b932c5211944905a4a3b"
+      "digest": "sha256:fcd508047e0e3379e14ec7978be4aed5352c68414957aebce49b755917c9b190"
     },
     {
       "path": "tests/pilot-evidence/executors/external-package-runner.zsh",
-      "digest": "sha256:ae1d525140688cd709a68f4776b4b869b8a0b13fd0c3d74c0d068ebe3c0ca8da"
+      "digest": "sha256:1bf1f3345d9d2f00e75ef962cd6c954141f786fd0eabddaaf56668451660d870"
     }
   ]
 }
