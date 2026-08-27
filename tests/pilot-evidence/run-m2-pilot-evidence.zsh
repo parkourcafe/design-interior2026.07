@@ -116,6 +116,9 @@ PI_DB_IMAGE=postgres:17-alpine zsh tests/db4/run.zsh
 # request-bound sessions and emits the exact machine receipt. Its local origin
 # and database container are discovered from the disposable profile; no
 # EXTERNAL_RUN_* operator variables are part of the canonical path.
+# The receipt chain is publish_m2_layout_version -> submit_m2_client_review ->
+# review_m2_client_submission -> append_m2_approved_commit_revision ->
+# publish_m2_m3_handoff; every externally submitted command is replayed.
 ./node_modules/.bin/tsx tests/pilot-evidence/run-pilot-executor-cli.ts \
   "${executor_absolute}" "${challenge_nonce}" "${evidence_dir}" "${external_manifest}" \
   "${executor_verification_receipt_id}" "${kora_receipt_digest}" "${kora_receipt_id}" \
