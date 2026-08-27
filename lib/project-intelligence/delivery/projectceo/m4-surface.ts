@@ -34,7 +34,11 @@
  */
 
 import type { ProjectCeoCommand } from "./command-contract";
-import { EXECUTION_INCREMENT_1, EXECUTION_V1_IMPACT } from "./execution-flag";
+import {
+  EXECUTION_INCREMENT_1,
+  EXECUTION_V1_IMPACT,
+  EXECUTION_V2_V3,
+} from "./execution-flag";
 
 export type M4RpcClosure = "revoked_from_authenticated" | "enabled_by_environment_script";
 
@@ -194,21 +198,21 @@ export const M4_SURFACE: readonly M4SurfaceRow[] = [
     command: "upload_photo_evidence",
     increment: 2,
     offState: "module_disabled",
-    onState: "increment_not_authorized",
+    onState: "precondition_driven",
     rpcs: [
       {
         schema: "projectceo_m4_api",
         name: "register_photo_evidence",
         signature: "projectceo_m4_api.register_photo_evidence(uuid, uuid, text, text, text, timestamptz, text, bigint, text)",
         sharing: "m4_only",
-        closure: "revoked_from_authenticated",
+        closure: "enabled_by_environment_script",
       },
       {
         schema: "projectceo_m4_api",
         name: "replay_register_photo_evidence",
         signature: "projectceo_m4_api.replay_register_photo_evidence(uuid, uuid, text, text, text, timestamptz, text, text)",
         sharing: "m4_only",
-        closure: "revoked_from_authenticated",
+        closure: "enabled_by_environment_script",
       },
     ],
   },
@@ -216,21 +220,21 @@ export const M4_SURFACE: readonly M4SurfaceRow[] = [
     command: "review_photo_evidence",
     increment: 2,
     offState: "module_disabled",
-    onState: "increment_not_authorized",
+    onState: "precondition_driven",
     rpcs: [
       {
         schema: "projectceo_m4_api",
         name: "review_photo_evidence",
         signature: "projectceo_m4_api.review_photo_evidence(uuid, uuid, text, text, bigint, text)",
         sharing: "m4_only",
-        closure: "revoked_from_authenticated",
+        closure: "enabled_by_environment_script",
       },
       {
         schema: "projectceo_m4_api",
         name: "replay_review_photo_evidence",
         signature: "projectceo_m4_api.replay_review_photo_evidence(uuid, uuid, text, text, text)",
         sharing: "m4_only",
-        closure: "revoked_from_authenticated",
+        closure: "enabled_by_environment_script",
       },
     ],
   },
@@ -238,21 +242,21 @@ export const M4_SURFACE: readonly M4SurfaceRow[] = [
     command: "accept_milestone",
     increment: 2,
     offState: "module_disabled",
-    onState: "increment_not_authorized",
+    onState: "precondition_driven",
     rpcs: [
       {
         schema: "projectceo_m4_api",
         name: "accept_milestone",
         signature: "projectceo_m4_api.accept_milestone(uuid, uuid, bigint, text)",
         sharing: "m4_only",
-        closure: "revoked_from_authenticated",
+        closure: "enabled_by_environment_script",
       },
       {
         schema: "projectceo_m4_api",
         name: "replay_accept_milestone",
         signature: "projectceo_m4_api.replay_accept_milestone(uuid, uuid, text)",
         sharing: "m4_only",
-        closure: "revoked_from_authenticated",
+        closure: "enabled_by_environment_script",
       },
     ],
   },
@@ -346,3 +350,7 @@ export const M4_INCREMENT_1_SIGNATURES: readonly string[] =
 /** То же для вертикали V1 Impact — открывается своим скриптом среды. */
 export const M4_V1_IMPACT_SIGNATURES: readonly string[] =
   openableSignatures(EXECUTION_V1_IMPACT);
+
+/** V2/V3 doors returned only by the disposable AP1/AP6 ACL script. */
+export const M4_V2_V3_SIGNATURES: readonly string[] =
+  openableSignatures(EXECUTION_V2_V3);

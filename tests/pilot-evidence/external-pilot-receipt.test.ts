@@ -28,7 +28,7 @@ function workdir() { const root = mkdtempSync(join(tmpdir(), "cycle7-external-")
 
 function manifestFile(dir: string) {
   const path = join(dir, "external-manifest.json");
-  writeFileSync(path, JSON.stringify({ synthetic: false, project: { name: "External venue" } }));
+  writeFileSync(path, JSON.stringify({ status: "pending", synthetic: false, project: { name: "External venue" } }));
   return path;
 }
 
@@ -206,13 +206,28 @@ describe("External pilot receipt builder", () => {
     });
 
     finalizeM2PilotEvidence(receipt, {
-      outputDir: dir, pending, pendingPath, koraReceiptPath, label: "External real package",
+      outputDir: dir, pending, pendingPath, koraReceiptPath, manifestPath, label: "External real package",
     });
 
     const pass = JSON.parse(readFileSync(join(dir, "PASS.json"), "utf8"));
     expect(pass.verdict).toBe("EXTERNAL_REAL_PACKAGE_PASS");
+    expect(pass.status).toBe("completed");
+    expect(pass.headSha).toMatch(/^[0-9a-f]{40}$/);
+    expect(pass.executedAt).toMatch(/^\d{4}-\d{2}-\d{2}T/);
+    expect(pass.markers).toEqual(["KORA_LOCAL_AUTHENTICATED_PASS", "EXTERNAL_REAL_PACKAGE_PASS"]);
+    expect(pass.executor).not.toHaveProperty("path");
     expect(pass.fiveDistinctUsers).toBe(true);
     expect(pass.commandIds).toHaveLength(EXTERNAL_RUN_OPERATIONS.length);
+  });
+
+  it("rejects a completed input manifest before publishing a runtime receipt", () => {
+    const dir = workdir();
+    const manifestPath = manifestFile(dir);
+    writeFileSync(manifestPath, JSON.stringify({ status: "completed" }));
+    const out = join(dir, "PASS.json");
+    const value = { status: "MANIFEST_VALIDATED_PENDING_RUN", manifestDigest: sha(readFileSync(manifestPath)) };
+    expect(() => finalizeM2PilotEvidence(value, { outputDir: dir, manifestPath })).toThrow("CYCLE7_INPUT_MANIFEST_MUST_BE_PENDING");
+    expect(existsSync(out)).toBe(false);
   });
 });
 

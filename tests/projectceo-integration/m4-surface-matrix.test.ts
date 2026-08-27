@@ -11,6 +11,7 @@ import {
   M4_SURFACE,
   M4_SURFACE_COMMANDS,
   M4_V1_IMPACT_SIGNATURES,
+  M4_V2_V3_SIGNATURES,
 } from "../../lib/project-intelligence/delivery/projectceo/m4-surface";
 import {
   EXECUTION_INCREMENT_1,
@@ -19,6 +20,7 @@ import {
   EXECUTION_NOT_AUTHORIZED_COMMANDS,
   EXECUTION_PERMANENTLY_CLOSED,
   EXECUTION_V1_IMPACT,
+  EXECUTION_V2_V3,
 } from "../../lib/project-intelligence/delivery/projectceo/execution-flag";
 
 const repoRoot = process.cwd();
@@ -61,7 +63,8 @@ describe("M4 surface matrix", () => {
     for (const row of M4_SURFACE) {
       expect(row.offState, row.command).toBe("module_disabled");
       const authorized = row.increment === 1
-        || (EXECUTION_V1_IMPACT as readonly string[]).includes(row.command);
+        || (EXECUTION_V1_IMPACT as readonly string[]).includes(row.command)
+        || (EXECUTION_V2_V3 as readonly string[]).includes(row.command);
       expect(row.onState, row.command).toBe(
         authorized ? "precondition_driven" : "increment_not_authorized",
       );
@@ -85,10 +88,9 @@ describe("M4 surface matrix", () => {
     const closed = M4_SURFACE.filter(
       (entry) => EXECUTION_NOT_AUTHORIZED_COMMANDS.has(entry.command),
     );
-    // Список не должен опустеть незаметно: пустой фильтр прошёл бы молча и
-    // перестал бы что-либо охранять. Было 4 (четыре команды V2/V3) — DEC-034
-    // добавила пятую: `acknowledge_impact_truncation`, закрытую навсегда.
-    expect(closed.length).toBe(5);
+    // V2/V3 открываются только отдельным disposable ACL-script. Постоянно
+    // закрыты worker-only handover и DEC-034 truncation acknowledgement.
+    expect(closed.length).toBe(2);
     for (const row of closed) {
       for (const rpc of row.rpcs) {
         expect(rpc.closure, rpc.signature).toBe("revoked_from_authenticated");
@@ -133,6 +135,7 @@ describe("M4 surface matrix", () => {
   it.each([
     ["tests/ap1/environment/enable-m4-increment-1.sql", M4_INCREMENT_1_SIGNATURES],
     ["tests/ap1/environment/enable-m4-v1-impact.sql", M4_V1_IMPACT_SIGNATURES],
+    ["tests/ap1/environment/enable-m4-v2-v3.sql", M4_V2_V3_SIGNATURES],
   ] as const)("keeps %s opening exactly its own signatures", (path, expected) => {
     const enable = read(path);
     const grantBlock = enable.slice(
@@ -154,8 +157,10 @@ describe("M4 surface matrix", () => {
     }
     // И ни один скрипт не открывает чужой набор.
     const foreign = path.includes("increment-1")
-      ? M4_V1_IMPACT_SIGNATURES
-      : M4_INCREMENT_1_SIGNATURES;
+      ? [...M4_V1_IMPACT_SIGNATURES, ...M4_V2_V3_SIGNATURES]
+      : path.includes("v1-impact")
+        ? [...M4_INCREMENT_1_SIGNATURES, ...M4_V2_V3_SIGNATURES]
+        : [...M4_INCREMENT_1_SIGNATURES, ...M4_V1_IMPACT_SIGNATURES];
     for (const signature of foreign) {
       expect(squash(grantBlock), signature).not.toContain(squash(signature));
     }

@@ -1372,4 +1372,5 @@ begin
 end
 $immutability$;
 
+select 'DB5_M4_V2_V3_COMPATIBILITY_OK' as result;
 select 'DB5_EXECUTION_OPERATIONS_OK' as result;
