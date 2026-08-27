@@ -21,9 +21,9 @@ set -euo pipefail
 #
 # NOTE: the command payload bodies are derived from the manifest below. The
 # manifest shape is fixed by tests/pilot-evidence/m2-pilot-evidence-contract.ts,
-# so this mapping is generic — but it has never been executed against a real
-# external package, because none has been supplied. Treat the first real run as
-# part of the review, not as a regression.
+# so this mapping is generic. The repository package is evidence input, not a
+# run receipt: treat the first successful disposable execution as part of the
+# review, not as a regression claim.
 
 repo_root=${0:a:h:h:h:h}
 cd "${repo_root}"
@@ -167,14 +167,14 @@ send_command() {
   post_command "${role}" "${payload}" "${second}" "${operation}"
   jq -e '.status == "completed" and .replay == true' "${second}" >/dev/null
 
-  local result_digest replay_digest request_id state_revision previous_state_revision audit_event_id
+  local result_digest replay_digest request_id stateRevision previous_state_revision audit_event_id
   result_digest=$(jq -cS '.result' "${first}" | shasum -a 256 | awk '{print "sha256:"$1}')
   replay_digest=$(jq -cS '.result' "${second}" | shasum -a 256 | awk '{print "sha256:"$1}')
   request_id=$(jq -er '.requestId' "${first}")
   db_record=$(harvest_db_command "${operation}" | tail -1)
   [[ -n ${db_record} ]] || { print -u2 -r -- "EXTERNAL_RUNNER_DB_COMMAND_MISSING operation=${operation}"; exit 68; }
-  state_revision=$(jq -er '.resultingStateRevision' <<<"${db_record}")
-  previous_state_revision=$(( state_revision - 1 ))
+  stateRevision=$(jq -er '.resultingStateRevision' <<<"${db_record}")
+  previous_state_revision=$(( stateRevision - 1 ))
   command_id=$(jq -er '.commandId' <<<"${db_record}")
   audit_event_id=$(jq -er '.auditEventId' <<<"${db_record}")
   actor_user_id=$(jq -er '.actorUserId' <<<"${db_record}")
@@ -182,7 +182,7 @@ send_command() {
 
   jq --arg operation "${operation}" --arg commandId "${command_id}" --arg requestId "${request_id}" \
     --arg auditEventId "${audit_event_id}" --arg actorUserId "${actor_user_id}" --arg actorSessionId "${actor_session_id}" --arg role "${role}" \
-    --argjson previous "${previous_state_revision}" --argjson resulting "${state_revision}" \
+    --argjson previous "${previous_state_revision}" --argjson resulting "${stateRevision}" \
     --arg resultDigest "${result_digest}" --arg replayDigest "${replay_digest}" \
     '. += [{operation: $operation, commandId: $commandId, requestId: $requestId,
             auditEventId: $auditEventId, actorUserId: $actorUserId, actorSessionId: $actorSessionId, role: $role,
@@ -198,19 +198,19 @@ send_command() {
 # public API or issuing a duplicate approved commit.
 record_approved_commit_side_effect() {
   local operation=append_m2_approved_commit_revision
-  local db_record result_digest state_revision previous_state_revision command_id audit_event_id actor_user_id actor_session_id
+  local db_record result_digest stateRevision previous_state_revision command_id audit_event_id actor_user_id actor_session_id
   db_record=$(harvest_db_command "${operation}" | tail -1)
   [[ -n ${db_record} ]] || { print -u2 -r -- 'EXTERNAL_RUNNER_APPROVED_COMMIT_SIDE_EFFECT_MISSING'; exit 68; }
   command_id=$(jq -er '.commandId' <<<"${db_record}")
   audit_event_id=$(jq -er '.auditEventId' <<<"${db_record}")
   actor_user_id=$(jq -er '.actorUserId' <<<"${db_record}")
-  state_revision=$(jq -er '.resultingStateRevision' <<<"${db_record}")
-  previous_state_revision=$(( state_revision - 1 ))
+  stateRevision=$(jq -er '.resultingStateRevision' <<<"${db_record}")
+  previous_state_revision=$(( stateRevision - 1 ))
   actor_session_id=$(jq -er '.[] | select(.role == "client_approver") | .sessionId' "${sessions_file}")
   result_digest=$(jq -cS '.logicalResult' <<<"${db_record}" | shasum -a 256 | awk '{print "sha256:"$1}')
   jq --arg operation "${operation}" --arg commandId "${command_id}" --arg requestId "${audit_event_id}" \
     --arg auditEventId "${audit_event_id}" --arg actorUserId "${actor_user_id}" --arg actorSessionId "${actor_session_id}" \
-    --argjson previous "${previous_state_revision}" --argjson resulting "${state_revision}" --arg digest "${result_digest}" \
+    --argjson previous "${previous_state_revision}" --argjson resulting "${stateRevision}" --arg digest "${result_digest}" \
     '. += [{operation: $operation, commandId: $commandId, requestId: $requestId,
             auditEventId: $auditEventId, actorUserId: $actorUserId, actorSessionId: $actorSessionId,
             previousStateRevision: $previous, resultingStateRevision: $resulting,
