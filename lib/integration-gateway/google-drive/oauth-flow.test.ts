@@ -164,6 +164,37 @@ describe("Google Drive OAuth orchestration", () => {
     expect(harness.getStoredCredential()).toBe("");
   });
 
+  it("rejects a repeated callback after the OAuth intent has been consumed", async () => {
+    const harness = createHarness();
+    const start = await harness.flow.start({
+      organizationId,
+      idempotencyKey: "google-repeat-1",
+    });
+    const state = new URL(start.authorizationUrl).searchParams.get("state");
+    let consumed = false;
+    harness.registry.consumeIntent = vi.fn(async () => {
+      if (consumed) throw new Error("expired_or_consumed");
+      consumed = true;
+      return {
+        intentId,
+        providerCode: "google_drive" as const,
+        organizationId,
+        actorId: "67111111-1111-4111-8111-111111111111",
+        requestedScopes: [GOOGLE_DRIVE_FILE_SCOPE],
+        pkceCredentialRef: `oauth-pkce:google-drive:${googleDriveStateDigestHex(state ?? "")}`,
+      };
+    });
+
+    await expect(harness.flow.complete({
+      callbackUrl: new URL(`${config.redirectUri}?code=authorization-code&state=${state}`),
+      idempotencyKey: "google-repeat-complete-1",
+    })).resolves.toEqual({ kind: "connected", connectionId });
+    await expect(harness.flow.complete({
+      callbackUrl: new URL(`${config.redirectUri}?code=authorization-code&state=${state}`),
+      idempotencyKey: "google-repeat-complete-2",
+    })).rejects.toThrow("expired_or_consumed");
+  });
+
   it("reuses the persisted state and verifier when the create command replays", async () => {
     const harness = createHarness();
     const first = await harness.flow.start({

@@ -158,6 +158,7 @@ PI_DBIG_DATABASE="${database}" \
 PI_DBIG_PASSWORD="${password}" \
   "${repo_root}/tests/db-integration-gateway/run-concurrency.zsh" >> "${log}" 2>&1
 
+
 docker restart "${container}" >/dev/null
 for attempt in {1..120}; do
   if docker exec -e PGPASSWORD="${password}" "${container}" \
@@ -174,6 +175,8 @@ for attempt in {1..120}; do
   sleep 0.25
 done
 run_file "${repo_root}/tests/db-integration-gateway/30_restart_replay.sql" >> "${log}" 2>&1
+print -r -- "Running 80_disconnect_active_job.sql" >> "${log}"
+run_file "${repo_root}/tests/db-integration-gateway/80_disconnect_active_job.sql" >> "${log}" 2>&1
 
 rg -q 'DBIG_UPGRADE_PRE_PR_STATE_OK' "${log}"
 rg -q 'DBIG_UPGRADE_POST_PR_STATE_OK' "${log}"
@@ -185,9 +188,10 @@ for marker in \
   DBIG_TELEGRAM_STAGING_OK \
   DBIG_GOOGLE_DRIVE_STAGING_OK \
   DBIG_CONCURRENCY_OK \
-  DBIG_RESTART_REPLAY_OK; do
+  DBIG_RESTART_REPLAY_OK \
+  DBIG_DISCONNECT_ACTIVE_JOB_OK; do
   rg -q "${marker}" "${log}"
 done
 
-rg 'DBIG_UPGRADE_|DBIG_(SCHEMA_SECURITY|REGISTRY_OPERATIONS|PROJECT_LINKS|FILE_INTAKE|TELEGRAM_STAGING|GOOGLE_DRIVE_STAGING|CONCURRENCY|RESTART_REPLAY)_OK' "${log}"
+rg 'DBIG_UPGRADE_|DBIG_(SCHEMA_SECURITY|REGISTRY_OPERATIONS|PROJECT_LINKS|FILE_INTAKE|TELEGRAM_STAGING|GOOGLE_DRIVE_STAGING|CONCURRENCY|RESTART_REPLAY|DISCONNECT_ACTIVE_JOB)_OK' "${log}"
 print -r -- "DBIG_UPGRADE_INTEGRATION_GATEWAY_HARNESS_OK image=${image}"

@@ -4,7 +4,14 @@ export const TELEGRAM_WEBHOOK_MAX_BYTES = 256 * 1024;
 
 export class TelegramWebhookError extends Error {
   constructor(
-    readonly code: "invalid_secret" | "body_too_large" | "invalid_body" | "credentials_required" | "worker_unavailable",
+    readonly code:
+      | "invalid_secret"
+      | "body_too_large"
+      | "invalid_body"
+      | "credentials_required"
+      | "worker_unavailable"
+      | "provider_unavailable"
+      | "provider_response_invalid",
   ) {
     super(`telegram_webhook_${code}`);
     this.name = "TelegramWebhookError";

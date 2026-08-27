@@ -1648,6 +1648,7 @@ export const ru = {
       scope_conflict: "Объект не относится к этой организации или проекту.",
       unsupported_source: "Внешний staging-контур ещё не подключён.",
       oauthTransportNotConfigured: "OAuth staging-транспорт ещё не подключён.",
+      expired_or_consumed: "Ссылка уже использована или истекла.",
       oauth_callback_not_configured: "OAuth callback staging-транспорт ещё не подключён.",
       provider_worker_not_configured: "Worker provider staging-транспорт ещё не подключён.",
       provider_webhook_not_configured: "Provider webhook staging-транспорт ещё не подключён.",

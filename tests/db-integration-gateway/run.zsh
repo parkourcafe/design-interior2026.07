@@ -66,6 +66,7 @@ PI_DBIG_DATABASE="${database}" \
 PI_DBIG_PASSWORD="${password}" \
   "${repo_root}/tests/db-integration-gateway/run-concurrency.zsh"
 
+
 print -r -- "Restarting database for DBIG replay proof"
 docker restart "${container}" >/dev/null
 for attempt in {1..120}; do
@@ -83,5 +84,6 @@ for attempt in {1..120}; do
   sleep 0.25
 done
 run_file "${repo_root}/tests/db-integration-gateway/30_restart_replay.sql"
+run_file "${repo_root}/tests/db-integration-gateway/80_disconnect_active_job.sql"
 
 print -r -- "DBIG_INTEGRATION_GATEWAY_HARNESS_OK image=${image}"

@@ -22,3 +22,24 @@ export class StagingFileMalwareScanner implements FileMalwareScanner {
     return { outcome: this.outcome };
   }
 }
+
+/** Default production boundary until a reviewed scanner adapter is selected. */
+export class FailClosedFileMalwareScanner implements FileMalwareScanner {
+  async scan(input: {
+    readonly bytes: Uint8Array;
+    readonly checksumHex: string;
+    readonly mediaType: string;
+  }): Promise<{ readonly outcome: FileScanOutcome }> {
+    void input;
+    return { outcome: "scan_failed" };
+  }
+}
+
+export function createFileMalwareScannerFromEnv(
+  env: Readonly<Record<string, string | undefined>> = process.env,
+): FileMalwareScanner {
+  if (env.REMHAOS_FILE_SCANNER_ADAPTER === "staging" && env.NODE_ENV !== "production") {
+    return new StagingFileMalwareScanner();
+  }
+  return new FailClosedFileMalwareScanner();
+}

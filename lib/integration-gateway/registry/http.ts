@@ -47,12 +47,12 @@ export function integrationGatewayErrorResponse(error: unknown): NextResponse {
     ? error.code
     : error instanceof IntegrationGatewayForbiddenError
       ? "forbidden"
-    : error instanceof IntegrationGatewayRequestError
+      : error instanceof IntegrationGatewayRequestError
       ? "validation_failed"
       : error instanceof IntegrationGatewayUnavailableError
         ? "unsupported_source"
         : error instanceof ProjectIntelligenceAdapterError
-          ? error.code
+          ? error.code === "expired" ? "expired_or_consumed" : error.code
           : "internal_error";
   const status = code === "unauthenticated" || code === "identity_unverified"
     ? 401
@@ -62,13 +62,17 @@ export function integrationGatewayErrorResponse(error: unknown): NextResponse {
         ? 404
         : code === "unsupported_source"
           ? 503
-          : code === "idempotency_conflict" || code === "scope_conflict"
+          : code === "idempotency_conflict" || code === "scope_conflict" || code === "expired_or_consumed"
             ? 409
             : code === "validation_failed"
               ? 422
               : 500;
   const requestReason = error instanceof IntegrationGatewayRequestError
-    && (error.reason === "provider_not_supported" || error.reason === "scope_not_allowed")
+    && (
+      error.reason === "provider_not_supported"
+      || error.reason === "scope_not_allowed"
+      || error.reason === "oauth_callback_invalid"
+    )
     ? error.reason
     : null;
   return NextResponse.json(

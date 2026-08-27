@@ -19,6 +19,7 @@ describe("Google Drive staging boundary", () => {
     expect(envExample).toContain(
       "GOOGLE_DRIVE_REDIRECT_URI=https://your-staging-host.example/api/integrations/google_drive/oauth/callback",
     );
+    expect(envExample).toContain("REMHAOS_SECRET_STORE_ADAPTER=fail_closed");
   });
 
   it("keeps provider credentials and raw IDs out of connector projections", () => {
@@ -39,6 +40,20 @@ describe("Google Drive staging boundary", () => {
     expect(migration).toContain("google_drive_stop_channels_after_disconnect");
     expect(migration).toContain("notification_id_hash");
     expect(migration).not.toMatch(/raw[_-]?provider|provider[_-]?body|access[_-]?token|refresh[_-]?token/i);
+  });
+
+  it("keeps Picker selection and credential lookup server-side", () => {
+    const picker = read("lib/integration-gateway/google-drive/picker.ts");
+    const runtime = read("lib/integration-gateway/google-drive/runtime.ts");
+    const migration = read("supabase/migrations/20260827010000_remhaos_integration_gateway_transport.sql");
+    expect(picker).toContain('z.literal("cancelled")');
+    expect(picker).toContain("selectedGoogleDriveObject");
+    expect(runtime).toContain("createGoogleDriveSelectionStore");
+    expect(migration).toContain("get_integration_credential_ref");
+    expect(migration).toContain("claim_selected_google_drive_import_jobs");
+    expect(migration).toContain("cancel_integration_jobs_on_disconnect");
+    expect(migration).toContain("request_selected_google_drive_import");
+    expect(migration).not.toMatch(/grant execute[\s\S]{0,400}to authenticated[\s\S]{0,400}get_integration_credential_ref/i);
   });
 
   it("preserves evidence and supersedes open candidates on revision change", () => {

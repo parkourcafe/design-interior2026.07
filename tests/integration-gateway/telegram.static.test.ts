@@ -10,6 +10,7 @@ describe("Telegram staging boundary", () => {
     const envExample = read(".env.example");
     expect(envExample).toContain("REMHAOS_TELEGRAM_BRIDGE_ENABLED=false");
     expect(envExample).toContain("TELEGRAM_WEBHOOK_SECRET=your-telegram-webhook-secret");
+    expect(envExample).toContain("TELEGRAM_BOT_TOKEN=your-telegram-bot-token");
   });
 
   it("keeps Telegram state private and makes rebinding auditable", () => {
@@ -34,7 +35,8 @@ describe("Telegram staging boundary", () => {
     expect(route).toContain("TELEGRAM_WEBHOOK_SECRET");
     expect(route).toContain("x-telegram-bot-api-secret-token");
     expect(route).toContain("worker_unavailable");
-    expect(route).toContain("status: 503");
+    expect(route).toContain("status: 202");
+    expect(route).toContain("createTelegramWebhookIngress");
     expect(route).toContain("readTelegramBody(request)");
     expect(route).not.toContain("request.text()");
     expect(route).not.toMatch(/from ["']@\/lib\/supabase\/admin/);

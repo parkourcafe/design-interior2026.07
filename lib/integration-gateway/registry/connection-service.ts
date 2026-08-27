@@ -2,6 +2,7 @@ import { z } from "zod";
 import { callRpc } from "@/lib/project-intelligence/adapters/postgres/rpc";
 import type { PostgresRpcClient } from "@/lib/project-intelligence/adapters/postgres/contracts";
 import { integrationProviderListSchema } from "./provider-registry";
+import type { FileIntakeSourceRole } from "../file-intake/policy";
 
 export const connectionProjectionSchema = z.object({
   connectionId: z.string().uuid(),
@@ -181,6 +182,29 @@ export class IntegrationConnectionService {
         {
           p_project_id: input.projectId,
           p_project_connection_id: input.projectConnectionId,
+          p_idempotency_key: input.idempotencyKey,
+        },
+      ),
+    );
+  }
+
+  async requestSelectedGoogleDriveImport(input: {
+    readonly projectId: string;
+    readonly projectConnectionId: string;
+    readonly selectionRef: string;
+    readonly sourceRole: FileIntakeSourceRole;
+    readonly idempotencyKey: string;
+  }) {
+    return commandResultSchema.parse(
+      await callRpc(
+        this.client,
+        "remhaos_integration_api",
+        "request_selected_google_drive_import",
+        {
+          p_project_id: input.projectId,
+          p_project_connection_id: input.projectConnectionId,
+          p_selection_ref: input.selectionRef,
+          p_source_role: input.sourceRole,
           p_idempotency_key: input.idempotencyKey,
         },
       ),

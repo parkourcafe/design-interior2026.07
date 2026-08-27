@@ -2,7 +2,8 @@ import { describe, expect, it, vi } from "vitest";
 
 vi.mock("server-only", () => ({}));
 
-import { parseIntegrationJson } from "./http";
+import { ProjectIntelligenceAdapterError } from "@/lib/project-intelligence/adapters/postgres/errors";
+import { integrationGatewayErrorResponse, parseIntegrationJson } from "./http";
 
 const jsonHeaders = { "content-type": "application/json" };
 
@@ -26,5 +27,15 @@ describe("Integration Gateway JSON boundary", () => {
       headers: jsonHeaders,
       body: new Uint8Array([0xff]),
     }))).rejects.toThrow("invalid_json");
+  });
+
+  it("maps consumed OAuth intents to a controlled conflict", async () => {
+    const response = integrationGatewayErrorResponse(
+      new ProjectIntelligenceAdapterError("expired", "P1205"),
+    );
+    expect(response.status).toBe(409);
+    expect(await response.json()).toMatchObject({
+      error: { code: "expired_or_consumed" },
+    });
   });
 });

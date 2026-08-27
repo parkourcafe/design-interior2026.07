@@ -1,10 +1,16 @@
 import { NextResponse, type NextRequest } from "next/server";
+import { createIntegrationWorkerClient } from "@/lib/integration-gateway/runtime/worker-client";
+import {
+  GoogleDriveWebhookProcessor,
+  PostgresGoogleDriveWebhookResolver,
+} from "@/lib/integration-gateway/google-drive/webhook";
 import {
   integrationGatewayDisabledResponse,
   integrationGatewayEnabled,
   IntegrationGatewayRequestError,
   IntegrationGatewayUnavailableError,
   consumeIntegrationWebhookBody,
+  integrationGatewayErrorResponse,
   privateJsonHeaders,
 } from "@/lib/integration-gateway/registry/http";
 
@@ -19,13 +25,23 @@ export async function POST(
     const { provider } = await context.params;
     if (!provider || provider !== "google_drive") throw new IntegrationGatewayRequestError("provider_not_supported");
     await consumeIntegrationWebhookBody(request);
-    throw new IntegrationGatewayUnavailableError("provider_webhook_not_configured");
+    let processor: GoogleDriveWebhookProcessor;
+    try {
+      processor = new GoogleDriveWebhookProcessor(
+        new PostgresGoogleDriveWebhookResolver(createIntegrationWorkerClient()),
+      );
+    } catch {
+      throw new IntegrationGatewayUnavailableError("provider_webhook_not_configured");
+    }
+    const data = await processor.process(new Headers(request.headers));
+    return NextResponse.json({ data }, { status: 202, headers: privateJsonHeaders() });
   } catch (error) {
-    const code = error instanceof IntegrationGatewayRequestError ? "validation_failed" : "unsupported_source";
-    const status = code === "validation_failed" ? 422 : 503;
-    return NextResponse.json(
-      { error: { code, messageKey: `integrations.errors.${error instanceof IntegrationGatewayUnavailableError ? error.reason : code}` } },
-      { status, headers: privateJsonHeaders() },
-    );
+    if (error instanceof IntegrationGatewayUnavailableError) {
+      return NextResponse.json(
+        { error: { code: "unsupported_source", messageKey: `integrations.errors.${error.reason}` } },
+        { status: 503, headers: privateJsonHeaders() },
+      );
+    }
+    return integrationGatewayErrorResponse(error);
   }
 }

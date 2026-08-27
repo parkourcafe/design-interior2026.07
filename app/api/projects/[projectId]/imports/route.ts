@@ -7,6 +7,7 @@ import {
   integrationGatewayDisabledResponse,
   integrationGatewayEnabled,
   integrationGatewayErrorResponse,
+  integrationGatewayIdempotencyKey,
   integrationProjectIdPattern,
   IntegrationGatewayRequestError,
   IntegrationGatewayUnavailableError,
@@ -14,6 +15,8 @@ import {
   privateJsonHeaders,
 } from "@/lib/integration-gateway/registry/http";
 import { assertSelectedGoogleDriveObject, googleDriveObjectSchema } from "@/lib/integration-gateway/google-drive/policy";
+import { createGoogleDriveSelectionStore } from "@/lib/integration-gateway/google-drive/runtime";
+import { sha256Hex } from "@/lib/integration-gateway/core/oauth-intent";
 
 export const dynamic = "force-dynamic";
 
@@ -21,6 +24,9 @@ const importRequestSchema = z.object({
   providerCode: z.literal("google_drive"),
   projectConnectionId: z.string().uuid(),
   object: googleDriveObjectSchema,
+  sourceRole: z.enum([
+    "document", "drawing-preview", "reference", "photo-evidence", "correspondence", "schedule",
+  ]).default("document"),
 }).strict();
 
 export async function GET(
@@ -53,8 +59,28 @@ export async function POST(
     const body = importRequestSchema.safeParse(await parseIntegrationJson(request));
     if (!body.success) throw new IntegrationGatewayRequestError();
     assertSelectedGoogleDriveObject(body.data.object);
-    await createProjectCeoRequestContext();
-    throw new IntegrationGatewayUnavailableError("provider_worker_not_configured");
+    const idempotencyKey = integrationGatewayIdempotencyKey(request);
+    const requestContext = await createProjectCeoRequestContext();
+    const selectionRef = `selection:google-drive:${sha256Hex(
+      `${projectId}:${body.data.projectConnectionId}:${idempotencyKey}`,
+    )}`;
+    let selectionStore;
+    try {
+      selectionStore = createGoogleDriveSelectionStore();
+      await selectionStore.put({ ref: selectionRef, selected: body.data.object });
+    } catch (error) {
+      if (error instanceof IntegrationGatewayUnavailableError) throw error;
+      throw new IntegrationGatewayUnavailableError("provider_worker_not_configured");
+    }
+    const data = await new IntegrationConnectionService(requestContext.client)
+      .requestSelectedGoogleDriveImport({
+        projectId,
+        projectConnectionId: body.data.projectConnectionId,
+        selectionRef,
+        sourceRole: body.data.sourceRole,
+        idempotencyKey,
+      });
+    return NextResponse.json({ data }, { status: 202, headers: privateJsonHeaders() });
   } catch (error) {
     return integrationGatewayErrorResponse(error);
   }

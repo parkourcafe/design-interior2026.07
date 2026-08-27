@@ -231,6 +231,10 @@ begin
     ,('remhaos_integration_api.mark_google_drive_reauth_required(uuid,uuid,text,text)')
     ,('remhaos_integration_api.list_team_project_connections(uuid)')
     ,('remhaos_integration_api.request_manual_integration_sync(uuid,uuid,text)')
+    ,('remhaos_integration_api.resolve_telegram_webhook_binding(bigint)')
+    ,('remhaos_integration_api.get_integration_credential_ref(uuid)')
+    ,('remhaos_integration_api.claim_selected_google_drive_import_jobs(integer,integer)')
+    ,('remhaos_integration_api.request_selected_google_drive_import(uuid,uuid,text,text,text)')
   ) expected(signature)
   where to_regprocedure(expected.signature) is null
   limit 1;
@@ -243,7 +247,7 @@ begin
   join pg_namespace n on n.oid = p.pronamespace
   where n.nspname = 'remhaos_integration_api'
     and p.prokind = 'f';
-  if v_count <> 51 then
+  if v_count <> 55 then
     raise exception 'DBIG_UNEXPECTED_RPC_COUNT:%', v_count;
   end if;
 
@@ -291,6 +295,7 @@ begin
             'list_telegram_candidates',
             'review_telegram_candidate'
             , 'create_oauth_intent'
+            , 'request_selected_google_drive_import'
           ]::text[])
         )
       or has_function_privilege('service_role', p.oid, 'EXECUTE')
@@ -305,7 +310,10 @@ begin
             'fail_integration_job',
             'upsert_external_object',
             'create_import_candidate',
-            'mark_google_drive_reauth_required'
+            'mark_google_drive_reauth_required',
+            'resolve_telegram_webhook_binding',
+            'get_integration_credential_ref',
+            'claim_selected_google_drive_import_jobs'
           ]::text[])
         )
       or has_function_privilege('pi_worker_executor', p.oid, 'EXECUTE')
@@ -332,7 +340,10 @@ begin
             'expire_google_drive_webhook_channels',
             'resolve_google_drive_webhook_channel',
             'record_google_drive_notification',
-            'mark_google_drive_reauth_required'
+            'mark_google_drive_reauth_required',
+            'resolve_telegram_webhook_binding',
+            'get_integration_credential_ref',
+            'claim_selected_google_drive_import_jobs'
           ]::text[])
         )
       or has_function_privilege('pi_human_executor', p.oid, 'EXECUTE')

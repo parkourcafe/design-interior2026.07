@@ -43,7 +43,11 @@ describe("RemHaOS Integration Gateway HTTP boundary", () => {
     const imports = read("app/api/projects/[projectId]/imports/route.ts");
     expect(source).toContain("oauthTransportNotConfigured");
     expect(source).toContain("}).strict();");
-    expect(source).not.toContain("organizationId");
+    const schema = source.slice(
+      source.indexOf("const connectIntentBodySchema"),
+      source.indexOf("export async function"),
+    );
+    expect(schema).not.toContain("organizationId");
     expect(settings).toContain("body: JSON.stringify({\n          requestedScopes:");
     expect(imports).toContain("provider_worker_not_configured");
     expect(imports).toContain("}).strict();");

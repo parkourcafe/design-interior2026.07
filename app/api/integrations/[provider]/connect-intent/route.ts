@@ -2,6 +2,10 @@ import { NextResponse, type NextRequest } from "next/server";
 import { z } from "zod";
 import { requireIntegrationOwner } from "@/lib/integration-gateway/registry/access";
 import { assertGoogleDriveScopes } from "@/lib/integration-gateway/google-drive/policy";
+import { createGoogleDriveOAuthFlow } from "@/lib/integration-gateway/google-drive/runtime";
+import { GoogleDriveOAuthConfigurationError } from "@/lib/integration-gateway/google-drive/oauth";
+import { SecretStoreUnavailableError } from "@/lib/integration-gateway/core/secret-store";
+import { createProjectCeoRequestContext } from "@/lib/project-intelligence/delivery/projectceo/request-context";
 import {
   assertIntegrationMutation,
   integrationGatewayDisabledResponse,
@@ -39,9 +43,24 @@ export async function POST(
     } catch {
       throw new IntegrationGatewayRequestError("scope_not_allowed");
     }
-    integrationGatewayIdempotencyKey(request);
-    await requireIntegrationOwner();
-    throw new IntegrationGatewayUnavailableError("oauth_transport_not_configured");
+    const idempotencyKey = integrationGatewayIdempotencyKey(request);
+    const owner = await requireIntegrationOwner();
+    let flow;
+    try {
+      const requestContext = await createProjectCeoRequestContext();
+      flow = createGoogleDriveOAuthFlow({ client: requestContext.client });
+    } catch (error) {
+      if (error instanceof GoogleDriveOAuthConfigurationError || error instanceof SecretStoreUnavailableError) {
+        throw new IntegrationGatewayUnavailableError("oauth_transport_not_configured");
+      }
+      throw error;
+    }
+    const data = await flow.start({
+      organizationId: owner.organization.id,
+      requestedScopes: body.data.requestedScopes,
+      idempotencyKey,
+    });
+    return NextResponse.json({ data }, { status: 201, headers: privateJsonHeaders() });
   } catch (error) {
     return error instanceof IntegrationGatewayUnavailableError
       ? NextResponse.json(
