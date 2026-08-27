@@ -21,6 +21,10 @@ export interface StorageBucketClient {
   remove(
     paths: readonly string[],
   ): PromiseLike<{ readonly data: unknown; readonly error: StorageErrorLike | null }>;
+  copy?(
+    fromPath: string,
+    toPath: string,
+  ): PromiseLike<{ readonly data: unknown; readonly error: StorageErrorLike | null }>;
   createSignedUrl(
     path: string,
     expiresIn: number,

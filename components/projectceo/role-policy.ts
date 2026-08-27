@@ -59,7 +59,6 @@ const ROLE_CAPABILITIES: Readonly<Record<ProjectCeoRole, readonly ProjectCeoCapa
     "acknowledge_release",
     "revise_decision",
     "create_change",
-    "review_milestone",
   ],
   guest: [
     "view_project",
@@ -78,12 +77,16 @@ const TAB_CAPABILITY: Readonly<Record<ProjectCeoTab, ProjectCeoCapability>> = {
   history: "view_audit",
 };
 
-const PARTICIPANT_TABS: readonly ProjectCeoTab[] = [
+const BUILDER_TABS: readonly ProjectCeoTab[] = [
+  "overview",
+  "releases",
+];
+
+const CLIENT_TABS: readonly ProjectCeoTab[] = [
   "overview",
   "decisions",
   "baseline",
   "releases",
-  "changes",
 ];
 
 export function capabilitiesForRole(
@@ -101,7 +104,8 @@ export function can(
 
 export function visibleTabsForRole(role: ProjectCeoRole): readonly ProjectCeoTab[] {
   if (role === "guest") return ["overview", "releases"];
-  if (role === "builder" || role === "client") return PARTICIPANT_TABS;
+  if (role === "builder") return BUILDER_TABS;
+  if (role === "client") return CLIENT_TABS;
   return (Object.keys(TAB_CAPABILITY) as ProjectCeoTab[]).filter((tab) => (
     can(role, TAB_CAPABILITY[tab])
   ));

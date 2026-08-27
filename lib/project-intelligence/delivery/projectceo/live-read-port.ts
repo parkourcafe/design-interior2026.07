@@ -2,13 +2,13 @@ import "server-only";
 
 import {
   FoundationPostgresAdapter,
-  ProjectCeoM4HumanPostgresAdapter,
-  ProjectBrainHumanPostgresAdapter,
+  ProjectCeoAuthenticatedReadPostgresAdapter,
   ProjectIntelligenceAdapterError,
+  type AuthenticatedProjectReadProjection,
+  type AuthenticatedReadReleaseRecipient,
   type ExecutionDeliveryEnvelope,
   type FoundationErrorCode,
   type PostgresRpcClient,
-  type ProductDeliveryProjection,
   type ProjectListItem,
 } from "../../adapters/postgres";
 import {
@@ -17,6 +17,8 @@ import {
   type AuditEventView,
   type BaselineSummary,
   type ChangeRequestView,
+  type DecisionView,
+  type EvidenceView,
   type InvitationView,
   type OnboardingState,
   type ParticipantView,
@@ -30,6 +32,7 @@ import {
   type ProjectSummary,
   type ProjectWorkspaceView,
   type ReleaseSummary,
+  type SelectionView,
   type SourceRegistryItem,
   type UiEnvelope,
   type UiError,
@@ -85,6 +88,186 @@ function roleFromDatabase(role: ProjectListItem["role"]): ProjectCeoRole {
   if (role === "owner_lead") return "owner";
   if (role === "client_approver") return "client";
   return role;
+}
+
+function safePackageVersion(value: UnknownRecord): Readonly<Record<string, unknown>> {
+  return {
+    baselineId: value.baselineId ?? null,
+    id: value.id ?? null,
+    packageId: value.packageId ?? null,
+    publishedAt: value.publishedAt ?? null,
+    semanticHash: value.semanticHash ?? null,
+    status: value.status ?? "published",
+    versionNo: value.versionNo ?? 0,
+  };
+}
+
+function safeSpecification(value: UnknownRecord): Readonly<Record<string, unknown>> {
+  return Object.fromEntries(
+    Object.entries(value).filter(([key, item]) => (
+      ["string", "number", "boolean"].includes(typeof item)
+      && !/(price|cost|margin|markup|purchase|supplier|wholesale|amount|budget|vendor|sku)/i.test(key)
+    )),
+  );
+}
+
+function roleSafeDelivery(
+  role: ProjectCeoRole,
+  delivery: AuthenticatedProjectReadProjection,
+): AuthenticatedProjectReadProjection {
+  if (role === "owner" || role === "architect") return delivery;
+
+  const rawVersions = rows(delivery.packageVersions);
+  const ownVersionIds = new Set(
+    delivery.recipientDistributions.map((item) => item.productionPackageVersionId),
+  );
+  const versionIds = role === "client"
+    ? ownVersionIds
+    : new Set(rawVersions.flatMap((item) => {
+        const id = nullableText(item.id);
+        return id ? [id] : [];
+      }));
+  const versions = rawVersions
+    .filter((item) => nullableText(item.id) !== null && versionIds.has(item.id as string))
+    .map(safePackageVersion);
+  const packageIds = new Set(
+    versions.flatMap((item) => {
+      const id = nullableText(item.packageId);
+      return id ? [id] : [];
+    }),
+  );
+  const hasExactRevisionRefs = rawVersions.some((item) => (
+    Object.prototype.hasOwnProperty.call(item, "exactRevisionRefs")
+  ));
+  const exactRevisionRefs = (key: "decisions" | "selections") => new Set(
+    rawVersions.flatMap((item) => {
+      const refs = record(item.exactRevisionRefs)[key];
+      return (Array.isArray(refs) ? refs : []).flatMap((ref) => {
+        const id = nullableText(ref);
+        return id ? [id] : [];
+      });
+    }),
+  );
+  const decisionRevisionIds = exactRevisionRefs("decisions");
+  const selectionRevisionIds = exactRevisionRefs("selections");
+  const decisions = role === "client"
+    ? delivery.decisions
+      .filter((item) => item.reviewStatus === "approved")
+      .filter((item) => !hasExactRevisionRefs || decisionRevisionIds.has(item.revisionId))
+      .map((item) => ({
+        areaNodeId: item.areaNodeId,
+        claimStatus: item.claimStatus,
+        evidence: [],
+        id: item.id,
+        packageId: item.packageId,
+        resolution: item.resolution,
+        revisionHistory: [],
+        revisionId: item.revisionId,
+        revisionNo: item.revisionNo,
+        reviewStatus: "approved" as const,
+        title: item.title,
+      }))
+    : [];
+  const selections = role === "client"
+    ? delivery.selections
+      .filter((item) => item.reviewStatus === "approved")
+      .filter((item) => !hasExactRevisionRefs || selectionRevisionIds.has(item.revisionId))
+      .map((item) => ({
+        area: item.area,
+        areaNodeId: item.areaNodeId,
+        claimStatus: item.claimStatus,
+        decisionRevisionId: item.decisionRevisionId,
+        evidence: [],
+        id: item.id,
+        packageId: item.packageId,
+        priceObservation: null,
+        revisionHistory: [],
+        revisionId: item.revisionId,
+        revisionNo: item.revisionNo,
+        reviewStatus: "approved" as const,
+        specification: safeSpecification(item.specification),
+        title: item.title,
+      }))
+    : [];
+  const safeBaselineId = nullableText(record(delivery.latestBaseline).id)
+    ?? nullableText(record(delivery.latestBaseline).versionId);
+  const baselineIsPublished = safeBaselineId !== null
+    && rawVersions.some((item) => (
+      versionIds.has(nullableText(item.id) ?? "")
+      && item.baselineId === safeBaselineId
+    ));
+  const latestBaseline = baselineIsPublished && safeBaselineId !== null
+    ? {
+        id: safeBaselineId,
+        publishedAt: record(delivery.latestBaseline).publishedAt ?? null,
+        semanticHash: record(delivery.latestBaseline).semanticHash
+          ?? record(delivery.latestBaseline).graphDigest
+          ?? null,
+        versionNo: record(delivery.latestBaseline).versionNo ?? 0,
+      }
+    : null;
+  const safePackages = rows(delivery.packages)
+    .filter((item) => packageIds.has(item.id as string))
+    .map((item) => ({
+      id: item.id ?? null,
+      kind: item.kind ?? null,
+      name: item.name ?? null,
+      status: item.status ?? "active",
+    }));
+  const safeArtifacts = rows(delivery.releaseArtifacts)
+    .filter((item) => versionIds.has(item.productionPackageVersionId as string))
+    .map((item) => ({
+      artifactId: item.artifactId ?? item.id ?? null,
+      format: item.format ?? null,
+      id: item.id ?? item.artifactId ?? null,
+      packageId: item.packageId ?? null,
+      productionPackageVersionId: item.productionPackageVersionId ?? null,
+      semanticHash: item.semanticHash ?? null,
+    }));
+  const safeDistributions = delivery.recipientDistributions.map((item) => ({
+    acknowledged: item.acknowledged,
+    acknowledgedAt: item.acknowledgedAt,
+    artifactId: item.artifactId,
+    distributedAt: item.distributedAt,
+    distributionId: item.distributionId,
+    packageId: item.packageId,
+    productionPackageVersionId: item.productionPackageVersionId,
+    semanticHash: item.semanticHash,
+  }));
+
+  return {
+    ...delivery,
+    approvalPackages: [],
+    decisions,
+    distributionSummary: safeDistributions.map((item) => ({
+      acknowledgementCount: item.acknowledged ? 1 : 0,
+      packageId: item.packageId,
+      productionPackageVersionId: item.productionPackageVersionId,
+      recipientCount: 1,
+    })),
+    executionPackages: role === "builder" ? delivery.executionPackages : [],
+    extensionStatus: {},
+    latestBaseline,
+    noChangeTerminals: [],
+    packages: safePackages,
+    packageVersions: versions,
+    recipientDistributions: safeDistributions,
+    releaseArtifacts: safeArtifacts,
+    releaseRecipients: [],
+    reviewQueue: [],
+    selections,
+    sourceStats: {
+      duplicateGroups: 0,
+      materializedRecords: 0,
+      physicalRecords: 0,
+      placeholders: 0,
+      quarantinedGroups: 0,
+      reviewQueue: 0,
+      uniqueBlobs: 0,
+    },
+    sources: [],
+    unresolvedImpactReviewCount: 0,
+  };
 }
 
 function uiError(code: FoundationErrorCode): UiError {
@@ -184,32 +367,40 @@ function projectPackages(summary: UnknownRecord): readonly ProjectPackageView[] 
 
 function sourceViews(value: unknown): readonly SourceRegistryItem[] {
   return rows(value).flatMap((item, index) => {
-    const id = nullableText(item.sourceId);
+    const id = nullableText(item.id);
     const packageId = nullableText(item.packageId);
     if (!id || !packageId) return [];
     const checksum = nullableText(item.checksum);
-    const sourceRole = text(item.sourceRole, copy.common.liveSource);
+    const sourceRole = text(item.sourceRole, text(item.disciplineKey, copy.common.liveSource));
     const mediaType = text(item.mediaType).toLowerCase();
+    const sourceKind = text(item.kind).toLowerCase();
     const mediaKind: SourceRegistryItem["mediaKind"] =
-      mediaType.includes("pdf") ? "pdf"
-        : mediaType.startsWith("image/") ? "image"
+      mediaType.includes("pdf") || sourceKind === "pdf" ? "pdf"
+        : mediaType.startsWith("image/") || sourceKind === "image" ? "image"
           : mediaType.includes("spreadsheet") || mediaType.includes("excel") ? "spreadsheet"
             : mediaType.includes("dwg") || mediaType.includes("cad") ? "cad_binary"
               : mediaType.includes("zip") || mediaType.includes("rar") ? "archive"
-                : mediaType.startsWith("text/") ? "plain_text"
+                : mediaType.startsWith("text/") || sourceKind === "plain_text" ? "plain_text"
                   : "document";
-    const quarantine = mediaKind === "cad_binary" || mediaKind === "archive"
-      ? "preview_required" as const
-      : null;
+    const quarantine: SourceRegistryItem["quarantine"] = item.semanticConflict === true
+      ? "semantic_conflict"
+      : mediaKind === "cad_binary" || mediaKind === "archive"
+        ? "preview_required"
+        : null;
+    const reviewStatus = item.reviewStatus === "confirmed"
+      || item.reviewStatus === "rejected"
+      ? item.reviewStatus
+      : "pending";
     return [{
       id,
+      sourceRevisionId: nullableText(item.sourceRevisionId),
       displayCode: `SRC-${String(index + 1).padStart(3, "0")}`,
       packageId,
-      floor: copy.common.liveArea,
-      zone: copy.common.liveArea,
+      floor: text(item.floorKey, copy.common.liveArea),
+      zone: text(item.zoneKey, copy.common.liveArea),
       discipline: sourceRole,
       mediaKind,
-      availability: checksum ? "materialized" : "placeholder",
+      availability: item.availability === "materialized" ? "materialized" : "placeholder",
       documentStatus: item.documentStatus === "current"
         || item.documentStatus === "previous"
         || item.documentStatus === "reference"
@@ -218,13 +409,16 @@ function sourceViews(value: unknown): readonly SourceRegistryItem[] {
       checksumShort: checksum ? `${checksum.slice(0, 12)}…` : null,
       duplicateAliasCount: 0,
       quarantine,
-      evidenceEligible: Boolean(checksum) && quarantine === null,
-      reviewStatus: "pending",
+      evidenceEligible: Boolean(checksum)
+        && nullableText(item.sourceRevisionId) !== null
+        && quarantine === null
+        && reviewStatus === "confirmed",
+      reviewStatus,
     }];
   });
 }
 
-function baselineFrom(delivery: ProductDeliveryProjection): BaselineSummary {
+function baselineFrom(delivery: AuthenticatedProjectReadProjection): BaselineSummary {
   const latest = record(delivery.latestBaseline);
   const id = nullableText(latest.id) ?? nullableText(latest.versionId);
   if (!id) {
@@ -248,13 +442,12 @@ function baselineFrom(delivery: ProductDeliveryProjection): BaselineSummary {
 }
 
 function releaseViews(
-  delivery: ProductDeliveryProjection,
+  delivery: AuthenticatedProjectReadProjection,
   packages: readonly ProjectPackageView[],
 ): readonly ReleaseSummary[] {
   const packageVersions = rows(delivery.packageVersions);
-  const artifacts = rows(delivery.releaseArtifacts);
-  const distributions = rows((delivery as unknown as UnknownRecord).distributions);
-  const acknowledgements = rows((delivery as unknown as UnknownRecord).acknowledgements);
+  const distributionSummary = rows(delivery.distributionSummary);
+  const recipientDistributions = rows(delivery.recipientDistributions);
   const maxVersion = new Map<string, number>();
   for (const version of packageVersions) {
     const packageId = text(version.packageId);
@@ -265,16 +458,16 @@ function releaseViews(
     const packageId = nullableText(version.packageId);
     const hash = semanticHash(version.semanticHash);
     if (!id || !packageId || !hash) return [];
-    const artifact = artifacts.find((item) => item.productionPackageVersionId === id);
-    const artifactId = text(artifact?.id);
-    const relatedDistributions = distributions.filter((item) => (
-      item.productionPackageVersionId === id || item.artifactId === artifactId
+    const summary = distributionSummary.find((item) => (
+      item.productionPackageVersionId === id && item.packageId === packageId
     ));
-    const acknowledgementCount = relatedDistributions.filter((distribution) => (
-      distribution.acknowledged === true
-      || acknowledgements.some((ack) => ack.distributionId === distribution.distributionId)
-    )).length;
-    const recipientCount = relatedDistributions.length;
+    const acknowledgementCount = integer(summary?.acknowledgementCount);
+    const recipientCount = integer(summary?.recipientCount);
+    const recipientDistribution = recipientDistributions.find((item) => (
+      item.productionPackageVersionId === id
+      && item.packageId === packageId
+      && item.acknowledged !== true
+    ));
     return [{
       id,
       packageId,
@@ -292,11 +485,125 @@ function releaseViews(
       acknowledgementCount,
       recipientCount,
       publishedAt: timestamp(version.publishedAt),
-      // The current read RPC intentionally omits recipientUserId. Exposing any
-      // unacknowledged distribution would leak another recipient's identifier.
-      pendingDistributionId: null,
+      // The AP1 contract returns an identifier only for auth.uid()'s own
+      // unacknowledged distribution. Aggregate counts never expose recipients.
+      pendingDistributionId: nullableText(recipientDistribution?.distributionId),
     }];
   });
+}
+
+function evidenceViews(value: unknown): readonly EvidenceView[] {
+  return rows(value).flatMap((item) => {
+    const evidenceId = nullableText(item.evidenceLinkId);
+    const sourceCode = nullableText(item.sourceId);
+    const sourceRevision = nullableText(item.sourceRevisionId);
+    if (!evidenceId || !sourceCode || !sourceRevision) return [];
+    const locator = record(item.locator);
+    const locatorValue = nullableText(locator.page)
+      ?? nullableText(locator.sheet)
+      ?? nullableText(locator.cellRange)
+      ?? nullableText(locator.part);
+    return [{
+      evidenceId,
+      sourceCode,
+      sourceRevision,
+      locatorLabel: locatorValue
+        ? `${text(item.locatorKind, "source")}: ${locatorValue}`
+        : text(item.locatorKind, "source"),
+    }];
+  });
+}
+
+function decisionViews(value: unknown): readonly DecisionView[] {
+  return rows(value).flatMap((item) => {
+    const id = nullableText(item.id);
+    const revisionId = nullableText(item.revisionId);
+    if (!id || !revisionId) return [];
+    const claimStatus: DecisionView["claimStatus"] = item.claimStatus === "extracted"
+      || item.claimStatus === "interpreted"
+      || item.claimStatus === "human_origin"
+      ? item.claimStatus
+      : "unknown";
+    const reviewStatus: DecisionView["reviewStatus"] = item.reviewStatus === "approved"
+      || item.reviewStatus === "change_requested"
+      ? item.reviewStatus
+      : "submitted";
+    return [{
+      id,
+      title: text(item.title, copy.common.dash),
+      resolution: text(item.resolution, copy.common.dash),
+      revisionId,
+      revisionNo: integer(item.revisionNo),
+      claimStatus,
+      reviewStatus,
+      evidence: evidenceViews(item.evidence),
+    }];
+  });
+}
+
+function selectionViews(value: unknown): readonly SelectionView[] {
+  return rows(value).flatMap((item) => {
+    const id = nullableText(item.id);
+    const packageId = nullableText(item.packageId);
+    const revisionId = nullableText(item.revisionId);
+    const decisionRevisionId = nullableText(item.decisionRevisionId);
+    if (!id || !packageId || !revisionId || !decisionRevisionId) return [];
+    const specification = Object.entries(record(item.specification))
+      .sort(([left], [right]) => left.localeCompare(right, "en"))
+      .map(([label, value]) => ({
+        label,
+        value: typeof value === "string" ? value : JSON.stringify(value),
+      }));
+    const price = record(item.priceObservation);
+    const amountRub = integer(price.amountRub, -1);
+    const reviewStatus: SelectionView["reviewStatus"] = item.reviewStatus === "submitted"
+      || item.reviewStatus === "approved"
+      || item.reviewStatus === "rejected"
+      || item.reviewStatus === "change_requested"
+      ? item.reviewStatus
+      : "draft";
+    return [{
+      id,
+      title: text(item.title, copy.common.dash),
+      area: text(item.area, copy.common.liveArea),
+      packageId,
+      revisionNo: integer(item.revisionNo),
+      revisionId,
+      decisionRevisionId,
+      reviewStatus,
+      specification,
+      priceObservation: amountRub >= 0 ? {
+        amountRub,
+        checkedAt: timestamp(price.checkedAt),
+        sourceCode: text(price.sourceId, copy.common.liveSource),
+      } : null,
+      evidence: evidenceViews(item.evidence),
+      revisionHistory: rows(item.revisionHistory).flatMap((history) => {
+        const historyId = nullableText(history.revisionId);
+        if (!historyId) return [];
+        return [{
+          revisionNo: integer(history.revisionNo),
+          revisionId: historyId,
+          reason: text(history.reason, copy.common.dash),
+          status: history.status === "current" ? "current" as const : "superseded" as const,
+        }];
+      }),
+    }];
+  });
+}
+
+function releaseRecipientViews(
+  recipients: readonly AuthenticatedReadReleaseRecipient[],
+): readonly ParticipantView[] {
+  return recipients.map((recipient) => ({
+    id: recipient.userId,
+    displayName: copy.common.liveParticipant(recipient.userId.slice(0, 8)),
+    role: roleFromDatabase(recipient.role),
+    scopeLabel: recipient.scope === "package"
+      ? copy.common.exactWorkPackage
+      : copy.common.allProject,
+    status: "active",
+  }));
 }
 
 function accessViews(
@@ -376,6 +683,7 @@ function m4Views(envelopes: readonly ExecutionDeliveryEnvelope[]): {
       const impactRun = envelope.data.impactRuns.find((run) => run.changeRequestId === id);
       const impacts = rows(impactRun?.impacts);
       const reviewed = impacts.filter((impact) => nullableText(impact.disposition)).length;
+      const impactRunId = nullableText(impactRun?.id);
       changes.push({
         id,
         title: copy.workspace.changes.newTitle,
@@ -388,6 +696,21 @@ function m4Views(envelopes: readonly ExecutionDeliveryEnvelope[]): {
         impactCount: impacts.length,
         reviewedImpactCount: reviewed,
         reason: text(request.reason, copy.common.dash),
+        impacts: impactRunId ? impacts.flatMap((impact) => {
+          const impactId = nullableText(impact.id);
+          if (!impactId) return [];
+          const disposition = impact.disposition === "accepted"
+            || impact.disposition === "resolved"
+            || impact.disposition === "dismissed"
+            ? impact.disposition
+            : null;
+          return [{
+            impactRunId,
+            impactId,
+            label: text(impact.impactedNodeId, copy.common.dash),
+            disposition,
+          }];
+        }) : [],
       });
     }
     for (const milestone of envelope.data.milestones) {
@@ -404,11 +727,31 @@ function m4Views(envelopes: readonly ExecutionDeliveryEnvelope[]): {
       const rejected = photos.some((photo) => photo.decision === "rejected");
       milestones.push({
         id,
+        packageId: envelope.scope.packageId,
         area: areas.length === 1 ? text(areas[0]?.areaNodeId, copy.common.liveArea) : copy.common.liveArea,
         milestone: text(milestone.title, copy.common.livePackage),
         photoCount: photos.length,
         status: milestone.acceptance ? "accepted" : rejected ? "change_requested" : "submitted",
         submittedAt: photos.length ? timestamp(photos[0]?.capturedAt) : new Date(0).toISOString(),
+        areas: areas.flatMap((area) => {
+          const areaNodeId = nullableText(area.areaNodeId);
+          if (!areaNodeId) return [];
+          return [{
+            areaNodeId,
+            photos: rows(area.photos).flatMap((photo) => {
+              const id = nullableText(photo.id);
+              if (!id) return [];
+              const decision = photo.decision === "accepted" || photo.decision === "rejected"
+                ? photo.decision
+                : null;
+              return [{
+                id,
+                capturedAt: timestamp(photo.capturedAt),
+                decision,
+              }];
+            }),
+          }];
+        }),
       });
     }
     warrantyDocumentCount += envelope.data.handoverDocuments.filter((item) => (
@@ -438,22 +781,74 @@ function unavailable(reason: Exclude<ProjectCeoOperationState, { readonly status
 
 function operationStates(input: {
   readonly role: ProjectCeoRole;
-  readonly packageId: string | null;
-  readonly releases: readonly ReleaseSummary[];
-  readonly delivery: ProductDeliveryProjection;
+  readonly delivery: AuthenticatedProjectReadProjection;
   readonly m4: readonly ExecutionDeliveryEnvelope[];
 }): ProjectCeoOperationStates {
   const supports = (capability: Parameters<typeof can>[1]): ProjectCeoOperationState => (
     can(input.role, capability) ? { status: "available" } : unavailable("capability_missing")
   );
   const packageVersions = rows(input.delivery.packageVersions);
+  const releaseArtifacts = rows(input.delivery.releaseArtifacts);
   const latestBaseline = nullableText(record(input.delivery.latestBaseline).id);
   const changeReady = packageVersions.some((version) => (
     nullableText(version.baselineId) && version.baselineId !== latestBaseline
   ));
-  const hasMilestone = input.m4.some((envelope) => envelope.data.milestones.length > 0);
+  const pendingDistribution = input.delivery.recipientDistributions.find(
+    (distribution) => !distribution.acknowledged,
+  );
+  const distributableVersionId = nullableText(
+    releaseArtifacts.find((artifact) => (
+      nullableText(artifact.artifactId) !== null
+      && input.delivery.releaseRecipients.length > 0
+    ))?.productionPackageVersionId,
+  );
+  let unreviewedImpactId: string | null = null;
+  let uploadMilestoneId: string | null = null;
+  let undecidedPhotoId: string | null = null;
+  let acceptableMilestoneId: string | null = null;
+  const photoSourcePackageIds = new Set(
+    input.delivery.sources.filter((source) => (
+      source.availability === "materialized"
+      && source.sourceRevisionId !== null
+      && (source.kind === "image" || source.mediaType?.startsWith("image/") === true)
+    )).map((source) => source.packageId),
+  );
+  for (const envelope of input.m4) {
+    for (const run of envelope.data.impactRuns) {
+      for (const impact of rows(run.impacts)) {
+        if (!nullableText(impact.disposition)) {
+          unreviewedImpactId ??= nullableText(impact.id);
+        }
+      }
+    }
+    for (const milestone of envelope.data.milestones) {
+      const milestoneId = nullableText(milestone.id);
+      if (!milestoneId || milestone.acceptance) continue;
+      const areas = rows(milestone.areas);
+      if (
+        areas.some((area) => nullableText(area.areaNodeId))
+        && photoSourcePackageIds.has(envelope.scope.packageId)
+      ) {
+        uploadMilestoneId ??= milestoneId;
+      }
+      const photos = areas.flatMap((area) => rows(area.photos));
+      if (
+        photos.length > 0
+        && photos.every((photo) => photo.decision === "accepted")
+      ) {
+        acceptableMilestoneId ??= milestoneId;
+      }
+      for (const photo of photos) {
+        if (!nullableText(photo.decision)) {
+          undecidedPhotoId ??= nullableText(photo.id);
+        }
+      }
+    }
+  }
   return {
-    create_invitation: unavailable("read_contract_pending"),
+    create_invitation: can(input.role, "manage_access")
+      ? { status: "available" }
+      : unavailable("capability_missing"),
     revoke_invitation: supports("manage_access"),
     revoke_guest_grant: supports("manage_access"),
     register_source: unavailable("read_contract_pending"),
@@ -461,9 +856,17 @@ function operationStates(input: {
     review_selection: unavailable("read_contract_pending"),
     publish_baseline: unavailable("read_contract_pending"),
     publish_release: unavailable("read_contract_pending"),
-    distribute_release: unavailable("read_contract_pending"),
+    distribute_release: can(input.role, "distribute_release")
+      ? distributableVersionId ? {
+          status: "available",
+          commandTargetId: distributableVersionId,
+        } : unavailable("prerequisite_missing")
+      : unavailable("capability_missing"),
     acknowledge_release: can(input.role, "acknowledge_release")
-      ? unavailable("read_contract_pending")
+      ? pendingDistribution ? {
+          status: "available",
+          commandTargetId: pendingDistribution.distributionId,
+        } : unavailable("prerequisite_missing")
       : unavailable("capability_missing"),
     create_change: can(input.role, "create_change")
       ? changeReady ? {
@@ -475,12 +878,30 @@ function operationStates(input: {
           ) ?? undefined,
         } : unavailable("prerequisite_missing")
       : unavailable("capability_missing"),
-    review_change_impact: supports("review_change_impact"),
-    upload_photo_evidence: can(input.role, "upload_photo_evidence")
-      ? hasMilestone ? unavailable("read_contract_pending") : unavailable("prerequisite_missing")
+    review_change_impact: can(input.role, "review_change_impact")
+      ? unreviewedImpactId ? {
+          status: "available",
+          commandTargetId: unreviewedImpactId,
+        } : unavailable("prerequisite_missing")
       : unavailable("capability_missing"),
-    review_photo_evidence: supports("review_milestone"),
-    accept_milestone: supports("review_milestone"),
+    upload_photo_evidence: can(input.role, "upload_photo_evidence")
+      ? uploadMilestoneId ? {
+          status: "available",
+          commandTargetId: uploadMilestoneId,
+        } : unavailable("prerequisite_missing")
+      : unavailable("capability_missing"),
+    review_photo_evidence: can(input.role, "review_milestone")
+      ? undecidedPhotoId ? {
+          status: "available",
+          commandTargetId: undecidedPhotoId,
+        } : unavailable("prerequisite_missing")
+      : unavailable("capability_missing"),
+    accept_milestone: can(input.role, "review_milestone")
+      ? acceptableMilestoneId ? {
+          status: "available",
+          commandTargetId: acceptableMilestoneId,
+        } : unavailable("prerequisite_missing")
+      : unavailable("capability_missing"),
     build_handover: unavailable("worker_only"),
   };
 }
@@ -501,16 +922,14 @@ function onboarding(projectCount: number): OnboardingState {
 
 export class ProjectCeoLiveReadPort implements ProjectCeoUiReadPort {
   private readonly foundation: FoundationPostgresAdapter;
-  private readonly product: ProjectBrainHumanPostgresAdapter;
-  private readonly execution: ProjectCeoM4HumanPostgresAdapter;
+  private readonly authenticatedRead: ProjectCeoAuthenticatedReadPostgresAdapter;
 
   constructor(
     client: PostgresRpcClient,
     private readonly identity: ProjectCeoVerifiedIdentity,
   ) {
     this.foundation = new FoundationPostgresAdapter(client);
-    this.product = new ProjectBrainHumanPostgresAdapter(client);
-    this.execution = new ProjectCeoM4HumanPostgresAdapter(client);
+    this.authenticatedRead = new ProjectCeoAuthenticatedReadPostgresAdapter(client);
   }
 
   private async projectEntries(): Promise<readonly ProjectListItem[]> {
@@ -534,40 +953,35 @@ export class ProjectCeoLiveReadPort implements ProjectCeoUiReadPort {
       const summaries = await Promise.all(uniqueProjectIds.map(async (projectId) => {
         const scope = effectiveScope(entries, projectId)!;
         const role = roleFromDatabase(scope.role);
-        const sources = scope.accessScope === "project"
-          ? sourceViews(requiredData(await this.foundation.listProjectSources(projectId)))
-          : [];
-        const deliveryEnvelope = await this.product.getProjectDelivery({
+        const readEnvelope = await this.authenticatedRead.getProjectWorkspaceRead({
           projectId,
           packageId: scope.accessScope === "package" ? scope.packageId ?? null : null,
         });
-        const delivery = requiredData(deliveryEnvelope);
-        const summaryEnvelope = scope.accessScope === "project"
-          ? await this.foundation.getProjectSummary(projectId)
-          : null;
-        const rawSummary = record(summaryEnvelope ? requiredData(summaryEnvelope) : null);
-        const packages = projectPackages(rawSummary);
+        const delivery = readEnvelope.data;
+        const packages = projectPackages({ packages: delivery.packages });
         const baseline = baselineFrom(delivery);
         const releases = releaseViews(delivery, packages);
-        const sourceChecksums = sources.map((source) => source.checksumShort).filter(Boolean);
+        const sourceStats = record(delivery.sourceStats);
+        const projectMetadata = record(delivery.projectMetadata);
         const project: ProjectSummary = {
           id: projectId,
           organizationId: scope.organizationId,
-          name: packages.find((item) => item.kind === "project_root")?.name
+          name: nullableText(projectMetadata.name)
+            ?? packages.find((item) => item.kind === "project_root")?.name
             ?? copy.common.liveProject(projectId.slice(0, 8)),
-          location: copy.common.liveLocation,
-          areaM2: 0,
+          location: text(projectMetadata.location, copy.common.liveLocation),
+          areaM2: integer(projectMetadata.areaM2),
           model: "full_project",
           stage: releases.length ? "release" : baseline.id ? "baseline" : "source_review",
           packageCount: packages.length || (scope.packageId ? 1 : 0),
           sourceStats: {
-            physicalRecords: sources.length,
-            materializedRecords: sources.filter((source) => source.availability === "materialized").length,
-            placeholders: sources.filter((source) => source.availability === "placeholder").length,
-            uniqueBlobs: new Set(sourceChecksums).size,
-            duplicateGroups: Math.max(0, sourceChecksums.length - new Set(sourceChecksums).size),
-            quarantinedGroups: sources.filter((source) => source.quarantine).length,
-            reviewQueue: sources.filter((source) => source.reviewStatus === "pending").length,
+            physicalRecords: integer(sourceStats.physicalRecords),
+            materializedRecords: integer(sourceStats.materializedRecords),
+            placeholders: integer(sourceStats.placeholders),
+            uniqueBlobs: integer(sourceStats.uniqueBlobs),
+            duplicateGroups: integer(sourceStats.duplicateGroups),
+            quarantinedGroups: integer(sourceStats.quarantinedGroups),
+            reviewQueue: integer(sourceStats.reviewQueue),
           },
           baseline,
           latestRelease: releases.find((release) => release.status === "current") ?? null,
@@ -584,7 +998,7 @@ export class ProjectCeoLiveReadPort implements ProjectCeoUiReadPort {
         ? actorFor(this.identity, firstEntry)
         : {
             actorId: this.identity.userId,
-            role: "owner" as const,
+            role: "guest" as const,
             displayName: this.identity.displayName,
             projectId: "",
             packageId: null,
@@ -623,72 +1037,56 @@ export class ProjectCeoLiveReadPort implements ProjectCeoUiReadPort {
       const scope = effectiveScope(entries, input.projectId);
       if (!scope) return failure(input.requestId, "not_found");
       const actor = actorFor(this.identity, scope);
-      const summaryEnvelope = scope.accessScope === "project"
-        ? await this.foundation.getProjectSummary(input.projectId)
-        : null;
-      const rawSummary = record(summaryEnvelope ? requiredData(summaryEnvelope) : null);
-      let packages = projectPackages(rawSummary);
-      if (scope.accessScope === "package") {
-        const packageDelivery = await this.product.getProjectDelivery({
-          projectId: input.projectId,
-          packageId: scope.packageId ?? null,
-        });
-        const rawPackage = record(requiredData(packageDelivery).package);
-        packages = rawPackage.id ? projectPackages({ packages: [rawPackage] }) : [];
-      }
-      const sourcesEnvelope = scope.accessScope === "project"
-        ? await this.foundation.listProjectSources(input.projectId)
-        : null;
-      const sources = sourceViews(sourcesEnvelope ? requiredData(sourcesEnvelope) : null);
-      const productEnvelope = await this.product.getProjectDelivery({
+      const readEnvelope = await this.authenticatedRead.getProjectWorkspaceRead({
         projectId: input.projectId,
         packageId: scope.accessScope === "package" ? scope.packageId ?? null : null,
       });
-      const delivery = requiredData(productEnvelope);
+      const delivery = roleSafeDelivery(actor.role, readEnvelope.data);
+      const packages = projectPackages({ packages: delivery.packages });
+      const sources = sourceViews(delivery.sources);
       const baseline = baselineFrom(delivery);
       const releases = releaseViews(delivery, packages);
-      const m4PackageIds = scope.accessScope === "package"
-        ? scope.packageId ? [scope.packageId] : []
-        : packages.filter((item) => item.kind === "work_package" && item.status === "active").map((item) => item.id);
-      const m4Envelopes: ExecutionDeliveryEnvelope[] = [];
-      for (const packageId of m4PackageIds) {
-        try {
-          m4Envelopes.push(await this.execution.getExecutionDelivery({
-            projectId: input.projectId,
-            packageId,
-          }));
-        } catch (error) {
-          if (errorCode(error) !== "not_found") throw error;
-        }
-      }
+      const m4Envelopes = delivery.executionPackages;
       const execution = m4Views(m4Envelopes);
       let access = { invitations: [] as readonly InvitationView[], participants: [] as readonly ParticipantView[], grants: [] as readonly AccessGrantView[] };
       if (can(actor.role, "manage_access")) {
         const envelope = await this.foundation.listProjectAccess(input.projectId);
         access = accessViews(requiredData(envelope));
       }
+      const projectedRecipients = releaseRecipientViews(delivery.releaseRecipients);
+      if (projectedRecipients.length > 0) {
+        const participants = new Map(
+          access.participants.map((participant) => [participant.id, participant]),
+        );
+        for (const participant of projectedRecipients) {
+          participants.set(participant.id, participant);
+        }
+        access = { ...access, participants: [...participants.values()] };
+      }
       const historyEnvelope = can(actor.role, "view_audit")
         ? await this.foundation.getAuditTimeline(input.projectId)
         : null;
-      const sourceChecksums = sources.map((source) => source.checksumShort).filter(Boolean);
+      const sourceStats = record(delivery.sourceStats);
+      const projectMetadata = record(delivery.projectMetadata);
       const project: ProjectSummary = {
         id: input.projectId,
         organizationId: scope.organizationId,
-        name: packages.find((item) => item.kind === "project_root")?.name
+        name: nullableText(projectMetadata.name)
+          ?? packages.find((item) => item.kind === "project_root")?.name
           ?? copy.common.liveProject(input.projectId.slice(0, 8)),
-        location: copy.common.liveLocation,
-        areaM2: 0,
+        location: text(projectMetadata.location, copy.common.liveLocation),
+        areaM2: integer(projectMetadata.areaM2),
         model: "full_project",
         stage: execution.changes.length ? "change" : releases.length ? "release" : baseline.id ? "baseline" : "source_review",
         packageCount: packages.length,
         sourceStats: {
-          physicalRecords: sources.length,
-          materializedRecords: sources.filter((source) => source.availability === "materialized").length,
-          placeholders: sources.filter((source) => source.availability === "placeholder").length,
-          uniqueBlobs: new Set(sourceChecksums).size,
-          duplicateGroups: Math.max(0, sourceChecksums.length - new Set(sourceChecksums).size),
-          quarantinedGroups: sources.filter((source) => source.quarantine).length,
-          reviewQueue: sources.filter((source) => source.reviewStatus === "pending").length,
+          physicalRecords: integer(sourceStats.physicalRecords),
+          materializedRecords: integer(sourceStats.materializedRecords),
+          placeholders: integer(sourceStats.placeholders),
+          uniqueBlobs: integer(sourceStats.uniqueBlobs),
+          duplicateGroups: integer(sourceStats.duplicateGroups),
+          quarantinedGroups: integer(sourceStats.quarantinedGroups),
+          reviewQueue: integer(sourceStats.reviewQueue),
         },
         baseline,
         latestRelease: releases.find((release) => release.status === "current") ?? null,
@@ -701,8 +1099,8 @@ export class ProjectCeoLiveReadPort implements ProjectCeoUiReadPort {
         actor,
         packages,
         sources,
-        decisions: [],
-        selections: [],
+        decisions: decisionViews(delivery.decisions),
+        selections: selectionViews(delivery.selections),
         baseline,
         releases,
         changes: execution.changes,
@@ -715,8 +1113,6 @@ export class ProjectCeoLiveReadPort implements ProjectCeoUiReadPort {
         controlledAnalytics: [],
         operations: operationStates({
           role: actor.role,
-          packageId: actor.packageId,
-          releases,
           delivery,
           m4: m4Envelopes,
         }),

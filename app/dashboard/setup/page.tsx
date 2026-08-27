@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { redirect } from "next/navigation";
 import type { PricingConfig, ProposalDefaults, DesignerProfile } from "@/lib/types";
 import { getStudio, listStudioMembers } from "@/lib/studio";
@@ -19,6 +20,13 @@ export default async function SetupPage() {
 
   return (
     <>
+      <div className="mb-6 flex justify-end">
+        {process.env.REMHAOS_INTEGRATIONS_ENABLED === "true" && (
+          <Link href="/dashboard/setup/integrations" className="btn-ghost">
+            {ru.integrations.open}
+          </Link>
+        )}
+      </div>
       <section className="mb-6">
         <h2 className="mb-2 font-display text-xl font-semibold">{ru.profilePreview.title}</h2>
         <p className="mb-3 text-sm text-muted">{ru.profilePreview.hint}</p>

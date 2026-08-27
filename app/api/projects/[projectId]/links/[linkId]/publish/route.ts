@@ -1,0 +1,64 @@
+import { NextResponse } from "next/server";
+import { z } from "zod";
+import { createClient } from "@/lib/supabase/server";
+import { ProjectLinkService } from "@/lib/integration-gateway/links/project-link-service";
+import { parseIntegrationJson } from "@/lib/integration-gateway/registry/http";
+import {
+  idempotencyKey,
+  projectIdPattern,
+  projectLinksJsonMaxBytes,
+  projectLinksDisabledResponse,
+  projectLinksEnabled,
+  projectLinksErrorResponse,
+  projectLinksRequestErrorResponse,
+  assertProjectLinksMutation,
+} from "@/lib/integration-gateway/links/http";
+
+export const dynamic = "force-dynamic";
+
+const publishSchema = z.object({ revisionNo: z.number().int().positive() }).strict();
+
+export async function POST(
+  request: Request,
+  context: { readonly params: Promise<{ readonly projectId: string; readonly linkId: string }> },
+) {
+  if (!projectLinksEnabled()) return projectLinksDisabledResponse();
+  const { projectId, linkId } = await context.params;
+  if (!projectIdPattern.test(projectId) || !projectIdPattern.test(linkId)) {
+    return projectLinksDisabledResponse();
+  }
+  const key = idempotencyKey(request);
+  if (!key || !request.headers.get("content-type")?.toLowerCase().startsWith("application/json")) {
+    return NextResponse.json(
+      { error: { code: "validation_failed", messageKey: "projectLinks.errors.invalidRequest" } },
+      { status: 400, headers: { "Cache-Control": "private, no-store" } },
+    );
+  }
+  try {
+    assertProjectLinksMutation(request);
+    const body = publishSchema.parse(
+      await parseIntegrationJson(request, projectLinksJsonMaxBytes),
+    );
+    const service = new ProjectLinkService(await createClient());
+    const result = await service.publish({
+      projectId,
+      linkId,
+      revisionNo: body.revisionNo,
+      idempotencyKey: key,
+    });
+    return NextResponse.json(
+      { data: result },
+      { headers: { "Cache-Control": "private, no-store" } },
+    );
+  } catch (error) {
+    const requestError = projectLinksRequestErrorResponse(error);
+    if (requestError) return requestError;
+    if (error instanceof z.ZodError || error instanceof SyntaxError) {
+      return NextResponse.json(
+        { error: { code: "validation_failed", messageKey: "projectLinks.errors.invalidRequest" } },
+        { status: 400, headers: { "Cache-Control": "private, no-store" } },
+      );
+    }
+    return projectLinksErrorResponse(error);
+  }
+}
