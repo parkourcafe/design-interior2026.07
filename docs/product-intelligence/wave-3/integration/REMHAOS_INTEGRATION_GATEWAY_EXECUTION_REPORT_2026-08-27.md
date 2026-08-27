@@ -101,4 +101,22 @@ A gateway-focused five-profile runner successfully provisioned five users and bu
 9. Cost/billing: no external provider calls were made in this run. Exact cost is `UNKNOWN` until the Google Cloud project, quotas, and billing state are supplied; owner must confirm whether billing is required for the selected Google APIs and Telegram usage.
 10. Remaining external scenarios: OAuth success/cancel/expiry/replay; real selected PDF; checksum mismatch; Drive revision supersession; webhook duplicate/reorder/restart; channel stop and token revoke; revoked-token reauth; Telegram retry/duplicate; and five independent authenticated staging sessions with client denial.
 
+## Exact staging value routing
+
+| Owner value | Exact destination |
+|---|---|
+| Telegram bot token | Staging secret manager key consumed as `TELEGRAM_BOT_TOKEN`; server worker only. |
+| Telegram webhook secret | Staging secret manager key consumed as `TELEGRAM_WEBHOOK_SECRET`; server webhook verification only. |
+| Google OAuth client ID | Staging secret manager key consumed as `GOOGLE_DRIVE_CLIENT_ID`; server callback only. |
+| Google OAuth client secret | Staging secret manager key consumed as `GOOGLE_DRIVE_CLIENT_SECRET`; server token exchange only. |
+| Google redirect URI | Staging runtime configuration `GOOGLE_DRIVE_REDIRECT_URI`, set exactly to `https://<staging-host>/api/integrations/google_drive/oauth/callback`. |
+| Google test account | Google Cloud OAuth consent-screen test-user list and the isolated Drive fixture account; not an application env value. |
+| Public staging host | Staging deployment URL used for `NEXT_PUBLIC_APP_URL`, OAuth redirect registration, and the Drive webhook URL. It must be HTTPS for provider callbacks. |
+| Supabase worker URL | Staging runtime configuration `NEXT_PUBLIC_SUPABASE_URL`; server-side worker only. |
+| Supabase service-role key | Staging secret manager key consumed as `SUPABASE_SERVICE_ROLE_KEY`; never browser-exposed. |
+| Worker activation | Staging runtime configuration `REMHAOS_WORKER_TRANSPORT=supabase_service_role`; remains `disabled` until the owner gate. |
+| SecretStore connection | Adapter-specific staging secret-manager configuration selected by owner; there is no connected production adapter in this branch. |
+| Malware scanner | Staging runtime configuration `REMHAOS_FILE_SCANNER_ADAPTER` pointing to the selected reviewed scanner; `staging` currently means deterministic test adapter only. |
+| Provider feature flags | Staging runtime configuration only. Production flags remain false. |
+
 Full acceptance remains blocked until these external staging facts and browser evidence exist.
