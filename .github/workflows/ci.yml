@@ -212,7 +212,7 @@ jobs:
       AP1_EMAIL_DOMAIN: remhaos.test
       AP1_CONFIRM_DISPOSABLE: "yes"
       NEXT_PUBLIC_APP_URL: http://127.0.0.1:3100
-      PLAYWRIGHT_JSON_OUTPUT_FILE: ${{ runner.temp }}/ap5-report.json
+      PLAYWRIGHT_JSON_OUTPUT_FILE: test-results/ap5-report.json
       AP5_POSTGRES_CONTAINER: supabase_db_archidom-ap1-disposable
       # Модули, которые должна видеть матрица ролей. Оба флага сравниваются со
       # строкой "true" буквально (feature-flag.ts, documentation-flag.ts):

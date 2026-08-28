@@ -86,4 +86,3 @@ git diff --check
 - [ИНТЕРПРЕТИРОВАНО] Local code and disposable acceptance are evidenced at implementation commit `68e206cea646138005bf33631bbd96d386868fe6`.
 - [ИНТЕРПРЕТИРОВАНО] Autonomous staging acceptance is not complete until hosted full-chain migration, hosted authenticated browser acceptance, GitHub required checks, and Claude review are externally observed.
 - [ИНТЕРПРЕТИРОВАНО] Merge is not currently safe to approve because the hosted staging gate is unresolved. This report does not grant production acceptance.
-
