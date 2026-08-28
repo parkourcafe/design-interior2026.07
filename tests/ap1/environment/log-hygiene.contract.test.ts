@@ -15,6 +15,9 @@ const bootstrapPath = resolve(
   repoRoot,
   "tests/ap1/environment/bootstrap-disposable.zsh",
 );
+const ap5SetupPath = resolve(repoRoot, "tests/ap5/global-setup.ts");
+const ap5ReleaseWorkerPath = resolve(repoRoot, "tests/ap5/release-worker.ts");
+const ap5ImpactWorkerPath = resolve(repoRoot, "tests/ap5/change-impact-worker.ts");
 
 function scan(sample: string) {
   const dir = mkdtempSync(join(tmpdir(), "ap1-log-hygiene-"));
@@ -69,5 +72,18 @@ describe("AP1/AP5 log hygiene", () => {
       expect(script).toContain("postgres");
       expect(script).not.toContain("s3cr3t-password");
     }
+  });
+
+  it("keeps AP5 browser and worker diagnostics structural", () => {
+    const setup = readFileSync(ap5SetupPath, "utf8");
+    const workers = [
+      readFileSync(ap5ReleaseWorkerPath, "utf8"),
+      readFileSync(ap5ImpactWorkerPath, "utf8"),
+    ].join("\n");
+    expect(setup).toContain("safePageDiagnostic");
+    expect(setup).not.toMatch(/:\s*\$\{page\.url\(\)\}/);
+    expect(setup).not.toContain("JSON.stringify(body)");
+    expect(workers).toContain("stderrLines=");
+    expect(workers).not.toMatch(/stdout:\s*\$\{|Вывод:\s*\$\{/);
   });
 });

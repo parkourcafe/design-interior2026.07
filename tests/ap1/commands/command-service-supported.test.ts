@@ -321,6 +321,7 @@ function service(
   readOverrides: Readonly<Record<string, unknown>> = {},
   documentationEnabled = "true",
   fakeOptions: Omit<FakeClientOptions, "readOverrides"> = {},
+  m4V2V3Enabled = "false",
 ) {
   return new ProjectCeoCommandService({
     client: fakeClient(calls, { ...fakeOptions, readOverrides }),
@@ -330,6 +331,7 @@ function service(
     // Guardrail модуля 4 закрыт по умолчанию; здесь проверяется поведение
     // принятых команд, а не сам запрет — его проверяет execution-guardrail.test.ts.
     executionEnabled: "true",
+    m4V2V3Enabled,
   });
 }
 
@@ -646,6 +648,31 @@ describe("AP1 supported human commands", () => {
     expect(result).toMatchObject({ status: "error", error: { code: "scope_conflict" } });
     expect(calls.some((call) => call.name === "projectceo_m4_api.submit_change_request"))
       .toBe(false);
+  });
+
+  it("lets the database resolve a client milestone hidden by published projection", async () => {
+    const calls: Call[] = [];
+    const result = await service(calls, {
+      packages: [],
+      packageVersions: [],
+      executionPackages: [],
+    }, "true", {
+      deliveryOverrides: { packageVersions: [] },
+      projectEntries: [{
+        accessScope: "project",
+        organizationId,
+        projectId,
+        role: "client_approver",
+        stateRevision: 9,
+      }],
+    }, "true").execute(command("accept_milestone", { milestoneId }), "client-milestone");
+
+    expect(result).toMatchObject({ status: "completed", replay: false });
+    expect(calls.map((call) => call.name)).toEqual([
+      "projectceo_api.list_projects",
+      "projectceo_m4_api.replay_accept_milestone",
+      "projectceo_m4_api.accept_milestone",
+    ]);
   });
 
   it("does not reach create_change RPC without a proposed active baseline", async () => {

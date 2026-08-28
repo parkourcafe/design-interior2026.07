@@ -8,9 +8,8 @@ on:
   push:
     branches: ["**"]
   pull_request:
-    # labeled — ради гейта AP5: он включается меткой `ap5`, а в наборе типов по
-    # умолчанию (opened/synchronize/reopened) навешивание метки не событие, и
-    # прогон бы просто не стартовал.
+    # labeled сохраняется для ручного повторного запуска через label; AP5
+    # запускается и на обычных opened/synchronize/reopened событиях.
     types: [opened, synchronize, reopened, labeled]
   workflow_dispatch:
     inputs:
@@ -28,9 +27,9 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  # Что именно изменила ветка. Нужно ровно одному потребителю — AP5, который
-  # обязан подниматься сам, когда тронут модуль 4 V1, и не зависеть от того,
-  # вспомнил ли человек навесить метку.
+  # Что именно изменила ветка. AP5 теперь обязательный потребитель этого
+  # результата, а остальные тяжёлые database jobs используют scope для
+  # сохранения существующего docs-only budget guard.
   #
   # Метка остаётся как ДОПОЛНИТЕЛЬНЫЙ способ позвать прогон руками, а не как
   # единственный. Разница принципиальная: забытая метка раньше означала, что
@@ -189,31 +188,21 @@ jobs:
   # отдельных аутентифицированных сессий. Санитизированный харнесс
   # /projectceo-qa/[role] его не заменяет (AP1_RUNBOOK §5).
   #
-  # Не в каждом push: поднимает весь Supabase, идёт ~15 минут. Поднимается
-  # САМ, когда изменение трогает вертикаль V1 модуля 4 (job `scope`), и
-  # дополнительно — вручную (workflow_dispatch) или по метке `ap5`.
-  #
-  # Автоматический запуск появился вместе с production-открытием V1: пока
-  # вертикаль жила за выключенным флагом, забытая метка стоила только
-  # непроверенного коммита. С открытой вертикалью тот же забытый прогон стоит
-  # непроверенного изменения у живых пользователей.
+  # AP5 всегда является обязательным job. Он поднимает disposable Supabase и
+  # authenticated browser matrix на каждом CI-событии; skipped не считается
+  # доказательством и превращается в failed job при проблеме prerequisite.
   #
   # Гейт блокирующий. Первым прогоном он нашёл реальный дефект (ревью источника
   # отвечало 500 из-за границы схем), дефект закрыт миграцией
   # `20260810050000` — держать его информационным дальше значит согласиться,
   # что следующую такую находку никто не заметит.
   #
-  # Звенья цепочки, требующие воркерного расчёта, помечены `test.fixme` с
-  # причиной (AP5_RUNBOOK.md, «Чего он не доказывает»): они видны в отчёте как
-  # пропуски и прогон не роняют. Красным job становится только тогда, когда
-  # ломается путь, который сегодня работает.
+  # Все AP5 tests должны иметь исполняемое утверждение. Отдельный JSON-gate
+  # падает при любом skipped, включая новые `test.fixme`.
   ap5:
     name: AP5 authenticated browser matrix
     needs: scope
-    if: >-
-      github.event_name == 'workflow_dispatch'
-      || needs.scope.outputs.m4_v1 == 'true'
-      || contains(github.event.pull_request.labels.*.name, 'ap5')
+    if: always()
     runs-on: ubuntu-latest
     timeout-minutes: 45
     env:
@@ -223,6 +212,8 @@ jobs:
       AP1_EMAIL_DOMAIN: remhaos.test
       AP1_CONFIRM_DISPOSABLE: "yes"
       NEXT_PUBLIC_APP_URL: http://127.0.0.1:3100
+      PLAYWRIGHT_JSON_OUTPUT_FILE: ${{ runner.temp }}/ap5-report.json
+      AP5_POSTGRES_CONTAINER: supabase_db_archidom-ap1-disposable
       # Модули, которые должна видеть матрица ролей. Оба флага сравниваются со
       # строкой "true" буквально (feature-flag.ts, documentation-flag.ts):
       # "1" читается как «выключено», и команды модуля отвечают
@@ -236,6 +227,14 @@ jobs:
       # в базе) закрыта guardrail'ами до явного шага ниже.
       REMHAOS_EXECUTION_ENABLED: "true"
     steps:
+      - name: Require AP5 scope prerequisite
+        if: always()
+        run: |
+          set -euo pipefail
+          if [ "${{ needs.scope.result }}" != "success" ]; then
+            echo "AP5_REQUIRED_SCOPE_RESULT=${{ needs.scope.result }}"
+            exit 1
+          fi
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
@@ -374,15 +373,42 @@ jobs:
         run: npx playwright install --with-deps chromium
 
       - name: Authenticated role matrix and Kora chain
-        run: npm run test:ap5
+        run: |
+          set +e
+          npm run test:ap5 > "${RUNNER_TEMP}/ap5-output.log" 2>&1
+          status=$?
+          exit "${status}"
 
-      - name: Application log on failure
+      - name: Summarize application log on failure
         if: failure()
-        run: tail -n 200 "${RUNNER_TEMP}/app.log" || true
+        run: |
+          if [ -f "${RUNNER_TEMP}/app.log" ]; then
+            echo "AP5_APP_LOG_PRESENT lines=$(wc -l < "${RUNNER_TEMP}/app.log")"
+          else
+            echo "AP5_APP_LOG_MISSING"
+          fi
 
-      - name: Collect Supabase logs on failure
+      - name: Verify disposable stack on failure
         if: failure()
-        run: supabase status || true
+        run: supabase status >/dev/null 2>&1 || true
+
+      - name: Reject skipped AP5 tests
+        if: always()
+        run: node tests/ap5/assert-no-skips.mjs "${PLAYWRIGHT_JSON_OUTPUT_FILE}"
+
+      - name: Scan AP5 logs for credentials
+        if: always()
+        run: |
+          set -euo pipefail
+          files=()
+          for file in "${RUNNER_TEMP}/app.log" "${RUNNER_TEMP}/ap5-output.log" "${PLAYWRIGHT_JSON_OUTPUT_FILE}"; do
+            if [ -f "${file}" ]; then files+=("${file}"); fi
+          done
+          if [ "${#files[@]}" -eq 0 ]; then
+            echo "AP5_LOG_HYGIENE_FAILED no_logs_to_scan"
+            exit 1
+          fi
+          node tests/ap1/environment/scan-log-hygiene.mjs "${files[@]}"
 
       - uses: actions/upload-artifact@v4
         if: always()

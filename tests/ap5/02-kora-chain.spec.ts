@@ -289,6 +289,30 @@ test.describe("AP5 — цепочка Kora на живом стеке", () => {
   });
 
   /**
+   * 5а. Area-node пришёл через настоящий authenticated ingest, после чего
+   * выбор создаётся браузерной командой. Самой команды для регистрации
+   * площади нет: ingest остаётся единственной серверной дверью для графовой
+   * геометрии и выполняется не service role, а сессией архитектора.
+   */
+  test("5а. выбор привязан к площади из authenticated ingest", async ({ browser }) => {
+    const architect = await requestAs(browser, "designer");
+    const selection = await command(architect, "create_selection", {
+      packageId: handoff().rootPackageId,
+      nodeId: "ap5-selection-floor-1",
+      revisionId: randomUUID(),
+      expectedRevisionId: null,
+      claimStatus: "human_origin",
+      title: "AP5 selection",
+      areaNodeId: "ap5-area-floor-1",
+      decisionRevisionId: AP5_DECISION_REVISION_ID,
+      specification: { finish: "AP5 reference finish" },
+      evidence: [],
+      reason: "AP5 authenticated browser chain",
+    });
+    expect(selection.status, JSON.stringify(selection.body.error)).toBe(200);
+  });
+
+  /**
    * Гейт 1 из A6 §6.1, первая половина: выход M3 через браузер.
    *
    * Всё, на что она опирается, собрано в этой сессии: дверь версии графа
@@ -364,34 +388,6 @@ test.describe("AP5 — цепочка Kora на живом стеке", () => {
     // и второй выпуск выражал бы уже не то, что показывали.
     const stale = await command(architect, "publish_release", { snapshotToken });
     expect(stale.status, JSON.stringify(stale.body.error)).toBe(409);
-  });
-
-  /**
-   * НЕ ПРОХОДИТ на живом стеке — звено требует воркера, как и остальные четыре.
-   *
-   * У решения `areaNodeId` допускает null, а у выбора он обязателен
-   * (`command-contract.ts`) и обязан ссылаться на существующий узел
-   * `kind='area'` в `project_intelligence.graph_nodes`. Такие узлы создаёт
-   * ingest, а не браузерные команды: RPC решения заводит узел только для
-   * собственного `nodeId` (20260717101000:661). Пока графа нет, выбор из
-   * браузера создать нечем — и это ограничение продукта, а не харнесса.
-   */
-  test.fixme("5а. выбор привязан к площади, которой без ingest не существует", async ({ browser }) => {
-    const architect = await requestAs(browser, "designer");
-    const selection = await command(architect, "create_selection", {
-      packageId: handoff().rootPackageId,
-      nodeId: "ap5-selection-floor-1",
-      revisionId: randomUUID(),
-      expectedRevisionId: null,
-      claimStatus: "human_origin",
-      title: "AP5 selection",
-      areaNodeId: "ap5-area-floor-1",
-      decisionRevisionId: "ap5-decision-revision",
-      specification: { finish: "AP5 reference finish" },
-      evidence: [],
-      reason: "AP5 authenticated browser chain",
-    });
-    expect(selection.status, JSON.stringify(selection.body.error)).toBe(200);
   });
 
   /**
@@ -1097,27 +1093,28 @@ test.describe("AP5 — цепочка Kora на живом стеке", () => {
 });
 
 /**
- * Оставшиеся звенья цепочки AP5 из MASTER_EXECUTION_PLAN §AP5. Каждое помечено
- * причиной, а не молча пропущено: красный или пропущенный шаг здесь означает
- * «не доказано», и в отчёте гейта он виден именно так.
+ * M4 increment 2 пока не авторизован решением владельца. AP5 всё равно
+ * проверяет эту границу на настоящей странице и настоящим command route:
+ * операция не предлагается, а поддельная цель не доходит до RPC.
  */
-test.describe("AP5 — ещё не покрытые звенья", () => {
-  // Три звена ушли отсюда 11.08, и каждое — потому что доказано, а не потому
-  // что причина перестала нравиться. Строка-пропуск на пройденном звене — это
-  // отчёт, который врёт:
-  //   * «Decision/Selection approval → ProjectBaseline V1» — шаг 6 (гейт 1);
-  //   * «ProductionPackageVersion V1 → распространение и подтверждение» —
-  //     шаги 7, 9 и 10 (гейт 1 и гейт 2);
-  //   * заявка на изменение — шаг 11;
-  //   * влияние изменения целиком — шаг 12 (V1 Impact, 12.08.2026): системный
-  //     расчёт И рассмотрение архитектором. Пропуск стоял по трём причинам
-  //     подряд: воркера не существовало, команда не была авторизована, а
-  //     прогон получался пустым. Сняты все три — последнюю снял шаг 5б, узел
-  //     графа, зависящий от изменённого решения.
-  test.fixme(
-    "фотодоказательство и приёмка вехи",
-    // upload_photo_evidence требует существующего milestoneId; вех в проекте
-    // без воркерного плана нет.
-    () => {},
-  );
+test.describe("AP5 — M4 increment 2 boundary", () => {
+  test("фотодоказательство и приёмка вехи остаются закрытыми", async ({ browser }) => {
+    const owner = await requestAs(browser, "owner");
+    const operations = (await workspace(owner)).operations;
+    for (const kind of ["upload_photo_evidence", "review_photo_evidence", "accept_milestone"]) {
+      expect(operations[kind]?.status, kind).toBe("unavailable");
+      expect(operations[kind]?.reason, kind).toBe("increment_not_authorized");
+    }
+
+    const denied = await command(owner, "upload_photo_evidence", {
+      milestoneId: "a5d0c1c1-0000-4000-8000-000000000099",
+      areaNodeId: "ap5-area-floor-1",
+      sourceId: "ap5-photo-source",
+      sourceRevisionId: "ap5-photo-revision-1",
+      capturedAt: new Date().toISOString(),
+      note: null,
+    });
+    expect(denied.status, JSON.stringify(denied.body.error)).toBe(409);
+    expect(denied.body.error?.code).toBe("operation_unavailable");
+  });
 });

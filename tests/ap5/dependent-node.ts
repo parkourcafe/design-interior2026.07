@@ -51,7 +51,7 @@ export async function ingestDependentNode(): Promise<DependentNodeResult> {
   const handoff = readHandoff();
   const projects = await client.schema("projectceo_api").rpc("list_projects");
   if (projects.error) {
-    throw new Error(`AP5: список проектов недоступен: ${projects.error.message}`);
+    throw new Error(`AP5: список проектов недоступен: code=${projects.error.code ?? "unknown"}`);
   }
   const scope = (projects.data as { readonly data: readonly {
     readonly projectId: string;
@@ -95,12 +95,20 @@ export async function ingestDependentNode(): Promise<DependentNodeResult> {
     },
     fragments: [],
     // Узел спецификации: он и станет затронутым в прогоне влияния.
-    nodes: [{
-      nodeId: AP5_DEPENDENT_NODE_ID,
-      kind: "source",
-      stableKey: `source:${AP5_DEPENDENT_SOURCE_ID}`,
-      currentRevisionId: AP5_DEPENDENT_REVISION_ID,
-    }],
+    nodes: [
+      {
+        nodeId: AP5_DEPENDENT_NODE_ID,
+        kind: "source",
+        stableKey: `source:${AP5_DEPENDENT_SOURCE_ID}`,
+        currentRevisionId: AP5_DEPENDENT_REVISION_ID,
+      },
+      {
+        nodeId: "ap5-area-floor-1",
+        kind: "area",
+        stableKey: "area:floor-1",
+        currentRevisionId: "ap5-area-floor-1-revision-1",
+      },
+    ],
     revisions: [{
       revisionId: AP5_DEPENDENT_REVISION_ID,
       nodeId: AP5_DEPENDENT_NODE_ID,
@@ -114,7 +122,22 @@ export async function ingestDependentNode(): Promise<DependentNodeResult> {
       contentDigestHex: createHash("sha256")
         .update(JSON.stringify(payload))
         .digest("hex"),
-    }],
+    },
+      {
+        revisionId: "ap5-area-floor-1-revision-1",
+        nodeId: "ap5-area-floor-1",
+        revisionNo: 1,
+        title: "AP5 floor 1",
+        payload: { schemaVersion: "project-ceo/source-metadata/0.1" },
+        origin: "import",
+        claimStatus: "extracted",
+        unknownReason: null,
+        replacesRevisionId: null,
+        contentDigestHex: createHash("sha256")
+          .update(JSON.stringify({ schemaVersion: "project-ceo/source-metadata/0.1" }))
+          .digest("hex"),
+      },
+    ],
     evidence_links: [],
     // Направление принципиально: `from` зависит от `to`. Перепутать — значит
     // получить ребро, которого обход не увидит, и снова пустой прогон.
@@ -129,8 +152,7 @@ export async function ingestDependentNode(): Promise<DependentNodeResult> {
   });
   if (ingest.error) {
     throw new Error(
-      `AP5: ingest зависимого узла не прошёл: ${ingest.error.message}`
-      + ` / ${ingest.error.details ?? "(без деталей)"}`,
+      `AP5: ingest зависимого узла не прошёл: code=${ingest.error.code ?? "unknown"}`,
     );
   }
   const mutation = ingest.data as {

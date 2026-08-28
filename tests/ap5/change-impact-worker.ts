@@ -69,7 +69,7 @@ export function runChangeImpactWorker(): ChangeImpactWorkerReport {
   } catch (error) {
     // Отказ обязан называть себя сам: цена непонятной ошибки здесь — сорок
     // пять минут следующего прогона.
-    const detail = error as { stderr?: string; stdout?: string; message?: string; status?: number };
+    const detail = error as { stderr?: string; stdout?: string; status?: number };
     // Exit code 1 is normal when needs_attention > 0 (result_limit truncation,
     // unresolved baseline, dead-letter failure). Parse the report anyway if
     // stdout contains valid JSON.
@@ -80,11 +80,10 @@ export function runChangeImpactWorker(): ChangeImpactWorkerReport {
     } catch {
       // Stdout doesn't have valid JSON, so this is a real failure.
       throw new Error(
-        "AP5: системный воркер расчёта влияния не прошёл.\n"
-        + `${detail.message ?? String(error)}\n`
-        + `exit code: ${detail.status ?? "unknown"}\n`
-        + `stderr: ${detail.stderr ?? "(пусто)"}\n`
-        + `stdout: ${stdout}`,
+        "AP5: системный воркер расчёта влияния не прошёл: "
+        + `exit=${detail.status ?? "unknown"} `
+        + `stderrLines=${detail.stderr?.split("\n").length ?? 0} `
+        + `stdoutLines=${stdout.split("\n").length}`,
       );
     }
   }
@@ -92,6 +91,8 @@ export function runChangeImpactWorker(): ChangeImpactWorkerReport {
   try {
     return JSON.parse(line) as ChangeImpactWorkerReport;
   } catch {
-    throw new Error(`AP5: воркер расчёта влияния не отдал отчёт JSON. Вывод: ${output}`);
+    throw new Error(
+      `AP5: воркер расчёта влияния не отдал отчёт JSON: outputLines=${output.split("\n").length}`,
+    );
   }
 }
