@@ -1033,9 +1033,14 @@ function operationStates(input: {
   );
   const packageVersions = rows(input.delivery.packageVersions);
   const releaseArtifacts = rows(input.delivery.releaseArtifacts);
+  const extensionStatus = record(input.delivery.extensionStatus);
   const latestBaseline = nullableText(record(input.delivery.latestBaseline).id);
+  const createChangeBaseline = latestBaseline
+    ?? nullableText(extensionStatus.createChangeProposedBaselineId);
   const changeReady = packageVersions.some((version) => (
-    nullableText(version.baselineId) && version.baselineId !== latestBaseline
+    createChangeBaseline !== null
+      && nullableText(version.baselineId) !== null
+      && nullableText(version.baselineId) !== createChangeBaseline
   ));
   const pendingDistribution = input.delivery.recipientDistributions.find(
     (distribution) => !distribution.acknowledged,
@@ -1289,12 +1294,13 @@ function operationStates(input: {
           commandTargetId: pendingDistribution.distributionId,
         } : unavailable("prerequisite_missing")
       : unavailable("capability_missing"),
-    create_change: can(input.role, "create_change")
+    create_change: input.role === "builder" && can(input.role, "create_change")
       ? changeReady ? {
           status: "available",
           commandTargetId: nullableText(
             packageVersions.find((version) => (
-              nullableText(version.baselineId) && version.baselineId !== latestBaseline
+              nullableText(version.baselineId) !== null
+                && nullableText(version.baselineId) !== createChangeBaseline
             ))?.id,
           ) ?? undefined,
         } : unavailable("prerequisite_missing")

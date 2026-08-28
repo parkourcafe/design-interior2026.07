@@ -41,7 +41,15 @@ docker_cli() {
 }
 
 redact_credentials() {
-  perl -pe 'if (/key|secret|token|password|jwt/i) { $_ = "[credential line redacted]\n" }'
+  perl -pe '
+    s{((?:postgresql?|https?)://)[^:@/\s]+:[^@\s]+@}{$1[redacted]@}gi;
+    s{\bBearer\s+[A-Za-z0-9._~+/-]+=*}{Bearer [redacted]}gi;
+    s{\beyJ[A-Za-z0-9_=-]{10,}\.[A-Za-z0-9_=-]{10,}\.[A-Za-z0-9_=-]{10,}\b}{[jwt-redacted]}g;
+    s{\bsb(?:p|_secret|_publishable)_[A-Za-z0-9]{10,}\b}{[supabase-key-redacted]}g;
+    if (/(?:authorization|cookie|session storage|magic[-_ ]?link|token_hash|access_token|refresh_token|key|secret|token|password|jwt|dsn)\s*[:=]\s*\S/i) {
+      $_ = "[credential line redacted]\n"
+    }
+  '
 }
 
 verify_ledger() {

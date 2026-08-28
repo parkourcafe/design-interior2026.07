@@ -319,6 +319,107 @@ from project_intelligence.project_workflows
 where project_id = '41111111-1111-4111-8111-111111111111'
 \gset db5_
 
+select set_config(
+  'projectceo.db5_change_denial_state_revision',
+  :'db5_state_revision',
+  false
+);
+
+begin;
+update projectceo_foundation.project_memberships
+set role = 'builder'
+where organization_id = :'db5_organization_id'::uuid
+  and project_id = '41111111-1111-4111-8111-111111111111'
+  and user_id = '31111111-1111-4111-8111-111111111111';
+set local role authenticated;
+set local request.jwt.claim.sub =
+  '31111111-1111-4111-8111-111111111111';
+do $builder_change_target_read$
+declare
+  v_read jsonb;
+begin
+  v_read := projectceo_read_api.get_project_workspace_read_v10(
+    '41111111-1111-4111-8111-111111111111',
+    null
+  );
+  if v_read #>> '{data,extensionStatus,createChangeProposedBaselineId}'
+       <> 'baseline-db5-v2'
+     or v_read #>> '{data,latestBaseline,id}' is not null
+  then
+    raise exception 'DB5_BUILDER_CHANGE_TARGET_READ_INVALID:%', v_read;
+  end if;
+end
+$builder_change_target_read$;
+rollback;
+
+begin;
+update projectceo_foundation.project_memberships
+set role = 'client_approver'
+where organization_id = :'db5_organization_id'::uuid
+  and project_id = '41111111-1111-4111-8111-111111111111'
+  and user_id = '31111111-1111-4111-8111-111111111111';
+set local role authenticated;
+set local request.jwt.claim.sub =
+  '31111111-1111-4111-8111-111111111111';
+do $client_change_target_denied$
+declare
+  v_read jsonb;
+begin
+  v_read := projectceo_read_api.get_project_workspace_read_v10(
+    '41111111-1111-4111-8111-111111111111',
+    null
+  );
+  if v_read #>> '{data,extensionStatus,createChangeProposedBaselineId}'
+       is not null
+  then
+    raise exception 'DB5_CLIENT_CHANGE_TARGET_LEAK:%', v_read;
+  end if;
+  begin
+    perform projectceo_m4_api.submit_change_request(
+      '41111111-1111-4111-8111-111111111111',
+      '41111111-1111-4111-8111-111111111111',
+      'baseline-db4-v1',
+      'baseline-db5-v2',
+      'package-db4-root-v1',
+      'Client must not create builder change requests',
+      0,
+      0,
+      current_setting('projectceo.db5_change_denial_state_revision')::bigint,
+      'db5-client-change-denied'
+    );
+    raise exception 'DB5_CLIENT_CHANGE_ALLOWED';
+  exception when sqlstate 'P1103' then null;
+  end;
+end
+$client_change_target_denied$;
+rollback;
+
+begin;
+set local role authenticated;
+set local request.jwt.claim.sub =
+  '33333333-3333-4333-8333-333333333333';
+do $guest_change_denied$
+begin
+  begin
+    perform projectceo_m4_api.submit_change_request(
+      '41111111-1111-4111-8111-111111111111',
+      '41111111-1111-4111-8111-111111111111',
+      'baseline-db4-v1',
+      'baseline-db5-v2',
+      'package-db4-root-v1',
+      'Guest must not create builder change requests',
+      0,
+      0,
+      current_setting('projectceo.db5_change_denial_state_revision')::bigint,
+      'db5-guest-change-denied'
+    );
+    raise exception 'DB5_GUEST_CHANGE_ALLOWED';
+  exception when sqlstate 'P1103' then null;
+  end;
+end
+$guest_change_denied$;
+rollback;
+
 select jsonb_build_object(
   'id', 'package-db5-root-v2',
   'packageId', '41111111-1111-4111-8111-111111111111',
@@ -631,6 +732,14 @@ where project_id = '41111111-1111-4111-8111-111111111111'
 \gset db5_
 
 begin;
+update projectceo_foundation.project_memberships
+set role = 'builder'
+where organization_id = :'db5_organization_id'::uuid
+  and project_id = '41111111-1111-4111-8111-111111111111'
+  and user_id = '31111111-1111-4111-8111-111111111111';
+commit;
+
+begin;
 set local role authenticated;
 set local request.jwt.claim.sub =
   '31111111-1111-4111-8111-111111111111';
@@ -720,6 +829,14 @@ begin
 end
 $duplicate_change_transition$;
 rollback;
+
+begin;
+update projectceo_foundation.project_memberships
+set role = 'owner_lead'
+where organization_id = :'db5_organization_id'::uuid
+  and project_id = '41111111-1111-4111-8111-111111111111'
+  and user_id = '31111111-1111-4111-8111-111111111111';
+commit;
 
 select state_revision
 from project_intelligence.project_workflows
