@@ -4,6 +4,7 @@ Date: 2026-08-29
 Branch: `codex/autonomous-staging-acceptance`
 Base: `497cdcbae0067ef9ed4fa65f31d0dab616f869e9`
 Implementation commit: `68e206cea646138005bf33631bbd96d386868fe6`
+Latest observed PR HEAD: `fa11f798da933b49379cf27a58ac78174788c593`
 Production acceptance: **not declared**
 
 ## VERIFIED
@@ -26,7 +27,8 @@ Production acceptance: **not declared**
 
 - [ИЗВЛЕЧЕНО] `.github/workflows/ci.yml` now defines AP5 as an unconditional job with `if: always()`, a prerequisite failure check, a Playwright JSON receipt, an explicit no-skip assertion, and a credential log scan.
 - [ИЗВЛЕЧЕНО] The JSON reporter writes to `PLAYWRIGHT_JSON_OUTPUT_FILE`; a missing or invalid receipt fails the job, and any non-zero skipped count fails the job.
-- [ИНТЕРПРЕТИРОВАНО] The repository contract now makes AP5 structurally mandatory, but GitHub Actions has not yet run this branch. The CI result is therefore pending external verification, not a local PASS.
+- [ИЗВЛЕЧЕНО] GitHub Actions accepted the workflow and created run `33196679881` for the branch, but GitHub did not start its runner jobs because of the account billing/spending-limit annotation. No AP5 CI receipt exists.
+- [ИНТЕРПРЕТИРОВАНО] AP5 is structurally mandatory in the workflow, but its GitHub result remains externally blocked and is not a PASS.
 
 ## CODE_PRESENT
 
@@ -46,7 +48,8 @@ Production acceptance: **not declared**
 - [ИЗВЛЕЧЕНО] Hosted database advisors reported two security warnings for the legacy `public.is_studio_member` SECURITY DEFINER function being executable by anon/authenticated, plus pre-existing performance categories including unindexed foreign keys, RLS init-plan warnings, multiple permissive policies, unused indexes, and connection warnings.
 - [ИЗВЛЕЧЕНО] The two `is_studio_member` warnings are in the legacy baseline and are not introduced by this branch. They remain external follow-up work; they were not silently removed because legacy layout behavior depends on that function.
 - [ИНТЕРПРЕТИРОВАНО] Hosted staging acceptance is **BLOCKED**, not passed. The hosted project must be retained for the next authorized rehearsal and must not be treated as production evidence.
-- [ИЗВЛЕЧЕНО] GitHub CI, the PR status, and the requested Claude review have not yet been created or observed at this commit.
+- [ИЗВЛЕЧЕНО] GitHub CI run `33196679881` was created for `fa11f79...`, but its runner jobs did not start because the GitHub account reported failed recent payments or an insufficient spending limit. No CI gate result was produced.
+- [ИЗВЛЕЧЕНО] Claude review run `33196683308` was created for `fa11f79...`, but its job did not start for the same GitHub account billing blocker; no Claude review comments were produced.
 
 ## NOT_AUTHORIZED
 
@@ -85,4 +88,5 @@ git diff --check
 
 - [ИНТЕРПРЕТИРОВАНО] Local code and disposable acceptance are evidenced at implementation commit `68e206cea646138005bf33631bbd96d386868fe6`.
 - [ИНТЕРПРЕТИРОВАНО] Autonomous staging acceptance is not complete until hosted full-chain migration, hosted authenticated browser acceptance, GitHub required checks, and Claude review are externally observed.
+- [ИНТЕРПРЕТИРОВАНО] The PR is open as `#121`; the latest observed CI/Claude attempt was on `fa11f798da933b49379cf27a58ac78174788c593` and was blocked before execution by GitHub billing state.
 - [ИНТЕРПРЕТИРОВАНО] Merge is not currently safe to approve because the hosted staging gate is unresolved. This report does not grant production acceptance.
