@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { execFile } from "node:child_process";
+import { execFile, execFileSync } from "node:child_process";
 import { existsSync, readFileSync, renameSync, rmSync, writeFileSync } from "node:fs";
 import { resolve, relative, join } from "node:path";
 
@@ -11,11 +11,17 @@ const roles = ["owner_lead", "architect", "client_approver", "builder", "guest"]
 const operations = ["publish_m2_layout_version", "submit_m2_client_review", "review_m2_client_submission", "append_m2_approved_commit_revision", "publish_m2_m3_handoff"] as const;
 const privateData = /sk-[a-z0-9_-]+|sbp_token|refresh_token|\/Users\/|\/Volumes\/|\/mnt\/|\.\.\/|bearer\s+\S+/i;
 const privateDataGlobal = /sk-[a-z0-9_-]+|sbp_token|refresh_token|\/Users\/|\/Volumes\/|\/mnt\/|\.\.\/|bearer\s+\S+/gi;
+const HEAD_SHA = /^[0-9a-f]{40}$/;
 const object = (value: unknown): UnknownObject => value !== null && typeof value === "object" && !Array.isArray(value) ? value as UnknownObject : {};
 const list = (value: unknown): UnknownObject[] => Array.isArray(value) ? value.map(object) : [];
 const string = (value: unknown): string => typeof value === "string" ? value : "";
 const fileDigest = (path: string) => `sha256:${createHash("sha256").update(readFileSync(path)).digest("hex")}`;
 const redact = (value: string) => value.replace(privateDataGlobal, "[REDACTED]");
+const currentHeadSha = (): string => {
+  const value = execFileSync("git", ["rev-parse", "HEAD"], { encoding: "utf8" }).trim();
+  if (!HEAD_SHA.test(value)) throw new Error("RUNTIME_RECEIPT_HEAD_SHA_INVALID");
+  return value;
+};
 const validFiveSessions = (sessions: UnknownObject[]): boolean => sessions.length === 5
   && new Set(sessions.map((item) => string(item.userId))).size === 5
   && new Set(sessions.map((item) => string(item.sessionId))).size === 5
@@ -23,10 +29,16 @@ const validFiveSessions = (sessions: UnknownObject[]): boolean => sessions.lengt
   && roles.every((role) => sessions.filter((item) => item.role === role).length === 1)
   && sessions.every((item) => UUID.test(string(item.userId)) && UUID.test(string(item.sessionId)) && UUID.test(string(item.requestId)));
 
-export function finalizeM2PilotEvidence(receipt: unknown, options: { readonly outputDir: string; readonly label?: string; readonly pending?: unknown; readonly pendingPath?: string; readonly koraReceiptPath?: string }): void {
+export function finalizeM2PilotEvidence(receipt: unknown, options: { readonly outputDir: string; readonly label?: string; readonly pending?: unknown; readonly pendingPath?: string; readonly koraReceiptPath?: string; readonly manifestPath?: string }): void {
   const value = object(receipt); const output = join(options.outputDir, "PASS.json"); const temporary = `${output}.tmp`;
   try {
     if (receipt === null || typeof receipt !== "object") throw new Error("RECEIPT_MISSING");
+    if (!options.manifestPath || !existsSync(options.manifestPath)) throw new Error("CYCLE7_INPUT_MANIFEST_REQUIRED");
+    const inputManifest = object(JSON.parse(readFileSync(options.manifestPath, "utf8")) as unknown);
+    if (inputManifest.status !== "pending") throw new Error("CYCLE7_INPUT_MANIFEST_MUST_BE_PENDING");
+    if (!SHA.test(string(value.manifestDigest)) || fileDigest(options.manifestPath) !== value.manifestDigest) {
+      throw new Error("CYCLE7_INPUT_MANIFEST_DIGEST_MISMATCH");
+    }
     if (!options.pendingPath || resolve(options.pendingPath) !== resolve(options.outputDir, "PENDING.json")
       || !existsSync(options.pendingPath)) throw new Error("PREPARED_PENDING_REQUIRED");
     const pending = object(options.pending);
@@ -109,12 +121,17 @@ export function finalizeM2PilotEvidence(receipt: unknown, options: { readonly ou
         || pendingBinding.koraProducerDigest !== producer.digest))
       || !validFiveSessions(koraSessions)) throw new Error("RECEIPT_TAMPERED_FIVE_SESSIONS");
     if (privateData.test(JSON.stringify(value))) throw new Error("RECEIPT_TAMPERED_PRIVACY");
-    writeFileSync(temporary, JSON.stringify({ verdict: "EXTERNAL_REAL_PACKAGE_PASS", label: options.label ?? null,
+    const runtimeReceipt = { status: "completed", verdict: "EXTERNAL_REAL_PACKAGE_PASS", label: options.label ?? null,
+      headSha: currentHeadSha(), executedAt: new Date().toISOString(),
+      markers: ["KORA_LOCAL_AUTHENTICATED_PASS", "EXTERNAL_REAL_PACKAGE_PASS"],
       manifestDigest: value.manifestDigest, fiveDistinctUsers, commandIds: [...commandIds], stateRevisions,
       lineage: { submission: lineage.submissionId, review: lineage.reviewId, approvedCommit: lineage.approvedCommitId, handoff: lineage.handoffId },
-      executor: { path: executor.path, digest: executor.digest, verificationReceiptId: executor.verificationReceiptId },
+      executor: { digest: executor.digest, verificationReceiptId: executor.verificationReceiptId },
       koraRun: { receiptId: protectedKoraReceipt.receiptId, digest: pendingBinding.koraReceiptDigest },
-      proofs: { audit: true, authenticatedRead: true, privacy: true, tenancy: true, replay: true } }, null, 2), { flag: "wx", mode: 0o600 });
+      gates: { koraAuthenticatedFiveRole: true, externalRealPackage: true, audit: true, authenticatedRead: true, privacy: true, tenancy: true, replay: true },
+      proofs: { audit: true, authenticatedRead: true, privacy: true, tenancy: true, replay: true } };
+    if (privateData.test(JSON.stringify(runtimeReceipt))) throw new Error("RUNTIME_RECEIPT_PRIVACY");
+    writeFileSync(temporary, JSON.stringify(runtimeReceipt, null, 2), { flag: "wx", mode: 0o600 });
     renameSync(temporary, output); // atomic publication
   } catch (error) {
     rmSync(temporary, { force: true }); rmSync(output, { force: true });
@@ -130,6 +147,10 @@ export async function runPilotExecutor(input: { readonly executorPath: string; r
       if (!error) { resolvePromise(); return; }
       rmSync(passPath, { force: true }); rmSync(temporary, { force: true });
       const detail = redact(`${stdout}\n${stderr}`) || "[REDACTED]";
+      const safeDiagnostics = detail.match(
+        /EXTERNAL_RUNNER_(?:PREFLIGHT_STATE \{"workflowRevision"\s*:\s*\d+, "layoutRevisions"\s*:\s*\d+, "commandRecords"\s*:\s*\d+\}|REVIEW_PREREQUISITES \{"approvalEvents":\[(?:\{"sequence":\d+,"toStatus":"[a-z_]+","selfApproved":(?:true|false)\},?)*\],"submissionCount":\d+,"approvedNonSelfCount":\d+,"approvedAssignedClientCount":\d+,"approvedPackageClientActorCount":\d+\}|REVIEW_AFTER_SUBMIT \{"submissionPresent":(?:true|false),"submissionRevisionCurrent":(?:true|false),"assignedClientDistinct":(?:true|false),"approvalPackageRequired":(?:true|false),"chosenVariantPresent":(?:true|false),"chosenBudgetClean":(?:true|false)\}|EXIT stage=[A-Za-z0-9_]+ status=\d+|COMMAND_HTTP operation=[A-Za-z0-9_]+ status=(?:\d{3}|transport_failure) code=[A-Za-z0-9_]+(?: reason=[A-Za-z0-9_]{1,80})? command_id=(?:[0-9a-f-]{36}|unknown)|PROJECT_READ_HTTP role=[A-Za-z0-9_]+ status=(?:\d{3}|transport_failure) code=[A-Za-z0-9_]+|PROJECT_READ_INVALID role=[A-Za-z0-9_]+ summary=\{"status"[^\n]*\}|RESPONSE_INVALID operation=[A-Za-z0-9_]+ phase=(?:first|replay) summary=\{"status"[^\n]*\}|DB_COMMAND_MISSING operation=[A-Za-z0-9_]+|DB_COMMAND_INVALID operation=[A-Za-z0-9_]+ field=[A-Za-z0-9_]+)/g,
+      ) ?? [];
+      if (safeDiagnostics.length > 0) process.stderr.write(`CYCLE7_EXTERNAL_DIAGNOSTIC ${safeDiagnostics.join(" ")}\n`);
       writeFileSync(failurePath, JSON.stringify({ status: "executor_failed", detail: detail.includes("[REDACTED]") ? detail : `[REDACTED] ${detail}` }), { mode: 0o600 });
       rejectPromise(new Error("CYCLE7_EXTERNAL_EXECUTOR_FAILED"));
     });

@@ -8,7 +8,8 @@ cli_home=${AP1_CLI_HOME:-/private/tmp/archidom-ap1-home}
 cli_cache=${AP1_NPM_CACHE:-/private/tmp/projectceo-ap1-npm-cache}
 docker_host=${DOCKER_HOST:-unix://${HOME}/.colima/archidom-ap1/docker.sock}
 
-if [[ "${docker_host}" != unix://*/.colima/archidom-ap1/docker.sock ]]; then
+if [[ "${docker_host}" != unix://*/.colima/archidom-ap1/docker.sock \
+  && ! ( "${GITHUB_ACTIONS:-false}" == "true" && "${docker_host}" == "unix:///var/run/docker.sock" ) ]]; then
   print -u2 -r -- "AP1_DOCKER_HOST_REJECTED"
   exit 65
 fi
@@ -20,6 +21,14 @@ fi
 mkdir -p "${cli_home}" "${cli_cache}"
 
 supabase_cli() {
+  if [[ -n ${AP1_SUPABASE_BIN:-} ]]; then
+    env HOME="${cli_home}" DOCKER_HOST="${docker_host}" "${AP1_SUPABASE_BIN}" "$@"
+    return
+  fi
+  if command -v supabase >/dev/null 2>&1 && [[ "$(env HOME="${cli_home}" supabase --version 2>/dev/null)" == "${cli_version}" ]]; then
+    env HOME="${cli_home}" DOCKER_HOST="${docker_host}" supabase "$@"
+    return
+  fi
   env \
     HOME="${cli_home}" \
     npm_config_cache="${cli_cache}" \
@@ -32,7 +41,15 @@ docker_cli() {
 }
 
 redact_credentials() {
-  perl -pe 'if (/key|secret|token|password|jwt/i) { $_ = "[credential line redacted]\n" }'
+  perl -pe '
+    s{((?:postgresql?|https?)://)[^:@/\s]+:[^@\s]+@}{$1[redacted]@}gi;
+    s{\bBearer\s+[A-Za-z0-9._~+/-]+=*}{Bearer [redacted]}gi;
+    s{\beyJ[A-Za-z0-9_=-]{10,}\.[A-Za-z0-9_=-]{10,}\.[A-Za-z0-9_=-]{10,}\b}{[jwt-redacted]}g;
+    s{\bsb(?:p|_secret|_publishable)_[A-Za-z0-9]{10,}\b}{[supabase-key-redacted]}g;
+    if (/(?:authorization|cookie|session storage|magic[-_ ]?link|token_hash|access_token|refresh_token|key|secret|token|password|jwt|dsn)\s*[:=]\s*\S/i) {
+      $_ = "[credential line redacted]\n"
+    }
+  '
 }
 
 verify_ledger() {

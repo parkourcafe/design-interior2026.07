@@ -1,6 +1,5 @@
 import { randomUUID } from "node:crypto";
 import { readFileSync } from "node:fs";
-import { pathToFileURL } from "node:url";
 import { buildKoraFiveSessionReceipt, writeKoraFiveSessionReceipt } from "./kora-five-session-receipt";
 
 async function main(): Promise<void> {
@@ -18,4 +17,7 @@ async function main(): Promise<void> {
   writeKoraFiveSessionReceipt(receipt, receiptPath);
 }
 
-if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) await main();
+void main().catch((error: unknown) => {
+  process.stderr.write(`${error instanceof Error ? error.message : "KORA_RECEIPT_CLI_FAILED"}\n`);
+  process.exitCode = 1;
+});

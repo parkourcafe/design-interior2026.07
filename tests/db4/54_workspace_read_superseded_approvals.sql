@@ -19,7 +19,7 @@ select set_config('db4.s54_state', :'db4_s54_state', false);
 begin;
 set local role authenticated;
 set local request.jwt.claim.sub = '31111111-1111-4111-8111-111111111111';
-select projectceo_read_api.get_project_workspace_read_v10(
+select projectceo_read_api.get_project_workspace_read_v11(
   '41111111-1111-4111-8111-111111111111', null
 ) #> '{data,approvalSupersededEntities}' as s54_initial
 \gset db4_
@@ -112,7 +112,7 @@ do $approved_current_not_flagged$
 declare
   v_list jsonb;
 begin
-  v_list := projectceo_read_api.get_project_workspace_read_v10(
+  v_list := projectceo_read_api.get_project_workspace_read_v11(
     '41111111-1111-4111-8111-111111111111', null
   ) #> '{data,approvalSupersededEntities}';
   if exists (
@@ -158,7 +158,7 @@ declare
   v_list jsonb;
   v_entry jsonb;
 begin
-  v_list := projectceo_read_api.get_project_workspace_read_v10(
+  v_list := projectceo_read_api.get_project_workspace_read_v11(
     '41111111-1111-4111-8111-111111111111', null
   ) #> '{data,approvalSupersededEntities}';
 
@@ -196,7 +196,7 @@ begin
   perform set_config('request.jwt.claim.sub',
     '31111111-1111-4111-8111-111111111111', true);
   set local role authenticated;
-  v_reported := projectceo_read_api.get_project_workspace_read_v10(
+  v_reported := projectceo_read_api.get_project_workspace_read_v11(
     '41111111-1111-4111-8111-111111111111', null
   ) #> '{data,approvalSupersededEntities}';
   reset role;

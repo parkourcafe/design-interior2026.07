@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { postTelegramIntegrationWebhook } from "@/lib/integration-gateway/telegram/webhook";
 
 import { createAdminClient } from "@/lib/supabase/admin";
 import {
@@ -450,6 +451,10 @@ async function handleGroupHandshake(
 }
 
 export async function POST(request: Request) {
+  if (process.env.REMHAOS_INTEGRATIONS_ENABLED === "true") {
+    return postTelegramIntegrationWebhook(request);
+  }
+
   const requestId = crypto.randomUUID();
 
   if (!isTelegramBridgeEnabled()) {

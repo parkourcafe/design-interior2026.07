@@ -23,4 +23,9 @@ async function main(): Promise<void> {
   writeExternalPilotReceipt(receipt, receiptPath);
 }
 
-if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) await main();
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+  void main().catch((error: unknown) => {
+    process.stderr.write(`${error instanceof Error ? error.message : "EXTERNAL_RECEIPT_CLI_FAILED"}\n`);
+    process.exitCode = 1;
+  });
+}

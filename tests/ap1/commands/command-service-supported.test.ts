@@ -25,6 +25,12 @@ interface Call {
   readonly args: Readonly<Record<string, unknown>>;
 }
 
+interface FakeClientOptions {
+  readonly deliveryOverrides?: Readonly<Record<string, unknown>>;
+  readonly projectEntries?: readonly Readonly<Record<string, unknown>>[];
+  readonly readOverrides?: Readonly<Record<string, unknown>>;
+}
+
 function envelope(data: unknown) {
   return {
     contractVersion: "project-ceo-foundation/0.1",
@@ -134,7 +140,7 @@ function authenticatedRead(overrides: Readonly<Record<string, unknown>> = {}) {
   };
 }
 
-function fakeClient(calls: Call[], readOverrides: Readonly<Record<string, unknown>> = {}): PostgresRpcClient {
+function fakeClient(calls: Call[], options: FakeClientOptions = {}): PostgresRpcClient {
   const seen = new Set<string>();
   const resultByName: Readonly<Record<string, Readonly<Record<string, unknown>>>> = {
     "projectceo_api.create_invitation": { invitationId },
@@ -235,7 +241,7 @@ function fakeClient(calls: Call[], readOverrides: Readonly<Record<string, unknow
         const name = `${schemaName}.${functionName}`;
         calls.push({ name, args });
         if (name === "projectceo_api.list_projects") {
-          return { data: envelope([{
+          return { data: envelope(options.projectEntries ?? [{
             accessScope: "project",
             organizationId,
             projectId,
@@ -266,6 +272,7 @@ function fakeClient(calls: Call[], readOverrides: Readonly<Record<string, unknow
             noChangeTerminals: [],
             unresolvedImpactReviewCount: 0,
             extensionStatus: {},
+            ...options.deliveryOverrides,
           }), error: null };
         }
         if (name === "projectceo_api.list_project_access") {
@@ -276,7 +283,13 @@ function fakeClient(calls: Call[], readOverrides: Readonly<Record<string, unknow
           }), error: null };
         }
         if (name === "projectceo_read_api.get_project_workspace_read_v9") {
-          return { data: authenticatedRead(readOverrides), error: null };
+          return { data: authenticatedRead(options.readOverrides), error: null };
+        }
+        if (name === "projectceo_read_api.get_project_workspace_read_v10") {
+          return { data: authenticatedRead(options.readOverrides), error: null };
+        }
+        if (name === "projectceo_read_api.get_project_workspace_read_v11") {
+          return { data: authenticatedRead(options.readOverrides), error: null };
         }
         if (name === "projectceo_m4_api.get_execution_delivery") {
           return { data: executionDelivery(), error: null };
@@ -307,9 +320,10 @@ function service(
   calls: Call[],
   readOverrides: Readonly<Record<string, unknown>> = {},
   documentationEnabled = "true",
+  fakeOptions: Omit<FakeClientOptions, "readOverrides"> = {},
 ) {
   return new ProjectCeoCommandService({
-    client: fakeClient(calls, readOverrides),
+    client: fakeClient(calls, { ...fakeOptions, readOverrides }),
     tokenSecret: "secret-".repeat(6),
     now: () => new Date("2026-07-18T00:00:00.000Z"),
     documentationEnabled,
@@ -468,7 +482,15 @@ describe("AP1 supported human commands", () => {
     // записей. Проверка их закрытости — ниже, в блоке про инкремент 2.
   ])("keeps the accepted human command $kind request-bound", async (input) => {
     const calls: Call[] = [];
-    const subject = service(calls);
+    const subject = service(calls, {}, "true", input.kind === "create_change" ? {
+      projectEntries: [{
+        accessScope: "project",
+        organizationId,
+        projectId,
+        role: "builder",
+        stateRevision: 9,
+      }],
+    } : {});
     const result = await subject.execute(input, `request-${input.kind}`);
     const retry = await subject.execute(input, `retry-${input.kind}`);
     expect(result.status).toBe("completed");
@@ -493,6 +515,172 @@ describe("AP1 supported human commands", () => {
       expect(calls.filter((call) => call.name === m4Mutation)).toHaveLength(1);
       expect(calls.filter((call) => call.name.includes("projectceo_m4_api.replay_"))).toHaveLength(2);
     }
+  });
+
+  it.each([
+    ["owner_lead", "scope_conflict"],
+    ["architect", "scope_conflict"],
+    ["client_approver", "scope_conflict"],
+    [null, "not_found"],
+  ] as const)("denies create_change for non-builder server scope %s", async (role, code) => {
+    const calls: Call[] = [];
+    const projectEntries = role === null ? [] : [{
+      accessScope: "project",
+      organizationId,
+      projectId,
+      role,
+      stateRevision: 9,
+    }];
+    const result = await service(calls, {}, "true", { projectEntries }).execute(
+      command("create_change", {
+        reason: "Изменён материал покрытия",
+        fromProductionPackageVersionId: "package-v1",
+        deltaCostRub: 0,
+        deltaDays: 0,
+      }),
+      `create-change-denied-${role ?? "guest"}`,
+    );
+
+    expect(result).toMatchObject({ status: "error", error: { code } });
+    expect(calls.some((call) => call.name === "projectceo_m4_api.submit_change_request"))
+      .toBe(false);
+  });
+
+  it("uses the builder-safe read hint when delivery hides the proposed baseline", async () => {
+    const calls: Call[] = [];
+    const result = await service(calls, {
+      extensionStatus: { createChangeProposedBaselineId: "baseline-v2" },
+      latestBaseline: null,
+      packageVersions: [{
+        id: "package-v1",
+        packageId,
+        baselineId: "baseline-v1",
+        versionNo: 1,
+      }],
+    }, "true", {
+      deliveryOverrides: { latestBaseline: null },
+      projectEntries: [{
+        accessScope: "project",
+        organizationId,
+        projectId,
+        role: "builder",
+        stateRevision: 9,
+      }],
+    }).execute(
+      command("create_change", {
+        reason: "Изменён материал покрытия",
+        fromProductionPackageVersionId: "package-v1",
+        deltaCostRub: 0,
+        deltaDays: 0,
+      }),
+      "builder-change-hint",
+    );
+
+    expect(result).toMatchObject({ status: "completed", replay: false });
+    expect(calls.find((call) => (
+      call.name === "projectceo_m4_api.submit_change_request"
+    ))?.args).toMatchObject({
+      package_id: packageId,
+      from_baseline_id: "baseline-v1",
+      proposed_baseline_id: "baseline-v2",
+      from_production_package_version_id: "package-v1",
+      expected_state_revision: 9,
+    });
+  });
+
+  it("keeps ambiguous create_change targets at scope_conflict", async () => {
+    const calls: Call[] = [];
+    const result = await service(calls, {
+      extensionStatus: { createChangeProposedBaselineId: "baseline-v2" },
+      latestBaseline: null,
+      packageVersions: [{
+        id: "package-v1",
+        packageId: "44444444-4444-4444-8444-444444444444",
+        baselineId: "baseline-foreign",
+        versionNo: 1,
+      }],
+    }, "true", {
+      deliveryOverrides: { latestBaseline: null },
+      projectEntries: [{
+        accessScope: "project",
+        organizationId,
+        projectId,
+        role: "builder",
+        stateRevision: 9,
+      }],
+    }).execute(
+      command("create_change", {
+        reason: "Изменён материал покрытия",
+        fromProductionPackageVersionId: "package-v1",
+        deltaCostRub: 0,
+        deltaDays: 0,
+      }),
+      "builder-change-ambiguous",
+    );
+
+    expect(result).toMatchObject({ status: "error", error: { code: "scope_conflict" } });
+    expect(calls.some((call) => call.name === "projectceo_m4_api.submit_change_request"))
+      .toBe(false);
+  });
+
+  it("keeps an unknown create_change release target at scope_conflict", async () => {
+    const calls: Call[] = [];
+    const result = await service(calls, {}, "true", {
+      projectEntries: [{
+        accessScope: "project",
+        organizationId,
+        projectId,
+        role: "builder",
+        stateRevision: 9,
+      }],
+    }).execute(
+      command("create_change", {
+        reason: "Изменён материал покрытия",
+        fromProductionPackageVersionId: "foreign-version",
+        deltaCostRub: 0,
+        deltaDays: 0,
+      }),
+      "builder-change-foreign-target",
+    );
+
+    expect(result).toMatchObject({ status: "error", error: { code: "scope_conflict" } });
+    expect(calls.some((call) => call.name === "projectceo_m4_api.submit_change_request"))
+      .toBe(false);
+  });
+
+  it("does not reach create_change RPC without a proposed active baseline", async () => {
+    const calls: Call[] = [];
+    const result = await service(calls, {
+      extensionStatus: {},
+      latestBaseline: null,
+      packageVersions: [{
+        id: "package-v1",
+        packageId,
+        baselineId: "baseline-v1",
+        versionNo: 1,
+      }],
+    }, "true", {
+      deliveryOverrides: { latestBaseline: null },
+      projectEntries: [{
+        accessScope: "project",
+        organizationId,
+        projectId,
+        role: "builder",
+        stateRevision: 9,
+      }],
+    }).execute(
+      command("create_change", {
+        reason: "Изменён материал покрытия",
+        fromProductionPackageVersionId: "package-v1",
+        deltaCostRub: 0,
+        deltaDays: 0,
+      }),
+      "builder-change-no-proposed-baseline",
+    );
+
+    expect(result).toMatchObject({ status: "unavailable", error: { code: "operation_unavailable" } });
+    expect(calls.some((call) => call.name === "projectceo_m4_api.submit_change_request"))
+      .toBe(false);
   });
 
   it("appends a human-origin decision revision without requiring pre-registered evidence", async () => {

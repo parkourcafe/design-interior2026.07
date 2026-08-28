@@ -26,7 +26,7 @@ function fakeClient(
     accessScope: "project",
     organizationId: "44444444-4444-4444-8444-444444444444",
     projectId,
-    role: "owner_lead",
+    role: "builder",
     stateRevision: 9,
   }],
 ): PostgresRpcClient {
@@ -54,6 +54,66 @@ function fakeClient(
             unresolvedImpactReviewCount: 0,
             extensionStatus: {},
           }), error: null };
+        }
+        if (schemaName === "projectceo_read_api" && functionName === "get_project_workspace_read_v11") {
+          return { data: {
+            contractVersion: "project-ceo-authenticated-read/0.1",
+            requestId: "db:authenticated-read",
+            data: {
+              approvalPackages: [],
+              decisions: [],
+              distributionSummary: [],
+              executionPackages: [],
+              extensionStatus: {},
+              latestBaseline: { id: baseline2, versionNo: 2 },
+              m2ApprovedCommits: [],
+              m2ClientReviewSubmissions: [],
+              m2ClientReviews: [],
+              m2M3Handoffs: [],
+              m2LayoutVersions: [],
+              noChangeTerminals: [],
+              packages: [
+                { id: packageA, kind: "work_package", name: "Architecture", status: "active" },
+                { id: packageB, kind: "work_package", name: "Build", status: "active" },
+              ],
+              packageVersions: [
+                { id: "package-a-v1", packageId: packageA, baselineId: baseline1, versionNo: 1 },
+                { id: "package-b-v1", packageId: packageB, baselineId: baseline1, versionNo: 1 },
+              ],
+              projectMetadata: {
+                areaM2: 1800,
+                location: "Убуд",
+                model: "full_project",
+                name: "Controlled project",
+              },
+              recipientDistributions: [],
+              releaseArtifacts: [],
+              releaseRecipients: [],
+              reviewQueue: [],
+              selections: [],
+              sourceStats: {
+                duplicateGroups: 0,
+                materializedRecords: 0,
+                physicalRecords: 0,
+                placeholders: 0,
+                quarantinedGroups: 0,
+                reviewQueue: 0,
+                uniqueBlobs: 0,
+              },
+              sources: [],
+              unresolvedImpactReviewCount: 0,
+              approvalSupersededEntities: [],
+            },
+            error: null,
+            scope: {
+              accessScope: "project",
+              actorUserId: "66666666-6666-4666-8666-666666666666",
+              organizationId: "44444444-4444-4444-8444-444444444444",
+              packageId: null,
+              projectId,
+            },
+            stateRevision: 9,
+          }, error: null };
         }
         if (schemaName === "projectceo_m4_api" && functionName === "replay_submit_change_request") {
           const key = String(args.idempotency_key);

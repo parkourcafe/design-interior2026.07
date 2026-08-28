@@ -298,9 +298,31 @@ describe("Layout Studio delivery/UI slice", () => {
       // Фаза 3a: вывод legacy-дверей выдачи/подтверждения из строя
       // (M4 backlog #2). К Layout Studio отношения не имеет.
       "20260825060000_projectceo_m4_retire_legacy_release_doors.sql",
-      // Фаза 3a: v10 чтения — approvalSupersededEntities (M4 backlog #5).
+      // Фаза 3a: v11 чтения — approvalSupersededEntities (M4 backlog #5).
+      // Перенумерована на 20260828020000 при разрешении коллизии с v10 от main.
       // К Layout Studio отношения не имеет.
-      "20260825070000_projectceo_workspace_read_v10_superseded_approvals.sql",
+      "20260828020000_projectceo_workspace_read_v11_superseded_approvals.sql",
+      "20260826010550_remhaos_integration_registry_foundation.sql",
+      "20260826010601_remhaos_integration_registry_operations.sql",
+      "20260826020840_remhaos_project_links.sql",
+      "20260826023906_remhaos_file_intake_hardening.sql",
+      "20260826030233_remhaos_telegram_staging.sql",
+      "20260826034120_remhaos_google_drive_staging.sql",
+      "20260826042000_remhaos_google_drive_webhook_operations.sql",
+      "20260826043000_remhaos_external_revision_supersession.sql",
+      "20260826044000_remhaos_google_drive_reauth_transition.sql",
+      "20260826050000_remhaos_integration_ui_read_projections.sql",
+      "20260826051000_remhaos_manual_sync_request.sql",
+      "20260826053000_remhaos_safe_import_candidate_projection.sql",
+      "20260826054000_remhaos_safe_connection_projection.sql",
+      "20260826055000_remhaos_import_candidate_target_review.sql",
+      "20260826056000_remhaos_file_intake_publish_replay.sql",
+      "20260826057000_remhaos_telegram_quarantine_key_guard.sql",
+      "20260826058000_remhaos_file_intake_worker_ingest.sql",
+      "20260827010000_remhaos_integration_gateway_transport.sql",
+      // Additive M2 retry/idempotency correction. К Layout Studio отношения не
+      // имеет.
+      "20260827150000_projectceo_m2_retry_idempotency.sql",
     ];
     const actual = readdirSync(join(repoRoot, "supabase/migrations"), { withFileTypes: true })
       // Предмет проверки — миграции, а не всё содержимое папки. Рядом с ними
@@ -338,6 +360,12 @@ describe("Layout Studio delivery/UI slice", () => {
       "20260824160000_projectceo_platform_workflow_templates.sql",
       // Фаза 2, B-блок: immutable паспорт, версии КП, договор, срок брифа.
       "20260824170000_projectceo_m1_passport_versions_contract.sql",
+      // Shared M4/AP1 prerequisite: published role-safe archive projection.
+      "20260826059000_projectceo_published_role_projection.sql",
+      // AP5 command/read boundary: builder-safe change target hint.
+      "20260828010000_projectceo_builder_change_target_read.sql",
+      // AP5 command boundary: only builder can submit field change requests.
+      "20260828011000_projectceo_builder_only_change_requests.sql",
     ]);
   });
 

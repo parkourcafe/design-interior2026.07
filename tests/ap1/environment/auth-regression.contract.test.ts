@@ -168,6 +168,8 @@ describe("managed auth regression contract", () => {
       "20260717090000_projectceo_foundation_access.sql: grant select on table auth.users to pi_table_owner",
       "20260717092000_projectceo_foundation_integration_hardening.sql: grant usage on schema auth to pi_table_owner",
       "20260717092000_projectceo_foundation_integration_hardening.sql: grant execute on function auth.jwt() to pi_table_owner",
+      "20260826010550_remhaos_integration_registry_foundation.sql: grant usage on schema auth to pi_table_owner",
+      "20260826010550_remhaos_integration_registry_foundation.sql: grant execute on function auth.uid() to pi_table_owner",
     ]);
   });
 

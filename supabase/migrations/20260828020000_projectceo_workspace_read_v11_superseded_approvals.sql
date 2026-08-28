@@ -9,7 +9,7 @@
 -- A6 §4.2.5 «поверхность не обещает того, чего сервер не выполнит».
 --
 -- ЛЕЧЕНИЕ ПО BACKLOG — «сверка состава с текущими ревизиями графа в чтении».
--- v10 оборачивает v9 (конвенция версий чтения, `20260810090000`) и добавляет
+-- v11 оборачивает v10 (конвенция версий чтения, `20260810090000`) и добавляет
 -- ровно одно поле: `data.approvalSupersededEntities` — сущности, чья
 -- ПОБЕДИВШАЯ одобренная ревизия (правило «одна ревизия на сущность»:
 -- последний по created_at одобривший пакет, тай-брейк по id — зеркало
@@ -27,7 +27,7 @@ begin;
 
 set local check_function_bodies = on;
 
-create function projectceo_read_api.get_project_workspace_read_v10(
+create function projectceo_read_api.get_project_workspace_read_v11(
   project_id uuid,
   package_id uuid default null
 )
@@ -43,7 +43,7 @@ declare
   v_org uuid;
   v_superseded jsonb;
 begin
-  v_base := projectceo_read_api.get_project_workspace_read_v9(project_id, package_id);
+  v_base := projectceo_read_api.get_project_workspace_read_v10(project_id, package_id);
   if v_base->'error' is not null and v_base->'error' <> 'null'::jsonb then
     return v_base;
   end if;
@@ -134,12 +134,12 @@ begin
 end
 $function$;
 
-alter function projectceo_read_api.get_project_workspace_read_v10(uuid, uuid)
+alter function projectceo_read_api.get_project_workspace_read_v11(uuid, uuid)
   owner to pi_table_owner;
-revoke all on function projectceo_read_api.get_project_workspace_read_v10(uuid, uuid)
+revoke all on function projectceo_read_api.get_project_workspace_read_v11(uuid, uuid)
   from public, anon, authenticated, service_role,
        pi_human_executor, pi_worker_executor;
-grant execute on function projectceo_read_api.get_project_workspace_read_v10(uuid, uuid)
+grant execute on function projectceo_read_api.get_project_workspace_read_v11(uuid, uuid)
   to authenticated;
 
 -- Обёртка без обёрнутого — 500 у пользователя (правило `20260810090000`).
@@ -150,16 +150,16 @@ begin
     from pg_catalog.pg_proc p
     join pg_catalog.pg_namespace n on n.oid = p.pronamespace
     where n.nspname = 'projectceo_read_api'
-      and p.proname = 'get_project_workspace_read_v9'
+      and p.proname = 'get_project_workspace_read_v10'
   ) then
-    raise exception 'PROJECTCEO_WORKSPACE_READ_V9_MISSING';
+    raise exception 'PROJECTCEO_WORKSPACE_READ_V10_MISSING';
   end if;
   if not has_function_privilege(
     'authenticated',
-    'projectceo_read_api.get_project_workspace_read_v10(uuid, uuid)',
+    'projectceo_read_api.get_project_workspace_read_v11(uuid, uuid)',
     'EXECUTE'
   ) then
-    raise exception 'PROJECTCEO_WORKSPACE_READ_V10_UNREACHABLE';
+    raise exception 'PROJECTCEO_WORKSPACE_READ_V11_UNREACHABLE';
   end if;
 end
 $guard$;

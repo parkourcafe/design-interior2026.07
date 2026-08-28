@@ -102,7 +102,7 @@ describe("Cycle 6 authenticated read adapter", () => {
       .getProjectWorkspaceRead({ projectId, packageId });
     const data = result.data as unknown as Record<string, unknown>;
 
-    expect(calls).toEqual(["projectceo_read_api.get_project_workspace_read_v9"]);
+    expect(calls).toEqual(["projectceo_read_api.get_project_workspace_read_v11"]);
     expect(data.m2ClientReviewSubmissions).toEqual([
       expect.objectContaining({ id: "submission-1", assignedClientUserId: "73000000-0000-4000-8000-000000000011" }),
     ]);

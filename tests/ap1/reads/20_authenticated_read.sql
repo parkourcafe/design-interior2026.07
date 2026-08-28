@@ -481,6 +481,7 @@ begin;
 set local role authenticated;
 set local request.jwt.claim.sub =
   '32222222-2222-4222-8222-222222222222';
+-- AP1 UI "designer" is the database's `architect` membership role.
 do $ap1_architect_read$
 declare
   v_read jsonb;
@@ -499,6 +500,150 @@ begin
 end
 $ap1_architect_read$;
 rollback;
+
+begin;
+set local role authenticated;
+set local request.jwt.claim.sub =
+  '35555555-5555-4555-8555-555555555555';
+set local request.jwt.claims =
+  '{"role":"owner_lead","projectRole":"owner","sub":"35555555-5555-4555-8555-555555555555"}';
+do $ap1_package_client_read$
+declare
+  v_read jsonb;
+  v_legacy jsonb;
+begin
+  v_read := projectceo_read_api.get_project_workspace_read(
+    '41111111-1111-4111-8111-111111111111',
+    '41111111-1111-4111-8111-111111111111'
+  );
+  if v_read #>> '{scope,accessScope}' <> 'package'
+     or jsonb_array_length(v_read #> '{data,packages}') <> 1
+     or jsonb_array_length(v_read #> '{data,packageVersions}') <> 1
+     or jsonb_array_length(v_read #> '{data,releaseArtifacts}') <> 1
+     or jsonb_array_length(v_read #> '{data,recipientDistributions}') <> 1
+     or jsonb_array_length(v_read #> '{data,releaseRecipients}') <> 0
+     or jsonb_array_length(v_read #> '{data,sources}') <> 0
+     or jsonb_array_length(v_read #> '{data,executionPackages}') <> 0
+     or (v_read #>> '{data,sourceStats,physicalRecords}')::bigint <> 0
+     or (v_read #>> '{data,sourceStats,uniqueBlobs}')::bigint <> 0
+     or jsonb_array_length(v_read #> '{data,decisions}') <> 1
+     or jsonb_array_length(v_read #> '{data,selections}') <> 1
+     or v_read #>> '{data,selections,0,priceObservation}' is not null
+     or jsonb_array_length(v_read #> '{data,selections,0,evidence}') <> 0
+     or jsonb_array_length(v_read #> '{data,decisions,0,evidence}') <> 0
+     or v_read #> '{data,packageVersions,0}' ? 'exactRevisionRefs'
+  then
+    raise exception 'AP1_PACKAGE_CLIENT_READ_INVALID:%', v_read;
+  end if;
+
+  -- A fake owner claim must not change the membership-derived client role.
+  if v_read #>> '{data,projectMetadata,name}' <> 'Foundation A'
+     or v_read #> '{data,releaseRecipients}' <> '[]'::jsonb
+  then
+    raise exception 'AP1_ROLE_SPOOFING_CHANGED_CLIENT_PROJECTION:%', v_read;
+  end if;
+
+  v_legacy := projectceo_api.get_project_delivery(
+    '41111111-1111-4111-8111-111111111111',
+    '41111111-1111-4111-8111-111111111111'
+  );
+  if jsonb_array_length(v_legacy #> '{data,distributions}') <> 1
+     or jsonb_array_length(v_legacy #> '{data,packageVersions}') <> 1
+  then
+    raise exception 'AP1_LEGACY_CLIENT_PROJECTION_INVALID:%', v_legacy;
+  end if;
+
+  if not exists (
+    select 1
+    from jsonb_array_elements(v_read #> '{data,distributionSummary}') summary
+    where (summary ->> 'recipientCount')::bigint = 1
+      and (summary ->> 'acknowledgementCount')::bigint = 1
+  ) then
+    raise exception 'AP1_PACKAGE_CLIENT_DISTRIBUTION_AGGREGATE_INVALID';
+  end if;
+end
+$ap1_package_client_read$;
+rollback;
+
+do $ap1_unpublished_projection_denied$
+declare
+  v_projected jsonb;
+begin
+  v_projected := projectceo_read_api._published_role_projection(
+    jsonb_build_object(
+      'latestBaseline', jsonb_build_object('id', 'draft-baseline'),
+      'packageVersions', jsonb_build_array(
+        jsonb_build_object(
+          'baselineId', 'draft-baseline',
+          'id', 'draft-version',
+          'packageId', '41111111-1111-4111-8111-111111111111',
+          'publishedAt', null,
+          'semanticHash', 'sha256:' || repeat('d', 64),
+          'status', 'draft',
+          'versionNo', 2
+        ),
+        jsonb_build_object(
+          'baselineId', 'published-baseline',
+          'id', 'published-version',
+          'packageId', '41111111-1111-4111-8111-111111111111',
+          'publishedAt', '2026-08-27T00:00:00Z',
+          'semanticHash', 'sha256:' || repeat('p', 64),
+          'status', 'published',
+          'versionNo', 1
+        )
+      ),
+      'recipientDistributions', jsonb_build_array(
+        jsonb_build_object(
+          'acknowledged', false,
+          'distributionId', 'draft-distribution',
+          'productionPackageVersionId', 'draft-version'
+        ),
+        jsonb_build_object(
+          'acknowledged', true,
+          'distributionId', 'published-distribution',
+          'productionPackageVersionId', 'published-version'
+        )
+      ),
+      'packages', jsonb_build_array(jsonb_build_object(
+        'id', '41111111-1111-4111-8111-111111111111',
+        'kind', 'project_root',
+        'name', 'Foundation A',
+        'status', 'active'
+      )),
+      'releaseArtifacts', jsonb_build_array(
+        jsonb_build_object(
+          'id', 'draft-artifact',
+          'productionPackageVersionId', 'draft-version'
+        ),
+        jsonb_build_object(
+          'id', 'published-artifact',
+          'productionPackageVersionId', 'published-version'
+        )
+      ),
+      'projectMetadata', jsonb_build_object(
+        'areaM2', 1800,
+        'location', 'Tashkent',
+        'name', 'Foundation A'
+      )
+    ),
+    'client_approver',
+    '41111111-1111-4111-8111-111111111111',
+    'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'
+  );
+
+  if jsonb_array_length(v_projected -> 'packageVersions') <> 1
+     or v_projected #>> '{packageVersions,0,id}' <> 'published-version'
+     or jsonb_array_length(v_projected -> 'recipientDistributions') <> 1
+     or v_projected #>> '{recipientDistributions,0,distributionId}' <>
+       'published-distribution'
+     or jsonb_array_length(v_projected -> 'releaseArtifacts') <> 1
+     or v_projected::text like '%draft-version%'
+     or v_projected::text like '%draft-distribution%'
+  then
+    raise exception 'AP1_UNPUBLISHED_DATA_LEAK:%', v_projected;
+  end if;
+end
+$ap1_unpublished_projection_denied$;
 
 begin;
 set local role authenticated;

@@ -58,8 +58,8 @@ function validateExternalM2(external: PilotManifest): void {
   const exercise = object(external.authenticatedExercise); const operations = array(exercise.operations).map(object);
   const required = ["publish_m2_layout_version", "submit_m2_client_review", "review_m2_client_submission", "publish_m2_m3_handoff"];
   if (exercise.environment !== "disposable" || exercise.productionChanged !== false
-    || required.some((kind) => !operations.some((item) => item.kind === kind && item.status === "completed" && item.replayVerified === true))
-    || exercise.auditVerified !== true || exercise.privacyVerified !== true || exercise.tenancyVerified !== true || exercise.restartVerified !== true) {
+    || required.some((kind) => !operations.some((item) => item.kind === kind && item.status === "pending" && item.replayVerified === false))
+    || exercise.auditVerified !== false || exercise.privacyVerified !== false || exercise.tenancyVerified !== false || exercise.restartVerified !== false) {
     throw new Error("CYCLE7_EXTERNAL_AUTHENTICATED_EXERCISE_REQUIRED");
   }
 }
@@ -68,6 +68,7 @@ export function validateExternalPilot(external: PilotManifest, kora: PilotManife
   readonly status: "MANIFEST_VALIDATED_PENDING_RUN";
   readonly manifestDigest: `sha256:${string}`;
 } {
+  if (external.status !== "pending") throw new Error("CYCLE7_EXTERNAL_MANIFEST_MUST_BE_PENDING");
   if (external.synthetic !== false || FORBIDDEN_EXTERNAL.test(JSON.stringify(external))) throw new Error("CYCLE7_EXTERNAL_SYNTHETIC_FORBIDDEN");
   const provenance = object(external.provenance);
   if (provenance.kind !== "external_real_package" || text(provenance.provider).length < 1 || !timestamp(provenance.receivedAt)) {

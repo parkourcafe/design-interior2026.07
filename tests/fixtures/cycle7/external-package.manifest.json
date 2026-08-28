@@ -1,0 +1,227 @@
+{
+  "contractVersion": "archidom.m2-pilot-evidence/0.1",
+  "status": "pending",
+  "evidenceClass": "external_real_package_operator_prepared",
+  "synthetic": false,
+  "provenance": {
+    "kind": "external_real_package",
+    "provider": "Operator-prepared Tashkent package from supplied PDF set",
+    "receivedAt": "2026-08-27T00:00:00Z",
+    "contentAssessment": "Technical package identity is external; prices and selections require commercial confirmation."
+  },
+  "project": {
+    "name": "Tashkent Courtyard House",
+    "model": "full_project",
+    "areaM2": 340,
+    "city": "Tashkent",
+    "country": "Uzbekistan",
+    "organizationId": "a1111111-1111-4111-8111-111111111111",
+    "projectId": "a2222222-2222-4222-8222-222222222222"
+  },
+  "scope": {
+    "organizationId": "a1111111-1111-4111-8111-111111111111",
+    "projectId": "a2222222-2222-4222-8222-222222222222",
+    "packageId": "a3333333-3333-4333-8333-333333333333",
+    "roomId": "tashkent-ground-floor-living-kitchen",
+    "label": "Первый этаж: входная зона, кухня и гостиная"
+  },
+  "sources": [
+    {
+      "externalRef": "operator-supplied/facade.pdf",
+      "type": "pdf",
+      "checksum": "sha256:397190df1a8d96053dc7e4fb7f9952a36a522e4c9356cd71d3312fb599594ced",
+      "page": 1,
+      "sheet": "Фасад по осям 1-4",
+      "fragment": "tashkent-fragment-facade",
+      "verbatim": "Фасад по осям 1-4; отметки +10.000, +8.000, +7.600, +4.200, +3.800, +600, 0.000, -2.200",
+      "extracted": "Vertical envelope and level markers for the two-storey house with basement.",
+      "interpreted": "Use facade levels as envelope context; do not infer structural adequacy from this sheet alone.",
+      "unverified": "Structural design, local code compliance and current issue status."
+    },
+    {
+      "externalRef": "operator-supplied/sections-b-b-3-3.pdf",
+      "type": "pdf",
+      "checksum": "sha256:29b7e87969ab6335856e443d381cb1906647fbfd1230caabba33615e744074bf",
+      "page": 1,
+      "sheet": "Разрез В-В / Разрез 3-3",
+      "fragment": "tashkent-fragment-sections",
+      "verbatim": "Разрез В-В; Разрез 3-3; размеры 600, 3200, 400, 2200, 1000, 800, 2000",
+      "extracted": "Section heights, basement level and selected opening dimensions.",
+      "interpreted": "Use section dimensions for an operator-prepared layout envelope and clearance notes.",
+      "unverified": "Dimension scale fidelity, construction tolerances and engineering coordination."
+    },
+    {
+      "externalRef": "operator-supplied/01.pdf",
+      "type": "pdf",
+      "checksum": "sha256:a5e08b87485c34978f3305909d0d8198cf867e7fb7981926ff965c3057d65c91",
+      "page": 1,
+      "sheet": "План 1-го этажа",
+      "fragment": "tashkent-fragment-plan-ground",
+      "verbatim": "1 Входная зона 9.3 м²; 2 Холл 25.1 м²; 3 Санузел 6 м²; 4 Кухня 11.7 м²; 5 Гостиная 39.9 м²; 6 Спальня 1 19.6 м²; 7 Спальня 2 18 м²; 8 Двор 74.9 м²",
+      "extracted": "Ground-floor room schedule and the selected kitchen/living scope.",
+      "interpreted": "Selected operator scope combines kitchen and living room for three preparation variants.",
+      "unverified": "Whether the schedule is the latest approved issue and whether listed areas are net or gross."
+    },
+    {
+      "externalRef": "operator-supplied/-1.pdf",
+      "type": "pdf",
+      "checksum": "sha256:5ef216af32df8cc884e128fde063d08427d3c15e467f3aa7a9d479c8e17175d0",
+      "page": 1,
+      "sheet": "План подвала",
+      "fragment": "tashkent-fragment-basement",
+      "verbatim": "1 Котельная 7.5 м²",
+      "extracted": "Basement boiler-room area and basement presence.",
+      "interpreted": "Retain utilities as a coordination dependency for the selected ground-floor scope.",
+      "unverified": "Equipment schedule, routing, ventilation and service clearances."
+    },
+    {
+      "externalRef": "operator-supplied/02.pdf",
+      "type": "pdf",
+      "checksum": "sha256:996122d03cf41c8ad73e02316bb8d6df4c0d79bf7f7e784a1d6f1a049911fb5e",
+      "page": 1,
+      "sheet": "План 2-го этажа",
+      "fragment": "tashkent-fragment-upper",
+      "verbatim": "1 Холл 21 м²; 2 Санузел 7 м²; 3 Спальня 1 27.4 м²; 4 Спальня 2 23.4 м²; 5 Спальня 3 19.6 м²; 6 Гостиная 29.6 м²",
+      "extracted": "Upper-floor room schedule used as project context beyond the selected scope.",
+      "interpreted": "Keep second-floor circulation and wet-area adjacency as a coordination note, not as a selected M2 room.",
+      "unverified": "Fit-out scope, furniture brief and any changes after the supplied drawing issue."
+    }
+  ],
+  "priceSources": [
+    { "supplier": "Tashkent operator estimate A", "url": null, "source": "operator worksheet", "accessDate": "2026-08-27", "item": "Floor finish", "unit": "m²", "originalPrice": 185000, "currency": "UZS", "availability": "to_confirm", "rateSource": "operator normalization input", "rateDate": "2026-08-27", "rateToRub": 0.0068, "valueRub": 1258, "formula": "round(185000 UZS × 0.0068 RUB/UZS)", "status": "unverified_operator_observation" },
+    { "supplier": "Tashkent operator estimate B", "url": null, "source": "operator worksheet", "accessDate": "2026-08-27", "item": "Wall finish", "unit": "m²", "originalPrice": 145000, "currency": "UZS", "availability": "to_confirm", "rateSource": "operator normalization input", "rateDate": "2026-08-27", "rateToRub": 0.0068, "valueRub": 986, "formula": "round(145000 UZS × 0.0068 RUB/UZS)", "status": "unverified_operator_observation" },
+    { "supplier": "Tashkent operator estimate C", "url": null, "source": "operator worksheet", "accessDate": "2026-08-27", "item": "Kitchen fronts and carcass", "unit": "set", "originalPrice": 18500000, "currency": "UZS", "availability": "to_confirm", "rateSource": "operator normalization input", "rateDate": "2026-08-27", "rateToRub": 0.0068, "valueRub": 125800, "formula": "round(18500000 UZS × 0.0068 RUB/UZS)", "status": "unverified_operator_observation" },
+    { "supplier": "Tashkent operator estimate D", "url": null, "source": "operator worksheet", "accessDate": "2026-08-27", "item": "Quartz worktop", "unit": "m²", "originalPrice": 2100000, "currency": "UZS", "availability": "to_confirm", "rateSource": "operator normalization input", "rateDate": "2026-08-27", "rateToRub": 0.0068, "valueRub": 14280, "formula": "round(2100000 UZS × 0.0068 RUB/UZS)", "status": "unverified_operator_observation" },
+    { "supplier": "Tashkent operator estimate E", "url": null, "source": "operator worksheet", "accessDate": "2026-08-27", "item": "Interior doors", "unit": "pcs", "originalPrice": 2650000, "currency": "UZS", "availability": "to_confirm", "rateSource": "operator normalization input", "rateDate": "2026-08-27", "rateToRub": 0.0068, "valueRub": 18020, "formula": "round(2650000 UZS × 0.0068 RUB/UZS)", "status": "unverified_operator_observation" },
+    { "supplier": "Tashkent operator estimate F", "url": null, "source": "operator worksheet", "accessDate": "2026-08-27", "item": "Track lighting", "unit": "set", "originalPrice": 3900000, "currency": "UZS", "availability": "to_confirm", "rateSource": "operator normalization input", "rateDate": "2026-08-27", "rateToRub": 0.0068, "valueRub": 26520, "formula": "round(3900000 UZS × 0.0068 RUB/UZS)", "status": "unverified_operator_observation" },
+    { "supplier": "Tashkent operator estimate G", "url": null, "source": "operator worksheet", "accessDate": "2026-08-27", "item": "Sanitary fixtures", "unit": "set", "originalPrice": 4800000, "currency": "UZS", "availability": "to_confirm", "rateSource": "operator normalization input", "rateDate": "2026-08-27", "rateToRub": 0.0068, "valueRub": 32640, "formula": "round(4800000 UZS × 0.0068 RUB/UZS)", "status": "unverified_operator_observation" },
+    { "supplier": "Tashkent operator estimate H", "url": null, "source": "operator worksheet", "accessDate": "2026-08-27", "item": "Built-in storage", "unit": "m", "originalPrice": 3200000, "currency": "UZS", "availability": "to_confirm", "rateSource": "operator normalization input", "rateDate": "2026-08-27", "rateToRub": 0.0068, "valueRub": 21760, "formula": "round(3200000 UZS × 0.0068 RUB/UZS)", "status": "unverified_operator_observation" },
+    { "supplier": "Tashkent operator estimate I", "url": null, "source": "operator worksheet", "accessDate": "2026-08-27", "item": "Installation allowance", "unit": "lot", "originalPrice": 7600000, "currency": "UZS", "availability": "to_confirm", "rateSource": "operator normalization input", "rateDate": "2026-08-27", "rateToRub": 0.0068, "valueRub": 51680, "formula": "round(7600000 UZS × 0.0068 RUB/UZS)", "status": "unverified_operator_observation" }
+  ],
+  "selectedScope": {
+    "packageId": "a3333333-3333-4333-8333-333333333333",
+    "roomId": "tashkent-ground-floor-living-kitchen",
+    "label": "Кухня и гостиная первого этажа",
+    "preparationMode": "operator_prepared_variants"
+  },
+  "m2": {
+    "roomId": "tashkent-ground-floor-living-kitchen",
+    "approvalPackageId": "ap6-tashkent-approval-20260827",
+    "designIntentRevisionId": "tashkent-design-intent-r1",
+    "submissionId": "ap6-tashkent-submission-20260827",
+    "submissionRevisionId": "a4444444-4444-4444-8444-444444444444",
+    "reviewRevisionId": "a5555555-5555-4555-8555-555555555555",
+    "handoffId": "ap6-tashkent-handoff-20260827",
+    "handoffRevisionId": "a6666666-6666-4666-8666-666666666666",
+    "approvedCommitId": "approved-ap6-tashkent-submission-20260827",
+    "approvedCommitRevisionId": "a5555555-5555-4555-8555-555555555555",
+    "budgetAsOf": "2026-08-27T00:00:00Z",
+    "staleAfterDays": 30,
+    "variants": [
+      {
+        "variantId": "tashkent-preferred",
+        "role": "preferred",
+        "layoutDocumentId": "tashkent-layout-preferred",
+        "layoutVersionId": "tashkent-layout-preferred-v1",
+        "layoutRevisionId": "a7777777-7777-4777-8777-777777777777",
+        "semanticHash": "sha256:dfddaf154b51e0e6544f4d463cafc11ced65dda82266b7aaa340829e3d1c479a",
+        "selectionRevisionIds": ["tashkent-selection-floor-r1", "tashkent-selection-wall-r1", "tashkent-selection-kitchen-r1"],
+        "selections": [
+          { "revisionId": "tashkent-selection-floor-r1", "item": "Floor finish", "priceObservation": { "amountRub": 1258, "observedAt": "2026-08-27T00:00:00Z", "evidence": { "sourceRevisionId": "tashkent-source-facade-r1", "evidenceLinkId": "tashkent-evidence-facade", "fragmentId": "tashkent-fragment-facade" } } },
+          { "revisionId": "tashkent-selection-wall-r1", "item": "Wall finish", "priceObservation": { "amountRub": 986, "observedAt": "2026-08-27T00:00:00Z", "evidence": { "sourceRevisionId": "tashkent-source-plan-ground-r1", "evidenceLinkId": "tashkent-evidence-ground", "fragmentId": "tashkent-fragment-ground" } } },
+          { "revisionId": "tashkent-selection-kitchen-r1", "item": "Kitchen fronts and carcass", "priceObservation": { "amountRub": 125800, "observedAt": "2026-08-27T00:00:00Z", "evidence": { "sourceRevisionId": "tashkent-source-plan-ground-r1", "evidenceLinkId": "tashkent-evidence-ground", "fragmentId": "tashkent-fragment-ground" } } }
+        ],
+        "budget": { "amountRub": 128044, "staleSelectionRevisionIds": [], "missingPriceSelectionRevisionIds": [] },
+        "layoutContent": {
+          "contractVersion": "archidom.layout-document/0.1",
+          "documentId": "tashkent-layout-preferred",
+          "projectId": "a2222222-2222-4222-8222-222222222222",
+          "name": "Кухня-гостиная · Preferred",
+          "canonicalUnits": "mm",
+          "stateRevision": 0,
+          "floor": { "id": "tashkent-floor-1", "label": "Этаж 1", "elevationMm": 0, "clearHeightMm": 3200 },
+          "variant": { "id": "tashkent-preferred", "label": "Preferred", "status": "published" },
+          "nodes": [ { "id": "tashkent-node-a", "xMm": 0, "yMm": 0, "locked": false }, { "id": "tashkent-node-b", "xMm": 6200, "yMm": 0, "locked": false } ],
+          "walls": [ { "id": "tashkent-wall-a", "startNodeId": "tashkent-node-a", "endNodeId": "tashkent-node-b", "thicknessMm": 200, "heightMm": 3200, "kind": "partition", "locked": false } ],
+          "openings": [ { "id": "tashkent-opening-a", "parentWallId": "tashkent-wall-a", "offsetMm": 900, "widthMm": 900, "heightMm": 2200, "sillMm": 0, "kind": "door", "locked": false } ],
+          "columns": [], "objects": [], "clearanceZones": [], "materials": [], "materialAssignments": [], "lights": [],
+          "metadata": { "sourceRefs": ["tashkent-source-plan-ground-r1", "tashkent-source-sections-r1"], "warnings": [] }
+        }
+      },
+      {
+        "variantId": "tashkent-value",
+        "role": "value_engineered",
+        "layoutDocumentId": "tashkent-layout-value",
+        "layoutVersionId": "tashkent-layout-value-v1",
+        "layoutRevisionId": "a8888888-8888-4888-8888-888888888888",
+        "semanticHash": "sha256:d3f415b90fa052f5f7329c8368963af7d6eae8940acebdf54d8fb7e972b1fd6d",
+        "selectionRevisionIds": ["tashkent-selection-floor-r1", "tashkent-selection-wall-r1", "tashkent-selection-kitchen-r1"],
+        "selections": [
+          { "revisionId": "tashkent-selection-floor-r1", "item": "Floor finish", "priceObservation": { "amountRub": 1258, "observedAt": "2026-08-27T00:00:00Z", "evidence": { "sourceRevisionId": "tashkent-source-facade-r1", "evidenceLinkId": "tashkent-evidence-facade", "fragmentId": "tashkent-fragment-facade" } } },
+          { "revisionId": "tashkent-selection-wall-r1", "item": "Wall finish", "priceObservation": { "amountRub": 986, "observedAt": "2026-08-27T00:00:00Z", "evidence": { "sourceRevisionId": "tashkent-source-plan-ground-r1", "evidenceLinkId": "tashkent-evidence-ground", "fragmentId": "tashkent-fragment-ground" } } },
+          { "revisionId": "tashkent-selection-kitchen-r1", "item": "Kitchen fronts and carcass", "priceObservation": { "amountRub": 125800, "observedAt": "2026-08-27T00:00:00Z", "evidence": { "sourceRevisionId": "tashkent-source-plan-ground-r1", "evidenceLinkId": "tashkent-evidence-ground", "fragmentId": "tashkent-fragment-ground" } } }
+        ],
+        "budget": { "amountRub": 128044, "staleSelectionRevisionIds": [], "missingPriceSelectionRevisionIds": [] },
+        "layoutContent": {
+          "contractVersion": "archidom.layout-document/0.1",
+          "documentId": "tashkent-layout-value",
+          "projectId": "a2222222-2222-4222-8222-222222222222",
+          "name": "Кухня-гостиная · Value engineered",
+          "canonicalUnits": "mm",
+          "stateRevision": 0,
+          "floor": { "id": "tashkent-floor-1", "label": "Этаж 1", "elevationMm": 0, "clearHeightMm": 3200 },
+          "variant": { "id": "tashkent-value", "label": "Value engineered", "status": "published" },
+          "nodes": [ { "id": "tashkent-value-node-a", "xMm": 0, "yMm": 0, "locked": false }, { "id": "tashkent-value-node-b", "xMm": 5800, "yMm": 0, "locked": false } ],
+          "walls": [ { "id": "tashkent-value-wall-a", "startNodeId": "tashkent-value-node-a", "endNodeId": "tashkent-value-node-b", "thicknessMm": 200, "heightMm": 3200, "kind": "partition", "locked": false } ],
+          "openings": [ { "id": "tashkent-value-opening-a", "parentWallId": "tashkent-value-wall-a", "offsetMm": 900, "widthMm": 800, "heightMm": 2100, "sillMm": 0, "kind": "door", "locked": false } ],
+          "columns": [], "objects": [], "clearanceZones": [], "materials": [], "materialAssignments": [], "lights": [],
+          "metadata": { "sourceRefs": ["tashkent-source-plan-ground-r1", "tashkent-source-sections-r1"], "warnings": [] }
+        }
+      },
+      {
+        "variantId": "tashkent-premium",
+        "role": "premium",
+        "layoutDocumentId": "tashkent-layout-premium",
+        "layoutVersionId": "tashkent-layout-premium-v1",
+        "layoutRevisionId": "a9999999-9999-4999-8999-999999999999",
+        "semanticHash": "sha256:8589e7bab79d3d514cd9262d8a7dc6b0d819ec2e50f6a6b40472414c46c68d47",
+        "selectionRevisionIds": ["tashkent-selection-floor-r1", "tashkent-selection-wall-r1", "tashkent-selection-kitchen-r1"],
+        "selections": [
+          { "revisionId": "tashkent-selection-floor-r1", "item": "Floor finish", "priceObservation": { "amountRub": 1258, "observedAt": "2026-08-27T00:00:00Z", "evidence": { "sourceRevisionId": "tashkent-source-facade-r1", "evidenceLinkId": "tashkent-evidence-facade", "fragmentId": "tashkent-fragment-facade" } } },
+          { "revisionId": "tashkent-selection-wall-r1", "item": "Wall finish", "priceObservation": { "amountRub": 986, "observedAt": "2026-08-27T00:00:00Z", "evidence": { "sourceRevisionId": "tashkent-source-plan-ground-r1", "evidenceLinkId": "tashkent-evidence-ground", "fragmentId": "tashkent-fragment-ground" } } },
+          { "revisionId": "tashkent-selection-kitchen-r1", "item": "Kitchen fronts and carcass", "priceObservation": { "amountRub": 125800, "observedAt": "2026-08-27T00:00:00Z", "evidence": { "sourceRevisionId": "tashkent-source-plan-ground-r1", "evidenceLinkId": "tashkent-evidence-ground", "fragmentId": "tashkent-fragment-ground" } } }
+        ],
+        "budget": { "amountRub": 128044, "staleSelectionRevisionIds": [], "missingPriceSelectionRevisionIds": [] },
+        "layoutContent": {
+          "contractVersion": "archidom.layout-document/0.1",
+          "documentId": "tashkent-layout-premium",
+          "projectId": "a2222222-2222-4222-8222-222222222222",
+          "name": "Кухня-гостиная · Premium",
+          "canonicalUnits": "mm",
+          "stateRevision": 0,
+          "floor": { "id": "tashkent-floor-1", "label": "Этаж 1", "elevationMm": 0, "clearHeightMm": 3200 },
+          "variant": { "id": "tashkent-premium", "label": "Premium", "status": "published" },
+          "nodes": [ { "id": "tashkent-premium-node-a", "xMm": 0, "yMm": 0, "locked": false }, { "id": "tashkent-premium-node-b", "xMm": 6800, "yMm": 0, "locked": false } ],
+          "walls": [ { "id": "tashkent-premium-wall-a", "startNodeId": "tashkent-premium-node-a", "endNodeId": "tashkent-premium-node-b", "thicknessMm": 200, "heightMm": 3200, "kind": "partition", "locked": false } ],
+          "openings": [ { "id": "tashkent-premium-opening-a", "parentWallId": "tashkent-premium-wall-a", "offsetMm": 1000, "widthMm": 1000, "heightMm": 2300, "sillMm": 0, "kind": "door", "locked": false } ],
+          "columns": [], "objects": [], "clearanceZones": [], "materials": [], "materialAssignments": [], "lights": [],
+          "metadata": { "sourceRefs": ["tashkent-source-plan-ground-r1", "tashkent-source-sections-r1"], "warnings": [] }
+        }
+      }
+    ]
+  },
+  "authenticatedExercise": {
+    "environment": "disposable",
+    "productionChanged": false,
+    "operations": [
+      { "kind": "publish_m2_layout_version", "status": "pending", "replayVerified": false },
+      { "kind": "submit_m2_client_review", "status": "pending", "replayVerified": false },
+      { "kind": "review_m2_client_submission", "status": "pending", "replayVerified": false },
+      { "kind": "publish_m2_m3_handoff", "status": "pending", "replayVerified": false }
+    ],
+    "auditVerified": false,
+    "privacyVerified": false,
+    "tenancyVerified": false,
+    "restartVerified": false
+  }
+}

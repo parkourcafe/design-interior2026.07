@@ -12,12 +12,12 @@ function fabricatedManifest() {
     selections: [{ revisionId: `selection-${index + 1}`, priceObservation: { amountRub: 125000,
       observedAt: "2026-08-06T10:00:00Z", evidence: { sourceRevisionId: "source-r1", evidenceLinkId: "evidence-1", fragmentId: "fragment-1" } } }],
   }));
-  return { synthetic: false, provenance: { kind: "external_real_package", provider: "external-provider", receivedAt: "2026-08-06T10:00:00Z" },
+  return { status: "pending", synthetic: false, provenance: { kind: "external_real_package", provider: "external-provider", receivedAt: "2026-08-06T10:00:00Z" },
     project: { name: "External venue" }, scope: { organizationId: "71111111-1111-4111-8111-111111111111", projectId: "72222222-2222-4222-8222-222222222222", packageId: "73333333-3333-4333-8333-333333333333", roomId: "external-room" },
     sources: [{ externalRef: "provider-document-1", checksum: `sha256:${"a".repeat(64)}` }], m2: { variants },
     authenticatedExercise: { environment: "disposable", productionChanged: false,
-      operations: ["publish_m2_layout_version", "submit_m2_client_review", "review_m2_client_submission", "publish_m2_m3_handoff"].map((kind) => ({ kind, status: "completed", replayVerified: true })),
-      auditVerified: true, privacyVerified: true, tenancyVerified: true, restartVerified: true } };
+      operations: ["publish_m2_layout_version", "submit_m2_client_review", "review_m2_client_submission", "publish_m2_m3_handoff"].map((kind) => ({ kind, status: "pending", replayVerified: false })),
+      auditVerified: false, privacyVerified: false, tenancyVerified: false, restartVerified: false } };
 }
 
 describe("Cycle 7 executable M2 pilot evidence gate", () => {
@@ -36,7 +36,7 @@ describe("Cycle 7 executable M2 pilot evidence gate", () => {
 
   it("fails closed for absent provenance, synthetic packages and Kora clones", () => {
     const kora = readPilotManifest(koraPath);
-    const base = { synthetic: false, provenance: { kind: "external_real_package", provider: "supplier", receivedAt: "2026-08-06T10:00:00Z" },
+    const base = { status: "pending", synthetic: false, provenance: { kind: "external_real_package", provider: "supplier", receivedAt: "2026-08-06T10:00:00Z" },
       project: { name: "External package" }, scope: { organizationId: "71111111-1111-4111-8111-111111111111", projectId: "72222222-2222-4222-8222-222222222222", packageId: "73333333-3333-4333-8333-333333333333", roomId: "external-room" },
       sources: [{ externalRef: "provider-document-1", checksum: `sha256:${"a".repeat(64)}` }] };
     expect(() => validateExternalPilot({ ...base, synthetic: true }, kora)).toThrow("CYCLE7_EXTERNAL_SYNTHETIC_FORBIDDEN");

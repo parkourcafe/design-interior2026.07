@@ -111,7 +111,8 @@ redact() {
     s{postgres(?:ql)?://[^:@/\s]+:[^@\s]+@}{postgresql://[redacted]@}g;
     s{eyJ[A-Za-z0-9_=-]{10,}\.[A-Za-z0-9_=-]{10,}\.[A-Za-z0-9_=-]{10,}}{[jwt-redacted]}g;
     s{sb(?:p|_secret|_publishable)_[A-Za-z0-9]{10,}}{[supabase-key-redacted]}g;
-    if (/(?:key|secret|token|password|jwt|dsn)\s*[:=]\s*\S/i) {
+    s{\bBearer\s+[A-Za-z0-9._~+/-]+=*}{Bearer [redacted]}gi;
+    if (/(?:authorization|cookie|session storage|magic[-_ ]?link|token_hash|access_token|refresh_token|key|secret|token|password|jwt|dsn)\s*[:=]\s*\S/i) {
       $_ = "[credential line redacted]
 ";
     }

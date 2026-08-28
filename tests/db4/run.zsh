@@ -56,6 +56,7 @@ for sql in \
   "${repo_root}/tests/db4/06_m3_surface_classification.sql" \
   "${repo_root}/tests/db4/07_m4_execution_boundary.sql" \
   "${repo_root}/tests/db4/08_m4_surface_classification.sql" \
+  "${repo_root}/tests/db4/55_m4_v2_v3_compatibility.sql" \
   "${repo_root}/tests/ap1/environment/enable-m3-publication.sql" \
   "${repo_root}/tests/ap1/environment/enable-m4-increment-1.sql" \
   "${repo_root}/tests/ap1/environment/enable-m4-v1-impact.sql" \
