@@ -288,6 +288,9 @@ function fakeClient(calls: Call[], options: FakeClientOptions = {}): PostgresRpc
         if (name === "projectceo_read_api.get_project_workspace_read_v10") {
           return { data: authenticatedRead(options.readOverrides), error: null };
         }
+        if (name === "projectceo_read_api.get_project_workspace_read_v11") {
+          return { data: authenticatedRead(options.readOverrides), error: null };
+        }
         if (name === "projectceo_m4_api.get_execution_delivery") {
           return { data: executionDelivery(), error: null };
         }

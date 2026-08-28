@@ -82,7 +82,13 @@ for sql in \
   "${repo_root}/tests/db4/50_platform_ai_calls_operations.sql" \
   "${repo_root}/tests/db4/51_platform_approval_requests_operations.sql" \
   "${repo_root}/tests/db4/52_platform_workflow_templates_operations.sql" \
-  "${repo_root}/tests/db4/53_m1_passport_versions_contract.sql"; do
+  "${repo_root}/tests/db4/53_m1_passport_versions_contract.sql" \
+  "${repo_root}/tests/db4/49_platform_module_switch.sql" \
+  "${repo_root}/tests/db4/50_released_archive_read.sql" \
+  "${repo_root}/tests/db4/51_publish_baseline_door.sql" \
+  "${repo_root}/tests/db4/52_source_ingest_worker.sql" \
+  "${repo_root}/tests/db4/53_m3_read_gate.sql" \
+  "${repo_root}/tests/db4/54_workspace_read_superseded_approvals.sql"; do
   print -r -- "Running ${sql:t}"
   run_file "${sql}"
 done

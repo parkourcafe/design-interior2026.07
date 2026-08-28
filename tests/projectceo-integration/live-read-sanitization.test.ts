@@ -30,7 +30,7 @@ function fakeClient(
       if (schemaName === "projectceo_api" && functionName === "list_projects") {
         return { data: foundation(projectEntries), error: null };
       }
-      if (schemaName === "projectceo_read_api" && functionName === "get_project_workspace_read_v10") {
+      if (schemaName === "projectceo_read_api" && functionName === "get_project_workspace_read_v11") {
         return { data: {
           contractVersion: "project-ceo-authenticated-read/0.1",
           requestId: "db:authenticated-read",
@@ -99,6 +99,7 @@ function fakeClient(
               { id: "source-archive", sourceRevisionId: "source-archive-r1", packageId, checksum: "b".repeat(64), mediaType: "application/zip", sourceRole: "document", documentStatus: "current", availability: "materialized", reviewStatus: "confirmed" },
             ],
             unresolvedImpactReviewCount: 0,
+            approvalSupersededEntities: [],
             ...productOverrides,
           },
           error: null,
@@ -666,7 +667,7 @@ describe("ProjectCEO live DTO sanitizer", () => {
 
   it("fails closed when a required downstream read returns an error envelope", async () => {
     for (const functionName of [
-      "get_project_workspace_read_v10",
+      "get_project_workspace_read_v11",
       "list_project_access",
       "get_audit_timeline",
     ]) {

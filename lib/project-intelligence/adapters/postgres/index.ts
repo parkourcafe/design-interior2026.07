@@ -5,5 +5,6 @@ export * from "./documentation";
 export * from "./errors";
 export * from "./execution";
 export * from "./foundation";
+export * from "./ingest-worker";
 export * from "./project-brain";
 export * from "./rpc";

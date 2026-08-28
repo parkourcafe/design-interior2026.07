@@ -55,7 +55,7 @@ function fakeClient(
             extensionStatus: {},
           }), error: null };
         }
-        if (schemaName === "projectceo_read_api" && functionName === "get_project_workspace_read_v10") {
+        if (schemaName === "projectceo_read_api" && functionName === "get_project_workspace_read_v11") {
           return { data: {
             contractVersion: "project-ceo-authenticated-read/0.1",
             requestId: "db:authenticated-read",
@@ -102,6 +102,7 @@ function fakeClient(
               },
               sources: [],
               unresolvedImpactReviewCount: 0,
+              approvalSupersededEntities: [],
             },
             error: null,
             scope: {

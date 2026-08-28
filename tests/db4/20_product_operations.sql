@@ -805,11 +805,15 @@ from project_intelligence.project_workflows
 where project_id = '41111111-1111-4111-8111-111111111111'
 \gset db4_
 
+-- Выдача — через request-bound дверь (M4 backlog #2, `20260825060000`):
+-- покрытие семантики выдачи/подтверждения живёт на дверях, которые зовёт
+-- приложение. Прежние двери выведены из строя и проверяются ниже отдельным
+-- пробником LEGACY_DOOR_RETIRED.
 begin;
 set local role authenticated;
 set local request.jwt.claim.sub =
   '31111111-1111-4111-8111-111111111111';
-select projectceo_product_api.distribute_release(
+select projectceo_product_api.distribute_release_request_bound(
   '41111111-1111-4111-8111-111111111111',
   'release-db4-root-v1',
   '32222222-2222-4222-8222-222222222222',
@@ -817,6 +821,41 @@ select projectceo_product_api.distribute_release(
   'db4-distribute-root-v1'
 );
 commit;
+
+-- Чужая область получателя: пользователь вне проекта — P1109
+-- RECIPIENT_SCOPE_REQUIRED (до этой правки семантика не покрывалась нигде).
+-- Проверка области стоит до сверки state_revision, поэтому годится любой
+-- валидный снимок; свежий берётся ровно для честности аргументов.
+select state_revision as probe_state_revision
+from project_intelligence.project_workflows
+where project_id = '41111111-1111-4111-8111-111111111111'
+\gset db4_
+
+select set_config(
+  'projectceo.db4_probe_state_revision',
+  :'db4_probe_state_revision',
+  false
+);
+begin;
+set local role authenticated;
+set local request.jwt.claim.sub =
+  '31111111-1111-4111-8111-111111111111';
+do $distribute_foreign_recipient_rejected$
+begin
+  begin
+    perform projectceo_product_api.distribute_release_request_bound(
+      '41111111-1111-4111-8111-111111111111',
+      'release-db4-root-v1',
+      '33333333-3333-4333-8333-333333333333',
+      current_setting('projectceo.db4_probe_state_revision')::bigint,
+      'db4-distribute-foreign-recipient'
+    );
+    raise exception 'DB4_DISTRIBUTE_FOREIGN_RECIPIENT_ALLOWED';
+  exception when sqlstate 'P1109' then null;
+  end;
+end
+$distribute_foreign_recipient_rejected$;
+rollback;
 
 select state_revision as state_revision,
   (
@@ -857,7 +896,7 @@ set local request.jwt.claim.sub =
 do $wrong_ack_recipient_rejected$
 begin
   begin
-    perform projectceo_product_api.acknowledge_release(
+    perform projectceo_product_api.acknowledge_release_request_bound(
       '41111111-1111-4111-8111-111111111111',
       current_setting('projectceo.db4_distribution_id')::uuid,
       current_setting('projectceo.db4_release_hash'),
@@ -878,7 +917,10 @@ set local request.jwt.claim.sub =
 do $wrong_ack_hash_rejected$
 begin
   begin
-    perform projectceo_product_api.acknowledge_release(
+    -- Свежий ключ обязателен: у request-bound двери хеш входит в request
+    -- digest, и повтор УЖЕ ИСПОЛЬЗОВАННОГО ключа с другим хешем упёрся бы в
+    -- P1108 раньше, чем в проверку хеша.
+    perform projectceo_product_api.acknowledge_release_request_bound(
       '41111111-1111-4111-8111-111111111111',
       current_setting('projectceo.db4_distribution_id')::uuid,
       'sha256:0000000000000000000000000000000000000000000000000000000000000000',
@@ -896,7 +938,7 @@ begin;
 set local role authenticated;
 set local request.jwt.claim.sub =
   '32222222-2222-4222-8222-222222222222';
-select projectceo_product_api.acknowledge_release(
+select projectceo_product_api.acknowledge_release_request_bound(
   '41111111-1111-4111-8111-111111111111',
   :'db4_distribution_id'::uuid,
   :'db4_release_hash',
@@ -904,6 +946,46 @@ select projectceo_product_api.acknowledge_release(
   'db4-ack-root-v1'
 );
 commit;
+
+-- Прежние двери выведены из строя (`20260825060000`): гранты среды на них
+-- ещё существуют, но тело отвечает отказом при любых аргументах — «дверь
+-- недостижима по существу, покрытие живо» на request-bound версиях выше.
+begin;
+set local role authenticated;
+set local request.jwt.claim.sub =
+  '31111111-1111-4111-8111-111111111111';
+do $legacy_doors_retired$
+declare
+  v_refused int := 0;
+begin
+  begin
+    perform projectceo_product_api.distribute_release(
+      '41111111-1111-4111-8111-111111111111',
+      'release-db4-root-v1',
+      '32222222-2222-4222-8222-222222222222',
+      1,
+      'db4-legacy-distribute-probe'
+    );
+    raise exception 'DB4_LEGACY_DISTRIBUTE_ALIVE';
+  exception when sqlstate 'P1111' then v_refused := v_refused + 1;
+  end;
+  begin
+    perform projectceo_product_api.acknowledge_release(
+      '41111111-1111-4111-8111-111111111111',
+      current_setting('projectceo.db4_distribution_id')::uuid,
+      current_setting('projectceo.db4_release_hash'),
+      1,
+      'db4-legacy-ack-probe'
+    );
+    raise exception 'DB4_LEGACY_ACK_ALIVE';
+  exception when sqlstate 'P1111' then v_refused := v_refused + 1;
+  end;
+  if v_refused <> 2 then
+    raise exception 'DB4_LEGACY_DOORS_REFUSALS_EXPECTED_2_GOT_%', v_refused;
+  end if;
+end
+$legacy_doors_retired$;
+rollback;
 
 select state_revision as state_revision
 from project_intelligence.project_workflows
