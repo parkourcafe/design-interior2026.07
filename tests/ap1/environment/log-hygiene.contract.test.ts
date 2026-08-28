@@ -16,6 +16,8 @@ const bootstrapPath = resolve(
   "tests/ap1/environment/bootstrap-disposable.zsh",
 );
 const ap5SetupPath = resolve(repoRoot, "tests/ap5/global-setup.ts");
+const ap5RpcSessionPath = resolve(repoRoot, "tests/ap5/rpc-session.ts");
+const ap5ChainPath = resolve(repoRoot, "tests/ap5/02-kora-chain.spec.ts");
 const ap5ReleaseWorkerPath = resolve(repoRoot, "tests/ap5/release-worker.ts");
 const ap5ImpactWorkerPath = resolve(repoRoot, "tests/ap5/change-impact-worker.ts");
 
@@ -76,6 +78,8 @@ describe("AP1/AP5 log hygiene", () => {
 
   it("keeps AP5 browser and worker diagnostics structural", () => {
     const setup = readFileSync(ap5SetupPath, "utf8");
+    const rpcSession = readFileSync(ap5RpcSessionPath, "utf8");
+    const chain = readFileSync(ap5ChainPath, "utf8");
     const workers = [
       readFileSync(ap5ReleaseWorkerPath, "utf8"),
       readFileSync(ap5ImpactWorkerPath, "utf8"),
@@ -83,6 +87,9 @@ describe("AP1/AP5 log hygiene", () => {
     expect(setup).toContain("safePageDiagnostic");
     expect(setup).not.toMatch(/:\s*\$\{page\.url\(\)\}/);
     expect(setup).not.toContain("JSON.stringify(body)");
+    expect(rpcSession).not.toContain("error?.message");
+    expect(rpcSession).not.toContain("verified.error?.message");
+    expect(chain).not.toMatch(/JSON\.stringify\([^)]*error/i);
     expect(workers).toContain("stderrLines=");
     expect(workers).not.toMatch(/stdout:\s*\$\{|Вывод:\s*\$\{/);
   });

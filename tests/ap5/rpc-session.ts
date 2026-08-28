@@ -4,6 +4,14 @@ import { ap5Env, type Ap5RoleKey } from "./ap5-env";
 
 const env = ap5Env();
 
+function errorCode(error: unknown): string {
+  if (error && typeof error === "object" && "code" in error) {
+    const code = (error as { readonly code?: unknown }).code;
+    if (typeof code === "string") return code;
+  }
+  return "unknown";
+}
+
 /**
  * Access token настоящей человеческой сессии.
  *
@@ -28,16 +36,14 @@ export async function accessTokenFor(role: Ap5RoleKey): Promise<string> {
   });
   const tokenHash = data?.properties?.hashed_token;
   if (error || !tokenHash) {
-    throw new Error(`AP5: не выпустить ссылку для ${role}: ${error?.message ?? "нет токена"}`);
+    throw new Error(`AP5: не выпустить ссылку для ${role}: code=${errorCode(error)}`);
   }
   const client = createClient(env.supabaseUrl, env.anonKey, {
     auth: { autoRefreshToken: false, persistSession: false },
   });
   const verified = await client.auth.verifyOtp({ type: "magiclink", token_hash: tokenHash });
   if (verified.error || !verified.data.session) {
-    throw new Error(
-      `AP5: ${role} не получил сессию: ${verified.error?.message ?? "нет сессии"}`,
-    );
+    throw new Error(`AP5: ${role} не получил сессию: code=${errorCode(verified.error)}`);
   }
   return verified.data.session.access_token;
 }
