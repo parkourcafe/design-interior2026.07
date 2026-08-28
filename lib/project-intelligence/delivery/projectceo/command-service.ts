@@ -99,6 +99,54 @@ function semanticHash(value: unknown): `sha256:${string}` | null {
     : null;
 }
 
+function text(value: unknown): string | null {
+  return typeof value === "string" && value.length > 0 ? value : null;
+}
+
+interface CreateChangeVersionTarget {
+  readonly id: string;
+  readonly packageId: string;
+  readonly baselineId: string;
+}
+
+function createChangeVersionTarget(value: unknown): CreateChangeVersionTarget | null {
+  const item = record(value);
+  const id = text(item.id);
+  const packageId = text(item.packageId);
+  const baselineId = text(item.baselineId);
+  return id && packageId && baselineId ? { id, packageId, baselineId } : null;
+}
+
+function resolveCreateChangeVersionTarget(
+  requestedVersionId: string,
+  versions: readonly unknown[],
+): CreateChangeVersionTarget | "ambiguous" | null {
+  const matches = versions
+    .map(createChangeVersionTarget)
+    .filter((version): version is CreateChangeVersionTarget => (
+      version !== null && version.id === requestedVersionId
+    ));
+  if (matches.length === 0) return null;
+  const unique = new Set(matches.map((version) => (
+    `${version.id}\u0000${version.packageId}\u0000${version.baselineId}`
+  )));
+  return unique.size === 1 ? matches[0]! : "ambiguous";
+}
+
+function resolveCreateChangeProposedBaseline(
+  delivery: ProductDeliveryProjection,
+  read: UnknownRecord,
+): string | "ambiguous" | null {
+  const candidates = [
+    text(record(delivery.latestBaseline).id),
+    text(record(read.latestBaseline).id),
+    text(record(read.extensionStatus).createChangeProposedBaselineId),
+  ].filter((value): value is string => value !== null);
+  const unique = [...new Set(candidates)];
+  if (unique.length > 1) return "ambiguous";
+  return unique[0] ?? null;
+}
+
 function failure(
   requestId: string,
   status: "unavailable" | "error",
@@ -899,13 +947,34 @@ export class ProjectCeoCommandService {
         }));
       }
       if (command.kind === "create_change") {
-        const baselineId = typeof record(delivery.latestBaseline).id === "string"
-          ? record(delivery.latestBaseline).id as string
-          : null;
-        const previousVersion = delivery.packageVersions.find((version) => (
-          version.id === command.payload.fromProductionPackageVersionId
-        ));
-        if (!baselineId || !previousVersion) {
+        if (scope.role !== "builder") {
+          return failure(requestId, "error", "scope_conflict");
+        }
+        const read = await this.read.getProjectWorkspaceRead({
+          projectId: command.projectId,
+          packageId: scope.accessScope === "package" ? scope.packageId ?? null : null,
+        });
+        if (read.error) {
+          throw new ProjectIntelligenceAdapterError(read.error.code, null);
+        }
+        const baselineId = resolveCreateChangeProposedBaseline(
+          delivery,
+          record(read.data),
+        );
+        if (baselineId === "ambiguous") {
+          return failure(requestId, "error", "scope_conflict");
+        }
+        if (!baselineId) {
+          return failure(requestId, "unavailable", "operation_unavailable");
+        }
+        const previousVersion = resolveCreateChangeVersionTarget(
+          command.payload.fromProductionPackageVersionId,
+          [
+            ...delivery.packageVersions,
+            ...rows(read.data.packageVersions),
+          ],
+        );
+        if (previousVersion === "ambiguous" || !previousVersion) {
           return failure(requestId, "error", "scope_conflict");
         }
         if (previousVersion.baselineId === baselineId) {

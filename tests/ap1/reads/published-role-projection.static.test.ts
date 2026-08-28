@@ -8,6 +8,13 @@ const migration = readFileSync(
   ),
   "utf8",
 );
+const builderChangeTargetMigration = readFileSync(
+  new URL(
+    "../../../supabase/migrations/20260828010000_projectceo_builder_change_target_read.sql",
+    import.meta.url,
+  ),
+  "utf8",
+);
 
 describe("published role projection boundary", () => {
   it("keeps the historical read private behind an additive wrapper", () => {
@@ -41,5 +48,31 @@ describe("published role projection boundary", () => {
     expect(migration).toContain("'{exactRevisionRefs,decisions}'");
     expect(migration).toContain("version ->> 'status' = 'published'");
     expect(migration).toContain("ROLE_PROJECTION_UNRESOLVED");
+  });
+
+  it("adds only a builder-scoped command hint for create_change target resolution", () => {
+    expect(builderChangeTargetMigration).toContain(
+      "projectceo_read_api.get_project_workspace_read_v10",
+    );
+    expect(builderChangeTargetMigration).toContain(
+      "projectceo_read_api._builder_change_proposed_baseline",
+    );
+    expect(builderChangeTargetMigration).toContain("v_role <> 'builder'");
+    expect(builderChangeTargetMigration).toContain(
+      "'createChangeProposedBaselineId'",
+    );
+    expect(builderChangeTargetMigration).toContain(
+      "baseline.previous_baseline_id is not null",
+    );
+    expect(builderChangeTargetMigration).toContain(
+      "version ->> 'baselineId' = baseline.previous_baseline_id",
+    );
+    expect(builderChangeTargetMigration).toContain(
+      "PROJECTCEO_BUILDER_CHANGE_HELPER_PUBLIC",
+    );
+    expect(builderChangeTargetMigration).not.toContain("auth.uid()");
+    expect(builderChangeTargetMigration).not.toMatch(
+      /grant execute on function projectceo_read_api\._builder_change_proposed_baseline[\s\S]+to authenticated/i,
+    );
   });
 });

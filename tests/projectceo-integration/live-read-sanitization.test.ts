@@ -30,7 +30,7 @@ function fakeClient(
       if (schemaName === "projectceo_api" && functionName === "list_projects") {
         return { data: foundation(projectEntries), error: null };
       }
-      if (schemaName === "projectceo_read_api" && functionName === "get_project_workspace_read_v9") {
+      if (schemaName === "projectceo_read_api" && functionName === "get_project_workspace_read_v10") {
         return { data: {
           contractVersion: "project-ceo-authenticated-read/0.1",
           requestId: "db:authenticated-read",
@@ -666,7 +666,7 @@ describe("ProjectCEO live DTO sanitizer", () => {
 
   it("fails closed when a required downstream read returns an error envelope", async () => {
     for (const functionName of [
-      "get_project_workspace_read_v9",
+      "get_project_workspace_read_v10",
       "list_project_access",
       "get_audit_timeline",
     ]) {
@@ -739,6 +739,48 @@ describe("ProjectCEO live DTO sanitizer", () => {
     }).getProjectWorkspace({ projectId, requestId: "project-org-conflict" });
     expect(result.data).toBeNull();
     expect(result.error?.code).toBe("scope_conflict");
+  });
+
+  it("offers create_change only to a builder even when older client capability maps still contain it", async () => {
+    const releaseReady = {
+      latestBaseline: {
+        id: "baseline-v2",
+        versionNo: 2,
+        semanticHash: `sha256:${"c".repeat(64)}`,
+        publishedAt: "2026-07-17T00:00:00Z",
+      },
+      packageVersions: [
+        {
+          id: "release-v1",
+          packageId,
+          baselineId: "baseline-v1",
+          versionNo: 1,
+        },
+      ],
+    };
+    const builder = await new ProjectCeoLiveReadPort(
+      fakeClient(releaseReady, [{ ...defaultProjectEntries[0], role: "builder" }]),
+      {
+        userId: "66666666-6666-4666-8666-666666666666",
+        displayName: "Controlled user",
+      },
+    ).getProjectWorkspace({ projectId, requestId: "create-change-builder" });
+    const client = await new ProjectCeoLiveReadPort(
+      fakeClient(releaseReady, [{ ...defaultProjectEntries[0], role: "client_approver" }]),
+      {
+        userId: "66666666-6666-4666-8666-666666666666",
+        displayName: "Controlled user",
+      },
+    ).getProjectWorkspace({ projectId, requestId: "create-change-client" });
+
+    expect(builder.data?.operations.create_change).toEqual({
+      status: "available",
+      commandTargetId: "release-v1",
+    });
+    expect(client.data?.operations.create_change).toEqual({
+      status: "unavailable",
+      reason: "capability_missing",
+    });
   });
 
   it("hides the whole execution surface when the module flag is off", async () => {

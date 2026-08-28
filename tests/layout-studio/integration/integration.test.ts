@@ -338,6 +338,10 @@ describe("Layout Studio delivery/UI slice", () => {
       "20260824170000_projectceo_m1_passport_versions_contract.sql",
       // Shared M4/AP1 prerequisite: published role-safe archive projection.
       "20260826059000_projectceo_published_role_projection.sql",
+      // AP5 command/read boundary: builder-safe change target hint.
+      "20260828010000_projectceo_builder_change_target_read.sql",
+      // AP5 command boundary: only builder can submit field change requests.
+      "20260828011000_projectceo_builder_only_change_requests.sql",
     ]);
   });
 
