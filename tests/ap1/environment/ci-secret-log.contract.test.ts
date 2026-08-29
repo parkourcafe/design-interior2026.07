@@ -81,7 +81,7 @@ describe("AP1 CI credential log boundary", () => {
     expect(workflow).toContain("id: hosted_ap5");
     expect(workflow).toContain("id: hosted_log_hygiene");
     expect(workflow).toContain(
-      "if: steps.hosted_ap5.outcome == 'failure' && steps.hosted_log_hygiene.outcome == 'success'",
+      "if: always() && steps.hosted_ap5.outcome == 'failure' && steps.hosted_log_hygiene.outcome == 'success'",
     );
     expect(workflow).toContain("HOSTED_AP5_SANITIZED_FAILURE");
   });

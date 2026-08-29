@@ -676,7 +676,7 @@ jobs:
           node tests/ap1/environment/scan-log-hygiene.mjs "${files[@]}"
 
       - name: Summarize sanitized hosted AP5 failure
-        if: steps.hosted_ap5.outcome == 'failure' && steps.hosted_log_hygiene.outcome == 'success'
+        if: always() && steps.hosted_ap5.outcome == 'failure' && steps.hosted_log_hygiene.outcome == 'success'
         shell: bash
         run: |
           echo "HOSTED_AP5_SANITIZED_FAILURE"
