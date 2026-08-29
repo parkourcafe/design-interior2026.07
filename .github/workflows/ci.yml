@@ -616,7 +616,7 @@ jobs:
             'm3', 'Hosted AP5 harness', 'Reset disposable staging before default-deny verification'
           );
           select projectceo_platform.close_module_production(
-            'm4', 'Hosted AP5 harness', 'Reset disposable staging before default-deny verification'
+            'm4_increment_1', 'Hosted AP5 harness', 'Reset disposable staging before default-deny verification'
           );
           select projectceo_m4.close_v1_impact_production(
             'Hosted AP5 harness', 'Reset disposable staging before default-deny verification'

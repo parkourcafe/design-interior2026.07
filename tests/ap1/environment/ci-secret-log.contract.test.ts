@@ -138,7 +138,7 @@ describe("AP1 CI credential log boundary", () => {
       "projectceo_platform.close_module_production(\n            'm3'",
     );
     const resetM4 = workflow.indexOf(
-      "projectceo_platform.close_module_production(\n            'm4'",
+      "projectceo_platform.close_module_production(\n            'm4_increment_1'",
     );
     const resetImpact = workflow.indexOf("projectceo_m4.close_v1_impact_production(");
     const verifyClosed = workflow.indexOf(
