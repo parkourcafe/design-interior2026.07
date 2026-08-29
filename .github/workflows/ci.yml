@@ -607,6 +607,17 @@ jobs:
           notify pgrst, 'reload schema';
           SQL
 
+          # Hosted staging is persistent between manual runs even though it is
+          # disposable. Clear only the already-allowlisted application/auth
+          # fixtures after the exact project-ref guard and before AP1 creates
+          # the five fresh identities. Without this, a previous Kora release
+          # can remain in the global worker backlog and make AP5 non-repeatable.
+          psql "${AP1_DB_URL}" -X --set ON_ERROR_STOP=1 \
+            -f tests/ap1/environment/reset-disposable-data.sql >/dev/null
+          psql "${AP1_DB_URL}" -X --set ON_ERROR_STOP=1 \
+            -f tests/ap1/environment/cleanup-repeatable-run.sql >/dev/null
+          echo "HOSTED_STAGING_DATA_RESET_OK"
+
           zsh tests/ap1/environment/bootstrap-disposable.zsh --target hosted \
             | tee -a "${RUNNER_TEMP}/hosted-ap1.log"
 

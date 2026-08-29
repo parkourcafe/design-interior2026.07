@@ -122,13 +122,22 @@ describe("AP1 CI credential log boundary", () => {
       "bootstrap-disposable.zsh --target hosted",
       exposedSchemas + 1,
     );
+    const dataReset = workflow.indexOf(
+      "tests/ap1/environment/reset-disposable-data.sql",
+      exposedSchemas + 1,
+    );
 
     expect(dbOnly).toBeGreaterThan(-1);
     expect(exposedSchemas).toBeGreaterThan(dbOnly);
-    expect(runtime).toBeGreaterThan(exposedSchemas);
+    expect(dataReset).toBeGreaterThan(exposedSchemas);
+    expect(runtime).toBeGreaterThan(dataReset);
     expect(workflow).toContain(
       "public, projectceo_api, projectceo_read_api, projectceo_product_api, projectceo_m3_api, projectceo_m4_api, projectceo_platform_api",
     );
+    expect(workflow).toContain(
+      "tests/ap1/environment/cleanup-repeatable-run.sql",
+    );
+    expect(workflow).toContain("HOSTED_STAGING_DATA_RESET_OK");
     expect(workflow).toContain("notify pgrst, 'reload config'");
     expect(workflow).toContain("notify pgrst, 'reload schema'");
   });
