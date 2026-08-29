@@ -132,4 +132,23 @@ describe("AP1 CI credential log boundary", () => {
     expect(workflow).toContain("notify pgrst, 'reload config'");
     expect(workflow).toContain("notify pgrst, 'reload schema'");
   });
+
+  it("restores persistent hosted module switches before proving default deny", () => {
+    const resetM3 = workflow.indexOf(
+      "projectceo_platform.close_module_production(\n            'm3'",
+    );
+    const resetM4 = workflow.indexOf(
+      "projectceo_platform.close_module_production(\n            'm4'",
+    );
+    const resetImpact = workflow.indexOf("projectceo_m4.close_v1_impact_production(");
+    const verifyClosed = workflow.indexOf(
+      "verify-m3-data-api-closed.mjs",
+      resetImpact + 1,
+    );
+
+    expect(resetM3).toBeGreaterThan(-1);
+    expect(resetM4).toBeGreaterThan(resetM3);
+    expect(resetImpact).toBeGreaterThan(resetM4);
+    expect(verifyClosed).toBeGreaterThan(resetImpact);
+  });
 });
