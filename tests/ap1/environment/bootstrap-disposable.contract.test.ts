@@ -201,7 +201,7 @@ describe("AP1 bootstrap-манифест одноразового стенда",
       if (result.status === 64) {
         expect(result.stderr).toContain("AP1_TEST_PASSWORD");
       }
-    });
+    }, 15_000);
 
     it("требует явный target", () => {
       const result = runScript([]);

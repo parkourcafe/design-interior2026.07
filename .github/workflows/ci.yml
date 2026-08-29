@@ -590,8 +590,20 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          zsh tests/ap1/environment/bootstrap-disposable.zsh --target hosted \
+          zsh tests/ap1/environment/bootstrap-disposable.zsh --target hosted --db-only \
             | tee "${RUNNER_TEMP}/hosted-ap1.log"
+
+          # New hosted projects expose only public by default. Configure the
+          # exact additive API schemas after they exist, using Supabase's
+          # documented PostgREST role override, then reload the config.
+          psql "${AP1_DB_URL}" -X --set ON_ERROR_STOP=1 <<'SQL' >/dev/null
+          alter role authenticator set pgrst.db_schemas =
+            'public, projectceo_api, projectceo_read_api, projectceo_product_api, projectceo_m3_api, projectceo_m4_api, projectceo_platform_api';
+          notify pgrst, 'reload config';
+          SQL
+
+          zsh tests/ap1/environment/bootstrap-disposable.zsh --target hosted \
+            | tee -a "${RUNNER_TEMP}/hosted-ap1.log"
 
       - name: Verify and open disposable module boundaries
         shell: bash

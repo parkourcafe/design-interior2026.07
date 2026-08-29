@@ -100,4 +100,25 @@ describe("AP1 CI credential log boundary", () => {
     );
     expect(workflow).toContain("without printing credentials");
   });
+
+  it("applies migrations before exposing the exact disposable Data API schemas", () => {
+    const dbOnly = workflow.indexOf(
+      "bootstrap-disposable.zsh --target hosted --db-only",
+    );
+    const exposedSchemas = workflow.indexOf(
+      "alter role authenticator set pgrst.db_schemas",
+    );
+    const runtime = workflow.indexOf(
+      "bootstrap-disposable.zsh --target hosted",
+      exposedSchemas + 1,
+    );
+
+    expect(dbOnly).toBeGreaterThan(-1);
+    expect(exposedSchemas).toBeGreaterThan(dbOnly);
+    expect(runtime).toBeGreaterThan(exposedSchemas);
+    expect(workflow).toContain(
+      "public, projectceo_api, projectceo_read_api, projectceo_product_api, projectceo_m3_api, projectceo_m4_api, projectceo_platform_api",
+    );
+    expect(workflow).toContain("notify pgrst, 'reload config'");
+  });
 });
