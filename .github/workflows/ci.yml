@@ -468,6 +468,9 @@ jobs:
         with:
           node-version: 22
           cache: npm
+      - uses: supabase/setup-cli@v1
+        with:
+          version: 2.109.1
 
       - name: Install hosted runner tools
         run: |
@@ -536,7 +539,7 @@ jobs:
       # migration API, which preserved their source names but assigned server
       # timestamps. Repair only those six exact rows; any other state fails
       # closed. The repository bootstrap then applies the remaining chain and
-      # requires an exact 89-version ledger.
+      # requires an exact 90-version ledger.
       - name: Canonicalize the six verified bootstrap ledger rows
         shell: bash
         run: |
@@ -606,6 +609,23 @@ jobs:
 
           zsh tests/ap1/environment/bootstrap-disposable.zsh --target hosted \
             | tee -a "${RUNNER_TEMP}/hosted-ap1.log"
+
+      - name: Hosted Supabase security advisor ERROR gate
+        shell: bash
+        run: |
+          set -euo pipefail
+          supabase db advisors \
+            --db-url "${AP1_DB_URL}" \
+            --type security \
+            --level error \
+            --fail-on error \
+            --output-format json \
+            > "${RUNNER_TEMP}/hosted-security-advisor-errors.json"
+          rls_disabled_count="$(psql "${AP1_DB_URL}" -X -tAc \
+            "select count(*) from pg_catalog.pg_class relation join pg_catalog.pg_namespace namespace on namespace.oid = relation.relnamespace where namespace.nspname = 'public' and relation.relname in ('project_passport_revisions', 'contract_documents') and not relation.relrowsecurity;" \
+            | tr -d '[:space:]')"
+          test "${rls_disabled_count}" = "0"
+          echo "HOSTED_SECURITY_ADVISOR_OK errors=0 rls_disabled=0"
 
       - name: Reset, verify and open disposable module boundaries
         shell: bash
@@ -692,7 +712,7 @@ jobs:
           set -euo pipefail
           migration_count="$(psql "${AP1_DB_URL}" -X -tAc \
             'select count(*) from supabase_migrations.schema_migrations;' | tr -d '[:space:]')"
-          test "${migration_count}" = "89"
+          test "${migration_count}" = "90"
           jq -n \
             --arg status "passed" \
             --arg headSha "${GITHUB_SHA}" \
@@ -711,20 +731,22 @@ jobs:
               workflowRunId: $runId,
               productionChanged: false,
               migrationLedger: {canonical: true, count: $migrations},
+              securityAdvisor: {errors: 0, rlsDisabled: 0},
               ap1: {bootstrap: true, runtime: true, identities: 5},
               ap5: {passed: $passed, skipped: $skipped, unexpected: $unexpected, flaky: $flaky}
             }' > "${RUNNER_TEMP}/hosted-staging-receipt.json"
           jq -e '
             .status == "passed"
             and .productionChanged == false
-            and .migrationLedger == {canonical: true, count: 89}
+            and .migrationLedger == {canonical: true, count: 90}
+            and .securityAdvisor == {errors: 0, rlsDisabled: 0}
             and .ap1.identities == 5
             and .ap5.passed > 0
             and .ap5.skipped == 0
             and .ap5.unexpected == 0
             and .ap5.flaky == 0
           ' "${RUNNER_TEMP}/hosted-staging-receipt.json" >/dev/null
-          echo "HOSTED_STAGING_RECEIPT_OK migrations=89"
+          echo "HOSTED_STAGING_RECEIPT_OK migrations=90 security_advisor_errors=0"
 
       - uses: actions/upload-artifact@v4
         if: success()
