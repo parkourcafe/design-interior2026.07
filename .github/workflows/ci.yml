@@ -401,7 +401,10 @@ jobs:
         run: |
           set -euo pipefail
           files=()
-          for file in "${RUNNER_TEMP}/app.log" "${RUNNER_TEMP}/ap5-output.log" "${PLAYWRIGHT_JSON_OUTPUT_FILE}"; do
+          # The Playwright JSON receipt is checked structurally above. In CI the
+          # reporter also embeds config.metadata.gitDiff, which is source code,
+          # not a runtime log and can contain literal credential field names.
+          for file in "${RUNNER_TEMP}/app.log" "${RUNNER_TEMP}/ap5-output.log"; do
             if [ -f "${file}" ]; then files+=("${file}"); fi
           done
           if [ "${#files[@]}" -eq 0 ]; then

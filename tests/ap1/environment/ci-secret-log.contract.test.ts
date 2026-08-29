@@ -42,4 +42,14 @@ describe("AP1 CI credential log boundary", () => {
       .toContain("outputFile: process.env.PLAYWRIGHT_JSON_OUTPUT_FILE");
     expect(workflow).not.toMatch(/ap5:\n[\s\S]*?if:\s*>-[\s\S]*?needs\.scope\.outputs\.m4_v1/);
   });
+
+  it("scans runtime logs separately from the Playwright receipt", () => {
+    const scanBlock = workflow.slice(
+      workflow.indexOf("- name: Scan AP5 logs for credentials"),
+      workflow.indexOf("- uses: actions/upload-artifact@v4", workflow.indexOf("- name: Scan AP5 logs for credentials")),
+    );
+    expect(scanBlock).toContain('"${RUNNER_TEMP}/app.log"');
+    expect(scanBlock).toContain('"${RUNNER_TEMP}/ap5-output.log"');
+    expect(scanBlock).not.toContain("${PLAYWRIGHT_JSON_OUTPUT_FILE}");
+  });
 });
