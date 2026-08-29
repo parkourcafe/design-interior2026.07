@@ -636,6 +636,7 @@ jobs:
         run: npx playwright install --with-deps chromium
 
       - name: Hosted authenticated role matrix and Kora chain
+        id: hosted_ap5
         shell: bash
         run: |
           set +e
@@ -648,6 +649,7 @@ jobs:
         run: node tests/ap5/assert-no-skips.mjs "${PLAYWRIGHT_JSON_OUTPUT_FILE}"
 
       - name: Scan hosted runtime logs for credentials
+        id: hosted_log_hygiene
         if: always()
         shell: bash
         run: |
@@ -661,6 +663,16 @@ jobs:
           done
           test "${#files[@]}" -gt 0
           node tests/ap1/environment/scan-log-hygiene.mjs "${files[@]}"
+
+      - name: Summarize sanitized hosted AP5 failure
+        if: steps.hosted_ap5.outcome == 'failure' && steps.hosted_log_hygiene.outcome == 'success'
+        shell: bash
+        run: |
+          echo "HOSTED_AP5_SANITIZED_FAILURE"
+          tail -n 200 "${RUNNER_TEMP}/hosted-ap5-output.log"
+          if [ -f "${RUNNER_TEMP}/hosted-app.log" ]; then
+            tail -n 100 "${RUNNER_TEMP}/hosted-app.log"
+          fi
 
       - name: Create sanitized hosted acceptance receipt
         if: success()

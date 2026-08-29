@@ -77,6 +77,15 @@ describe("AP1 CI credential log boundary", () => {
     expect(scanBlock).not.toContain("${PLAYWRIGHT_JSON_OUTPUT_FILE}");
   });
 
+  it("prints hosted failure diagnostics only after credential hygiene passes", () => {
+    expect(workflow).toContain("id: hosted_ap5");
+    expect(workflow).toContain("id: hosted_log_hygiene");
+    expect(workflow).toContain(
+      "if: steps.hosted_ap5.outcome == 'failure' && steps.hosted_log_hygiene.outcome == 'success'",
+    );
+    expect(workflow).toContain("HOSTED_AP5_SANITIZED_FAILURE");
+  });
+
   it("keeps hosted acceptance manual and bound to the disposable environment", () => {
     expect(workflow).toContain("hosted_staging:");
     expect(workflow).toContain("inputs.hosted_staging == true");
