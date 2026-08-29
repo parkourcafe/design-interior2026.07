@@ -448,7 +448,6 @@ jobs:
     environment: disposable-staging
     env:
       EXPECTED_STAGING_REF: ukkzasfsmannjprfkaxp
-      PRODUCTION_PROJECT_REF: ztnycrchwxqczqbyegnp
       AP1_DB_URL: ${{ secrets.AP1_DB_URL }}
       SUPABASE_DB_URL: ${{ secrets.AP1_DB_URL }}
       NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
@@ -491,7 +490,7 @@ jobs:
             process.exit(64);
           }
           const expected = process.env.EXPECTED_STAGING_REF;
-          const production = process.env.PRODUCTION_PROJECT_REF;
+          const production = "ztnycrchwxqczqbyegnp";
           if (required.some((name) => process.env[name].toLowerCase().includes(production))) {
             console.error("HOSTED_STAGING_PRODUCTION_REF_REJECTED");
             process.exit(65);

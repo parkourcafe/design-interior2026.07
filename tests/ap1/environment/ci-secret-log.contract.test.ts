@@ -81,7 +81,8 @@ describe("AP1 CI credential log boundary", () => {
     expect(workflow).toContain("inputs.hosted_staging == true");
     expect(workflow).toContain("environment: disposable-staging");
     expect(workflow).toContain("EXPECTED_STAGING_REF: ukkzasfsmannjprfkaxp");
-    expect(workflow).toContain("PRODUCTION_PROJECT_REF: ztnycrchwxqczqbyegnp");
+    expect(workflow).not.toContain("PRODUCTION_PROJECT_REF:");
+    expect(workflow).toContain('const production = "ztnycrchwxqczqbyegnp";');
     expect(workflow).toContain("HOSTED_STAGING_PRODUCTION_REF_REJECTED");
     expect(workflow).not.toContain("PRODUCTION_SUPABASE_SERVICE_ROLE_KEY");
   });
