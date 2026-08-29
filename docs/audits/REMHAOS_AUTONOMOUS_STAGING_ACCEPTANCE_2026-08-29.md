@@ -4,19 +4,19 @@ Date: 2026-08-29
 Branch: `codex/autonomous-staging-acceptance`
 Base: `497cdcbae0067ef9ed4fa65f31d0dab616f869e9`
 Implementation commit: `68e206cea646138005bf33631bbd96d386868fe6`
-Latest observed PR HEAD: `3d8f228c01d1cbc1e1ef836063943a45939f4853`
+Latest observed PR HEAD: `a9d2e2fa4fa3a7c21641745c43eb38db168977ec`
 Production acceptance: **not declared**
 
 ## VERIFIED
 
-- [ИЗВЛЕЧЕНО] Fresh checkout was created from the current local `origin/main`; `HEAD`, `origin/main`, and `git merge-base HEAD origin/main` were checked. All three are respectively `68e206c...`, `497cdcb...`, and `497cdcb...` as recorded above.
+- [ИЗВЛЕЧЕНО] Fresh checkout was created from the current local `origin/main`; `HEAD`, `origin/main`, and `git merge-base HEAD origin/main` were checked. The implementation checkout was based on `497cdcb...`; the current PR HEAD is `a9d2e2f...` and the merge-base remains `497cdcb...`.
 - [ИЗВЛЕЧЕНО] Worktree was clean after the implementation commits. The branch changes 15 files and adds no migration file; `git diff origin/main...HEAD -- 'supabase/migrations/*.sql'` returned zero files.
 - [ИЗВЛЕЧЕНО] The repository contains 89 canonical SQL migrations and the committed migration ledger contains 89 rows. Local disposable reset applied all 89 in order and emitted `AP1_DB_OK ... migrations=89` and `AP1_MIGRATION_LEDGER_OK count=89`.
 - [ИЗВЛЕЧЕНО] Local disposable runtime verification emitted `AP1_RUNTIME_OK ... allowed_schemas=7 private_schemas_blocked=6 auth=true storage=true`.
 - [ИЗВЛЕЧЕНО] Local AP1 authenticated supported-slice rehearsal passed for five identities and emitted `AP1_SUPPORTED_SLICE_E2E_OK ... invite_accept=true distribution_ack=true change_impact=true photo_review=true milestone_accept=true replay=true csrf=true isolation=true ... production_changed=false`.
 - [ИЗВЛЕЧЕНО] Local AP5 used the live disposable Supabase/PostgREST/Auth/Storage stack, not fixture mode. Sanitized receipt: `27 passed`, `0 skipped`, `0 unexpected`, `0 flaky`; `node tests/ap5/assert-no-skips.mjs test-results/ap5-report.json` emitted `AP5_NO_SKIPS_OK skipped=0 passed=27`.
 - [ИЗВЛЕЧЕНО] AP5 covered owner, architect/designer, builder, client, and guest sessions, including role-source checks, foreign-project denial, published-only client projection, builder change creation, replay, worker boundaries, and closed M4 increment-2 operations.
-- [ИЗВЛЕЧЕНО] AP5 log scan emitted `LOG_HYGIENE_OK files=1`. The scan covered browser report output and the sanitized AP5 diagnostics used by the run.
+- [ИЗВЛЕЧЕНО] GitHub Actions AP5 run `33233865776` emitted `AP5_NO_SKIPS_OK skipped=0 passed=27` and `LOG_HYGIENE_OK files=2`. Credential scanning covered only the runtime `app.log` and `ap5-output.log`; the Playwright receipt was checked separately for skipped tests.
 - [ИЗВЛЕЧЕНО] `DB4` passed on `postgres:16-alpine` and `postgres:17-alpine`; both runs emitted `DB4_PRODUCT_BRAIN_HARNESS_OK`.
 - [ИЗВЛЕЧЕНО] `DB5` passed on `postgres:16-alpine` and `postgres:17-alpine`; both runs emitted `DB5_EXECUTION_HARNESS_OK`.
 - [ИЗВЛЕЧЕНО] `npm run lint` passed with 0 errors and 13 existing warnings; `npm run typecheck` passed; `npm test` passed with 195 files, 1553 passed, and 10 ordinary skipped tests; `npm run build` passed.
@@ -27,8 +27,9 @@ Production acceptance: **not declared**
 
 - [ИЗВЛЕЧЕНО] `.github/workflows/ci.yml` now defines AP5 as an unconditional job with `if: always()`, a prerequisite failure check, a Playwright JSON receipt, an explicit no-skip assertion, and a credential log scan.
 - [ИЗВЛЕЧЕНО] The JSON reporter writes to `PLAYWRIGHT_JSON_OUTPUT_FILE`; a missing or invalid receipt fails the job, and any non-zero skipped count fails the job.
-- [ИЗВЛЕЧЕНО] GitHub Actions accepted the workflow and created run `33197179672` for HEAD `3d8f228...`, but GitHub did not start its runner jobs because of the account billing/spending-limit annotation. No AP5 CI receipt exists.
-- [ИНТЕРПРЕТИРОВАНО] AP5 is structurally mandatory in the workflow, but its GitHub result remains externally blocked and is not a PASS.
+- [ИЗВЛЕЧЕНО] GitHub Actions run `33233865776` for exact PR HEAD `a9d2e2f...` completed successfully: change scope, lint/typecheck/test/build, AP5, DB4 PostgreSQL 16/17, DB5 PostgreSQL 16/17, and the informational cycle-7 evidence job all passed. AP5 was executed, not skipped.
+- [ИЗВЛЕЧЕНО] The exact PR-head AP5 receipt was `27 passed`, `0 skipped`, `0 unexpected`, `0 flaky`; its no-skip and runtime log-hygiene steps both passed.
+- [ИНТЕРПРЕТИРОВАНО] The repository CI gates are evidenced green on the current PR HEAD. This does not clear the separate hosted Supabase or Claude external gates.
 
 ## CODE_PRESENT
 
@@ -48,8 +49,8 @@ Production acceptance: **not declared**
 - [ИЗВЛЕЧЕНО] Hosted database advisors reported two security warnings for the legacy `public.is_studio_member` SECURITY DEFINER function being executable by anon/authenticated, plus pre-existing performance categories including unindexed foreign keys, RLS init-plan warnings, multiple permissive policies, unused indexes, and connection warnings.
 - [ИЗВЛЕЧЕНО] The two `is_studio_member` warnings are in the legacy baseline and are not introduced by this branch. They remain external follow-up work; they were not silently removed because legacy layout behavior depends on that function.
 - [ИНТЕРПРЕТИРОВАНО] Hosted staging acceptance is **BLOCKED**, not passed. The hosted project must be retained for the next authorized rehearsal and must not be treated as production evidence.
-- [ИЗВЛЕЧЕНО] GitHub CI run `33197179672` was created for `3d8f228...`, but its runner jobs did not start because the GitHub account reported failed recent payments or an insufficient spending limit. No CI gate result was produced.
-- [ИЗВЛЕЧЕНО] Claude review run `33197179248` was created for `3d8f228...`, but its job did not start for the same GitHub account billing blocker; no Claude review comments were produced.
+- [ИЗВЛЕЧЕНО] The current PR-head GitHub CI run `33233865776` passed after the billing issue was resolved. A separate push run `33233862830` also passed.
+- [ИЗВЛЕЧЕНО] Claude review run `33233865721` reached its runner but failed before review because the Claude Code GitHub App is not installed on this repository. No Claude review comments were produced; this remains an external repository-configuration blocker.
 
 ## NOT_AUTHORIZED
 
@@ -87,6 +88,6 @@ git diff --check
 ## Gate decision
 
 - [ИНТЕРПРЕТИРОВАНО] Local code and disposable acceptance are evidenced at implementation commit `68e206cea646138005bf33631bbd96d386868fe6`.
-- [ИНТЕРПРЕТИРОВАНО] Autonomous staging acceptance is not complete until hosted full-chain migration, hosted authenticated browser acceptance, GitHub required checks, and Claude review are externally observed.
-- [ИНТЕРПРЕТИРОВАНО] The PR is open as `#121`; the latest observed CI/Claude attempt was on `3d8f228c01d1cbc1e1ef836063943a45939f4853` and was blocked before execution by GitHub billing state.
+- [ИНТЕРПРЕТИРОВАНО] Autonomous staging acceptance is not complete until hosted full-chain migration and hosted authenticated browser acceptance are externally observed, and the Claude review integration is available.
+- [ИНТЕРПРЕТИРОВАНО] The PR is open as `#121`; GitHub CI is green on exact HEAD `a9d2e2fa4fa3a7c21641745c43eb38db168977ec`, while Claude review remains blocked by the missing GitHub App.
 - [ИНТЕРПРЕТИРОВАНО] Merge is not currently safe to approve because the hosted staging gate is unresolved. This report does not grant production acceptance.
