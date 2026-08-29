@@ -323,6 +323,9 @@ describe("Layout Studio delivery/UI slice", () => {
       // Additive M2 retry/idempotency correction. К Layout Studio отношения не
       // имеет.
       "20260827150000_projectceo_m2_retry_idempotency.sql",
+      // Security correction for the legacy M1 passport/contract tables. К
+      // Layout Studio отношения не имеет.
+      "20260829072313_rls_secure_m1_passport_and_contract_documents.sql",
     ];
     const actual = readdirSync(join(repoRoot, "supabase/migrations"), { withFileTypes: true })
       // Предмет проверки — миграции, а не всё содержимое папки. Рядом с ними
