@@ -2,93 +2,135 @@
 
 Date: 2026-08-29
 Branch: `codex/autonomous-staging-acceptance`
-Base: `497cdcbae0067ef9ed4fa65f31d0dab616f869e9`
-Implementation commit: `68e206cea646138005bf33631bbd96d386868fe6`
-Latest observed PR HEAD: `39be52afac2a96a7dd33c854211f6d3055d15f99`
+Base / merge-base: `497cdcbae0067ef9ed4fa65f31d0dab616f869e9`
+Hosted evidence HEAD: `e45358c56f3f0944a12202f38f690f47c9450106`
+Hosted workflow run: `33239781977`
+Disposable Supabase ref: `ukkzasfsmannjprfkaxp`
 Production acceptance: **not declared**
 
-## VERIFIED
+## VERIFIED_HOSTED
 
-- [ИЗВЛЕЧЕНО] Fresh checkout was created from the current local `origin/main`; `HEAD`, `origin/main`, and `git merge-base HEAD origin/main` were checked. The current PR HEAD at this evidence snapshot is `39be52a...` and the merge-base remains `497cdcb...`.
-- [ИЗВЛЕЧЕНО] Worktree was clean after the implementation commits. The branch changes 15 files and adds no migration file; `git diff origin/main...HEAD -- 'supabase/migrations/*.sql'` returned zero files.
-- [ИЗВЛЕЧЕНО] The repository contains 89 canonical SQL migrations and the committed migration ledger contains 89 rows. Local disposable reset applied all 89 in order and emitted `AP1_DB_OK ... migrations=89` and `AP1_MIGRATION_LEDGER_OK count=89`.
-- [ИЗВЛЕЧЕНО] Local disposable runtime verification emitted `AP1_RUNTIME_OK ... allowed_schemas=7 private_schemas_blocked=6 auth=true storage=true`.
-- [ИЗВЛЕЧЕНО] Local AP1 authenticated supported-slice rehearsal passed for five identities and emitted `AP1_SUPPORTED_SLICE_E2E_OK ... invite_accept=true distribution_ack=true change_impact=true photo_review=true milestone_accept=true replay=true csrf=true isolation=true ... production_changed=false`.
-- [ИЗВЛЕЧЕНО] Local AP5 used the live disposable Supabase/PostgREST/Auth/Storage stack, not fixture mode. Sanitized receipt: `27 passed`, `0 skipped`, `0 unexpected`, `0 flaky`; `node tests/ap5/assert-no-skips.mjs test-results/ap5-report.json` emitted `AP5_NO_SKIPS_OK skipped=0 passed=27`.
-- [ИЗВЛЕЧЕНО] AP5 covered owner, architect/designer, builder, client, and guest sessions, including role-source checks, foreign-project denial, published-only client projection, builder change creation, replay, worker boundaries, and closed M4 increment-2 operations.
-- [ИЗВЛЕЧЕНО] GitHub Actions PR CI run `33235788111` completed AP5 successfully on exact HEAD `39be52a...`; its no-skip receipt gate and runtime log-hygiene gate passed. The authenticated matrix receipt is `27 passed`, `0 skipped`, `0 unexpected`, `0 flaky`. Credential scanning covered only the runtime `app.log` and `ap5-output.log`; the Playwright receipt was checked separately for skipped tests.
-- [ИЗВЛЕЧЕНО] `DB4` passed on `postgres:16-alpine` and `postgres:17-alpine`; both runs emitted `DB4_PRODUCT_BRAIN_HARNESS_OK`.
-- [ИЗВЛЕЧЕНО] `DB5` passed on `postgres:16-alpine` and `postgres:17-alpine`; both runs emitted `DB5_EXECUTION_HARNESS_OK`.
-- [ИЗВЛЕЧЕНО] `npm run lint` passed with 0 errors and 13 existing warnings; `npm run typecheck` passed; `npm test` passed with 195 files, 1556 passed, and 10 ordinary skipped tests; `npm run build` passed.
-- [ИЗВЛЕЧЕНО] `git diff --check` passed and the staged source scan found no credential pattern. The only password-like staged match was the literal assertion name `AP1_TEST_PASSWORD=%s` in a log-hygiene contract test.
-- [ИЗВЛЕЧЕНО] The local reset/provision/AP5 rehearsal did not mutate production; no production deployment, domain assignment, Vercel Promote, provider credential, or real customer data was used.
+- [ИЗВЛЕЧЕНО] GitHub Environment `disposable-staging` supplied the database URL,
+  project URL, anon key, and service-role key directly to the manual workflow.
+  Their values were not read, printed, copied to the repository, or requested in
+  chat.
+- [ИЗВЛЕЧЕНО] The workflow validated the exact disposable ref, pooler username,
+  database name, TLS requirement, and refused the known production ref before
+  any database operation.
+- [ИЗВЛЕЧЕНО] Supabase Auth was configured on the disposable project with the
+  canonical Postgres Custom Access Token Hook
+  `public.projectceo_custom_access_token_hook`. The missing registration had
+  produced the reproduced `identity_unverified` failure; after registration the
+  same hosted AP5 path passed.
+- [ИЗВЛЕЧЕНО] The full canonical migration chain is present on hosted staging:
+  independent Supabase migration listing returned exactly 89 entries, from
+  `20260716071024 legacy_production_baseline` through
+  `20260828020000 projectceo_workspace_read_v11_superseded_approvals`.
+- [ИЗВЛЕЧЕНО] Hosted bootstrap emitted
+  `AP1_DB_OK postgres=17.6 migrations=89`,
+  `AP1_RUNTIME_OK ... allowed_schemas=7 private_schemas_blocked=6 auth=true storage=true`,
+  and `AP1_BOOTSTRAP_OK target=hosted migrations=89 identities=5`.
+- [ИЗВЛЕЧЕНО] Hosted AP5 executed the real request-bound Auth/PostgREST/browser
+  path and passed: 27 passed, 0 skipped, 0 unexpected, 0 flaky. The explicit
+  no-skip gate emitted `AP5_NO_SKIPS_OK skipped=0 passed=27`.
+- [ИЗВЛЕЧЕНО] Hosted AP5 covered owner, designer, architect, builder, client,
+  and guest behavior, including invitation acceptance, source/review,
+  baseline/release, distribution, change/impact, photo/acceptance, handover,
+  replay, CSRF, isolation, worker boundaries, and closed increment-2 operations.
+- [ИЗВЛЕЧЕНО] Hosted runtime log hygiene passed before the sanitized receipt was
+  created. The retained artifact is
+  `hosted-staging-sanitized-evidence-e45358c56f3f0944a12202f38f690f47c9450106`.
+- [ИЗВЛЕЧЕНО] The sanitized receipt records
+  `scope=disposable_hosted_staging`, `productionChanged=false`, canonical
+  migrations `89`, AP1 bootstrap/runtime true with five identities, and AP5
+  `27/0/0/0`.
 
-## CI_EVIDENCED
+## VERIFIED_CI
 
-- [ИЗВЛЕЧЕНО] `.github/workflows/ci.yml` defines AP5 as a mandatory job with `if: ${{ !cancelled() }}`, a prerequisite failure check, a Playwright JSON receipt, an explicit non-empty no-skip assertion, and a credential log scan.
-- [ИЗВЛЕЧЕНО] The JSON reporter writes to `PLAYWRIGHT_JSON_OUTPUT_FILE`; a missing, malformed, empty, or non-zero-skipped receipt fails the job. Superseded runs may cancel cleanly without being converted into false AP5 failures.
-- [ИЗВЛЕЧЕНО] GitHub Actions PR CI run `33235788111` for exact PR HEAD `39be52a...` completed successfully: change scope, lint/typecheck/test/build, AP5, DB4 PostgreSQL 16/17, DB5 PostgreSQL 16/17, and the informational cycle-7 evidence job all passed. AP5 was executed, not skipped.
-- [ИЗВЛЕЧЕНО] The exact PR-head AP5 receipt was `27 passed`, `0 skipped`, `0 unexpected`, `0 flaky`; its no-skip and runtime log-hygiene steps both passed.
-- [ИНТЕРПРЕТИРОВАНО] The repository CI gates are evidenced green on the current PR HEAD. This does not clear the separate hosted Supabase or Claude external gates.
+- [ИЗВЛЕЧЕНО] Manual GitHub Actions run `33239781977` completed successfully on
+  exact HEAD `e45358c...`.
+- [ИЗВЛЕЧЕНО] The same run passed lint with 0 errors and 13 warnings, typecheck,
+  all 195 test files / 1572 tests, and the Next.js production build.
+- [ИЗВЛЕЧЕНО] DB4 passed on PostgreSQL 16 and 17. DB5 passed on PostgreSQL 16
+  and 17. The ordinary disposable AP5 matrix also passed with its no-skip and
+  log-hygiene gates.
+- [ИЗВЛЕЧЕНО] `.github/workflows/ci.yml` keeps hosted acceptance manual and bound
+  to the `disposable-staging` GitHub Environment. Hosted test credentials are
+  generated and masked per run; existing disposable test-user passwords are
+  rotated only under `AP1_ROTATE_EXISTING_PASSWORD=yes`.
+- [ИЗВЛЕЧЕНО] Hosted reruns reset the disposable M3/M4 module gates before
+  verifying default-deny and reopening the accepted increments. No broad data
+  cleanup or production switch was used.
 
 ## CODE_PRESENT
 
-- [ИЗВЛЕЧЕНО] Root cause of the PR #119 `409 scope_conflict`: for `accept_milestone`, `ProjectCeoCommandService` preflighted the client command through `delivery.packageVersions`, while the published-only client projection intentionally returns no package/execution internals. The preflight rejected a valid milestone before the existing authorized database RPC ran.
-- [ИЗВЛЕЧЕНО] The fix uses `scopeOnly()` and the existing `projectceo_m4_api.accept_milestone` orchestration. The database RPC resolves the milestone package and re-checks membership/capability. No RLS, scope check, role trust, baseline fabrication, or builder privilege was changed.
-- [ИЗВЛЕЧЕНО] Regression coverage verifies hidden client milestone resolution, ambiguous/foreign target denial, client/guest denial, missing active release denial, and replay/idempotency behavior.
-- [ИЗВЛЕЧЕНО] AP5 fixme cases were replaced with executable assertions: authenticated area-node selection and the explicitly closed M4 increment-2 photo/milestone boundary.
-- [ИЗВЛЕЧЕНО] AP5 diagnostics no longer print page URLs with query credentials, response bodies, worker stdout, or worker stderr. Diagnostics expose only structural status, error code, and line counts.
-- [ИЗВЛЕЧЕНО] AP5 CI failure handling now emits a sanitized stack-status exit code; it does not dump raw application/browser logs that could contain credentials or customer data.
-- [ИЗВЛЕЧЕНО] No new product migration was added. The implementation is limited to command orchestration, test evidence, log hygiene, Playwright receipt wiring, and CI gate enforcement.
+- [ИЗВЛЕЧЕНО] The original PR fix removes the invalid client milestone
+  preflight through package data intentionally absent from the published-only
+  projection. The existing database RPC still resolves the milestone package
+  and rechecks membership and capability.
+- [ИЗВЛЕЧЕНО] Regression coverage includes hidden client targets,
+  ambiguous/foreign targets, client/guest denial, missing active release,
+  replay, idempotency, authenticated area selection, and the closed M4
+  increment-2 boundary.
+- [ИЗВЛЕЧЕНО] Hosted workflow additions validate the exact staging target,
+  canonicalize the six bootstrap ledger rows, replay the canonical chain,
+  configure/reload the hosted Data API, run AP1/AP5, reject skipped tests, scan
+  runtime logs, and retain only a sanitized receipt.
+- [ИЗВЛЕЧЕНО] No migration file is added or changed relative to main. The PR
+  currently changes 17 files; the hosted database received only the existing
+  89-file canonical chain.
 
-## BLOCKED_EXTERNAL
+## ADVISOR_FINDINGS
 
-- [ИЗВЛЕЧЕНО] Disposable hosted Supabase project `remhaos-autonomous-staging-20260829` exists with ref `ukkzasfsmannjprfkaxp`, region `ap-southeast-1`, status `ACTIVE_HEALTHY`, and PostgreSQL 17.
-- [ИЗВЛЕЧЕНО] Hosted setup applied the first six source migrations plus the disposable role precondition. The hosted migration API assigned server-generated migration versions, so this is not evidence of the canonical 89-row ledger.
-- [ИЗВЛЕЧЕНО] Continuing hosted DDL through the available MCP was rejected by the external safety boundary because the target could not be trusted as a disposable DDL target in that action context. No workaround or direct production path was used.
-- [ИЗВЛЕЧЕНО] A hosted DB password/direct connection and safe service-role retrieval path were not available without exposing credentials. Therefore the remaining migrations, hosted DBIG/DB4/DB5/AP1, and hosted authenticated browser AP5 were not executed.
-- [ИЗВЛЕЧЕНО] Hosted database advisors reported two security warnings for the legacy `public.is_studio_member` SECURITY DEFINER function being executable by anon/authenticated, plus pre-existing performance categories including unindexed foreign keys, RLS init-plan warnings, multiple permissive policies, unused indexes, and connection warnings.
-- [ИЗВЛЕЧЕНО] The two `is_studio_member` warnings are in the legacy baseline and are not introduced by this branch. They remain external follow-up work; they were not silently removed because legacy layout behavior depends on that function.
-- [ИНТЕРПРЕТИРОВАНО] Hosted staging acceptance is **BLOCKED**, not passed. The hosted project must be retained for the next authorized rehearsal and must not be treated as production evidence.
-- [ИЗВЛЕЧЕНО] The current PR-head GitHub CI run `33235788111` and push companion `33235786872` passed. The PR remains open.
-- [ИЗВЛЕЧЕНО] Claude Code review run `33235788120` reached its runner and completed successfully on exact HEAD `39be52a...`; no P0/P1 blocker was returned. Review observations about cancellation handling and failure-stack status are implemented in this HEAD; raw diagnostic upload remains intentionally excluded for secret hygiene.
+- [ИЗВЛЕЧЕНО] Post-DDL Supabase security advisors returned 11 findings: 2
+  `ERROR` and 9 `WARN`. The errors are RLS disabled on
+  `public.project_passport_revisions` and `public.contract_documents`.
+- [ИЗВЛЕЧЕНО] Security warnings comprise six mutable function search paths, the
+  legacy `public.is_studio_member` SECURITY DEFINER function executable by anon
+  and authenticated, and leaked-password protection disabled.
+- [ИЗВЛЕЧЕНО] Performance advisors returned 236 findings: 216 `INFO` and 20
+  `WARN` (`unindexed_foreign_keys`, `auth_rls_initplan`, `no_primary_key`,
+  `unused_index`, `multiple_permissive_policies`, and absolute Auth connection
+  allocation). Unused-index notices on a fresh disposable database do not prove
+  production workload behavior.
+- [ИНТЕРПРЕТИРОВАНО] These findings belong to the replayed canonical schema, not
+  to a new migration in this PR. They were not silently changed during staging
+  acceptance and remain explicit security/performance follow-up before any
+  production adoption decision.
 
-## NOT_AUTHORIZED
+## NOT_AUTHORIZED_AND_NOT_DONE
 
-- [ИЗВЛЕЧЕНО] No production Supabase migration, data read, settings/secrets/user mutation, Vercel Promote, production domain assignment, Designer Role Split, provider credential change, merge, or production deployment was performed.
-- [ИЗВЛЕЧЕНО] No hosted secret or customer data was printed, copied into the repository, or placed in an evidence report.
-- [ИЗВЛЕЧЕНО] The hosted disposable project, the failed Supabase branch, and the empty staging project were not deleted.
+- [ИЗВЛЕЧЕНО] No production Supabase project, secret, data, migration ledger,
+  Auth setting, Data API setting, Vercel production deployment, domain,
+  provider credential, or real customer record was used or changed.
+- [ИЗВЛЕЧЕНО] No PR merge, production deploy, Vercel Promote, staging-project
+  deletion, or production acceptance was performed.
+- [ИЗВЛЕЧЕНО] The hosted project remains disposable staging. Its dashboard may
+  label the main branch “Production”; that UI label does not convert this
+  isolated project into the RemHaOS production project.
 
-## Commands and receipts
+## Sanitized receipt
 
-The following commands were run from the fresh checkout; secret-bearing command output was redirected or sanitized where required:
-
-```text
-git rev-parse HEAD
-git rev-parse origin/main
-git merge-base HEAD origin/main
-git ls-files 'supabase/migrations/*.sql' | wc -l
-wc -l < tests/ap1/environment/migration-ledger.sha256
-zsh tests/ap1/environment/run-local.zsh reset
-AP1_CONFIRM_DISPOSABLE=yes npm run provision:ap1
-zsh tests/ap1/e2e/run-five-sessions.zsh
-npm run test:ap5
-node tests/ap5/assert-no-skips.mjs test-results/ap5-report.json
-node tests/ap1/environment/scan-log-hygiene.mjs test-results/ap5-report.json
-PI_DB_IMAGE=postgres:16-alpine zsh tests/db4/run.zsh
-PI_DB_IMAGE=postgres:17-alpine zsh tests/db4/run.zsh
-PI_DB_IMAGE=postgres:16-alpine zsh tests/db5/run.zsh
-PI_DB_IMAGE=postgres:17-alpine zsh tests/db5/run.zsh
-npm run lint
-npm run typecheck
-npm test
-npm run build
-git diff --check
+```json
+{
+  "status": "passed",
+  "scope": "disposable_hosted_staging",
+  "headSha": "e45358c56f3f0944a12202f38f690f47c9450106",
+  "projectRef": "ukkzasfsmannjprfkaxp",
+  "workflowRunId": "33239781977",
+  "productionChanged": false,
+  "migrationLedger": { "canonical": true, "count": 89 },
+  "ap1": { "bootstrap": true, "runtime": true, "identities": 5 },
+  "ap5": { "passed": 27, "skipped": 0, "unexpected": 0, "flaky": 0 }
+}
 ```
 
 ## Gate decision
 
-- [ИНТЕРПРЕТИРОВАНО] Local code and disposable acceptance are evidenced at implementation commit `68e206cea646138005bf33631bbd96d386868fe6`; CI and Claude receipts are evidenced at PR code HEAD `39be52afac2a96a7dd33c854211f6d3055d15f99`.
-- [ИНТЕРПРЕТИРОВАНО] Autonomous staging acceptance is not complete until hosted full-chain migration and hosted authenticated browser acceptance are externally observed. Claude review is available; no P0/P1 blocker remains from the completed review.
-- [ИНТЕРПРЕТИРОВАНО] The PR is open as `#121`; GitHub CI is green on exact evidence HEAD `39be52afac2a96a7dd33c854211f6d3055d15f99`, while hosted Supabase acceptance remains blocked.
-- [ИНТЕРПРЕТИРОВАНО] Merge is not currently safe to approve because the hosted staging gate is unresolved. This report does not grant production acceptance.
+- [ИНТЕРПРЕТИРОВАНО] The requested disposable hosted staging gate is complete
+  on evidence HEAD `e45358c...`: canonical migrations, hosted AP1, hosted AP5,
+  sanitized evidence, and full CI all passed.
+- [ИНТЕРПРЕТИРОВАНО] This is staging evidence only. The advisor findings and
+  Vercel/production acceptance remain separate gates.
+- [ИНТЕРПРЕТИРОВАНО] PR #121 remains open. Merge and production are not
+  authorized by this report.
