@@ -1,10 +1,13 @@
-import { readFileSync } from "node:fs";
+import { mkdtempSync, readFileSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
 import { resolve } from "node:path";
+import { spawnSync } from "node:child_process";
 
 import { describe, expect, it } from "vitest";
 
 const workflow = readFileSync(resolve(__dirname, "../../../.github/workflows/ci.yml"), "utf8");
 const repoRoot = resolve(__dirname, "../../..");
+const receiptGate = resolve(repoRoot, "tests/ap5/assert-no-skips.mjs");
 
 describe("AP1 CI credential log boundary", () => {
   it("does not place a reusable credential in job-level env", () => {
@@ -34,13 +37,33 @@ describe("AP1 CI credential log boundary", () => {
 
   it("runs AP5 unconditionally and fails when its JSON receipt is skipped", () => {
     expect(workflow).toContain("name: Require AP5 scope prerequisite");
-    expect(workflow).toContain("if: always()");
+    expect(workflow).toContain("if: ${{ !cancelled() }}");
     expect(workflow).toContain("PLAYWRIGHT_JSON_OUTPUT_FILE");
     expect(workflow).toContain("tests/ap5/assert-no-skips.mjs");
     expect(workflow).toContain("node tests/ap5/assert-no-skips.mjs \"${PLAYWRIGHT_JSON_OUTPUT_FILE}\"");
     expect(readFileSync(resolve(repoRoot, "playwright.config.ts"), "utf8"))
       .toContain("outputFile: process.env.PLAYWRIGHT_JSON_OUTPUT_FILE");
     expect(workflow).not.toMatch(/ap5:\n[\s\S]*?if:\s*>-[\s\S]*?needs\.scope\.outputs\.m4_v1/);
+  });
+
+  it("rejects missing, empty, and malformed AP5 receipts", () => {
+    const dir = mkdtempSync(resolve(tmpdir(), "ap5-receipt-gate-"));
+    for (const report of [{}, { stats: {} }, { stats: { expected: 0, skipped: 0 } }]) {
+      const path = resolve(dir, `${Math.random()}.json`);
+      writeFileSync(path, JSON.stringify(report));
+      const result = spawnSync(process.execPath, [receiptGate, path], { encoding: "utf8" });
+      expect(result.status).toBe(1);
+      expect(result.stderr).toContain("AP5_NO_SKIPS_FAILED");
+    }
+  });
+
+  it("accepts a non-empty receipt only when no tests are skipped", () => {
+    const dir = mkdtempSync(resolve(tmpdir(), "ap5-receipt-gate-"));
+    const path = resolve(dir, "receipt.json");
+    writeFileSync(path, JSON.stringify({ stats: { expected: 27, skipped: 0 } }));
+    const result = spawnSync(process.execPath, [receiptGate, path], { encoding: "utf8" });
+    expect(result.status).toBe(0);
+    expect(result.stdout).toContain("AP5_NO_SKIPS_OK skipped=0 passed=27");
   });
 
   it("scans runtime logs separately from the Playwright receipt", () => {

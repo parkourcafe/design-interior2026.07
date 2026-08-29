@@ -202,7 +202,7 @@ jobs:
   ap5:
     name: AP5 authenticated browser matrix
     needs: scope
-    if: always()
+    if: ${{ !cancelled() }}
     runs-on: ubuntu-latest
     timeout-minutes: 45
     env:
@@ -390,7 +390,12 @@ jobs:
 
       - name: Verify disposable stack on failure
         if: failure()
-        run: supabase status >/dev/null 2>&1 || true
+        run: |
+          set +e
+          supabase status >/dev/null 2>&1
+          status=$?
+          set -e
+          echo "AP5_SUPABASE_STATUS_EXIT=${status}"
 
       - name: Reject skipped AP5 tests
         if: always()

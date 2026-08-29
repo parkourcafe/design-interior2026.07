@@ -16,10 +16,16 @@ try {
   process.exit(1);
 }
 
-const skipped = Number(report?.stats?.skipped ?? 0);
+const stats = report?.stats;
+if (!stats || typeof stats.expected !== "number" || stats.expected <= 0) {
+  console.error("AP5_NO_SKIPS_FAILED stats_missing_or_empty");
+  process.exit(1);
+}
+
+const skipped = Number(stats.skipped);
 if (!Number.isFinite(skipped) || skipped !== 0) {
   console.error(`AP5_NO_SKIPS_FAILED skipped=${Number.isFinite(skipped) ? skipped : "unknown"}`);
   process.exit(1);
 }
 
-console.log(`AP5_NO_SKIPS_OK skipped=0 passed=${report?.stats?.expected ?? "unknown"}`);
+console.log(`AP5_NO_SKIPS_OK skipped=0 passed=${stats.expected}`);
