@@ -75,4 +75,28 @@ describe("AP1 CI credential log boundary", () => {
     expect(scanBlock).toContain('"${RUNNER_TEMP}/ap5-output.log"');
     expect(scanBlock).not.toContain("${PLAYWRIGHT_JSON_OUTPUT_FILE}");
   });
+
+  it("keeps hosted acceptance manual and bound to the disposable environment", () => {
+    expect(workflow).toContain("hosted_staging:");
+    expect(workflow).toContain("inputs.hosted_staging == true");
+    expect(workflow).toContain("environment: disposable-staging");
+    expect(workflow).toContain("EXPECTED_STAGING_REF: ukkzasfsmannjprfkaxp");
+    expect(workflow).toContain("PRODUCTION_PROJECT_REF: ztnycrchwxqczqbyegnp");
+    expect(workflow).toContain("HOSTED_STAGING_PRODUCTION_REF_REJECTED");
+    expect(workflow).not.toContain("PRODUCTION_SUPABASE_SERVICE_ROLE_KEY");
+  });
+
+  it("routes hosted credentials only through GitHub environment secrets", () => {
+    expect(workflow).toContain("AP1_DB_URL: ${{ secrets.AP1_DB_URL }}");
+    expect(workflow).toContain(
+      "NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}",
+    );
+    expect(workflow).toContain(
+      "NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}",
+    );
+    expect(workflow).toContain(
+      "SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}",
+    );
+    expect(workflow).toContain("without printing credentials");
+  });
 });
