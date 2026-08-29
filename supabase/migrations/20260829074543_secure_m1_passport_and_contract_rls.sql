@@ -28,7 +28,12 @@ alter table public.project_passport_revisions force row level security;
 revoke all on table public.project_passport_revisions
   from public, anon, authenticated, service_role,
        pi_human_executor, pi_worker_executor;
-alter table public.project_passport_revisions owner to pi_table_owner;
+-- Keep the existing public-schema owner. Supabase intentionally denies
+-- pi_table_owner CREATE on public, so transferring ownership would make a
+-- canonical hosted replay fail. The NOLOGIN/NOINHERIT internal function role
+-- receives only the two privileges needed by the protected trigger.
+grant select, insert on table public.project_passport_revisions
+  to pi_table_owner;
 
 create policy project_passport_revisions_internal_owner
 on public.project_passport_revisions
