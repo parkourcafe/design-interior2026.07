@@ -120,5 +120,6 @@ describe("AP1 CI credential log boundary", () => {
       "public, projectceo_api, projectceo_read_api, projectceo_product_api, projectceo_m3_api, projectceo_m4_api, projectceo_platform_api",
     );
     expect(workflow).toContain("notify pgrst, 'reload config'");
+    expect(workflow).toContain("notify pgrst, 'reload schema'");
   });
 });
