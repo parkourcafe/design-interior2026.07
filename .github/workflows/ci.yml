@@ -455,6 +455,7 @@ jobs:
       SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
       AP1_EMAIL_DOMAIN: remhaos.test
       AP1_CONFIRM_DISPOSABLE: "yes"
+      AP1_ROTATE_EXISTING_PASSWORD: "yes"
       AP5_APP_URL: http://127.0.0.1:3100
       NEXT_PUBLIC_APP_URL: http://127.0.0.1:3100
       PLAYWRIGHT_JSON_OUTPUT_FILE: test-results/ap5-report.json

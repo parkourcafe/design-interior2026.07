@@ -13,6 +13,7 @@ describe("AP1 CI credential log boundary", () => {
   it("does not place a reusable credential in job-level env", () => {
     expect(workflow).not.toMatch(/^\s+AP1_TEST_PASSWORD:/m);
     expect(workflow).not.toContain("ap5-local-only-password");
+    expect(workflow).toContain('AP1_ROTATE_EXISTING_PASSWORD: "yes"');
   });
 
   it("masks the per-run credential before exposing it to later steps", () => {

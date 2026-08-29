@@ -1,8 +1,10 @@
 // AP1: пять ролевых пользователей для authenticated pilot.
 // Запуск: npm run provision:ap1   (нужны env DISPOSABLE-окружения, не прода)
 //
-// Идемпотентно: существующие пользователи переиспользуются, повторный запуск
-// ничего не дублирует и не перезаписывает пароли.
+// Идемпотентно: существующие пользователи переиспользуются и не дублируются.
+// По явному disposable-флагу harness может синхронизировать их пароль с новым
+// masked per-run credential, чтобы повторная hosted-проверка оставалась
+// воспроизводимой без долгоживущего пятого секрета.
 //
 // Создаёт ТОЛЬКО auth-пользователей и печатает их user_id. Членства
 // (projectceo_foundation.project_memberships) намеренно НЕ создаются здесь:
@@ -59,6 +61,7 @@ async function main() {
 
   const domain = process.env.AP1_EMAIL_DOMAIN ?? "remhaos.test";
   const password = requiredEnv("AP1_TEST_PASSWORD");
+  const rotateExistingPassword = process.env.AP1_ROTATE_EXISTING_PASSWORD === "yes";
   if (password.length < 12) {
     throw new Error("AP1_TEST_PASSWORD должен быть не короче 12 символов.");
   }
@@ -78,12 +81,30 @@ async function main() {
     if (data.users.length < 200) break;
   }
 
-  const results: { key: string; role: string | null; email: string; userId: string; created: boolean }[] = [];
+  const results: {
+    key: string;
+    role: string | null;
+    email: string;
+    userId: string;
+    created: boolean;
+    rotated: boolean;
+  }[] = [];
   for (const user of AP1_USERS) {
     const email = emailFor(user.key, domain);
     const already = existing.get(email.toLowerCase());
     if (already) {
-      results.push({ key: user.key, role: user.role, email, userId: already, created: false });
+      if (rotateExistingPassword) {
+        const { error } = await admin.auth.admin.updateUserById(already, { password });
+        if (error) throw error;
+      }
+      results.push({
+        key: user.key,
+        role: user.role,
+        email,
+        userId: already,
+        created: false,
+        rotated: rotateExistingPassword,
+      });
       continue;
     }
     const { data, error } = await admin.auth.admin.createUser({
@@ -96,12 +117,19 @@ async function main() {
     });
     if (error) throw error;
     if (!data.user) throw new Error(`Supabase не вернул пользователя для ${email}`);
-    results.push({ key: user.key, role: user.role, email, userId: data.user.id, created: true });
+    results.push({
+      key: user.key,
+      role: user.role,
+      email,
+      userId: data.user.id,
+      created: true,
+      rotated: false,
+    });
   }
 
   console.log("\nAP1 role users:\n");
   for (const row of results) {
-    const state = row.created ? "создан" : "уже был";
+    const state = row.created ? "создан" : row.rotated ? "пароль обновлён" : "уже был";
     console.log(`  ${row.key.padEnd(9)} ${(row.role ?? "—").padEnd(15)} ${row.email.padEnd(28)} ${row.userId}  (${state})`);
   }
   console.log(

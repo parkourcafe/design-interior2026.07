@@ -111,6 +111,15 @@ describe("AP1 bootstrap-манифест одноразового стенда",
     expect(script).not.toMatch(/project_memberships|organization_members/);
   });
 
+  it("ротирует пароль существующих AP1-личностей только по явному disposable-флагу", () => {
+    const provisioner = readFileSync(
+      resolve(repoRoot, "scripts/provision-ap1-users.ts"),
+      "utf8",
+    );
+    expect(provisioner).toContain('AP1_ROTATE_EXISTING_PASSWORD === "yes"');
+    expect(provisioner).toContain("admin.auth.admin.updateUserById(already, { password })");
+  });
+
   it("фильтрует секреты во всём выводе внешних команд", () => {
     expect(script).toContain("redact()");
     expect(script).toContain("credential line redacted");
