@@ -42,12 +42,11 @@ export function runReleaseArtifactWorker(): {
   } catch (error) {
     // Урок дефекта 3: отказ обязан называть себя сам, иначе цена непонятной
     // ошибки здесь — сорок пять минут следующего прогона.
-    const detail = error as { stderr?: string; stdout?: string; message?: string };
+    const detail = error as { stderr?: string; stdout?: string };
     throw new Error(
-      "AP5: системный воркер артефактов выпуска не прошёл.\n"
-      + `${detail.message ?? String(error)}\n`
-      + `stderr: ${detail.stderr ?? "(пусто)"}\n`
-      + `stdout: ${detail.stdout ?? "(пусто)"}`,
+      "AP5: системный воркер артефактов выпуска не прошёл: "
+      + `stderrLines=${detail.stderr?.split("\n").length ?? 0} `
+      + `stdoutLines=${detail.stdout?.split("\n").length ?? 0}`,
     );
   }
   // Отчёт воркера — последняя строка JSON: он печатает его всегда, в том числе
@@ -56,6 +55,8 @@ export function runReleaseArtifactWorker(): {
   try {
     return JSON.parse(line) as ReturnType<typeof runReleaseArtifactWorker>;
   } catch {
-    throw new Error(`AP5: воркер не отдал отчёт JSON. Вывод: ${output}`);
+    throw new Error(
+      `AP5: воркер не отдал отчёт JSON: outputLines=${output.split("\n").length}`,
+    );
   }
 }

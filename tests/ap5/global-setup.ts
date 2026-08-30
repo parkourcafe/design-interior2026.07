@@ -73,7 +73,7 @@ async function issueMagicLink(role: Ap5RoleKey) {
   });
   const tokenHash = data?.properties?.hashed_token;
   if (error || !tokenHash || !data?.user) {
-    throw new Error(`AP5: не выпустить ссылку для ${role}: ${error?.message ?? "нет токена"}`);
+    throw new Error(`AP5: не выпустить ссылку для ${role}: code=${error?.code ?? "unknown"}`);
   }
   return { tokenHash, userId: data.user.id };
 }
@@ -87,6 +87,14 @@ function callbackUrl(tokenHash: string, next = "/dashboard"): string {
   return url.toString();
 }
 
+function safePageDiagnostic(rawUrl: string): string {
+  try {
+    return `pathname=${new URL(rawUrl).pathname}`;
+  } catch {
+    return "pathname=<invalid>";
+  }
+}
+
 /** Токен той же природы для RPC-шага: одноразовая ссылка тратится один раз. */
 async function accessTokenFor(role: Ap5RoleKey): Promise<string> {
   const { tokenHash } = await issueMagicLink(role);
@@ -98,7 +106,7 @@ async function accessTokenFor(role: Ap5RoleKey): Promise<string> {
     token_hash: tokenHash,
   });
   if (error || !data.session) {
-    throw new Error(`AP5: ${role} не получил сессию: ${error?.message ?? "нет сессии"}`);
+    throw new Error(`AP5: ${role} не получил сессию: code=${error?.code ?? "unknown"}`);
   }
   return data.session.access_token;
 }
@@ -152,7 +160,7 @@ async function enroll(ownerToken: string, projectId: string): Promise<void> {
       project_id: projectId,
       idempotency_key: `ap5-enroll-${projectId}`,
     });
-  if (error) throw new Error(`AP5: enroll_organization_project отказал: ${error.message}`);
+  if (error) throw new Error(`AP5: enroll_organization_project отказал: code=${error.code ?? "unknown"}`);
 }
 
 /** Сессия рождается в браузере: он сам проходит по ссылке и получает куку. */
@@ -170,7 +178,7 @@ async function captureBrowserSession(role: Ap5RoleKey): Promise<string> {
     // отказ через три шага.
     const landing = new URL(page.url());
     if (landing.searchParams.has("error") || landing.searchParams.has("error_description")) {
-      throw new Error(`AP5: ссылка ${role} отвергнута: ${page.url()}`);
+      throw new Error(`AP5: ссылка ${role} отвергнута: ${safePageDiagnostic(page.url())}`);
     }
 
     // Хост в редиректе обработчика может отличаться от того, на котором стоят
@@ -179,7 +187,7 @@ async function captureBrowserSession(role: Ap5RoleKey): Promise<string> {
     // рабочий экран возвращаемся сами, по базовому адресу.
     await page.goto("/dashboard");
     if (new URL(page.url()).pathname.startsWith("/login")) {
-      throw new Error(`AP5: сессия ${role} не установилась: ${page.url()}`);
+      throw new Error(`AP5: сессия ${role} не установилась: ${safePageDiagnostic(page.url())}`);
     }
     await context.storageState({ path: storageStatePath(role) });
     await context.close();
@@ -222,7 +230,7 @@ async function createInvitation(
     if (!response.ok() || typeof invitationUrl !== "string") {
       throw new Error(
         `AP5: create_invitation для ${targetRole} отказал: `
-        + `${response.status()} ${JSON.stringify(body?.error ?? body)}`,
+        + `status=${response.status()} code=${body?.error?.code ?? "unknown"}`,
       );
     }
     await context.close();
@@ -257,7 +265,7 @@ async function acceptInvitation(role: Ap5RoleKey, invitationUrl: string): Promis
     if (body?.status !== "completed") {
       throw new Error(
         `AP5: приём приглашения ${role} отказал: `
-        + `${response.status()} ${JSON.stringify(body)}`,
+        + `status=${response.status()} code=${body?.error?.code ?? "unknown"}`,
       );
     }
 

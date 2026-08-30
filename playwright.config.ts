@@ -1,9 +1,15 @@
-import { defineConfig, devices } from "@playwright/test";
+import { defineConfig, devices, type ReporterDescription } from "@playwright/test";
 
 // AP5 — browser matrix поверх НАСТОЯЩЕГО стека: Auth, PostgREST, RLS.
 // Санитизированный харнесс /projectceo-qa/[role] к этому конфигу отношения не
 // имеет и его не заменяет (AP1_RUNBOOK §5).
 const baseURL = process.env.AP5_APP_URL ?? "http://127.0.0.1:3100";
+const reporters: ReporterDescription[] = process.env.CI
+  ? [["github"], ["html", { outputFolder: "playwright-report", open: "never" }], ["list"]]
+  : [["list"]];
+if (process.env.PLAYWRIGHT_JSON_OUTPUT_FILE) {
+  reporters.push(["json", { outputFile: process.env.PLAYWRIGHT_JSON_OUTPUT_FILE }]);
+}
 
 export default defineConfig({
   testDir: "./tests/ap5",
@@ -19,9 +25,7 @@ export default defineConfig({
   retries: 0,
   timeout: 60_000,
   expect: { timeout: 15_000 },
-  reporter: process.env.CI
-    ? [["github"], ["html", { outputFolder: "playwright-report", open: "never" }], ["list"]]
-    : [["list"]],
+  reporter: reporters,
   use: {
     baseURL,
     trace: "retain-on-failure",

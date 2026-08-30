@@ -107,7 +107,7 @@ async function ingestGraph(
   const handoff = readHandoff();
   const projects = await client.schema("projectceo_api").rpc("list_projects");
   if (projects.error) {
-    throw new Error(`AP5: список проектов недоступен: ${projects.error.message}`);
+    throw new Error(`AP5: список проектов недоступен: code=${projects.error.code ?? "unknown"}`);
   }
   const scope = (projects.data as { readonly data: readonly {
     readonly projectId: string;
@@ -145,8 +145,8 @@ async function ingestGraph(
   });
   if (ingest.error) {
     throw new Error(
-      `AP5: ingest графовой фикстуры (${options.sourceId}) не прошёл: ${ingest.error.message}`
-      + ` / ${ingest.error.details ?? "(без деталей)"}`,
+      `AP5: ingest графовой фикстуры (${options.sourceId}) не прошёл: `
+      + `code=${ingest.error.code ?? "unknown"}`,
     );
   }
   const mutation = ingest.data as {
@@ -229,13 +229,43 @@ function analyzeGraphPlannerStatistics(): void {
       + " помещается ни в один честный statement_timeout",
     );
   }
-  execFileSync("psql", [
-    dbUrl, "-X", "--set", "ON_ERROR_STOP=1", "-c",
-    "analyze project_intelligence.graph_nodes,"
+  const analyzeSql = "analyze project_intelligence.graph_nodes,"
     + " project_intelligence.graph_node_revisions,"
     + " project_intelligence.graph_edges,"
-    + " project_intelligence.sources",
-  ], { stdio: "pipe", encoding: "utf8" });
+    + " project_intelligence.sources";
+  const args = [dbUrl, "-X", "--set", "ON_ERROR_STOP=1", "-c", analyzeSql];
+  try {
+    execFileSync(process.env.AP5_PSQL_BIN ?? "psql", args, {
+      stdio: "pipe",
+      encoding: "utf8",
+    });
+    return;
+  } catch (error) {
+    const detail = error as { readonly code?: string; readonly status?: number };
+    const container = process.env.AP5_POSTGRES_CONTAINER;
+    if (detail.code !== "ENOENT" || !container) {
+      throw new Error(
+        `AP5: ANALYZE не выполнен: exit=${detail.status ?? "unknown"}`
+        + ` code=${detail.code ?? "unknown"}`,
+      );
+    }
+    try {
+      execFileSync("docker", [
+        "exec", container, "psql", "-X", "--set", "ON_ERROR_STOP=1",
+        "--username", "postgres", "--dbname", "postgres", "-c", analyzeSql,
+      ], { stdio: "pipe", encoding: "utf8" });
+    } catch (containerError) {
+      const containerDetail = containerError as {
+        readonly code?: string;
+        readonly status?: number;
+      };
+      throw new Error(
+        `AP5: ANALYZE внутри disposable контейнера не выполнен: `
+        + `exit=${containerDetail.status ?? "unknown"}`
+        + ` code=${containerDetail.code ?? "unknown"}`,
+      );
+    }
+  }
 }
 
 /**

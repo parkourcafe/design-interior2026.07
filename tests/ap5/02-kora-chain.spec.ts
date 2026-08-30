@@ -55,6 +55,27 @@ type CommandResult = {
   };
 };
 
+function commandDiagnostic(result: CommandResult): string {
+  return `status=${result.status} code=${result.body.error?.code ?? "unknown"}`;
+}
+
+function rpcDiagnostic(error: unknown): string {
+  if (error && typeof error === "object" && "code" in error) {
+    const code = (error as { readonly code?: unknown }).code;
+    if (typeof code === "string") return `code=${code}`;
+  }
+  return "code=unknown";
+}
+
+function workerDiagnostic(report: {
+  readonly created: number;
+  readonly scanned: number;
+  readonly alreadyPresent?: number;
+}): string {
+  return `created=${report.created} scanned=${report.scanned}`
+    + ` alreadyPresent=${report.alreadyPresent ?? "unknown"}`;
+}
+
 async function command(
   request: APIRequestContext,
   kind: string,
@@ -75,7 +96,7 @@ async function command(
   if (!contract.success) {
     throw new Error(
       `AP5: payload команды ${kind} нарушает контракт (дефект харнесса, не сервера): `
-      + JSON.stringify(contract.error.issues),
+      + `issues=${contract.error.issues.length}`,
     );
   }
 
@@ -181,7 +202,7 @@ test.describe("AP5 — цепочка Kora на живом стеке", () => {
       checksum: createHash("sha256").update(AP5_SOURCE_NAME).digest("hex"),
       sourceRevisionId: AP5_SOURCE_REVISION_ID,
     });
-    expect(result.status, JSON.stringify(result.body.error)).toBe(200);
+    expect(result.status, commandDiagnostic(result)).toBe(200);
     expect(result.body.status).toBe("completed");
 
     const view = await workspace(architect);
@@ -231,7 +252,7 @@ test.describe("AP5 — цепочка Kora на живом стеке", () => {
       expectedRevisionId: AP5_SOURCE_REVISION_ID,
       decision: "confirmed",
     });
-    expect(result.status, JSON.stringify(result.body.error)).toBe(404);
+    expect(result.status, commandDiagnostic(result)).toBe(404);
     expect(result.body.error?.code).toBe("not_found");
   });
 
@@ -257,7 +278,7 @@ test.describe("AP5 — цепочка Kora на живом стеке", () => {
       evidence: [],
       reason: "AP5 authenticated browser chain",
     });
-    expect(decision.status, JSON.stringify(decision.body.error)).toBe(200);
+    expect(decision.status, commandDiagnostic(decision)).toBe(200);
 
     const view = await workspace(architect);
     expect(view.decisions.some((item) => item.revisionId === decisionRevisionId)).toBe(true);
@@ -289,6 +310,30 @@ test.describe("AP5 — цепочка Kora на живом стеке", () => {
   });
 
   /**
+   * 5а. Area-node пришёл через настоящий authenticated ingest, после чего
+   * выбор создаётся браузерной командой. Самой команды для регистрации
+   * площади нет: ingest остаётся единственной серверной дверью для графовой
+   * геометрии и выполняется не service role, а сессией архитектора.
+   */
+  test("5а. выбор привязан к площади из authenticated ingest", async ({ browser }) => {
+    const architect = await requestAs(browser, "designer");
+    const selection = await command(architect, "create_selection", {
+      packageId: handoff().rootPackageId,
+      nodeId: "ap5-selection-floor-1",
+      revisionId: randomUUID(),
+      expectedRevisionId: null,
+      claimStatus: "human_origin",
+      title: "AP5 selection",
+      areaNodeId: "ap5-area-floor-1",
+      decisionRevisionId: AP5_DECISION_REVISION_ID,
+      specification: { finish: "AP5 reference finish" },
+      evidence: [],
+      reason: "AP5 authenticated browser chain",
+    });
+    expect(selection.status, commandDiagnostic(selection)).toBe(200);
+  });
+
+  /**
    * Гейт 1 из A6 §6.1, первая половина: выход M3 через браузер.
    *
    * Всё, на что она опирается, собрано в этой сессии: дверь версии графа
@@ -308,13 +353,13 @@ test.describe("AP5 — цепочка Kora на живом стеке", () => {
         revisionId: AP5_DECISION_REVISION_ID,
       }],
     });
-    expect(created.status, JSON.stringify(created.body.error)).toBe(200);
+    expect(created.status, commandDiagnostic(created)).toBe(200);
 
     const submitted = await command(architect, "submit_approval_package", {
       approvalPackageId,
       expectedStatus: "draft",
     });
-    expect(submitted.status, JSON.stringify(submitted.body.error)).toBe(200);
+    expect(submitted.status, commandDiagnostic(submitted)).toBe(200);
 
     const approved = await command(architect, "review_selection", {
       approvalPackageId,
@@ -322,7 +367,7 @@ test.describe("AP5 — цепочка Kora на живом стеке", () => {
       decision: "approved",
       reason: "AP5 authenticated browser chain",
     });
-    expect(approved.status, JSON.stringify(approved.body.error)).toBe(200);
+    expect(approved.status, commandDiagnostic(approved)).toBe(200);
 
     // Поверхность обязана предложить публикацию и выдать токен: именно его
     // команда потребует назад, и именно он ловит гонку.
@@ -332,12 +377,12 @@ test.describe("AP5 — цепочка Kora на живом стеке", () => {
     expect(snapshotToken).toBeTruthy();
 
     const published = await command(architect, "publish_baseline", { snapshotToken });
-    expect(published.status, JSON.stringify(published.body.error)).toBe(200);
+    expect(published.status, commandDiagnostic(published)).toBe(200);
 
     // Устаревший токен обязан быть отвергнут, а не опубликован повторно:
     // после публикации состояние сдвинулось.
     const stale = await command(architect, "publish_baseline", { snapshotToken });
-    expect(stale.status, JSON.stringify(stale.body.error)).toBe(409);
+    expect(stale.status, commandDiagnostic(stale)).toBe(409);
   });
 
   /**
@@ -358,40 +403,12 @@ test.describe("AP5 — цепочка Kora на живом стеке", () => {
     expect(snapshotToken).toBeTruthy();
 
     const published = await command(architect, "publish_release", { snapshotToken });
-    expect(published.status, JSON.stringify(published.body.error)).toBe(200);
+    expect(published.status, commandDiagnostic(published)).toBe(200);
 
     // Повтор тем же токеном обязан быть отвергнут: версия сдвинула состояние,
     // и второй выпуск выражал бы уже не то, что показывали.
     const stale = await command(architect, "publish_release", { snapshotToken });
-    expect(stale.status, JSON.stringify(stale.body.error)).toBe(409);
-  });
-
-  /**
-   * НЕ ПРОХОДИТ на живом стеке — звено требует воркера, как и остальные четыре.
-   *
-   * У решения `areaNodeId` допускает null, а у выбора он обязателен
-   * (`command-contract.ts`) и обязан ссылаться на существующий узел
-   * `kind='area'` в `project_intelligence.graph_nodes`. Такие узлы создаёт
-   * ingest, а не браузерные команды: RPC решения заводит узел только для
-   * собственного `nodeId` (20260717101000:661). Пока графа нет, выбор из
-   * браузера создать нечем — и это ограничение продукта, а не харнесса.
-   */
-  test.fixme("5а. выбор привязан к площади, которой без ingest не существует", async ({ browser }) => {
-    const architect = await requestAs(browser, "designer");
-    const selection = await command(architect, "create_selection", {
-      packageId: handoff().rootPackageId,
-      nodeId: "ap5-selection-floor-1",
-      revisionId: randomUUID(),
-      expectedRevisionId: null,
-      claimStatus: "human_origin",
-      title: "AP5 selection",
-      areaNodeId: "ap5-area-floor-1",
-      decisionRevisionId: "ap5-decision-revision",
-      specification: { finish: "AP5 reference finish" },
-      evidence: [],
-      reason: "AP5 authenticated browser chain",
-    });
-    expect(selection.status, JSON.stringify(selection.body.error)).toBe(200);
+    expect(stale.status, commandDiagnostic(stale)).toBe(409);
   });
 
   /**
@@ -443,7 +460,7 @@ test.describe("AP5 — цепочка Kora на живом стеке", () => {
     const denied = await command(owner, "accept_milestone", {
       milestoneId: "a5d0c1c1-0000-4000-8000-00000000dead",
     });
-    expect(denied.status, JSON.stringify(denied.body.error)).toBe(409);
+    expect(denied.status, commandDiagnostic(denied)).toBe(409);
     expect(denied.body.error?.code).toBe("operation_unavailable");
   });
 
@@ -474,14 +491,14 @@ test.describe("AP5 — цепочка Kora на живом стеке", () => {
     expect(beforeWorker.operations.distribute_release?.reason).toBe("prerequisite_missing");
 
     const worker = runReleaseArtifactWorker();
-    expect(worker.created, JSON.stringify(worker)).toBeGreaterThan(0);
+    expect(worker.created, workerDiagnostic(worker)).toBeGreaterThan(0);
 
     // Повтор — no-op: очередь пуста, второго артефакта не появляется. Это то
     // же свойство, что DB4 проверяет на гонке, но здесь оно проверено на живом
     // стеке настоящим процессом.
     const repeat = runReleaseArtifactWorker();
-    expect(repeat.created, JSON.stringify(repeat)).toBe(0);
-    expect(repeat.scanned, JSON.stringify(repeat)).toBe(0);
+    expect(repeat.created, workerDiagnostic(repeat)).toBe(0);
+    expect(repeat.scanned, workerDiagnostic(repeat)).toBe(0);
 
     // Только теперь поверхность имеет право предлагать выдачу.
     const view = await workspace(owner);
@@ -495,7 +512,7 @@ test.describe("AP5 — цепочка Kora на живом стеке", () => {
       productionPackageVersionId: release!.id,
       recipientUserId,
     });
-    expect(distributed.status, JSON.stringify(distributed.body.error)).toBe(200);
+    expect(distributed.status, commandDiagnostic(distributed)).toBe(200);
 
     const after = (await workspace(owner)).releases.at(0);
     expect(after?.recipientCount).toBeGreaterThan(0);
@@ -524,7 +541,7 @@ test.describe("AP5 — цепочка Kora на живом стеке", () => {
     expect(ownerView.operations.acknowledge_release?.reason).toBe("prerequisite_missing");
 
     const acknowledged = await command(builder, "acknowledge_release", { distributionId });
-    expect(acknowledged.status, JSON.stringify(acknowledged.body.error)).toBe(200);
+    expect(acknowledged.status, commandDiagnostic(acknowledged)).toBe(200);
 
     const release = (await workspace(builder)).releases.at(0);
     expect(release?.acknowledgementCount).toBeGreaterThan(0);
@@ -564,7 +581,7 @@ test.describe("AP5 — цепочка Kora на живом стеке", () => {
       evidence: [],
       reason: "AP5 authenticated browser chain — revision for the change request",
     });
-    expect(revised.status, JSON.stringify(revised.body.error)).toBe(200);
+    expect(revised.status, commandDiagnostic(revised)).toBe(200);
 
     const approvalPackageId = `ap5-approval-${randomUUID()}`;
     const created = await command(architect, "create_approval_package", {
@@ -576,13 +593,13 @@ test.describe("AP5 — цепочка Kora на живом стеке", () => {
         revisionId: AP5_DECISION_REVISION_ID_2,
       }],
     });
-    expect(created.status, JSON.stringify(created.body.error)).toBe(200);
+    expect(created.status, commandDiagnostic(created)).toBe(200);
 
     const submitted = await command(architect, "submit_approval_package", {
       approvalPackageId,
       expectedStatus: "draft",
     });
-    expect(submitted.status, JSON.stringify(submitted.body.error)).toBe(200);
+    expect(submitted.status, commandDiagnostic(submitted)).toBe(200);
 
     const approved = await command(architect, "review_selection", {
       approvalPackageId,
@@ -590,7 +607,7 @@ test.describe("AP5 — цепочка Kora на живом стеке", () => {
       decision: "approved",
       reason: "AP5 authenticated browser chain",
     });
-    expect(approved.status, JSON.stringify(approved.body.error)).toBe(200);
+    expect(approved.status, commandDiagnostic(approved)).toBe(200);
 
     const beforeSecondBaseline = await workspace(architect);
     expect(beforeSecondBaseline.operations.publish_baseline?.status).toBe("available");
@@ -598,7 +615,7 @@ test.describe("AP5 — цепочка Kora на живом стеке", () => {
     expect(snapshotToken).toBeTruthy();
 
     const secondBaseline = await command(architect, "publish_baseline", { snapshotToken });
-    expect(secondBaseline.status, JSON.stringify(secondBaseline.body.error)).toBe(200);
+    expect(secondBaseline.status, commandDiagnostic(secondBaseline)).toBe(200);
 
     const builder = await requestAs(browser, "builder");
     const view = await workspace(builder);
@@ -612,7 +629,7 @@ test.describe("AP5 — цепочка Kora на живом стеке", () => {
       deltaCostRub: 0,
       deltaDays: 0,
     });
-    expect(change.status, JSON.stringify(change.body.error)).toBe(200);
+    expect(change.status, commandDiagnostic(change)).toBe(200);
 
     const changes = (await workspace(builder)).changes;
     expect(changes.length).toBeGreaterThan(0);
@@ -679,7 +696,7 @@ test.describe("AP5 — цепочка Kora на живом стеке", () => {
       disposition: "resolved",
       reason: "AP5: влияние разобрано архитектором в своей сессии",
     });
-    expect(reviewed.status, JSON.stringify(reviewed.body.error)).toBe(200);
+    expect(reviewed.status, commandDiagnostic(reviewed)).toBe(200);
     expect(reviewed.body.status).toBe("completed");
     // Результат возвращается КЛИЕНТУ, а не только оседает в базе.
     expect(reviewed.body.result?.disposition).toBe("resolved");
@@ -745,7 +762,7 @@ test.describe("AP5 — цепочка Kora на живом стеке", () => {
       impactRunId: change!.impactRunId!,
       reason: "AP5: попытка вызвать закрытую дверь подтверждения неполноты",
     });
-    expect(acknowledged.status, JSON.stringify(acknowledged.body.error)).toBe(409);
+    expect(acknowledged.status, commandDiagnostic(acknowledged)).toBe(409);
     expect(acknowledged.body.error?.code).toBe("operation_unavailable");
 
     // 9. Второй проход воркера не заводит второго прогона и не трогает
@@ -781,7 +798,7 @@ test.describe("AP5 — цепочка Kora на живом стеке", () => {
     // Контроль: токен настоящий и рабочий — иначе отказ ниже доказывал бы
     // сломанный токен, а не границу авторизации.
     const control = await client.schema("projectceo_api").rpc("list_projects");
-    expect(control.error, JSON.stringify(control.error)).toBeNull();
+    expect(control.error, rpcDiagnostic(control.error)).toBeNull();
 
     const probeProject = "00000000-0000-4000-8000-000000000000";
     const probeChangeRequest = "00000000-0000-4000-8000-000000000001";
@@ -799,7 +816,7 @@ test.describe("AP5 — цепочка Kora на живом стеке", () => {
     expect(calculateChangeImpact.data).toBeNull();
     expect(
       allowedDeniedStatus,
-      `calculate_change_impact: ${calculateChangeImpact.status} ${JSON.stringify(calculateChangeImpact.error)}`,
+      `calculate_change_impact: ${calculateChangeImpact.status} ${rpcDiagnostic(calculateChangeImpact.error)}`,
     ).toContain(calculateChangeImpact.status);
 
     const calculateChangeImpactPolicyBound = await client
@@ -814,7 +831,7 @@ test.describe("AP5 — цепочка Kora на живом стеке", () => {
     expect(
       allowedDeniedStatus,
       `calculate_change_impact_policy_bound: ${calculateChangeImpactPolicyBound.status} `
-      + `${JSON.stringify(calculateChangeImpactPolicyBound.error)}`,
+      + rpcDiagnostic(calculateChangeImpactPolicyBound.error),
     ).toContain(calculateChangeImpactPolicyBound.status);
 
     const listChangeImpactBacklog = await client
@@ -824,7 +841,7 @@ test.describe("AP5 — цепочка Kora на живом стеке", () => {
     expect(
       allowedDeniedStatus,
       `list_change_impact_backlog: ${listChangeImpactBacklog.status} `
-      + `${JSON.stringify(listChangeImpactBacklog.error)}`,
+      + rpcDiagnostic(listChangeImpactBacklog.error),
     ).toContain(listChangeImpactBacklog.status);
   });
 
@@ -844,7 +861,7 @@ test.describe("AP5 — цепочка Kora на живом стеке", () => {
     expect(before.operations.publish_release?.status).toBe("available");
     const snapshotToken = before.operations.publish_release?.commandTargetId;
     const released = await command(architect, "publish_release", { snapshotToken });
-    expect(released.status, JSON.stringify(released.body.error)).toBe(200);
+    expect(released.status, commandDiagnostic(released)).toBe(200);
   }
 
   async function reviseApproveAndPublishBaseline(
@@ -866,7 +883,7 @@ test.describe("AP5 — цепочка Kora на живом стеке", () => {
       evidence: [],
       reason: `AP5 authenticated browser chain — ${label} coverage scenario`,
     });
-    expect(revised.status, JSON.stringify(revised.body.error)).toBe(200);
+    expect(revised.status, commandDiagnostic(revised)).toBe(200);
 
     const approvalPackageId = `ap5-approval-${label}-${randomUUID()}`;
     const created = await command(architect, "create_approval_package", {
@@ -874,13 +891,13 @@ test.describe("AP5 — цепочка Kora на живом стеке", () => {
       approvalPackageId,
       items: [{ targetKind: "decision_revision", entityId: AP5_DECISION_NODE_ID, revisionId }],
     });
-    expect(created.status, JSON.stringify(created.body.error)).toBe(200);
+    expect(created.status, commandDiagnostic(created)).toBe(200);
 
     const submitted = await command(architect, "submit_approval_package", {
       approvalPackageId,
       expectedStatus: "draft",
     });
-    expect(submitted.status, JSON.stringify(submitted.body.error)).toBe(200);
+    expect(submitted.status, commandDiagnostic(submitted)).toBe(200);
 
     const approved = await command(architect, "review_selection", {
       approvalPackageId,
@@ -888,13 +905,13 @@ test.describe("AP5 — цепочка Kora на живом стеке", () => {
       decision: "approved",
       reason: "AP5 authenticated browser chain",
     });
-    expect(approved.status, JSON.stringify(approved.body.error)).toBe(200);
+    expect(approved.status, commandDiagnostic(approved)).toBe(200);
 
     const beforeBaseline = await workspace(architect);
     expect(beforeBaseline.operations.publish_baseline?.status).toBe("available");
     const snapshotToken = beforeBaseline.operations.publish_baseline?.commandTargetId;
     const published = await command(architect, "publish_baseline", { snapshotToken });
-    expect(published.status, JSON.stringify(published.body.error)).toBe(200);
+    expect(published.status, commandDiagnostic(published)).toBe(200);
   }
 
   async function createChangeFromCurrentProductionVersion(
@@ -925,7 +942,7 @@ test.describe("AP5 — цепочка Kora на живом стеке", () => {
       deltaCostRub: 0,
       deltaDays: 0,
     });
-    expect(created.status, JSON.stringify(created.body.error)).toBe(200);
+    expect(created.status, commandDiagnostic(created)).toBe(200);
     const change = (await workspace(builder)).changes.find((entry) => entry.reason === reason);
     expect(change, `AP5: заявка «${reason}» не найдена в рабочем пространстве`).toBeTruthy();
     return change!.id;
@@ -1097,27 +1114,28 @@ test.describe("AP5 — цепочка Kora на живом стеке", () => {
 });
 
 /**
- * Оставшиеся звенья цепочки AP5 из MASTER_EXECUTION_PLAN §AP5. Каждое помечено
- * причиной, а не молча пропущено: красный или пропущенный шаг здесь означает
- * «не доказано», и в отчёте гейта он виден именно так.
+ * M4 increment 2 пока не авторизован решением владельца. AP5 всё равно
+ * проверяет эту границу на настоящей странице и настоящим command route:
+ * операция не предлагается, а поддельная цель не доходит до RPC.
  */
-test.describe("AP5 — ещё не покрытые звенья", () => {
-  // Три звена ушли отсюда 11.08, и каждое — потому что доказано, а не потому
-  // что причина перестала нравиться. Строка-пропуск на пройденном звене — это
-  // отчёт, который врёт:
-  //   * «Decision/Selection approval → ProjectBaseline V1» — шаг 6 (гейт 1);
-  //   * «ProductionPackageVersion V1 → распространение и подтверждение» —
-  //     шаги 7, 9 и 10 (гейт 1 и гейт 2);
-  //   * заявка на изменение — шаг 11;
-  //   * влияние изменения целиком — шаг 12 (V1 Impact, 12.08.2026): системный
-  //     расчёт И рассмотрение архитектором. Пропуск стоял по трём причинам
-  //     подряд: воркера не существовало, команда не была авторизована, а
-  //     прогон получался пустым. Сняты все три — последнюю снял шаг 5б, узел
-  //     графа, зависящий от изменённого решения.
-  test.fixme(
-    "фотодоказательство и приёмка вехи",
-    // upload_photo_evidence требует существующего milestoneId; вех в проекте
-    // без воркерного плана нет.
-    () => {},
-  );
+test.describe("AP5 — M4 increment 2 boundary", () => {
+  test("фотодоказательство и приёмка вехи остаются закрытыми", async ({ browser }) => {
+    const owner = await requestAs(browser, "owner");
+    const operations = (await workspace(owner)).operations;
+    for (const kind of ["upload_photo_evidence", "review_photo_evidence", "accept_milestone"]) {
+      expect(operations[kind]?.status, kind).toBe("unavailable");
+      expect(operations[kind]?.reason, kind).toBe("increment_not_authorized");
+    }
+
+    const denied = await command(owner, "upload_photo_evidence", {
+      milestoneId: "a5d0c1c1-0000-4000-8000-000000000099",
+      areaNodeId: "ap5-area-floor-1",
+      sourceId: "ap5-photo-source",
+      sourceRevisionId: "ap5-photo-revision-1",
+      capturedAt: new Date().toISOString(),
+      note: null,
+    });
+    expect(denied.status, commandDiagnostic(denied)).toBe(409);
+    expect(denied.body.error?.code).toBe("operation_unavailable");
+  });
 });

@@ -48,4 +48,14 @@ describe("Supabase SSR authentication boundary", () => {
     expect(source("app/api/auth/register/route.ts")).toContain("auth.signUp");
     expect(source("app/api/auth/set-password/route.ts")).toContain("auth.updateUser");
   });
+
+  it("does not use direct privileged access for M1 passport revisions or contracts", () => {
+    const intake = source("app/api/intake/submit/route.ts");
+    const contracts = source("app/api/dashboard/contracts/route.ts");
+
+    expect(intake).not.toContain('.from("project_passport_revisions")');
+    expect(intake).toContain("passport_revision_llm_ok: llmOk");
+    expect(contracts).toContain('import { createClient } from "@/lib/supabase/server"');
+    expect(contracts).not.toContain("createAdminClient");
+  });
 });

@@ -44,35 +44,18 @@ export async function POST(request: Request) {
 
   // 3. Записать паспорт. Имя клиента — из контакта (чтобы дизайнер понимал,
   // чья это заявка среди множества).
-  const update: Record<string, unknown> = { passport, status: "brief_completed" };
+  const update: Record<string, unknown> = {
+    passport,
+    passport_revision_llm_ok: llmOk,
+    status: "brief_completed",
+  };
   const contactName = passport.contact?.name?.trim();
   if (contactName) update.client_name = contactName;
   await admin.from("projects").update(update).eq("id", project.id);
 
-  // B1 (Фаза 2): неизменяемая ревизия паспорта — каждая отправка брифа
-  // создаёт новую, прежние остаются байт-в-байт (INSERT-only триггер).
-  // Легаси-колонка выше остаётся read-моделью; реестр — доказуемая истина.
-  {
-    const { data: lastRev } = await admin
-      .from("project_passport_revisions")
-      .select("revision_no")
-      .eq("project_id", project.id)
-      .order("revision_no", { ascending: false })
-      .limit(1)
-      .maybeSingle();
-    const nextNo = ((lastRev as { revision_no?: number } | null)?.revision_no ?? 0) + 1;
-    const { error: revError } = await admin
-      .from("project_passport_revisions")
-      .insert({
-        project_id: project.id,
-        revision_no: nextNo,
-        passport,
-        llm_ok: llmOk,
-      });
-    if (revError) {
-      console.warn("passport_revision_failed:", revError.message?.slice(0, 120));
-    }
-  }
+  // B1 (Фаза 2): миграция 20260829074543 создаёт неизменяемую ревизию
+  // атомарно тем же UPDATE. Маршрут не получает прямого доступа к закрытому
+  // реестру и не вычисляет revision_no вне транзакции.
 
   // 4. Пересобрать карточки: удалить прежние, вставить новые как 'proposed'.
   await admin.from("risk_cards").delete().eq("project_id", project.id);

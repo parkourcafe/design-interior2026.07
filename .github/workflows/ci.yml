@@ -8,12 +8,16 @@ on:
   push:
     branches: ["**"]
   pull_request:
-    # labeled — ради гейта AP5: он включается меткой `ap5`, а в наборе типов по
-    # умолчанию (opened/synchronize/reopened) навешивание метки не событие, и
-    # прогон бы просто не стартовал.
+    # labeled сохраняется для ручного повторного запуска через label; AP5
+    # запускается и на обычных opened/synchronize/reopened событиях.
     types: [opened, synchronize, reopened, labeled]
   workflow_dispatch:
     inputs:
+      hosted_staging:
+        description: "Run disposable hosted Supabase AP1/AP5 acceptance"
+        required: false
+        default: false
+        type: boolean
       cycle7_receipt_head_sha:
         description: "Published HEAD described by the sanitized Cycle 7 receipt"
         required: false
@@ -28,9 +32,9 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  # Что именно изменила ветка. Нужно ровно одному потребителю — AP5, который
-  # обязан подниматься сам, когда тронут модуль 4 V1, и не зависеть от того,
-  # вспомнил ли человек навесить метку.
+  # Что именно изменила ветка. AP5 теперь обязательный потребитель этого
+  # результата, а остальные тяжёлые database jobs используют scope для
+  # сохранения существующего docs-only budget guard.
   #
   # Метка остаётся как ДОПОЛНИТЕЛЬНЫЙ способ позвать прогон руками, а не как
   # единственный. Разница принципиальная: забытая метка раньше означала, что
@@ -189,31 +193,21 @@ jobs:
   # отдельных аутентифицированных сессий. Санитизированный харнесс
   # /projectceo-qa/[role] его не заменяет (AP1_RUNBOOK §5).
   #
-  # Не в каждом push: поднимает весь Supabase, идёт ~15 минут. Поднимается
-  # САМ, когда изменение трогает вертикаль V1 модуля 4 (job `scope`), и
-  # дополнительно — вручную (workflow_dispatch) или по метке `ap5`.
-  #
-  # Автоматический запуск появился вместе с production-открытием V1: пока
-  # вертикаль жила за выключенным флагом, забытая метка стоила только
-  # непроверенного коммита. С открытой вертикалью тот же забытый прогон стоит
-  # непроверенного изменения у живых пользователей.
+  # AP5 всегда является обязательным job. Он поднимает disposable Supabase и
+  # authenticated browser matrix на каждом CI-событии; skipped не считается
+  # доказательством и превращается в failed job при проблеме prerequisite.
   #
   # Гейт блокирующий. Первым прогоном он нашёл реальный дефект (ревью источника
   # отвечало 500 из-за границы схем), дефект закрыт миграцией
   # `20260810050000` — держать его информационным дальше значит согласиться,
   # что следующую такую находку никто не заметит.
   #
-  # Звенья цепочки, требующие воркерного расчёта, помечены `test.fixme` с
-  # причиной (AP5_RUNBOOK.md, «Чего он не доказывает»): они видны в отчёте как
-  # пропуски и прогон не роняют. Красным job становится только тогда, когда
-  # ломается путь, который сегодня работает.
+  # Все AP5 tests должны иметь исполняемое утверждение. Отдельный JSON-gate
+  # падает при любом skipped, включая новые `test.fixme`.
   ap5:
     name: AP5 authenticated browser matrix
     needs: scope
-    if: >-
-      github.event_name == 'workflow_dispatch'
-      || needs.scope.outputs.m4_v1 == 'true'
-      || contains(github.event.pull_request.labels.*.name, 'ap5')
+    if: ${{ !cancelled() }}
     runs-on: ubuntu-latest
     timeout-minutes: 45
     env:
@@ -223,6 +217,8 @@ jobs:
       AP1_EMAIL_DOMAIN: remhaos.test
       AP1_CONFIRM_DISPOSABLE: "yes"
       NEXT_PUBLIC_APP_URL: http://127.0.0.1:3100
+      PLAYWRIGHT_JSON_OUTPUT_FILE: test-results/ap5-report.json
+      AP5_POSTGRES_CONTAINER: supabase_db_archidom-ap1-disposable
       # Модули, которые должна видеть матрица ролей. Оба флага сравниваются со
       # строкой "true" буквально (feature-flag.ts, documentation-flag.ts):
       # "1" читается как «выключено», и команды модуля отвечают
@@ -236,6 +232,14 @@ jobs:
       # в базе) закрыта guardrail'ами до явного шага ниже.
       REMHAOS_EXECUTION_ENABLED: "true"
     steps:
+      - name: Require AP5 scope prerequisite
+        if: always()
+        run: |
+          set -euo pipefail
+          if [ "${{ needs.scope.result }}" != "success" ]; then
+            echo "AP5_REQUIRED_SCOPE_RESULT=${{ needs.scope.result }}"
+            exit 1
+          fi
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
@@ -374,15 +378,50 @@ jobs:
         run: npx playwright install --with-deps chromium
 
       - name: Authenticated role matrix and Kora chain
-        run: npm run test:ap5
+        run: |
+          set +e
+          npm run test:ap5 > "${RUNNER_TEMP}/ap5-output.log" 2>&1
+          status=$?
+          exit "${status}"
 
-      - name: Application log on failure
+      - name: Summarize application log on failure
         if: failure()
-        run: tail -n 200 "${RUNNER_TEMP}/app.log" || true
+        run: |
+          if [ -f "${RUNNER_TEMP}/app.log" ]; then
+            echo "AP5_APP_LOG_PRESENT lines=$(wc -l < "${RUNNER_TEMP}/app.log")"
+          else
+            echo "AP5_APP_LOG_MISSING"
+          fi
 
-      - name: Collect Supabase logs on failure
+      - name: Verify disposable stack on failure
         if: failure()
-        run: supabase status || true
+        run: |
+          set +e
+          supabase status >/dev/null 2>&1
+          status=$?
+          set -e
+          echo "AP5_SUPABASE_STATUS_EXIT=${status}"
+
+      - name: Reject skipped AP5 tests
+        if: always()
+        run: node tests/ap5/assert-no-skips.mjs "${PLAYWRIGHT_JSON_OUTPUT_FILE}"
+
+      - name: Scan AP5 logs for credentials
+        if: always()
+        run: |
+          set -euo pipefail
+          files=()
+          # The Playwright JSON receipt is checked structurally above. In CI the
+          # reporter also embeds config.metadata.gitDiff, which is source code,
+          # not a runtime log and can contain literal credential field names.
+          for file in "${RUNNER_TEMP}/app.log" "${RUNNER_TEMP}/ap5-output.log"; do
+            if [ -f "${file}" ]; then files+=("${file}"); fi
+          done
+          if [ "${#files[@]}" -eq 0 ]; then
+            echo "AP5_LOG_HYGIENE_FAILED no_logs_to_scan"
+            exit 1
+          fi
+          node tests/ap1/environment/scan-log-hygiene.mjs "${files[@]}"
 
       - uses: actions/upload-artifact@v4
         if: always()
@@ -397,6 +436,344 @@ jobs:
       - name: Stop the application
         if: always()
         run: kill "$(cat "${RUNNER_TEMP}/app.pid")" 2>/dev/null || true
+
+  # Hosted acceptance is deliberately manual and bound to one disposable
+  # GitHub Environment. Ordinary push/pull_request runs never receive these
+  # credentials and cannot reach any hosted database.
+  hosted-staging:
+    name: Hosted disposable AP1 and AP5
+    if: github.event_name == 'workflow_dispatch' && inputs.hosted_staging == true
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    environment: disposable-staging
+    env:
+      EXPECTED_STAGING_REF: ukkzasfsmannjprfkaxp
+      AP1_DB_URL: ${{ secrets.AP1_DB_URL }}
+      SUPABASE_DB_URL: ${{ secrets.AP1_DB_URL }}
+      NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+      NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
+      SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+      AP1_EMAIL_DOMAIN: remhaos.test
+      AP1_CONFIRM_DISPOSABLE: "yes"
+      AP1_ROTATE_EXISTING_PASSWORD: "yes"
+      AP5_APP_URL: http://127.0.0.1:3100
+      NEXT_PUBLIC_APP_URL: http://127.0.0.1:3100
+      PLAYWRIGHT_JSON_OUTPUT_FILE: test-results/ap5-report.json
+      ARCHIDOM_LAYOUT_STUDIO_ENABLED: "true"
+      REMHAOS_DOCUMENTATION_ENABLED: "true"
+      REMHAOS_EXECUTION_ENABLED: "true"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - uses: supabase/setup-cli@v1
+        with:
+          version: 2.109.1
+
+      - name: Install hosted runner tools
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends postgresql-client zsh ripgrep
+
+      - name: Validate disposable target without printing credentials
+        shell: bash
+        run: |
+          set -euo pipefail
+          node <<'NODE'
+          const required = [
+            "AP1_DB_URL",
+            "NEXT_PUBLIC_SUPABASE_URL",
+            "NEXT_PUBLIC_SUPABASE_ANON_KEY",
+            "SUPABASE_SERVICE_ROLE_KEY",
+          ];
+          const missing = required.filter((name) => !process.env[name]);
+          if (missing.length) {
+            console.error(`HOSTED_STAGING_SECRET_MISSING names=${missing.join(",")}`);
+            process.exit(64);
+          }
+          const expected = process.env.EXPECTED_STAGING_REF;
+          const production = "ztnycrchwxqczqbyegnp";
+          if (required.some((name) => process.env[name].toLowerCase().includes(production))) {
+            console.error("HOSTED_STAGING_PRODUCTION_REF_REJECTED");
+            process.exit(65);
+          }
+          let database;
+          let api;
+          try {
+            database = new URL(process.env.AP1_DB_URL);
+            api = new URL(process.env.NEXT_PUBLIC_SUPABASE_URL);
+          } catch {
+            console.error("HOSTED_STAGING_URL_INVALID");
+            process.exit(64);
+          }
+          if (!database.username.endsWith(`.${expected}`)
+              || !database.hostname.endsWith(".pooler.supabase.com")
+              || database.port !== "5432"
+              || database.pathname !== "/postgres"
+              || database.searchParams.get("sslmode") !== "require"
+              || api.hostname !== `${expected}.supabase.co`) {
+            console.error("HOSTED_STAGING_TARGET_MISMATCH");
+            process.exit(65);
+          }
+          console.log(`HOSTED_STAGING_TARGET_OK ref=${expected} credentials=4`);
+          NODE
+
+      - name: Generate and mask hosted AP1 credential
+        shell: bash
+        run: |
+          set -euo pipefail
+          credential="$(openssl rand -hex 24)"
+          token_secret="$(openssl rand -hex 32)"
+          echo "::add-mask::${credential}"
+          echo "::add-mask::${token_secret}"
+          {
+            printf 'AP1_TEST_PASSWORD=%s\n' "${credential}"
+            printf 'PROJECTCEO_TOKEN_SECRET=%s\n' "${token_secret}"
+          } >> "${GITHUB_ENV}"
+
+      - run: npm ci
+
+      # The first six migrations were previously applied through the hosted
+      # migration API, which preserved their source names but assigned server
+      # timestamps. Repair only those six exact rows; any other state fails
+      # closed. The repository bootstrap then applies the remaining chain and
+      # requires an exact 90-version ledger.
+      - name: Canonicalize the six verified bootstrap ledger rows
+        shell: bash
+        run: |
+          set -euo pipefail
+          psql "${AP1_DB_URL}" -X --set ON_ERROR_STOP=1 <<'SQL'
+          do $repair$
+          declare
+            row record;
+            old_count integer;
+            canonical_count integer;
+          begin
+            for row in
+              select * from (values
+                ('20260828164206', '20260716071024', '20260716071024_legacy_production_baseline', 'legacy_production_baseline'),
+                ('20260828164257', '20260716072000', '20260716072000_project_intelligence_core', 'project_intelligence_core'),
+                ('20260828164303', '20260716073000', '20260716073000_project_intelligence_operations', 'project_intelligence_operations'),
+                ('20260828164307', '20260717090000', '20260717090000_projectceo_foundation_access', 'projectceo_foundation_access'),
+                ('20260828164316', '20260717091000', '20260717091000_projectceo_foundation_ingestion_read', 'projectceo_foundation_ingestion_read'),
+                ('20260828164323', '20260717092000', '20260717092000_projectceo_foundation_integration_hardening', 'projectceo_foundation_integration_hardening')
+              ) expected(old_version, canonical_version, old_name, canonical_name)
+            loop
+              select count(*) into old_count
+              from supabase_migrations.schema_migrations
+              where version = row.old_version and name = row.old_name;
+
+              select count(*) into canonical_count
+              from supabase_migrations.schema_migrations
+              where version = row.canonical_version
+                and name in (row.canonical_name, row.old_name);
+
+              if old_count + canonical_count <> 1 then
+                raise exception 'HOSTED_STAGING_LEDGER_REPAIR_REJECTED';
+              end if;
+
+              if old_count = 1 then
+                update supabase_migrations.schema_migrations
+                set version = row.canonical_version,
+                    name = row.canonical_name
+                where version = row.old_version and name = row.old_name;
+              elsif canonical_count = 1 then
+                update supabase_migrations.schema_migrations
+                set name = row.canonical_name
+                where version = row.canonical_version;
+              end if;
+            end loop;
+          end
+          $repair$;
+          SQL
+          echo "HOSTED_STAGING_LEDGER_BOOTSTRAP_CANONICALIZED count=6"
+
+      - name: Canonical migration chain and hosted AP1 bootstrap
+        shell: bash
+        run: |
+          set -euo pipefail
+          zsh tests/ap1/environment/bootstrap-disposable.zsh --target hosted --db-only \
+            | tee "${RUNNER_TEMP}/hosted-ap1.log"
+
+          # New hosted projects expose only public by default. Configure the
+          # exact additive API schemas after they exist, using Supabase's
+          # documented PostgREST role override, then reload the config.
+          psql "${AP1_DB_URL}" -X --set ON_ERROR_STOP=1 <<'SQL' >/dev/null
+          alter role authenticator set pgrst.db_schemas =
+            'public, projectceo_api, projectceo_read_api, projectceo_product_api, projectceo_m3_api, projectceo_m4_api, projectceo_platform_api';
+          notify pgrst, 'reload config';
+          notify pgrst, 'reload schema';
+          SQL
+
+          # Hosted staging is persistent between manual runs even though it is
+          # disposable. Clear only the already-allowlisted application/auth
+          # fixtures after the exact project-ref guard and before AP1 creates
+          # the five fresh identities. Without this, a previous Kora release
+          # can remain in the global worker backlog and make AP5 non-repeatable.
+          psql "${AP1_DB_URL}" -X --set ON_ERROR_STOP=1 \
+            -f tests/ap1/environment/reset-disposable-data.sql >/dev/null
+          psql "${AP1_DB_URL}" -X --set ON_ERROR_STOP=1 \
+            -f tests/ap1/environment/cleanup-repeatable-run.sql >/dev/null
+          echo "HOSTED_STAGING_DATA_RESET_OK"
+
+          zsh tests/ap1/environment/bootstrap-disposable.zsh --target hosted \
+            | tee -a "${RUNNER_TEMP}/hosted-ap1.log"
+
+      - name: Hosted Supabase security advisor ERROR gate
+        shell: bash
+        run: |
+          set -euo pipefail
+          supabase db advisors \
+            --db-url "${AP1_DB_URL}" \
+            --type security \
+            --level error \
+            --fail-on error \
+            --output-format json \
+            > "${RUNNER_TEMP}/hosted-security-advisor-errors.json"
+          rls_disabled_count="$(psql "${AP1_DB_URL}" -X -tAc \
+            "select count(*) from pg_catalog.pg_class relation join pg_catalog.pg_namespace namespace on namespace.oid = relation.relnamespace where namespace.nspname = 'public' and relation.relname in ('project_passport_revisions', 'contract_documents') and not relation.relrowsecurity;" \
+            | tr -d '[:space:]')"
+          test "${rls_disabled_count}" = "0"
+          echo "HOSTED_SECURITY_ADVISOR_OK errors=0 rls_disabled=0"
+
+      - name: Reset, verify and open disposable module boundaries
+        shell: bash
+        run: |
+          set -euo pipefail
+          psql "${AP1_DB_URL}" -X --set ON_ERROR_STOP=1 <<'SQL' >/dev/null
+          select projectceo_platform.close_module_production(
+            'm3', 'Hosted AP5 harness', 'Reset disposable staging before default-deny verification'
+          );
+          select projectceo_platform.close_module_production(
+            'm4_increment_1', 'Hosted AP5 harness', 'Reset disposable staging before default-deny verification'
+          );
+          select projectceo_m4.close_v1_impact_production(
+            'Hosted AP5 harness', 'Reset disposable staging before default-deny verification'
+          );
+          SQL
+          node tests/ap1/environment/verify-m3-data-api-closed.mjs
+          psql "${AP1_DB_URL}" -X --set ON_ERROR_STOP=1 \
+            -f tests/ap1/environment/enable-m3-publication.sql >/dev/null
+          node tests/ap1/environment/verify-m4-data-api-closed.mjs
+          psql "${AP1_DB_URL}" -X --set ON_ERROR_STOP=1 \
+            -f tests/ap1/environment/enable-m4-increment-1.sql >/dev/null
+          psql "${AP1_DB_URL}" -X --set ON_ERROR_STOP=1 \
+            -c "select projectceo_m4.open_v1_impact_production('Hosted AP5 harness', 'OWNER disposable hosted staging authorization');" \
+            >/dev/null
+          test "$(psql "${AP1_DB_URL}" -X -tAc \
+            'select open_now from projectceo_m4.v1_impact_production_state();')" = "t"
+          echo "HOSTED_STAGING_MODULE_BOUNDARIES_OK"
+
+      - name: Build and start the hosted application
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm run build
+          PORT=3100 nohup npm run start > "${RUNNER_TEMP}/hosted-app.log" 2>&1 &
+          echo $! > "${RUNNER_TEMP}/hosted-app.pid"
+
+      - name: Install Playwright browser
+        run: npx playwright install --with-deps chromium
+
+      - name: Hosted authenticated role matrix and Kora chain
+        id: hosted_ap5
+        shell: bash
+        run: |
+          set +e
+          npm run test:ap5 > "${RUNNER_TEMP}/hosted-ap5-output.log" 2>&1
+          status=$?
+          exit "${status}"
+
+      - name: Reject skipped hosted AP5 tests
+        if: always()
+        run: node tests/ap5/assert-no-skips.mjs "${PLAYWRIGHT_JSON_OUTPUT_FILE}"
+
+      - name: Scan hosted runtime logs for credentials
+        id: hosted_log_hygiene
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          files=()
+          for file in \
+            "${RUNNER_TEMP}/hosted-ap1.log" \
+            "${RUNNER_TEMP}/hosted-app.log" \
+            "${RUNNER_TEMP}/hosted-ap5-output.log"; do
+            if [ -f "${file}" ]; then files+=("${file}"); fi
+          done
+          test "${#files[@]}" -gt 0
+          node tests/ap1/environment/scan-log-hygiene.mjs "${files[@]}"
+
+      - name: Summarize sanitized hosted AP5 failure
+        if: always() && steps.hosted_ap5.outcome == 'failure' && steps.hosted_log_hygiene.outcome == 'success'
+        shell: bash
+        run: |
+          echo "HOSTED_AP5_SANITIZED_FAILURE"
+          tail -n 200 "${RUNNER_TEMP}/hosted-ap5-output.log"
+          if [ -f "${RUNNER_TEMP}/hosted-app.log" ]; then
+            tail -n 100 "${RUNNER_TEMP}/hosted-app.log"
+          fi
+
+      - name: Create sanitized hosted acceptance receipt
+        if: success()
+        shell: bash
+        run: |
+          set -euo pipefail
+          migration_count="$(psql "${AP1_DB_URL}" -X -tAc \
+            'select count(*) from supabase_migrations.schema_migrations;' | tr -d '[:space:]')"
+          test "${migration_count}" = "90"
+          jq -n \
+            --arg status "passed" \
+            --arg headSha "${GITHUB_SHA}" \
+            --arg projectRef "${EXPECTED_STAGING_REF}" \
+            --arg runId "${GITHUB_RUN_ID}" \
+            --argjson migrations "${migration_count}" \
+            --argjson passed "$(jq '.stats.expected' "${PLAYWRIGHT_JSON_OUTPUT_FILE}")" \
+            --argjson skipped "$(jq '.stats.skipped' "${PLAYWRIGHT_JSON_OUTPUT_FILE}")" \
+            --argjson unexpected "$(jq '.stats.unexpected' "${PLAYWRIGHT_JSON_OUTPUT_FILE}")" \
+            --argjson flaky "$(jq '.stats.flaky' "${PLAYWRIGHT_JSON_OUTPUT_FILE}")" \
+            '{
+              status: $status,
+              scope: "disposable_hosted_staging",
+              headSha: $headSha,
+              projectRef: $projectRef,
+              workflowRunId: $runId,
+              productionChanged: false,
+              migrationLedger: {canonical: true, count: $migrations},
+              securityAdvisor: {errors: 0, rlsDisabled: 0},
+              ap1: {bootstrap: true, runtime: true, identities: 5},
+              ap5: {passed: $passed, skipped: $skipped, unexpected: $unexpected, flaky: $flaky}
+            }' > "${RUNNER_TEMP}/hosted-staging-receipt.json"
+          jq -e '
+            .status == "passed"
+            and .productionChanged == false
+            and .migrationLedger == {canonical: true, count: 90}
+            and .securityAdvisor == {errors: 0, rlsDisabled: 0}
+            and .ap1.identities == 5
+            and .ap5.passed > 0
+            and .ap5.skipped == 0
+            and .ap5.unexpected == 0
+            and .ap5.flaky == 0
+          ' "${RUNNER_TEMP}/hosted-staging-receipt.json" >/dev/null
+          echo "HOSTED_STAGING_RECEIPT_OK migrations=90 security_advisor_errors=0"
+
+      - uses: actions/upload-artifact@v4
+        if: success()
+        with:
+          name: hosted-staging-sanitized-evidence-${{ github.sha }}
+          path: ${{ runner.temp }}/hosted-staging-receipt.json
+          retention-days: 14
+          if-no-files-found: error
+
+      - name: Stop the hosted application
+        if: always()
+        shell: bash
+        run: |
+          if [ -f "${RUNNER_TEMP}/hosted-app.pid" ]; then
+            kill "$(cat "${RUNNER_TEMP}/hosted-app.pid")" 2>/dev/null || true
+          fi
 
   # Статический контракт цикла 7 остаётся отдельным от runtime: он проверяет,
   # что committed input не подменён completed receipt.

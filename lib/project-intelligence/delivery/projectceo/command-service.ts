@@ -443,6 +443,19 @@ export class ProjectCeoCommandService {
           idempotencyKey,
         }));
       }
+      // Client-facing published projection intentionally omits package and
+      // execution internals. The database RPC resolves the milestone's
+      // package and re-checks membership/capability, so do not preflight this
+      // target through fields the client is not allowed to receive.
+      if (command.kind === "accept_milestone") {
+        const scope = await this.scopeOnly(command.projectId);
+        return completed(requestId, await this.execution.acceptMilestone({
+          projectId: command.projectId,
+          milestoneId: command.payload.milestoneId,
+          expectedStateRevision: scope.stateRevision,
+          idempotencyKey,
+        }));
+      }
       const { scope, delivery } = await this.context(command.projectId);
       if (command.kind === "submit_m2_client_review") {
         return completed(requestId, await this.product.submitM2ClientReview({
@@ -1148,18 +1161,6 @@ export class ProjectCeoCommandService {
           photoEvidenceId: command.payload.photoEvidenceId,
           decision: command.payload.decision,
           reason: command.payload.reason,
-          expectedStateRevision: scope.stateRevision,
-          idempotencyKey,
-        }));
-      }
-      if (command.kind === "accept_milestone") {
-        const belongs = executionDeliveries.some((envelope) => (
-          envelope.data.milestones.some((milestone) => milestone.id === command.payload.milestoneId)
-        ));
-        if (!belongs) return failure(requestId, "error", "scope_conflict");
-        return completed(requestId, await this.execution.acceptMilestone({
-          projectId: command.projectId,
-          milestoneId: command.payload.milestoneId,
           expectedStateRevision: scope.stateRevision,
           idempotencyKey,
         }));
