@@ -5,12 +5,11 @@ name: CI
 # скриншоте; теперь он лежит в логах прогона и виден в PR.
 
 on:
-  push:
-    branches: ["**"]
   pull_request:
-    # labeled сохраняется для ручного повторного запуска через label; AP5
-    # запускается и на обычных opened/synchronize/reopened событиях.
-    types: [opened, synchronize, reopened, labeled]
+    # Один полный прогон на PR: AP5 запускается на opened/synchronize/reopened.
+    # Автоматический push-trigger отключён, чтобы один commit в PR не запускал
+    # два одинаковых CI-прогона и не расходовал минуты дважды.
+    types: [opened, synchronize, reopened]
   workflow_dispatch:
     inputs:
       hosted_staging:
