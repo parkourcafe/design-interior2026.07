@@ -1392,7 +1392,7 @@ export const ru = {
         approve: "Утвердить",
         reject: "Отклонить",
         decisionReason: "Причина решения",
-        decisionReasonPlaceholder: "Что проверено человеком",
+        decisionReasonPlaceholder: "Опишите, что проверено и почему принято это решение",
         decisionConfirmation: "Подтвердить решение по этому approval request?",
         requested: "Запрошено",
         status: {
@@ -1401,7 +1401,7 @@ export const ru = {
           approved: "Утверждено",
           rejected: "Отклонено",
         },
-        selfApproved: "Самосогласование",
+        selfApproved: "Подтверждено автором действия",
         decidedBy: (id: string) => `Решил участник ${id.slice(0, 8)}`,
         createdAt: (date: string) => `Создано ${date}`,
       },

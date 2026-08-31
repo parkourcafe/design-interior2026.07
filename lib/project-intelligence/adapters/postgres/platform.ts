@@ -24,6 +24,7 @@ export interface PlatformApprovalRequestRecord {
   readonly subjectId: string;
   readonly approverCapability: string;
   readonly status: string;
+  readonly requestedByCurrentActor: boolean;
   readonly requestedReason: string;
   readonly selfApproved: boolean;
   readonly decidedBy: string | null;
@@ -81,6 +82,7 @@ function approval(value: unknown): PlatformApprovalRequestRecord | null {
     subjectId,
     approverCapability,
     status,
+    requestedByCurrentActor: item.requestedByCurrentActor === true,
     requestedReason,
     selfApproved: item.selfApproved === true,
     decidedBy: text(item.decidedBy),

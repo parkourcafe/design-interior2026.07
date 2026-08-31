@@ -780,6 +780,7 @@ function m1Views(input: {
     readonly subjectId: string;
     readonly approverCapability: string;
     readonly status: string;
+    readonly requestedByCurrentActor: boolean;
     readonly requestedReason: string;
     readonly selfApproved: boolean;
     readonly decidedBy: string | null;
@@ -819,6 +820,7 @@ function m1Views(input: {
       subjectId: request.subjectId,
       approverCapability: request.approverCapability,
       status: request.status,
+      requestedByCurrentActor: request.requestedByCurrentActor,
       requestedReason: request.requestedReason,
       selfApproved: request.selfApproved,
       decidedBy: request.decidedBy,
@@ -1140,7 +1142,9 @@ function operationStates(input: {
       && source.reviewTargetRevisionId !== null
     ))?.reviewTargetRevisionId,
   );
-  const draftApprovalRequest = input.m1.approvalRequests.find((request) => request.status === "draft");
+  const draftApprovalRequest = input.m1.approvalRequests.find((request) => (
+    request.status === "draft" && request.requestedByCurrentActor
+  ));
   const submittedApprovalRequest = input.m1.approvalRequests.find((request) => request.status === "submitted");
   const m1InternalRole = input.role === "owner" || input.role === "architect";
   // Снапшот состава baseline: то же правило полноты, что применит команда, и

@@ -178,6 +178,7 @@ function ApprovalRequest({
   readonly request: M1ApprovalRequestView;
   readonly role: ProjectCeoRole;
 }) {
+  const [decisionReason, setDecisionReason] = useState("");
   const submitState = view.operations.submit_approval_request;
   const decideState = view.operations.decide_approval_request;
   const canSubmit = submitState.status === "available" && submitState.commandTargetId === request.id;
@@ -213,28 +214,42 @@ function ApprovalRequest({
         </ProjectCeoCommandButton>
       )}
       {canDecide && canDecideAsOwnerOrArchitect && (
-        <div className="mt-3 flex flex-wrap gap-2">
-          {(["approved", "rejected"] as const).map((decision) => (
-            <ProjectCeoCommandButton
-              key={decision}
-              command={{
-                contractVersion: PROJECTCEO_COMMAND_CONTRACT_VERSION,
-                kind: "decide_approval_request",
-                projectId: view.project.id,
-                payload: {
-                  requestId: request.id,
-                  decision,
-                  reason: copy.workspace.m1.decisionReasonPlaceholder,
-                },
-              }}
-              confirmation={copy.workspace.m1.decisionConfirmation}
-              className={decision === "approved"
-                ? "rounded-lg border border-emerald-200 px-3 py-2 text-xs font-medium text-emerald-700"
-                : "rounded-lg border border-red-200 px-3 py-2 text-xs font-medium text-red-700"}
-            >
-              {decision === "approved" ? copy.workspace.m1.approve : copy.workspace.m1.reject}
-            </ProjectCeoCommandButton>
-          ))}
+        <div className="mt-3 space-y-2">
+          <label className="block text-xs text-muted">
+            {copy.workspace.m1.decisionReason}
+            <textarea
+              value={decisionReason}
+              onChange={(event) => setDecisionReason(event.target.value)}
+              placeholder={copy.workspace.m1.decisionReasonPlaceholder}
+              minLength={3}
+              required
+              className="mt-1 min-h-20 w-full rounded-lg border border-line bg-white px-3 py-2 text-sm text-ink"
+            />
+          </label>
+          <div className="flex flex-wrap gap-2">
+            {(["approved", "rejected"] as const).map((decision) => (
+              <ProjectCeoCommandButton
+                key={decision}
+                command={{
+                  contractVersion: PROJECTCEO_COMMAND_CONTRACT_VERSION,
+                  kind: "decide_approval_request",
+                  projectId: view.project.id,
+                  payload: {
+                    requestId: request.id,
+                    decision,
+                    reason: decisionReason.trim(),
+                  },
+                }}
+                disabled={decisionReason.trim().length < 3}
+                confirmation={copy.workspace.m1.decisionConfirmation}
+                className={decision === "approved"
+                  ? "rounded-lg border border-emerald-200 px-3 py-2 text-xs font-medium text-emerald-700"
+                  : "rounded-lg border border-red-200 px-3 py-2 text-xs font-medium text-red-700"}
+              >
+                {decision === "approved" ? copy.workspace.m1.approve : copy.workspace.m1.reject}
+              </ProjectCeoCommandButton>
+            ))}
+          </div>
         </div>
       )}
     </li>

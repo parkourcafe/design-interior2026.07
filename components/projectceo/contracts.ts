@@ -193,6 +193,7 @@ export interface M1ApprovalRequestView {
   readonly subjectId: string;
   readonly approverCapability: string;
   readonly status: "draft" | "submitted" | "approved" | "rejected";
+  readonly requestedByCurrentActor: boolean;
   readonly requestedReason: string;
   readonly selfApproved: boolean;
   readonly decidedBy: string | null;
