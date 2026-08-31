@@ -30,6 +30,12 @@ function fakeClient(
       if (schemaName === "projectceo_api" && functionName === "list_projects") {
         return { data: foundation(projectEntries), error: null };
       }
+      if (schemaName === "projectceo_platform_api" && functionName === "list_project_facts") {
+        return { data: { facts: [] }, error: null };
+      }
+      if (schemaName === "projectceo_platform_api" && functionName === "list_approval_requests") {
+        return { data: { requests: [] }, error: null };
+      }
       if (schemaName === "projectceo_read_api" && functionName === "get_project_workspace_read_v11") {
         return { data: {
           contractVersion: "project-ceo-authenticated-read/0.1",
@@ -234,6 +240,36 @@ function executionWithPhotoDecision(decision: "accepted" | "rejected" | null) {
 }
 
 describe("ProjectCEO live DTO sanitizer", () => {
+  it.each([
+    ["builder", "builder"],
+    ["client", "client_approver"],
+  ] as const)("keeps internal M1 facts and approval operations out of the %s projection", async (_label, role) => {
+    const result = await new ProjectCeoLiveReadPort(
+      fakeClient({}, [{
+        accessScope: "project",
+        organizationId,
+        projectId,
+        role,
+        stateRevision: 4,
+      }]),
+      {
+        userId: "66666666-6666-4666-8666-666666666666",
+        displayName: "Controlled user",
+      },
+    ).getProjectWorkspace({ projectId, requestId: `m1-hidden-${role}` });
+
+    expect(result.error).toBeNull();
+    expect(result.data?.m1).toEqual({ facts: [], approvalRequests: [] });
+    expect(result.data?.operations.create_project_fact).toEqual({
+      status: "unavailable",
+      reason: "capability_missing",
+    });
+    expect(result.data?.operations.create_approval_request).toEqual({
+      status: "unavailable",
+      reason: "capability_missing",
+    });
+  });
+
   // Guardrail модуля 4 (10.08.2026) закрыт по умолчанию, а проверки ниже
   // описывают поведение поверхности исполнения, когда модуль есть. Сам запрет
   // проверяется отдельно — последним тестом файла и в

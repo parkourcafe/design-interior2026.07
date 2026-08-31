@@ -25,6 +25,7 @@ import { recordIdFromContent } from "./record-id";
 import { M2WorkflowPanel } from "./m2-workflow-panel";
 import { M2ClientReviewPanel } from "./m2-client-review-panel";
 import { M2M3ApprovedInputCard } from "./m2-m3-approved-input-card";
+import { M1ProjectPanel } from "./m1-project-panel";
 import { TelegramChannelPanel } from "./telegram-channel-panel";
 import { TelegramInboxPanel } from "./telegram-inbox-panel";
 
@@ -1929,6 +1930,7 @@ function TabContent({
 }) {
   switch (tab) {
     case "overview": return <OverviewView view={view} role={role} />;
+    case "passport": return <M1ProjectPanel view={view} role={role} />;
     case "sources": return <SourcesView view={view} role={role} />;
     case "decisions": return <DecisionsView view={view} role={role} />;
     case "documentation": return <DocumentationView view={view} />;

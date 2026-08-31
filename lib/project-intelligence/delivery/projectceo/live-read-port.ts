@@ -2,6 +2,7 @@ import "server-only";
 
 import {
   FoundationPostgresAdapter,
+  ProjectCeoPlatformPostgresAdapter,
   ProjectCeoAuthenticatedReadPostgresAdapter,
   ProjectIntelligenceAdapterError,
   type AuthenticatedProjectReadProjection,
@@ -36,6 +37,9 @@ import {
   type M2MaterialView,
   type M2RoomView,
   type M2VariantView,
+  type M1WorkspaceView,
+  type M1ProjectFactView,
+  type M1ApprovalRequestView,
   type ProjectCeoOperationState,
   type ProjectCeoOperationStates,
   type ProjectCeoRole,
@@ -758,6 +762,73 @@ function historyViews(value: unknown): readonly AuditEventView[] {
   }));
 }
 
+function m1Views(input: {
+  readonly facts: readonly {
+    readonly factId: string;
+    readonly factType: string;
+    readonly content: Readonly<Record<string, unknown>>;
+    readonly extractionKind: string;
+    readonly sourceId: string | null;
+    readonly sourceRevisionId: string | null;
+    readonly statedReason: string | null;
+    readonly createdAt: string;
+    readonly supersededAt: string | null;
+  }[];
+  readonly approvalRequests: readonly {
+    readonly requestId: string;
+    readonly subjectKind: string;
+    readonly subjectId: string;
+    readonly approverCapability: string;
+    readonly status: string;
+    readonly requestedReason: string;
+    readonly selfApproved: boolean;
+    readonly decidedBy: string | null;
+    readonly decisionReason: string | null;
+    readonly createdAt: string;
+  }[];
+}): M1WorkspaceView {
+  const facts: M1ProjectFactView[] = input.facts.flatMap((fact) => {
+    if (
+      (fact.factType !== "requirement" && fact.factType !== "constraint"
+        && fact.factType !== "assumption" && fact.factType !== "open_question")
+      || (fact.extractionKind !== "extracted" && fact.extractionKind !== "interpreted"
+        && fact.extractionKind !== "human_stated")
+    ) return [];
+    return [{
+      id: fact.factId,
+      factType: fact.factType,
+      title: text(fact.content.title, copy.common.dash),
+      detail: nullableText(fact.content.detail),
+      extractionKind: fact.extractionKind,
+      sourceId: fact.sourceId,
+      sourceRevisionId: fact.sourceRevisionId,
+      statedReason: fact.statedReason,
+      createdAt: timestamp(fact.createdAt),
+      supersededAt: fact.supersededAt ? timestamp(fact.supersededAt) : null,
+    }];
+  });
+  const approvalRequests: M1ApprovalRequestView[] = input.approvalRequests.flatMap((request) => {
+    if (
+      (request.subjectKind !== "project_passport" && request.subjectKind !== "client_passport")
+      || (request.status !== "draft" && request.status !== "submitted"
+        && request.status !== "approved" && request.status !== "rejected")
+    ) return [];
+    return [{
+      id: request.requestId,
+      subjectKind: request.subjectKind,
+      subjectId: request.subjectId,
+      approverCapability: request.approverCapability,
+      status: request.status,
+      requestedReason: request.requestedReason,
+      selfApproved: request.selfApproved,
+      decidedBy: request.decidedBy,
+      decisionReason: request.decisionReason,
+      createdAt: timestamp(request.createdAt),
+    }];
+  });
+  return { facts, approvalRequests };
+}
+
 function m4Views(envelopes: readonly ExecutionDeliveryEnvelope[]): {
   readonly changes: readonly ChangeRequestView[];
   readonly milestones: readonly PhotoMilestoneView[];
@@ -1020,6 +1091,7 @@ function operationStates(input: {
   readonly role: ProjectCeoRole;
   readonly delivery: AuthenticatedProjectReadProjection;
   readonly m4: readonly ExecutionDeliveryEnvelope[];
+  readonly m1: M1WorkspaceView;
   readonly documentationEnabled?: boolean;
   readonly executionEnabled?: boolean;
   readonly executionV2V3Enabled?: boolean;
@@ -1068,6 +1140,9 @@ function operationStates(input: {
       && source.reviewTargetRevisionId !== null
     ))?.reviewTargetRevisionId,
   );
+  const draftApprovalRequest = input.m1.approvalRequests.find((request) => request.status === "draft");
+  const submittedApprovalRequest = input.m1.approvalRequests.find((request) => request.status === "submitted");
+  const m1InternalRole = input.role === "owner" || input.role === "architect";
   // Снапшот состава baseline: то же правило полноты, что применит команда, и
   // тот же токен, который она потребует назад.
   let baselineSnapshotToken: string | null = null;
@@ -1177,6 +1252,23 @@ function operationStates(input: {
     }
   }
   const states: ProjectCeoOperationStates = {
+    create_project_fact: m1InternalRole && can(input.role, "review_source")
+      ? { status: "available" }
+      : unavailable("capability_missing"),
+    create_approval_request: m1InternalRole && can(input.role, "view_project")
+      ? { status: "available" }
+      : unavailable("capability_missing"),
+    submit_approval_request: m1InternalRole && can(input.role, "view_project")
+      ? draftApprovalRequest
+        ? { status: "available", commandTargetId: draftApprovalRequest.id }
+        : unavailable("prerequisite_missing")
+      : unavailable("capability_missing"),
+    decide_approval_request: m1InternalRole
+      && (can(input.role, "review_claim") || can(input.role, "review_selection"))
+      ? submittedApprovalRequest
+        ? { status: "available", commandTargetId: submittedApprovalRequest.id }
+        : unavailable("prerequisite_missing")
+      : unavailable("capability_missing"),
     create_invitation: can(input.role, "manage_access")
       ? { status: "available" }
       : unavailable("capability_missing"),
@@ -1377,6 +1469,7 @@ function onboarding(projectCount: number): OnboardingState {
 export class ProjectCeoLiveReadPort implements ProjectCeoUiReadPort {
   private readonly foundation: FoundationPostgresAdapter;
   private readonly authenticatedRead: ProjectCeoAuthenticatedReadPostgresAdapter;
+  private readonly platform: ProjectCeoPlatformPostgresAdapter;
 
   constructor(
     client: PostgresRpcClient,
@@ -1384,6 +1477,7 @@ export class ProjectCeoLiveReadPort implements ProjectCeoUiReadPort {
   ) {
     this.foundation = new FoundationPostgresAdapter(client);
     this.authenticatedRead = new ProjectCeoAuthenticatedReadPostgresAdapter(client);
+    this.platform = new ProjectCeoPlatformPostgresAdapter(client);
   }
 
   private async projectEntries(): Promise<readonly ProjectListItem[]> {
@@ -1502,6 +1596,18 @@ export class ProjectCeoLiveReadPort implements ProjectCeoUiReadPort {
         throw new ProjectIntelligenceAdapterError(readEnvelope.error.code, null);
       }
       const delivery = readEnvelope.data;
+      // Facts and approval requests are internal Project Memory. They are not
+      // part of the client published-only projection or the builder/guest
+      // delivery surface. Keep the RPC read behind the server-derived role.
+      const m1 = actor.role === "owner" || actor.role === "architect"
+        ? await (async () => {
+            const [facts, approvalRequests] = await Promise.all([
+              this.platform.listProjectFacts(input.projectId),
+              this.platform.listApprovalRequests(input.projectId),
+            ]);
+            return m1Views({ facts, approvalRequests });
+          })()
+        : { facts: [], approvalRequests: [] };
       const packages = projectPackages({ packages: delivery.packages });
       const sources = sourceViews(delivery.sources);
       const baseline = baselineFrom(delivery);
@@ -1559,6 +1665,7 @@ export class ProjectCeoLiveReadPort implements ProjectCeoUiReadPort {
       return success(input.requestId, {
         project,
         actor,
+        m1,
         packages,
         sources,
         decisions: decisionViews(delivery.decisions),
@@ -1592,6 +1699,7 @@ export class ProjectCeoLiveReadPort implements ProjectCeoUiReadPort {
           role: actor.role,
           delivery,
           m4: m4Envelopes,
+          m1,
         }),
       });
     } catch (error) {
