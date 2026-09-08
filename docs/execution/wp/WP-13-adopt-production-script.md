@@ -24,8 +24,8 @@
 - production
 
 ## Шаги
-1. Скрипт: `supabase/roles.sql` → миграции строго в порядке `migration-ledger.sha256` с проверкой sha до применения → `verify-db.sql` → `apply-hosted-role-precondition.sql`; требует `AP1_APPROVAL_RECORD=<id Approval B>` и файл allowlist ref (`prod` или ref клона); stop-on-first-failure.
-2. `baseline-adoption.sql`: одна транзакция — assert counts relations/routines/policies по снапшоту (`raise exception` при несовпадении) → insert строки `20260716071024` в `supabase_migrations.schema_migrations` без DDL; 23 существующие строки не трогать.
+1. Скрипт: сначала проверяет, что запись baseline `20260716071024` уже есть в `supabase_migrations.schema_migrations` (её создаёт `baseline-adoption.sql` на Approval A; при отсутствии — отказ), DDL baseline не исполняется никогда (он падает при существующих legacy-таблицах, `20260716071024:31-57`) → `supabase/roles.sql` → additive-миграции со второй строки `migration-ledger.sha256` строго по порядку, с проверкой sha до применения → `verify-db.sql` → `apply-hosted-role-precondition.sql`; требует `AP1_APPROVAL_RECORD=<id Approval B>` и файл allowlist ref (`prod` или ref клона); stop-on-first-failure.
+2. `baseline-adoption.sql` (исполняется отдельно, на Approval A, до скрипта): одна транзакция — assert counts relations/routines/policies по снапшоту (`raise exception` при несовпадении) → insert строки `20260716071024` в `supabase_migrations.schema_migrations` без DDL; 23 существующие строки не трогать.
 3. Контракт-тест: отказ без approval record; отказ на не-allowlisted ref; отказ на production без записи; dry-run на локальном контейнере (DB4-образ + legacy `.sql.txt`) доходит до `verify-db`.
 
 ## Гейты

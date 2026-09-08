@@ -7,7 +7,7 @@
 Контракт программы: `docs/execution/REMHAOS_MASTER_TZ_2026-09-08.md`. Карта: `docs/audits/REMHAOS_COMPLETION_ROADMAP_2026-09-08.md`. Аудит: `docs/audits/REMHAOS_GLOBAL_AUDIT_2026-09-08.md`.
 
 ## Цель
-Довести открытый PR #124 (первый мост M1 → ProjectCEO) до слияния без расширения его объёма.
+Перенести изменения открытого PR #124 (первый мост M1 → ProjectCEO) на ветку пакета и довести до слияния без расширения объёма; чужая ветка не переписывается.
 
 ## Входы (что должно быть выполнено до старта)
 - Р1 (CI)
@@ -23,7 +23,7 @@
 - H9, H10
 
 ## Шаги
-1. `git fetch origin codex/m1-project-workspace-contracts`; rebase на `origin/main` после #123; конфликты H1/H5/H8/H13 разрешать «сложением».
+1. `git fetch origin codex/m1-project-workspace-contracts`; ветка `wp/wp-21-land-pr-124` от `origin/main` (после #123); перенести коммиты #124 через `git merge origin/codex/m1-project-workspace-contracts` или cherry-pick с сохранением авторства — чужую ветку не rebase-ить и не force-push-ить; конфликты H1/H5/H8/H13 разрешать «сложением»; открыть новый PR `WP-21: land #124` со ссылкой на #124; после слияния #124 закрывается как superseded.
 2. Проверить `validModules` в `tests/platform/action-registry.test.ts:50` содержит `m1`; ledger 91; `preExisting` содержит миграцию.
 3. CI на точном HEAD: 7 джоб зелёные; Claude Code Review; blind review. На ревью запросить вынос вкладки Passport в `components/projectceo/m1-passport-panel.tsx` как follow-up (не в этом PR).
 4. Слияние — владелец (миграция) после Р11; оркестратор ставит `READY_FOR_OWNER_MERGE`.
