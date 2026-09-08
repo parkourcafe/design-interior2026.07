@@ -361,3 +361,19 @@ keystore, скриншоты, реквизиты оператора ПДн, `RUS
 - Второй аккаунт Supabase (проекты `uafvzxdxlxqkpsejgskt`, `qoyemgoskhuqdexlejhp`, орг `huqbxcmbidfqverftqrk`).
 - Содержимое volume Railway `/data/remhaos-control` (код коллектора) и назначение `HARVEST_MODE`.
 - Репозитории `Selena-AI-projects/design2026ru`, `parkourcafe/hermes-telegram-bridge`.
+
+## Поправка 08.09 (после декомпозиции на пакеты работ)
+
+- Идентификаторы BUG-06/07/08 (`acknowledgeImpactTruncation`, `allImpactsReviewed`,
+  `truncationAcknowledged`, `unacknowledgedTruncatedRunId`) на `main` = `cfe1caa` отсутствуют
+  (`rg` → 0). Остаток мёртвого контура — сырая дверь `calculateChangeImpact` в
+  `lib/project-intelligence/adapters/postgres/execution.ts:441-463` (закрыта DEC-034; runner зовёт
+  `calculateChangeImpactPolicyBound`). Раздел 2.4 (c) читать с этой поправкой; пакет WP-38.
+- BUG-04 в части обещаний builder/client закрыт: `components/projectceo/role-policy.ts:58-70` совпадает
+  с `20260802030000:43-51` (тест `tests/projectceo-ui/roles.test.ts`). Остаток — список ролей в
+  `lib/project-intelligence/delivery/projectceo/command-service.ts:1062-1071` (backlog M4 №6, WP-36).
+- Число миграций «90» захардкожено в hosted-джобе `.github/workflows/ci.yml:726,752`; AP5 выполняется и
+  на docs-only PR (`ci.yml:210`). Учтено в ТЗ `docs/execution/REMHAOS_MASTER_TZ_2026-09-08.md` §5.
+- Бюджет GitHub Actions аккаунта (скриншот владельца 08.09): $30/мес с жёсткой остановкой, в сентябре
+  потрачено $6.97; падения 31.08 совпадают с исчерпанием августовского бюджета. Работоспособность CI
+  в сентябре не проверена реальным прогоном.
