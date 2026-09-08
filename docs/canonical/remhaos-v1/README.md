@@ -30,3 +30,9 @@
 
 ## Governance
 После freeze изменения продукта идут через утверждённый Addendum и Decision Log. После спринта создаются Implementation Report и Readiness Update. Новая независимая «финальная архитектура» не создаётся.
+
+## Audits and plans (not canonical)
+Аудиты и планы не являются источником истины; при конфликте действует журнал решений.
+- `../../audits/REMHAOS_GLOBAL_AUDIT_2026-09-08.md` — глобальный аудит продукта и инфраструктуры на `cfe1caa`
+- `../../audits/REMHAOS_COMPLETION_ROADMAP_2026-09-08.md` — действующий план завершения M1–M4 и запуска (заменяет план 23.08)
+- `../../execution/REMHAOS_MASTER_TZ_2026-09-08.md` — генеральное ТЗ программы (оркестратор, пакеты работ, волны); доска — `../../execution/STATUS.md`
