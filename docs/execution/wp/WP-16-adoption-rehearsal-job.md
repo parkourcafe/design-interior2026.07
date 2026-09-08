@@ -23,7 +23,7 @@
 - `hosted-staging` (ledger «ровно 90», bootstrap-строки — не переиспользовать)
 
 ## Шаги
-1. Job `adoption-rehearsal`: `environment: adoption-rehearsal`, input с `AP1_APPROVAL_RECORD`, `EXPECTED_REHEARSAL_REF` из vars, запрет production ref (образец `HOSTED_STAGING_PRODUCTION_REF_REJECTED`), шаги: `adopt-production.zsh` → `POST_VERIFY` (`verify-db.sql`, `verify-runtime.mjs`, `verify-m3/m4-data-api-closed.mjs`, advisors errors=0, `module_production_state()` закрыто, `v1_impact_production_state()` `open_now=false`) → `npm run provision:ap1` → AP5 без skip → sanitized receipt (ledger = 23+1+N, advisors 0, `passed`, `skipped=0`).
+1. Job `adoption-rehearsal`: `environment: adoption-rehearsal`, input с `AP1_APPROVAL_RECORD`, `EXPECTED_REHEARSAL_REF` из vars, запрет production ref (образец `HOSTED_STAGING_PRODUCTION_REF_REJECTED`), шаги: `baseline-adoption.sql` (Approval A: запись baseline как applied, без DDL) → проверка ровно одной новой записи → `adopt-production.zsh` (Approval B: только additive со второй строки ledger) → `POST_VERIFY` (`verify-db.sql`, `verify-runtime.mjs`, `verify-m3/m4-data-api-closed.mjs`, advisors errors=0, `module_production_state()` закрыто, `v1_impact_production_state()` `open_now=false`) → `npm run provision:ap1` → AP5 без skip → sanitized receipt (ledger = 23 + N, где N — число строк ledger репозитория и baseline считается один раз; advisors 0; `passed`; `skipped=0`).
 2. Логи проходят `scan-log-hygiene.mjs`; никаких имён файлов клиентов и токенов.
 
 ## Гейты
@@ -31,7 +31,7 @@
 - прогон — dispatch владельцем; итерации до зелёного
 
 ## Критерий приёмки
-- receipt: AP5 27/27, skipped 0, advisors 0, ledger 116 (при N=92)
+- receipt: AP5 27/27, skipped 0, advisors 0, ledger 115 (при N=92)
 - клон удалён; RTO/RPO записаны в `ROLLBACK_EVIDENCE.md`
 
 ## Обязательные правила (кратко; полностью — `docs/audits/wp/WP_PROTOCOL.md`)
