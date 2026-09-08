@@ -6,7 +6,7 @@
 | WP | Название | Волна | Серия | Статус | Ветка | PR | Сессия | Блокер | Обновлено |
 |---|---|---|---|---|---|---|---|---|---|
 | WP-01 | PR-триаж, health commit, список веток | W1 | — | NOT_STARTED | — | — | — | Р1, Р10 | 08.09 |
-| WP-02 | Хардкод стенда → vars, де-пин ledger в ci.yml | W1 | S-CI | NOT_STARTED | — | — | — | var в env | 08.09 |
+| WP-02 | Хардкод стенда → vars, де-пин ledger в ci.yml | W1 | S-CI | NOT_STARTED | — | — | — | var в env; слияние — владелец (CI) | 08.09 |
 | WP-03 | ПДн из env-дефолтов + полнота .env.example | W1 | — | NOT_STARTED | — | — | — | Р9 | 08.09 |
 | WP-05 | Экспорт market_harvest (скрипт + runbook) | W2 | — | NOT_STARTED | — | — | — | Р6 | 08.09 |
 | WP-11 | Snapshot-tooling v2 | W2 | — | NOT_STARTED | — | — | — | Р12 | 08.09 |
@@ -15,11 +15,11 @@
 | WP-14 | Миграция legacy_adopted_hardening + DB4 №57 | W3 | S-MIG #2 | NOT_STARTED | — | — | — | Р7, WP-21 | 08.09 |
 | WP-16 | CI-джоба adoption-rehearsal + прогон | W4→W5 | S-CI | NOT_STARTED | — | — | — | WP-02, WP-13, WP-14, клон | 08.09 |
 | WP-18 | Пакет Human GO | W6 | — | NOT_STARTED | — | — | — | WP-12, WP-16 | 08.09 |
-| WP-21 | Посадка PR #124 | W1 | S-MIG #1 | NOT_STARTED | codex/m1-project-workspace-contracts | #124 | — | Р1, #123, Р11 | 08.09 |
+| WP-21 | Посадка PR #124 | W1 | S-MIG #1 | NOT_STARTED | wp/wp-21-land-pr-124 (перенос #124) | новый PR; #124 → superseded | — | Р11 | 08.09 |
 | WP-22 | Предложение по модели моста M1 | W1 | — | NOT_STARTED | — | — | — | — | 08.09 |
 | WP-23 | sendProposal требует platform approval | W3–W4 | S-CS, S-UI, S-RU | NOT_STARTED | — | — | — | WP-21, Р11 | 08.09 |
 | WP-24 | Адаптер читает legacy-паспорт и договор | W4–W5 | S-UI | NOT_STARTED | — | — | — | WP-21 | 08.09 |
-| WP-25 | BUG-05 (а): token-scoped helper + allowlist-тест | W2–W3 | — | NOT_STARTED | — | — | — | Р26 | 08.09 |
+| WP-25 | BUG-05 (а): token-scoped helper + allowlist-тест | W2–W3 | — | NOT_STARTED | — | — | — | — (Р26 по черновику пакета) | 08.09 |
 | WP-26 | BUG-05 (б): страницы дизайнера → request-bound | W5–W6 | S-MIG #5? | NOT_STARTED | — | — | — | WP-25 | 08.09 |
 | WP-27 | Static-boundary тест TTL ≤900 | W1 | — | NOT_STARTED | — | — | — | — | 08.09 |
 | WP-28 | События ошибок, activation-отчёт, метрики AP7 | W3/W8 | S-RU | NOT_STARTED | — | — | — | Р22 | 08.09 |
@@ -40,4 +40,4 @@
 
 | Дата | Слито | В работе | Блокеры владельца | Расход сессий, $ | Примечание |
 |---|---|---|---|---|---|
-| 08.09 | 0 | 0 | Р1, Р2, Р3, Р10, Р11, Р29, Р30 | 0 | доска создана; PR #122 закрыт, #123 ждёт CI |
+| 08.09 | 1 (#123, merge 29f0036) | 0 | Р2 (Vercel → `release`), Р3, Р11, Р29 бюджет Actions | 0 | доска создана; #122 закрыт; #125 — правки по ревью, ждёт CI; Routine `remhaos-orchestrator-loop` заведена, первый прогон 09.09 08:00 Bali |
