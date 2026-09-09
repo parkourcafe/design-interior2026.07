@@ -16,6 +16,34 @@ import { derivePackageRecommendation } from "@/lib/proposal/package";
 import { getLatestProposal } from "@/lib/proposal/latest";
 import type { RiskCardRow } from "@/lib/review";
 
+type ApprovalRequest = {
+  readonly subjectKind?: unknown;
+  readonly subjectId?: unknown;
+  readonly status?: unknown;
+};
+
+async function hasApprovedProjectPassport(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  projectId: string,
+): Promise<boolean> {
+  const { data, error } = await supabase
+    .schema("projectceo_platform_api")
+    .rpc("list_approval_requests", {
+      p_project_id: projectId,
+      p_status: "approved",
+    });
+  if (error || !data || typeof data !== "object" || Array.isArray(data)) return false;
+  const requests = (data as { readonly requests?: unknown }).requests;
+  return Array.isArray(requests) && requests.some((value): value is ApprovalRequest => (
+    value !== null
+    && typeof value === "object"
+    && !Array.isArray(value)
+    && (value as ApprovalRequest).subjectKind === "project_passport"
+    && (value as ApprovalRequest).subjectId === projectId
+    && (value as ApprovalRequest).status === "approved"
+  ));
+}
+
 export async function saveProposal(
   projectId: string,
   sections: ProposalSection[],
@@ -114,13 +142,22 @@ export async function rebuildProposal(
   return { ok: true, sections };
 }
 
-export async function sendProposal(projectId: string): Promise<{ ok: boolean }> {
+export async function sendProposal(projectId: string): Promise<{
+  ok: boolean;
+  reason?: "approval_required";
+}> {
   const supabase = await createClient();
   const studio = await getStudio();
   if (!studio) return { ok: false };
 
   const latest = await getLatestProposal(supabase, projectId);
   if (!latest) return { ok: false };
+  // «Отправить клиенту» — необратимое изменение публичной поверхности КП.
+  // Approval request создаётся и решается через ProjectCEO command boundary;
+  // здесь проверяем только его request-bound опубликованный результат.
+  if (!await hasApprovedProjectPassport(supabase, projectId)) {
+    return { ok: false, reason: "approval_required" };
+  }
   const { data: proposal, error } = await supabase
     .from("proposals")
     .update({ status: "sent", sent_at: new Date().toISOString() })

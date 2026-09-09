@@ -20,6 +20,7 @@ export default function ProposalEditor({
   const [sections, setSections] = useState(initialSections);
   const [saved, setSaved] = useState(false);
   const [sent, setSent] = useState(alreadySent);
+  const [sendError, setSendError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
   const router = useRouter();
 
@@ -37,11 +38,14 @@ export default function ProposalEditor({
 
   function send() {
     startTransition(async () => {
+      setSendError(null);
       await saveProposal(projectId, sections);
       const res = await sendProposal(projectId);
       if (res.ok) {
         setSent(true);
         router.refresh();
+      } else if (res.reason === "approval_required") {
+        setSendError(ru.proposal.approvalRequired);
       }
     });
   }
@@ -82,6 +86,7 @@ export default function ProposalEditor({
         <button onClick={send} disabled={pending || sent} className="btn-primary">
           {sent ? ru.proposal.sent : pending ? ru.proposal.sending : ru.proposal.send}
         </button>
+        {sendError && <p role="alert" className="basis-full text-sm text-amber-800">{sendError}</p>}
       </div>
 
       <div className="no-print rounded-md border border-line bg-white p-3 text-sm">
