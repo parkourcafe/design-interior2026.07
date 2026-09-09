@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
-import { createAdminClient } from "@/lib/supabase/admin";
+import { createScopedServiceClient } from "@/lib/supabase/token-scoped";
 import { ru } from "@/lib/i18n/ru";
 import { canSeeTask } from "@/lib/project-room/access";
 import type { ParticipantRole, ProjectTask } from "@/lib/project-room/types";
@@ -14,7 +14,7 @@ export const metadata: Metadata = { robots: { index: false, follow: false } };
 
 export default async function ParticipantRoomPage({ params }: { params: Promise<{ access_token: string }> }) {
   const { access_token } = await params;
-  const admin = createAdminClient();
+  const admin = createScopedServiceClient("participant-room");
   const { data: participant } = await admin.from("project_participants").select("id, room_id, role, display_name").eq("access_token", access_token).maybeSingle();
   if (!participant) notFound();
   const p = participant as { id: string; room_id: string; role: ParticipantRole; display_name: string };

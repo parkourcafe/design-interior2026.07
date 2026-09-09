@@ -1,4 +1,4 @@
-import { createAdminClient } from "@/lib/supabase/admin";
+import { createScopedServiceClient } from "@/lib/supabase/token-scoped";
 
 // IP клиента из заголовков прокси (Vercel ставит x-forwarded-for).
 export function clientIp(request: Request): string {
@@ -20,7 +20,7 @@ export async function checkRateLimit(
   windowMs: number,
 ): Promise<boolean> {
   try {
-    const admin = createAdminClient();
+    const admin = createScopedServiceClient("system-rate-limit");
     const key = `${action}:${ip}`;
     const since = new Date(Date.now() - windowMs).toISOString();
 

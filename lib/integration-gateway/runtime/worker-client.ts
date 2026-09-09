@@ -1,6 +1,6 @@
 import "server-only";
 
-import { createAdminClient } from "@/lib/supabase/admin";
+import { createScopedServiceClient } from "@/lib/supabase/token-scoped";
 import type { PostgresRpcClient } from "@/lib/project-intelligence/adapters/postgres/contracts";
 import type { PrivateStorageClient } from "@/lib/project-intelligence/adapters/storage";
 import { SecretStoreUnavailableError } from "../core/secret-store";
@@ -12,14 +12,14 @@ import { SecretStoreUnavailableError } from "../core/secret-store";
  */
 function createConfiguredAdminClient(
   env: Readonly<Record<string, string | undefined>> = process.env,
-): ReturnType<typeof createAdminClient> {
+): ReturnType<typeof createScopedServiceClient> {
   if (env.REMHAOS_WORKER_TRANSPORT !== "supabase_service_role") {
     throw new SecretStoreUnavailableError("worker_transport_not_configured");
   }
   if (!env.NEXT_PUBLIC_SUPABASE_URL || !env.SUPABASE_SERVICE_ROLE_KEY) {
     throw new SecretStoreUnavailableError("worker_credentials_required");
   }
-  return createAdminClient();
+  return createScopedServiceClient("system-integration-worker");
 }
 
 export function createIntegrationWorkerClient(
