@@ -1,6 +1,6 @@
 # WP-34 — M4 backlog №5 и №4 — EVIDENCE
 
-Дата: 2026-09-10. Ветка: `wp/wp-34-m4-backlog-5-and-4`. Базовый HEAD: `abc7ccbd8b903980a30ade95b5911531d20bbcdb` (свежий `origin/main`). Кандидат HEAD: `aaa2de8` до PR.
+Дата: 2026-09-10. Ветка: `wp/wp-34-m4-backlog-5-and-4`. Базовый HEAD: `abc7ccbd8b903980a30ade95b5911531d20bbcdb` (свежий `origin/main`). Кандидат HEAD: `31910e4` до PR.
 
 ## Основание
 
@@ -8,7 +8,7 @@
 
 ## Allowlist по факту
 
-Вывод `git diff --name-only abc7ccbd8b903980a30ade95b5911531d20bbcdb...aaa2de8` содержит только:
+Вывод `git diff --name-only abc7ccbd8b903980a30ade95b5911531d20bbcdb...31910e4` содержит только:
 
 - `lib/project-intelligence/delivery/projectceo/live-read-port.ts`
 - `tests/projectceo-integration/live-read-sanitization.test.ts`
