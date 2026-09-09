@@ -134,3 +134,17 @@ Production acceptance: **not declared**
 - [ИНТЕРПРЕТИРОВАНО] This is staging evidence only. It is not production
   acceptance or authorization to merge/deploy.
 - [ИНТЕРПРЕТИРОВАНО] PR #121 remains open.
+
+
+## Поправка 2026-09 — К-3: статус PR #121
+
+[ИЗВЛЕЧЕНО] Read-only GitHub `gh pr view 121 --repo
+parkourcafe/design-interior2026.07 --json state,mergedAt,mergeCommit`
+09.09.2026 вернул MERGED, mergedAt `2026-08-30T06:16:48Z`, merge SHA
+`cfe1caae80a0e6c45c0921f044b556e8b8fdb4a2`.
+[PR #121](https://github.com/parkourcafe/design-interior2026.07/pull/121).
+Фразы «PR #121 remains open» выше относятся к прежнему снимку.
+
+[ИЗВЛЕЧЕНО] Исходный hosted receipt остаётся доказательством только своего
+HEAD `d7532c98bd76010b20cbbf3dd8ff3bd84e611eed` и disposable staging.
+Слияние не является новым hosted прогоном или production acceptance.
