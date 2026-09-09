@@ -1,5 +1,12 @@
 # Module 3 — Accepted Proposal → Project Room MVP
 
+> **Нумерация эпохи M1 — Поправка 2026-09 (К-12).** «Module/Модуль N»
+> в этом историческом документе обозначает этап legacy M1, а не одно из
+> четырёх нынешних ролевых пространств. Актуальная карта:
+> M1 — Заказчик, M2 — Дизайнер, M3 — Архитектор, M4 — ГлавПрораб;
+> см. [Charter v0.5 §4](docs/canonical/remhaos-v1/REMHAOS_CHARTER_v0.5_CANONICAL.md).
+> Исторический отчёт не подтверждает готовность одноимённого ролевого модуля.
+
 ## Что сделано
 
 - Lifecycle расширен до `proposal_sent → proposal_accepted → active_project`.

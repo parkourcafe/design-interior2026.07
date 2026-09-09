@@ -6,10 +6,17 @@
 Основание — `docs/canonical/remhaos-v1/REMHAOS_OWNER_DECISION_M4_V1_PRODUCTION_2026-08-12.md`
 (DEC-033). Состояние готовности — `docs/canonical/remhaos-v1/REMHAOS_M4_V1_PRODUCTION_READINESS_AUDIT_2026-08-12.md`.
 
-> **Прежде чем начать.** Три предпосылки из аудита §9 должны быть закрыты
-> владельцем: снятие `PLATFORM_FOUNDATION = BLOCKED`, решение по входу
-> вертикали (маршрут привязки проекта либо записанный операционный порядок) и
-> доступ к производственной базе. Ни одну из них этот runbook не заменяет.
+> **Поправка 2026-09 — К-2 / owner gate.**
+> [DEC-038](docs/canonical/remhaos-v1/REMHAOS_OWNER_DECISION_PLATFORM_FOUNDATION_2026-08-24.md)
+> установил `ACTIVE_FOR_DISPOSABLE_PILOT`: снят запрет на repository/disposable
+> platform foundation, но production adoption остаётся отдельным гейтом.
+> До любых операций ниже владелец должен предъявить production adoption GO,
+> AP6 PASS, Р19 на открытие M3/M4 increment 1 и Р20 на способ входа проекта,
+> а также разрешённый доступ и отдельный smoke-проект.
+> Дорожная карта называет production adoption решением DEC-040; в проверенном
+> журнале baseline `64b23e83` такая запись не найдена — **UNKNOWN**, не GO.
+> Подпись Р19/Р20 и исполнение production-операций этим документом не подтверждаются.
+> Весь SQL ниже — условный runbook владельца, не выполненные действия.
 
 ---
 
@@ -30,16 +37,26 @@
 В SQL editor производственного проекта:
 
 ```sql
--- 1.1 Миграции доехали. Ожидаемый хвост — 20260813010000..040000 и
---     20260817010000 (DEC-037, recovery).
-select version from supabase_migrations.schema_migrations order by version desc limit 7;
+-- 1.1 Сверить полный список с утверждённым adoption plan и exact repo ledger.
+-- Число строк и наличие только последнего timestamp недостаточны.
+select version from supabase_migrations.schema_migrations order by version;
 
 -- 1.2 Выключатель на месте и вертикаль закрыта.
 select * from projectceo_m4.v1_impact_production_state();
 --     open_now = false, granted_signatures = {}, last_action = null
 ```
 
-Если `20260812030000` нет в списке — остановиться: выключателя в базе нет.
+Сверка production migration history и backup/restore receipt — обязательные
+предпосылки, не новый приказ применить миграции. Требуются как V1 switch
+(`20260812030000` с последующими DEC-034/037), так и module switch
+`20260825010000_projectceo_platform_module_switch.sql`. Если доказательства
+наличия/состояния не совпали с adoption plan — остановиться.
+
+Р20 выбирает один проверенный путь: (а) опубликованный HTTP enroll-маршрут
+после WP-39 с request-bound/CSRF доказательством либо (б) записанный и
+подписанный временный операционный порядок. Наличие RPC или локального AP5
+bootstrap само по себе не является production GO. На baseline `64b23e83`
+нового HTTP enroll-маршрута нет; выбор/подпись Р20 — UNKNOWN.
 
 В GitHub: секреты окружения `production` заданы
 (`PRODUCTION_SUPABASE_URL`, `PRODUCTION_SUPABASE_SERVICE_ROLE_KEY`).
@@ -57,10 +74,23 @@ select * from projectceo_m4.v1_impact_production_state();
 ```
 
 ```sql
--- 2.3 База. Подпись и основание обязательны и попадают в журнал.
+-- 2.3a Только после отдельного Р19: два независимых модуля.
+-- Подставить фактические actor/basis из подписанного решения владельца.
+select projectceo_platform.open_module_production(
+  'm3', '<actor из решения владельца>', '<подписанное Р19 / adoption GO>'
+);
+select projectceo_platform.open_module_production(
+  'm4_increment_1', '<actor из решения владельца>', '<подписанное Р19 / adoption GO>'
+);
+select * from projectceo_platform.module_production_state('m3');
+select * from projectceo_platform.module_production_state('m4_increment_1');
+-- Для каждого: open_now=true, фактические signatures и actor/basis
+-- соответствуют решению; запись сохранена в module_switch_log.
+
+-- 2.3b V1 отдельно. Подпись и основание обязательны и попадают в журнал.
 select projectceo_m4.open_v1_impact_production(
-  'Selena, владелец продукта',
-  'OWNER DECISION 12.08.2026 / DEC-033'
+  '<actor из решения владельца>',
+  '<подписанное production GO с основанием DEC-033/034/037>'
 );
 
 -- 2.4 Проверить, а не поверить.
@@ -71,7 +101,10 @@ select * from projectceo_m4.v1_impact_production_state();
 ```
 
 ```text
-2.5  Vercel → production → REMHAOS_EXECUTION_ENABLED = true → redeploy
+2.5  Только после подтверждённых DB states и GO:
+     Vercel → production → REMHAOS_DOCUMENTATION_ENABLED = true,
+     REMHAOS_EXECUTION_ENABLED = true → redeploy.
+     Проверить точный deployment/commit; нажатие redeploy не является PASS.
 ```
 
 Операция сама проверяет радиус поражения и падает, ничего не открыв, если
@@ -86,6 +119,12 @@ select * from projectceo_m4.v1_impact_production_state();
 **Только на отдельном smoke-проекте.** Реальные клиентские проекты в проверке
 не участвуют: заявка на изменение — это факт в истории проекта, а не черновик,
 и удалить её потом нельзя.
+
+Smoke-проект должен пройти выбранный Р20 путь регистрации и обычную цепочку
+M2 handoff → M3 baseline/release → выдача пакета → подтверждение получателем
+своей сессией. Предусловия нельзя подменять ручными INSERT в private tables.
+В receipt сохранить project/package/release IDs, exact deployment SHA,
+command/audit IDs и исходы проверок; без raw tokens и содержимого cookie jars.
 
 Роли берутся настоящие, сессии — разные, вход — обычный магический линк.
 Ничего из перечисленного нельзя выполнять service role: системная идентичность
@@ -128,7 +167,11 @@ select * from projectceo_m4.v1_impact_production_state();
 `staleState` и `alreadyPresent` красным не считаются: первое — гонка, которую
 следующий проход доберёт сам, второе — нормальный повтор.
 
-Здоровье очереди одним запросом — в аудите §7.2.
+Исторический SQL аудита §7.2 с `impact_truncation_acknowledgements`
+не является актуальным health gate. Контракт — DEC-034/037:
+`coverage_status` (`complete`, `partial_depth`, `blocked_result_limit`),
+действующий прогон `superseded_at is null`; неполное покрытие не закрывается
+человеческим подтверждением. Поправка исторического аудита ведётся WP-38.
 
 ## 5. Откат
 
@@ -145,8 +188,16 @@ select * from projectceo_m4.v1_impact_production_state();  -- open_now = false
 
 ```text
 5.2  Vercel → REMHAOS_EXECUTION_ENABLED = false → redeploy
+     Если rollback GO охватывает M3, REMHAOS_DOCUMENTATION_ENABLED = false.
 5.3  GitHub → Variables → REMHAOS_M4_V1_PRODUCTION_ENABLED = false
 ```
+
+Если по Р19 были открыты M3 / M4 increment 1, V1 rollback сам их не закрывает.
+В пределах rollback GO владелец отдельно вызывает
+`projectceo_platform.close_module_production('m4_increment_1', actor, basis)`
+и, если требуется решением, `projectceo_platform.close_module_production('m3', actor, basis)`,
+затем проверяет `module_production_state` для каждого закрываемого модуля.
+Нельзя считать V1 switch общим выключателем M3/M4.
 
 Откат не удаляет уже посчитанные прогоны и уже выполненные рассмотрения: это
 факты проекта, а не права. Повторное включение застаёт их на месте.
@@ -165,3 +216,13 @@ reset role;
 Если и это не проходит — у подключения нет членства в `pi_table_owner`, и
 включать вертикаль этой ролью нельзя. Это не обходится: право открывать модуль
 намеренно живёт там же, где право менять его схему.
+
+
+## Источники поправки 2026-09
+
+- К-2: [DEC-038](docs/canonical/remhaos-v1/REMHAOS_OWNER_DECISION_PLATFORM_FOUNDATION_2026-08-24.md).
+- К-5: две V1 сигнатуры уже исправлены в baseline; основание
+  [DEC-034/037](docs/canonical/remhaos-v1/REMHAOS_OWNER_DECISION_M4_V1_COVERAGE_AND_RECOVERY_2026-08-17.md).
+- Р19/Р20 — [дорожная карта, §3.5 и решения владельца](docs/audits/REMHAOS_COMPLETION_ROADMAP_2026-09-08.md);
+  это запросы на решения, не доказательство их подписи.
+- API выключателей: [module switch migration](supabase/migrations/20260825010000_projectceo_platform_module_switch.sql).

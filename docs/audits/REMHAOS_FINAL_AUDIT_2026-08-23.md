@@ -204,3 +204,22 @@ maxDepth 8→7) код соответствует позднему решени�
 ---
 *Аудит выполнен строго читающим: изменения ограничены этим файлом и
 REMHAOS_LAUNCH_PLAN_2026-08-23.md; `git status` чист помимо них.*
+
+
+## Поправка 2026-09 — К-1: Platform после даты аудита
+
+[ИЗВЛЕЧЕНО] На baseline `64b23e83bfc028aa3daa25ce07fc9da8a34c87b8`
+утверждение §2 `NOT_BUILT: project_facts, Action/Skill Registry, ai_calls`
+является историческим: появились [project_facts](../../supabase/migrations/20260824130000_projectceo_platform_facts.sql),
+[ai_calls](../../supabase/migrations/20260824140000_projectceo_platform_ai_calls.sql),
+[Approval requests](../../supabase/migrations/20260824150000_projectceo_platform_approval_requests.sql),
+[workflow templates](../../supabase/migrations/20260824160000_projectceo_platform_workflow_templates.sql)
+и [Action Registry](../../lib/project-intelligence/platform/action-registry.ts).
+Это подтверждает CODE_PRESENT; проверки и результаты аудита от 23.08
+не переносятся автоматически на более новый код.
+
+[ИЗВЛЕЧЕНО] [DEC-038](../canonical/remhaos-v1/REMHAOS_OWNER_DECISION_PLATFORM_FOUNDATION_2026-08-24.md)
+открывает repository/disposable platform foundation. Production adoption,
+M4 production и PRODUCTION_READY этим решением не открыты.
+[ИНТЕРПРЕТИРОВАНО] Поправка устраняет устаревшее NOT_BUILT, не объявляет
+весь Platform завершённым или production-ready.

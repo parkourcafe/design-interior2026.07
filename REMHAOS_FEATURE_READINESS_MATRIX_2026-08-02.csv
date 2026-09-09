@@ -8,3 +8,4 @@ M3 architect package,PARTIAL,"thin package/release persistence and DB5 harness c
 M4 execution/handover,PARTIAL,"change/photo/acceptance/handover persistence and DB5 replay","expanded operational UI and paid pilot are not implemented"
 Production readiness,BLOCKED,"production schema differs and no production migration was authorized","requires separate production adoption gate"
 Ready for next module,NO,"Canonical charter requires authenticated pilot and external package before broad expansion","do not start broad M3/M4 product work yet"
+Поправка 2026-09 / К-4 / Migration chain,REPOSITORY_LEDGER_VERIFIED,На baseline 64b23e83 tests/ap1/environment/migration-ledger.sha256 содержит 90 entries; 90/90 SHA-256 совпали с файлами. 24-file clean replay выше — исторический снимок 02.08.,Это проверка файлов репозитория; новый DB replay/hosted/production ledger не проверялся.
