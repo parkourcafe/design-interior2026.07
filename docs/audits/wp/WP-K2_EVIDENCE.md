@@ -64,6 +64,9 @@ build pass. Это локальный proof; CI/hosted не запускалис
 
 [ИЗВЛЕЧЕНО] Production state и секреты не читались; Р19/Р20/DEC-040 не
 подписывались; К-7/К-8 не решены за владельца. Коммит/push/PR не выполнялись.
-[ИЗВЛЕЧЕНО] Независимое read-only review: REVIEW_PASSED. Коммит/push/PR
-по-прежнему не выполнялись; финальный commit SHA и CI run IDs будут добавлены
-после соответствующего owner-разрешения.
+[ИЗВЛЕЧЕНО] Независимое read-only review: REVIEW_PASSED. После owner-разрешения
+созданы commit `017fb43dde277168e0c1ede871d6049f65513a28`, push ветки
+`wp/wp-k2-k-list-corrections-runbook` и PR [#131](https://github.com/parkourcafe/design-interior2026.07/pull/131)
+в `main`. На момент этой фиксации hosted CI `change scope`,
+`lint / typecheck / test / build` и `claude-review` ещё выполнялись; их исходы
+не объявляются заранее. Merge и production не выполнялись.
