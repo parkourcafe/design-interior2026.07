@@ -1,7 +1,7 @@
 # WP-01 — PR-триаж и health commit — EVIDENCE
 
 [ИЗВЛЕЧЕНО] Дата: 2026-09-09. Ветка: `wp/wp-01-pr-triage-health-commit`.
-Базовый HEAD: `64b23e83bfc028aa3daa25ce07fc9da8a34c87b8`; изменения не
+Базовый HEAD: `1e132cb47bc9893ac1d46c46051898cf1df0eb70` (актуальный `main` после PR #130); изменения не
 закоммичены; PR не создан. CONTEXT_MODE: repository_only.
 
 ## Основание
