@@ -1120,6 +1120,14 @@ function operationStates(input: {
     (distribution) => !distribution.acknowledged,
   );
   const approvalPackages = rows(input.delivery.approvalPackages);
+  // v11 exposes entities whose winning approval points at a superseded graph
+  // revision. The baseline builder intentionally cannot repair that mismatch:
+  // offering its token would promise a command that the database rejects.
+  // Keep this read compatible with older typed projections until the field is
+  // promoted to the shared adapter contract.
+  const approvalSupersededEntities = rows(
+    record(input.delivery).approvalSupersededEntities,
+  );
   const hasDraftApproval = approvalPackages.some((approval) => approval.status === "draft");
   const hasSubmittedApproval = approvalPackages.some((approval) => approval.status === "submitted");
   const distributableVersionId = nullableText(
@@ -1362,7 +1370,7 @@ function operationStates(input: {
     publish_baseline: !documentationEnabled
       ? unavailable("module_disabled")
       : can(input.role, "publish_baseline")
-        ? baselineSnapshotToken ? {
+        ? approvalSupersededEntities.length === 0 && baselineSnapshotToken ? {
             status: "available",
             commandTargetId: baselineSnapshotToken,
           } : unavailable("prerequisite_missing")
