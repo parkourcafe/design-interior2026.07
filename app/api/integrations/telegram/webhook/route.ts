@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { postTelegramIntegrationWebhook } from "@/lib/integration-gateway/telegram/webhook";
 
-import { createAdminClient } from "@/lib/supabase/admin";
+import { createScopedServiceClient } from "@/lib/supabase/token-scoped";
 import {
   isTelegramBridgeEnabled,
 } from "@/lib/integration-gateway/telegram/bridge-flag";
@@ -498,7 +498,7 @@ export async function POST(request: Request) {
     return ack("ignored_unknown_update", requestId, { updateId: parsed.data.update_id });
   }
 
-  const port = new TelegramSystemPort(createAdminClient());
+  const port = new TelegramSystemPort(createScopedServiceClient("system-telegram-webhook"));
   const bot = new TelegramBotApi(credentials.credentials.botToken);
   const botInstanceId = credentials.credentials.botInstanceId;
 

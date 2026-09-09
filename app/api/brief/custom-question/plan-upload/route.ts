@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { extractPlanFileText } from "@/lib/brief/plan-file-text";
 import { checkRateLimit, clientIp } from "@/lib/rate-limit";
-import { createAdminClient } from "@/lib/supabase/admin";
+import { createScopedServiceClient } from "@/lib/supabase/token-scoped";
 import { createClient } from "@/lib/supabase/server";
 import { getStudio } from "@/lib/studio";
 
@@ -46,7 +46,7 @@ export async function POST(request: Request) {
     .maybeSingle();
   if (!project) return NextResponse.json({ error: "not_found" }, { status: 404 });
 
-  const admin = createAdminClient();
+  const admin = createScopedServiceClient("authenticated-plan-upload");
   const path = `designer-plans/${projectId.data}/${Date.now()}-${safeFileName(file.name)}`;
   const { error: uploadError } = await admin.storage
     .from("client-uploads")

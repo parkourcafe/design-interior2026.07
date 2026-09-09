@@ -1,11 +1,11 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
-import { createAdminClient } from "@/lib/supabase/admin";
+import { createScopedServiceClient } from "@/lib/supabase/token-scoped";
 
 export const dynamic = "force-dynamic";
 
 const CONFIRMATION = "УДАЛИТЬ";
-type AdminClient = ReturnType<typeof createAdminClient>;
+type AdminClient = ReturnType<typeof createScopedServiceClient>;
 
 async function listProjectFiles(admin: AdminClient, rootPrefix: string): Promise<string[]> {
   const paths: string[] = [];
@@ -125,7 +125,7 @@ export async function DELETE(request: Request) {
     );
   }
 
-  const admin = createAdminClient();
+  const admin = createScopedServiceClient("authenticated-account-delete");
 
   // Сначала находим принадлежащие пользователю проекты: их файлы и содержимое
   // должны быть удалены до отзыва учётной записи.
