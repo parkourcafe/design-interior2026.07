@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
-import { createAdminClient } from "@/lib/supabase/admin";
+import { createScopedServiceClient } from "@/lib/supabase/token-scoped";
 import { ru } from "@/lib/i18n/ru";
 import type { Passport } from "@/lib/types";
 import PassportView from "@/components/passport-view";
@@ -16,7 +16,7 @@ export const metadata: Metadata = { robots: { index: false, follow: false } };
 // (заявку клиента), без карточек рисков — это инструмент дизайнера.
 export default async function BriefSharePage({ params }: { params: Promise<{ token: string }> }) {
   const { token } = await params;
-  const admin = createAdminClient();
+  const admin = createScopedServiceClient("public-brief");
   const { data: project } = await admin
     .from("projects")
     .select("client_name, passport")

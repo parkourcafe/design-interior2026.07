@@ -11,7 +11,7 @@
 
 import { createHash } from "node:crypto";
 
-import { createAdminClient } from "@/lib/supabase/admin";
+import { createScopedServiceClient } from "@/lib/supabase/token-scoped";
 
 export interface AiCallContext {
   /** Откуда вызов: brief | risks | proposal | documentation | execution | platform */
@@ -52,7 +52,7 @@ export async function recordAiCallBestEffort(
     // писать некому и некуда, а основной вызов это не касается.
     if (!process.env.SUPABASE_SERVICE_ROLE_KEY) return;
 
-    const admin = createAdminClient();
+    const admin = createScopedServiceClient("system-ai-recording");
     const { error } = await admin
       .schema("projectceo_platform_api")
       .rpc("record_ai_call", {

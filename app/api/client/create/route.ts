@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { createAdminClient } from "@/lib/supabase/admin";
+import { createScopedServiceClient } from "@/lib/supabase/token-scoped";
 import { makeToken } from "@/lib/tokens";
 import { checkRateLimit, clientIp } from "@/lib/rate-limit";
 
@@ -16,7 +16,7 @@ export async function POST(request: Request) {
     );
   }
 
-  const admin = createAdminClient();
+  const admin = createScopedServiceClient("client-bootstrap");
   const intakeToken = makeToken();
 
   const { data, error } = await admin
