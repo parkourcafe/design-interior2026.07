@@ -23,12 +23,19 @@ function foundation(data: unknown) {
 function fakeClient(
   productOverrides: Readonly<Record<string, unknown>> = {},
   projectEntries: readonly Readonly<Record<string, unknown>>[] = defaultProjectEntries,
+  platformApprovalRequests: readonly Readonly<Record<string, unknown>>[] = [],
 ): PostgresRpcClient {
   return {
   schema: (schemaName) => ({
     rpc: async (functionName) => {
       if (schemaName === "projectceo_api" && functionName === "list_projects") {
         return { data: foundation(projectEntries), error: null };
+      }
+      if (schemaName === "projectceo_platform_api" && functionName === "list_project_facts") {
+        return { data: { facts: [] }, error: null };
+      }
+      if (schemaName === "projectceo_platform_api" && functionName === "list_approval_requests") {
+        return { data: { requests: platformApprovalRequests }, error: null };
       }
       if (schemaName === "projectceo_read_api" && functionName === "get_project_workspace_read_v11") {
         return { data: {
@@ -234,6 +241,83 @@ function executionWithPhotoDecision(decision: "accepted" | "rejected" | null) {
 }
 
 describe("ProjectCEO live DTO sanitizer", () => {
+  it.each([
+    ["builder", "builder"],
+    ["client", "client_approver"],
+  ] as const)("keeps internal M1 facts and approval operations out of the %s projection", async (_label, role) => {
+    const result = await new ProjectCeoLiveReadPort(
+      fakeClient({}, [{
+        accessScope: "project",
+        organizationId,
+        projectId,
+        role,
+        stateRevision: 4,
+      }]),
+      {
+        userId: "66666666-6666-4666-8666-666666666666",
+        displayName: "Controlled user",
+      },
+    ).getProjectWorkspace({ projectId, requestId: `m1-hidden-${role}` });
+
+    expect(result.error).toBeNull();
+    expect(result.data?.m1).toEqual({ facts: [], approvalRequests: [] });
+    expect(result.data?.operations.create_project_fact).toEqual({
+      status: "unavailable",
+      reason: "capability_missing",
+    });
+    expect(result.data?.operations.create_approval_request).toEqual({
+      status: "unavailable",
+      reason: "capability_missing",
+    });
+  });
+
+  it("selects only the current actor's draft for approval submission", async () => {
+    const ownRequest = "88888888-8888-4888-8888-888888888881";
+    const foreignRequest = "88888888-8888-4888-8888-888888888882";
+    const result = await new ProjectCeoLiveReadPort(
+      fakeClient({}, defaultProjectEntries, [
+        {
+          requestId: foreignRequest,
+          subjectKind: "project_passport",
+          subjectId: projectId,
+          approverCapability: "review_claim",
+          status: "draft",
+          requestedByCurrentActor: false,
+          requestedReason: "Чужой черновик",
+          selfApproved: false,
+          decidedBy: null,
+          decisionReason: null,
+          createdAt: "2026-08-31T00:00:00Z",
+        },
+        {
+          requestId: ownRequest,
+          subjectKind: "project_passport",
+          subjectId: projectId,
+          approverCapability: "review_claim",
+          status: "draft",
+          requestedByCurrentActor: true,
+          requestedReason: "Мой черновик",
+          selfApproved: false,
+          decidedBy: null,
+          decisionReason: null,
+          createdAt: "2026-08-31T00:01:00Z",
+        },
+      ]),
+      {
+        userId: "66666666-6666-4666-8666-666666666666",
+        displayName: "Controlled user",
+      },
+    ).getProjectWorkspace({ projectId, requestId: "m1-draft-owner" });
+
+    expect(result.error).toBeNull();
+    expect(result.data?.operations.submit_approval_request).toEqual({
+      status: "available",
+      commandTargetId: ownRequest,
+    });
+    expect(result.data?.m1.approvalRequests.map((request) => request.requestedByCurrentActor))
+      .toEqual([false, true]);
+  });
+
   // Guardrail модуля 4 (10.08.2026) закрыт по умолчанию, а проверки ниже
   // описывают поведение поверхности исполнения, когда модуль есть. Сам запрет
   // проверяется отдельно — последним тестом файла и в

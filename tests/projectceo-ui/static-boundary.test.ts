@@ -9,6 +9,7 @@ const UI_FILES = [
   "components/projectceo/port.ts",
   "components/projectceo/project-list.tsx",
   "components/projectceo/project-workspace.tsx",
+  "components/projectceo/m1-project-panel.tsx",
   "components/projectceo/command-client.tsx",
 ] as const;
 
@@ -69,6 +70,16 @@ describe("ProjectCEO UI static architecture boundary", () => {
     expect(source).not.toMatch(
       /simulatedInvite|local-preview|photoPreviewAdded|localReviews|setPublished|setAcknowledged|setChanges|change-request-local-preview|setRevoked|revokedLocally|localRevoked/,
     );
+  });
+
+  it("requires an actual approval reason before an immutable decision", () => {
+    const m1Source = readFileSync(
+      resolve(process.cwd(), "components/projectceo/m1-project-panel.tsx"),
+      "utf8",
+    );
+    expect(m1Source).toContain("reason: decisionReason.trim()");
+    expect(m1Source).toContain("disabled={decisionReason.trim().length < 3}");
+    expect(m1Source).not.toContain("Что проверено человеком");
   });
 
   it("does not expose deployable client role switching or sibling role DTO props", () => {

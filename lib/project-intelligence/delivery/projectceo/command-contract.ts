@@ -210,6 +210,57 @@ export const projectCeoCommandSchema = z.discriminatedUnion("kind", [
   }).strict(),
   projectSelector.extend({
     contractVersion: z.literal(PROJECTCEO_COMMAND_CONTRACT_VERSION),
+    kind: z.literal("create_project_fact"),
+    payload: z.object({
+      factType: z.enum(["requirement", "constraint", "assumption", "open_question"]),
+      content: z.object({
+        title: z.string().trim().min(1).max(500),
+        detail: z.string().max(4000).optional(),
+      }).strict(),
+      extractionKind: z.enum(["extracted", "interpreted", "human_stated"]),
+      sourceId: z.string().trim().min(1).max(160).nullable(),
+      sourceRevisionId: z.string().trim().min(1).max(160).nullable(),
+      statedReason: z.string().trim().min(3).max(2000).nullable(),
+      supersedesFactId: uuid.nullable(),
+    }).strict().superRefine((payload, ctx) => {
+    const { extractionKind, sourceId, sourceRevisionId, statedReason } = payload;
+    if (extractionKind === "human_stated") {
+      if (sourceId !== null || sourceRevisionId !== null) {
+        ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["payload", "sourceId"], message: "human_fact_cannot_claim_source" });
+      }
+      if (statedReason === null) {
+        ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["payload", "statedReason"], message: "stated_reason_required" });
+      }
+    } else if (sourceId === null || sourceRevisionId === null) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["payload", "sourceId"], message: "source_revision_required" });
+    }
+    }),
+  }).strict(),
+  projectSelector.extend({
+    contractVersion: z.literal(PROJECTCEO_COMMAND_CONTRACT_VERSION),
+    kind: z.literal("create_approval_request"),
+    payload: z.object({
+      subjectKind: z.enum(["project_passport", "client_passport"]),
+      subjectId: z.string().trim().min(1).max(160),
+      reason: z.string().trim().min(3).max(2000),
+    }).strict(),
+  }).strict(),
+  projectSelector.extend({
+    contractVersion: z.literal(PROJECTCEO_COMMAND_CONTRACT_VERSION),
+    kind: z.literal("submit_approval_request"),
+    payload: z.object({ requestId: uuid }).strict(),
+  }).strict(),
+  projectSelector.extend({
+    contractVersion: z.literal(PROJECTCEO_COMMAND_CONTRACT_VERSION),
+    kind: z.literal("decide_approval_request"),
+    payload: z.object({
+      requestId: uuid,
+      decision: z.enum(["approved", "rejected"]),
+      reason: z.string().trim().min(3).max(2000),
+    }).strict(),
+  }).strict(),
+  projectSelector.extend({
+    contractVersion: z.literal(PROJECTCEO_COMMAND_CONTRACT_VERSION),
     kind: z.literal("create_invitation"),
     payload: z.object({
       recipientEmail: z.string().email().max(320),
