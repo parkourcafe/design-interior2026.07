@@ -460,6 +460,7 @@ export const ru = {
     send: "Отправить клиенту",
     sending: "Отправляем…",
     sent: "КП отправлено",
+    approvalRequired: "Сначала получите утверждённый approval request для паспорта проекта в ProjectCEO.",
     print: "Печать / PDF",
     publicLink: "Публичная ссылка",
     noPrice: "Режим «без цены»: блок стоимости не включён.",
