@@ -1,6 +1,6 @@
 # WP-36 — M4 №6 + закрытие BUG-04 — EVIDENCE
 
-Дата: 2026-09-10. Ветка: `wp/wp-36-m4-roles-from-capability`. Implementation HEAD: `43c8369`. Evidence commit и PR будут добавлены после локальных гейтов. Сессия: Codex repository-only.
+Дата: 2026-09-10. Ветка: `wp/wp-36-m4-roles-from-capability`. Implementation HEAD: `43c8369` + evidence `4b18697`. PR: #137 (draft). Сессия: Codex repository-only.
 
 ## Основание
 
@@ -42,7 +42,7 @@ docs/audits/wp/WP-36_EVIDENCE.md
 
 ## CI
 
-Hosted CI ещё не запускался: PR не открыт на момент этой фиксации evidence. AP5/DB4/DB5/Claude review для WP-36 — UNKNOWN до push/PR.
+PR #137 открыт после локальной фиксации evidence; hosted CI/AP5/DB4/DB5/Claude review для WP-36 — UNKNOWN до завершения проверок.
 
 ## Grep-проверки
 
@@ -56,7 +56,7 @@ Merge и production не выполнялись. Blind review WP-36 не зав�
 
 ## Blind review
 
-`review_wp36_clean` — не запущен (slot занят/usage limit в текущем запуске); статус `UNKNOWN`, не трактуется как PASS.
+`review_wp36_clean` — не запущен (доступные reviewer sessions остановились на usage limit); статус `UNKNOWN`, не трактуется как PASS.
 
 ## Безопасность
 
