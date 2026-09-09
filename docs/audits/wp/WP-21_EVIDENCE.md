@@ -1,8 +1,8 @@
 # WP-21 — Перенос PR #124 на актуальную базу — EVIDENCE
 
-[ИЗВЛЕЧЕНО] Текущий статус: REVIEW_PENDING. WP-21 core возвращён к существующим direct RPC contracts; replay follow-up остаётся отдельным незакрытым пакетом. Коммит, новый PR и merge для WP-21 не созданы.
+[ИЗВЛЕЧЕНО] Текущий статус: PR #132 OPEN. WP-21 core возвращён к существующим direct RPC contracts; replay follow-up остаётся отдельным незакрытым пакетом. Commit `138b688` опубликован; merge и production не выполнялись.
 
-[ИЗВЛЕЧЕНО] Дата: 2026-09-09. Ветка: `wp/wp-21-land-pr-124`. Base HEAD: `64b23e83bfc028aa3daa25ce07fc9da8a34c87b8`. Рабочее дерево содержит staged перенос PR #124, незакоммиченные corrections в его allowlist и этот evidence.
+[ИЗВЛЕЧЕНО] Обновлено: 2026-09-10. Ветка: `wp/wp-21-land-pr-124`. Base HEAD: `64b23e83bfc028aa3daa25ce07fc9da8a34c87b8`. PR #132 сравнивается с `main`; evidence обновлён после hosted gates.
 
 ## Основание
 
@@ -52,7 +52,7 @@ passed; полный scope-clean targeted log — 10 файлов и 96 тест
 
 ## CI и hosted gates
 
-[ИЗВЛЕЧЕНО] Новый commit/PR, CI, Claude review и hosted AP5 для текущего WP-21 кандидата отсутствуют. Старые receipts PR #124 не заменяют проверки нового HEAD. Merge и production не разрешены.
+[ИЗВЛЕЧЕНО] PR #132 hosted checks: CI run `34373581459` — change scope, lint/typecheck/test/build, DB4 PG16/17, DB5 PG16/17, AP5 authenticated browser matrix и cycle 7 pass; Claude review run `34373581471` pass. Hosted disposable AP1 и sanitized receipt artifact skipped по workflow. Merge и production не выполнялись.
 
 ## Не сделано / вынесено
 
@@ -66,8 +66,8 @@ passed; полный scope-clean targeted log — 10 файлов и 96 тест
 provenance. Core runtime correction устраняет вызов отсутствующего replay RPC;
 replay migration, DB4 №58, ledger 92 и UI lost-response retry не включены и не
 закрыты. Независимое ревью после direct-RPC correction ожидает финальной проверки
-evidence; core scope/runtime review пока BLOCKED только до этой проверки.
+evidence; core scope/runtime review: REVIEW_PASSED.
 
 ## Безопасность
 
-[ИЗВЛЕЧЕНО] В этой сессии не выполнялись commit, push, PR, merge, rebase, production mutation или изменение shared DB. Секретные файлы не читались.
+[ИЗВЛЕЧЕНО] В этой сессии выполнены только разрешённые commit `138b688`, push ветки и открытие PR #132. Merge, rebase, production mutation и изменение shared DB не выполнялись. Секретные файлы не читались.
