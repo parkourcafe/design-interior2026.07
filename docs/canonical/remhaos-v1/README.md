@@ -36,3 +36,4 @@
 - `../../audits/REMHAOS_GLOBAL_AUDIT_2026-09-08.md` — глобальный аудит продукта и инфраструктуры на `cfe1caa`
 - `../../audits/REMHAOS_COMPLETION_ROADMAP_2026-09-08.md` — действующий план завершения M1–M4 и запуска (заменяет план 23.08)
 - `../../execution/REMHAOS_MASTER_TZ_2026-09-08.md` — генеральное ТЗ программы (оркестратор, пакеты работ, волны); доска — `../../execution/STATUS.md`
+- `../../execution/HANDOFF_TO_CODEX_2026-09-09.md` — актуальный хендофф для продолжения работы в Codex (сменил Claude Code Remote как механизм исполнения)
