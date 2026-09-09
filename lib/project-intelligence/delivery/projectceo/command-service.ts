@@ -36,6 +36,7 @@ import {
   confirmReleaseSnapshot,
   RELEASE_SCHEMA_VERSION,
 } from "../../modules/package/release-snapshot";
+import { can } from "../../../../components/projectceo/role-policy";
 
 type UnknownRecord = Readonly<Record<string, unknown>>;
 type CommandErrorCode =
@@ -1060,14 +1061,14 @@ export class ProjectCeoCommandService {
         );
       }
       if (command.kind === "distribute_release") {
-        // Роли те же, что у права `distribute_release` в базе
-        // (`_role_capabilities`, `20260717090000`) и в гейте 2 A6 §6.1.
-        // До 11.08 здесь стоял только `owner_lead`, и это было расхождение не в
-        // пользу безопасности, а против честности: поверхность предлагала
-        // выдачу архитектору (`role-policy.ts`), база её разрешала, а
-        // приложение отвечало `forbidden` — то есть кнопка обещала то, чего не
-        // делала.
-        if (scope.role !== "owner_lead" && scope.role !== "architect") {
+        // Серверный scope остаётся источником actor role; capability policy
+        // держит этот guard в паритете с UI и role-capability migration.
+        const uiRole = scope.role === "owner_lead"
+          ? "owner"
+          : scope.role === "client_approver"
+            ? "client"
+            : scope.role;
+        if (!can(uiRole, "distribute_release")) {
           return failure(requestId, "error", "forbidden");
         }
         const read = await this.read.getProjectWorkspaceRead({

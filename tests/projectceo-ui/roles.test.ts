@@ -1,3 +1,6 @@
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
+
 import { describe, expect, it } from "vitest";
 import {
   assertExactPackageScope,
@@ -6,6 +9,19 @@ import {
   visibleTabsForRole,
 } from "../../components/projectceo/role-policy";
 import { loadSanitizedRoleMatrixForTest } from "./role-harness";
+
+const migration = readFileSync(join(
+  process.cwd(),
+  "supabase/migrations/20260802030000_projectceo_m2_workspace_revisions.sql",
+), "utf8");
+
+function capabilitiesFromMigration(dbRole: string): string[] {
+  const match = migration.match(new RegExp(
+    `when '${dbRole}' then array\\[([\\s\\S]*?)\\]::text\\[\\]`,
+  ));
+  if (!match?.[1]) throw new Error(`role ${dbRole} missing from capability migration`);
+  return [...match[1].matchAll(/'([^']+)'/g)].map(([ , capability ]) => capability!);
+}
 
 describe("ProjectCEO role-scoped UI policy", () => {
   it("reserves project and access management for owner", () => {
@@ -35,6 +51,21 @@ describe("ProjectCEO role-scoped UI policy", () => {
       "create_change",
       "review_milestone",
     ]);
+  });
+
+  it("keeps every authenticated role capability set in migration parity", () => {
+    const roleMap = {
+      owner: "owner_lead",
+      architect: "architect",
+      builder: "builder",
+      client: "client_approver",
+    } as const;
+    for (const [uiRole, dbRole] of Object.entries(roleMap) as Array<[
+      keyof typeof roleMap,
+      (typeof roleMap)[keyof typeof roleMap],
+    ]>) {
+      expect([...capabilitiesForRole(uiRole)], uiRole).toEqual(capabilitiesFromMigration(dbRole));
+    }
   });
 
   it("never gives a guest source, member, audit or change controls", () => {
