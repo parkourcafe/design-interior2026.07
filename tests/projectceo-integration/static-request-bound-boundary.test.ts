@@ -35,6 +35,7 @@ describe("ProjectCEO request-bound static boundary", () => {
   it("keeps worker-only M4 operations out of the human command service", () => {
     expect(commandService).not.toContain("ProjectCeoM4WorkerPostgresAdapter");
     expect(commandService).not.toContain("calculateChangeImpact(");
+    expect(commandService).not.toContain("calculateChangeImpactPolicyBound(");
     expect(commandService).not.toContain("buildConstructionHandover(");
   });
 
