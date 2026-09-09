@@ -1,6 +1,6 @@
 # WP-27 — Static-boundary тест TTL подписей ≤900 — EVIDENCE
 
-[ИЗВЛЕЧЕНО] Дата: 2026-09-09. Ветка: `wp/wp-27-signed-url-ttl-boundary-test`. Base HEAD: `64b23e83bfc028aa3daa25ce07fc9da8a34c87b8`. Изменения пока не закоммичены; PR не создан. Сессия: `wp27`.
+[ИЗВЛЕЧЕНО] Дата: 2026-09-09. Ветка: `wp/wp-27-signed-url-ttl-boundary-test`. Base HEAD: `1e132cb47bc9893ac1d46c46051898cf1df0eb70` (актуальный `main` после PR #130). Изменения пока не закоммичены; PR не создан. Сессия: `wp27`.
 
 ## Основание
 
