@@ -1,6 +1,6 @@
 # WP-24 — Адаптер читает legacy-паспорт и договор request-bound под RLS — EVIDENCE
 
-Дата: 2026-09-10. Ветка: `wp/wp-24-m1-adapter-reads-legacy-passport`. HEAD: `c91c5b3e01370a53d4c90b65223366ab44f4df4d`. PR: не открыт. Сессия: Codex repository-only.
+Дата: 2026-09-10. Ветка: `wp/wp-24-m1-adapter-reads-legacy-passport`. HEAD: `18a50a3`. PR: #139 (draft). Сессия: Codex repository-only.
 
 ## Основание
 
