@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
-import { createAdminClient } from "@/lib/supabase/admin";
+import { createScopedServiceClient } from "@/lib/supabase/token-scoped";
 import { ru } from "@/lib/i18n/ru";
 import type { ProposalSection } from "@/lib/types";
 import { RESPONSE_TYPES } from "@/lib/proposal/respond";
@@ -20,7 +20,7 @@ export default async function PublicProposalPage({
   params: Promise<{ public_token: string }>;
 }) {
   const { public_token } = await params;
-  const admin = createAdminClient();
+  const admin = createScopedServiceClient("public-proposal");
   const { data: proposal } = await admin
     .from("proposals")
     .select("sections, status, project_id")

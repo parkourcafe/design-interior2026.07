@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { createAdminClient } from "@/lib/supabase/admin";
+import { createScopedServiceClient } from "@/lib/supabase/token-scoped";
 import { canUpdateTask } from "@/lib/project-room/access";
 import type { ParticipantRole, ProjectTask } from "@/lib/project-room/types";
 import { checkRateLimit, clientIp } from "@/lib/rate-limit";
@@ -12,7 +12,7 @@ export async function POST(request: Request) {
   }
   const parsed = Body.safeParse(await request.json().catch(() => null));
   if (!parsed.success) return NextResponse.json({ error: "bad_request" }, { status: 400 });
-  const admin = createAdminClient();
+  const admin = createScopedServiceClient("participant-task-status");
   const { data: participant } = await admin.from("project_participants").select("id, room_id, role").eq("access_token", parsed.data.token).maybeSingle();
   if (!participant) return NextResponse.json({ error: "not_found" }, { status: 404 });
   const p = participant as { id: string; room_id: string; role: ParticipantRole };

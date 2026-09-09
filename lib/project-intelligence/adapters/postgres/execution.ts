@@ -438,29 +438,6 @@ export class ProjectCeoM4HumanPostgresAdapter {
 export class ProjectCeoM4WorkerPostgresAdapter {
   constructor(private readonly client: PostgresRpcClient) {}
 
-  async calculateChangeImpact(input: {
-    readonly projectId: string;
-    readonly changeRequestId: string;
-    readonly maxDepth: number;
-    readonly expectedStateRevision: number;
-    readonly idempotencyKey: string;
-  }): Promise<CommandMutation<ImpactRunMutation>> {
-    return parseCommandMutation<ImpactRunMutation>(
-      await callRpc(
-        this.client,
-        "projectceo_m4_api",
-        "calculate_change_impact",
-        {
-          project_id: input.projectId,
-          change_request_id: input.changeRequestId,
-          max_depth: input.maxDepth,
-          expected_state_revision: input.expectedStateRevision,
-          idempotency_key: input.idempotencyKey,
-        },
-      ),
-    );
-  }
-
   /**
    * Очередь заявок без прогона влияния — системное чтение
    * (`20260812010000`, права только у service role). Разбор конверта живёт в

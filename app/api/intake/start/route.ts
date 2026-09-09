@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { createAdminClient } from "@/lib/supabase/admin";
+import { createScopedServiceClient } from "@/lib/supabase/token-scoped";
 import { getProjectByIntakeToken } from "@/lib/intake";
 
 export const dynamic = "force-dynamic";
@@ -10,7 +10,7 @@ export async function POST(request: Request) {
   const project = await getProjectByIntakeToken(token ?? "");
   if (!project) return NextResponse.json({ error: "not_found" }, { status: 404 });
 
-  const admin = createAdminClient();
+  const admin = createScopedServiceClient("intake-start");
 
   // событие brief_started — только один раз
   if (project.status === "created") {

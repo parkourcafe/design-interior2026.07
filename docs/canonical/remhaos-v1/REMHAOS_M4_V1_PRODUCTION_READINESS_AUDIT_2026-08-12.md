@@ -259,3 +259,37 @@ select * from projectceo_m4.v1_impact_production_state();
 
 Пункты 1 и 2 — не технические: код к ним готов. Пункт 3 — причина, по которой
 живой smoke-test в этом релизе не выполнен.
+
+
+## Поправка 2026-09 к §7.2 — контракт покрытия
+
+[ИЗВЛЕЧЕНО] SQL и критерий здоровья очереди в §7.2 отражают историческое
+состояние и больше не являются актуальной проверкой. По DEC-034/DEC-037
+покрытие определяется `projectceo_m4.impact_runs.coverage_status`:
+`complete`, `partial_depth`, `blocked_result_limit`. При выборе действующего
+прогона учитывается `superseded_at is null`; вытесненные прогоны сохраняются
+как история.
+
+[ИЗВЛЕЧЕНО] `is_truncated`/`truncation_reason` сохраняются как совместимые
+диагностические поля, но не заменяют `coverage_status`.
+`impact_truncation_acknowledgements` не является действующим механизмом
+закрытия неполного покрытия. Человеческая операция
+`acknowledge_impact_truncation` остаётся недоступной (`operation_unavailable`).
+
+[ИЗВЛЕЧЕНО] Рассмотрение всех возвращённых карточек
+(`allReturnedImpactsReviewed`) и полное покрытие (`coverageComplete`) —
+разные условия. `impactReviewComplete` требует обоих. `partial_depth` не
+закрывает рассмотрение даже после ревью всех показанных карточек;
+`blocked_result_limit` не предоставляет карточек для ревью и требует
+сужения изменения. Системный пересчёт blocked-прогона устаревшей политики
+регулируется DEC-037 и не является человеческим override.
+
+[ИНТЕРПРЕТИРОВАНО] Поэтому пустой результат исторического запроса §7.2
+нельзя использовать как доказательство здоровья очереди или готовности
+production.
+
+[ИЗВЛЕЧЕНО] Основания:
+`REMHAOS_OWNER_DECISION_M4_V1_COVERAGE_AND_RECOVERY_2026-08-17.md` (DEC-037),
+`supabase/migrations/20260817010000_projectceo_m4_v1_impact_recovery_dec037.sql`
+(`review_change_impact`, поверхность чтения и отбор активного прогона),
+`tests/ap5/02-kora-chain.spec.ts` (звенья 12–15).
