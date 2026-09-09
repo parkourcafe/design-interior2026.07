@@ -66,6 +66,11 @@ describe("ProjectCEO role-scoped UI policy", () => {
     ]);
     expect(visibleTabsForRole("client")).not.toContain("participants");
     expect(visibleTabsForRole("client")).not.toContain("history");
+    expect(visibleTabsForRole("client")).not.toContain("passport");
+    expect(visibleTabsForRole("builder")).not.toContain("passport");
+    expect(visibleTabsForRole("guest")).not.toContain("passport");
+    expect(visibleTabsForRole("owner")).toContain("passport");
+    expect(visibleTabsForRole("architect")).toContain("passport");
   });
 
   it("requires an exact package for guest scope", () => {

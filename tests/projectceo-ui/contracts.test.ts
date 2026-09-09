@@ -29,6 +29,7 @@ describe("ProjectCEO UI contract", () => {
     // остаётся замком — расширять его можно только вместе с этой строкой.
     expect(PROJECTCEO_TABS).toEqual([
       "overview",
+      "passport",
       "sources",
       "decisions",
       "documentation",

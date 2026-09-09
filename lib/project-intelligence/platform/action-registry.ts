@@ -39,6 +39,11 @@ export interface RegisteredAction {
 }
 
 const REGISTRY_ENTRIES: readonly RegisteredAction[] = [
+  // --- M1: project facts and approval gate -------------------------------
+  { kind: "create_project_fact", module: "platform", capability: "review_source", status: "active", basis: "20260824130000 + command-service.ts" },
+  { kind: "create_approval_request", module: "platform", capability: "view_project", status: "active", basis: "20260824150000 + command-service.ts" },
+  { kind: "submit_approval_request", module: "platform", capability: "view_project", status: "active", basis: "20260824150000 + command-service.ts" },
+  { kind: "decide_approval_request", module: "platform", capability: null, status: "active", basis: "20260824150000 + command-service.ts (request capability is server-selected)" },
   // --- Access --------------------------------------------------------------
   { kind: "create_invitation", module: "access", capability: "manage_access", status: "active", basis: "live-read-port.ts:1171" },
   { kind: "revoke_invitation", module: "access", capability: "manage_access", status: "active", basis: "live-read-port.ts:1174" },
