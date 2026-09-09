@@ -125,6 +125,50 @@ describe("ProjectCEO request-bound security", () => {
     }).success).toBe(false);
   });
 
+  it("keeps M1 fact provenance strict and excludes caller-owned approval authority", () => {
+    const humanFact = {
+      contractVersion: "projectceo-command/0.1",
+      commandId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+      kind: "create_project_fact",
+      projectId: userId,
+      payload: {
+        factType: "requirement",
+        content: { title: "Отдельная зона выдачи" },
+        extractionKind: "human_stated",
+        sourceId: null,
+        sourceRevisionId: null,
+        statedReason: "Зафиксировано заказчиком на встрече",
+        supersedesFactId: null,
+      },
+    };
+    expect(projectCeoCommandSchema.safeParse(humanFact).success).toBe(true);
+    expect(projectCeoCommandSchema.safeParse({
+      ...humanFact,
+      payload: { ...humanFact.payload, statedReason: null },
+    }).success).toBe(false);
+    expect(projectCeoCommandSchema.safeParse({
+      ...humanFact,
+      payload: { ...humanFact.payload, sourceId: "source-1", sourceRevisionId: "revision-1" },
+    }).success).toBe(false);
+
+    const approval = {
+      contractVersion: "projectceo-command/0.1",
+      commandId: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+      kind: "create_approval_request",
+      projectId: userId,
+      payload: {
+        subjectKind: "project_passport",
+        subjectId: userId,
+        reason: "Паспорт готов к согласованию",
+      },
+    };
+    expect(projectCeoCommandSchema.safeParse(approval).success).toBe(true);
+    expect(projectCeoCommandSchema.safeParse({
+      ...approval,
+      payload: { ...approval.payload, approverCapability: "review_claim" },
+    }).success).toBe(false);
+  });
+
   it("rejects malformed create_decision payloads and requires non-empty specification for create_selection", () => {
     const validDecision = {
       contractVersion: "projectceo-command/0.1",

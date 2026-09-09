@@ -369,6 +369,9 @@ describe("Layout Studio delivery/UI slice", () => {
       "20260828010000_projectceo_builder_change_target_read.sql",
       // AP5 command boundary: only builder can submit field change requests.
       "20260828011000_projectceo_builder_only_change_requests.sql",
+      // M1 approval read projection exposes only current-actor ownership of
+      // drafts; the actor identity remains server-side.
+      "20260831170000_projectceo_platform_approval_request_actor_projection.sql",
     ]);
   });
 
