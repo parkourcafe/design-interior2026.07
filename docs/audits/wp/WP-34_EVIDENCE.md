@@ -1,6 +1,6 @@
 # WP-34 — M4 backlog №5 и №4 — EVIDENCE
 
-Дата: 2026-09-10. Ветка: `wp/wp-34-m4-backlog-5-and-4`. Базовый HEAD: `abc7ccbd8b903980a30ade95b5911531d20bbcdb` (свежий `origin/main`). PR: открыть после независимого review.
+Дата: 2026-09-10. Ветка: `wp/wp-34-m4-backlog-5-and-4`. Базовый HEAD: `abc7ccbd8b903980a30ade95b5911531d20bbcdb` (свежий `origin/main`). Кандидат HEAD: `aaa2de8` до PR.
 
 ## Основание
 
@@ -8,7 +8,7 @@
 
 ## Allowlist по факту
 
-Ожидаемый вывод `git diff --name-only abc7ccbd8b903980a30ade95b5911531d20bbcdb...HEAD` после commit содержит только:
+Вывод `git diff --name-only abc7ccbd8b903980a30ade95b5911531d20bbcdb...aaa2de8` содержит только:
 
 - `lib/project-intelligence/delivery/projectceo/live-read-port.ts`
 - `tests/projectceo-integration/live-read-sanitization.test.ts`
@@ -44,7 +44,7 @@ H14/S-LRP: `live-read-port.ts` потребляет v11 read field и не ме�
 
 ## CI
 
-UNKNOWN до открытия PR. Записать run IDs и AP5 artifact после push на точном HEAD.
+UNKNOWN до push. Записать run IDs и AP5 artifact после push на точном HEAD.
 
 ## Grep-проверки
 
@@ -58,7 +58,7 @@ Production, release, shared DB, credentials, migration, RLS, security и CI sett
 
 ## Blind review
 
-UNKNOWN до отдельного read-only review. Commit/push/PR выполнять после фиксации verdict.
+UNKNOWN в момент локального кандидата; отдельный read-only review должен быть записан после проверки точного diff перед owner merge.
 
 ## Безопасность
 
