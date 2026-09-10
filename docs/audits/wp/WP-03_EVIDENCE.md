@@ -1,7 +1,7 @@
 # WP-03 — ПДн из env-дефолтов — EVIDENCE
 
 Дата: 2026-09-10. Ветка: `wp/wp-03-pii-env-defaults`. База: `main@bd10f83`.
-Implementation HEAD: `52e18ad`. PR: `PENDING`.
+Implementation HEAD: `52e18ad`. PR: `#143`.
 
 ## Основание
 
