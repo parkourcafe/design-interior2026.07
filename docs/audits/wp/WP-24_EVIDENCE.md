@@ -27,7 +27,15 @@ app/api/dashboard/contracts/route.ts:113: .from("contract_documents")
 
 [ИНТЕРПРЕТИРОВАНО] Для выполнения критерия WP-24 нужен новый серверный read-контракт/adapter и явно разрешённый способ проекции внутренней паспортной таблицы, а также подключение результата к `ProjectWorkspaceView`/UI. Это затрагивает файлы вне карточки allowlist и требует решения по RLS/security boundary. Без такого решения безопасный runtime нельзя выдумывать.
 
-Статус пакета: `BLOCKED_HOTSPOT`.
+Статус пакета: `BLOCKED_OWNER_GATE`.
+
+## Решение владельца по ролям
+
+[ПОДТВЕРЖДЕНО ВЛАДЕЛЬЦЕМ, 2026-09-10] Новый read-only RPC может обслуживать
+только роли `owner_lead` и `architect`, и только при active membership
+конкретного пользователя в конкретном проекте и прохождении всех scope-проверок.
+Остальные роли запрещены. Это решение не разрешает migration/RLS/security
+реализацию, commit, push, merge или production.
 
 ## Пины
 
@@ -43,7 +51,9 @@ app/api/dashboard/contracts/route.ts:113: .from("contract_documents")
 
 ## Не сделано / требуется от владельца
 
-[ИНТЕРПРЕТИРОВАНО] Нужен owner decision, который назовёт допустимый request-bound read contract для legacy passport (включая внутренний `project_passport_revisions`) и расширит allowlist конкретными файлами. До этого WP-24 закрывать нельзя; production/shared DB не использовались.
+[ИНТЕРПРЕТИРОВАНО] Role decision получен. Остаются отдельные owner gates:
+назначение migration slot и разрешение на additive migration/RLS/security
+реализацию. До них WP-24 закрывать нельзя; production/shared DB не использовались.
 
 ## Blind review
 
