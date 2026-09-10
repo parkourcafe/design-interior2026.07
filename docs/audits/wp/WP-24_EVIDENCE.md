@@ -67,6 +67,30 @@ request-bound RPC неизбежно требует additive migration. Это �
 архитектуру, но требует отдельного уже оговорённого owner gate на migration
 slot и реализацию; до него SQL/RLS/security не меняются.
 
+## Независимый security review
+
+[PASS С ОГРАНИЧЕНИЕМ, 2026-09-10] Повторная проверка proposed RPC по frozen
+документам подтверждает:
+
+- `FOUNDATION_CONTRACT_FREEZE.md:61-96`: `view_project` есть у Owner/lead и
+  Architect; доступ требует active Organization membership, active exact
+  ProjectMembership и capability;
+- `projectceo_foundation._authorize_project_human` в
+  `supabase/migrations/20260717090000_projectceo_foundation_access.sql:760-827`
+  является канонической реализацией этих проверок, включая active RU
+  Organization и server-derived `auth.uid()`;
+- `architecture-v1.md:210-222`, `REQUEST_BOUND_CONTRACT.md:5-12` и
+  `READ_CONTRACTS_REPORT.md:52-67` требуют server-derived scope, project-
+  scoped reads, fixed `search_path`, minimal grants, private-table isolation и
+  отсутствие service-role path;
+- proposed RPC соблюдает эти требования после вызова канонического authorizer,
+  явного deny ролей вне `owner_lead|architect`, exact-project filters,
+  `SECURITY DEFINER`, `search_path=''`, authenticated-only execute и DTO без
+  Storage metadata.
+
+Ограничение review: SQL/RLS ещё не реализованы и не прогонялись на DB4/DB5;
+этот PASS относится к контракту и проекту границы, не к runtime evidence.
+
 ## Пины
 
 Пинов нет.
