@@ -1,6 +1,6 @@
 # WP-26 — BUG-05 (б): страницы дизайнера → request-bound + RLS — EVIDENCE
 
-Дата: 2026-09-10. Ветка: `wp/wp-26-designer-pages-request-bound`. База: `90f72b6ac5381b2b3a4f1108bbdeac93411f0aa7` (current `main`). HEAD: `9b500bf`. PR: #141 (draft, unmerged).
+Дата: 2026-09-10. Ветка: `wp/wp-26-designer-pages-request-bound`. База: `90f72b6ac5381b2b3a4f1108bbdeac93411f0aa7` (current `main`). HEAD: `c0078db`. PR: #141 (draft, unmerged).
 
 ## Основание
 
