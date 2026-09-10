@@ -106,8 +106,10 @@ slot и реализацию; до него SQL/RLS/security не меняютс
 ## Не сделано / требуется от владельца
 
 [ИНТЕРПРЕТИРОВАНО] Role decision и архитектурное основание получены. Остаются отдельные owner gates:
-назначение migration slot и разрешение на additive migration/RLS/security
-реализацию. До них WP-24 закрывать нельзя; production/shared DB не использовались.
+разрешение на additive migration/RLS/security реализацию. Очередь технически
+согласована: WP-24 получает S-MIG #6; отложенный replay follow-up WP-21 остаётся
+отдельным пакетом и получает следующий слот #7 при его запуске. До owner gate
+SQL/RLS/security не меняются; production/shared DB не использовались.
 
 ## Blind review
 
