@@ -37,6 +37,7 @@ export type ProjectCeoCapability = (typeof PROJECTCEO_CAPABILITIES)[number];
 
 export const PROJECTCEO_TABS = [
   "overview",
+  "passport",
   "sources",
   "decisions",
   "documentation",
@@ -171,6 +172,56 @@ export interface ProjectPackageView {
   readonly kind: "project_root" | "work_package";
   readonly status: "active" | "archived";
   readonly exactScope: boolean;
+}
+
+export interface M1ProjectFactView {
+  readonly id: string;
+  readonly factType: "requirement" | "constraint" | "assumption" | "open_question";
+  readonly title: string;
+  readonly detail: string | null;
+  readonly extractionKind: "extracted" | "interpreted" | "human_stated";
+  readonly sourceId: string | null;
+  readonly sourceRevisionId: string | null;
+  readonly statedReason: string | null;
+  readonly createdAt: string;
+  readonly supersededAt: string | null;
+}
+
+export interface M1ApprovalRequestView {
+  readonly id: string;
+  readonly subjectKind: "project_passport" | "client_passport";
+  readonly subjectId: string;
+  readonly approverCapability: string;
+  readonly status: "draft" | "submitted" | "approved" | "rejected";
+  readonly requestedByCurrentActor: boolean;
+  readonly requestedReason: string;
+  readonly selfApproved: boolean;
+  readonly decidedBy: string | null;
+  readonly decisionReason: string | null;
+  readonly createdAt: string;
+}
+
+export interface M1ContractedPassportView {
+  readonly projectId: string;
+  readonly revisionNo: number;
+  readonly passport: Readonly<Record<string, unknown>>;
+  readonly llmOk: boolean;
+  readonly createdAt: string;
+}
+
+export interface M1ContractDocumentView {
+  readonly documentId: string;
+  readonly status: "uploaded" | "received" | "signed" | "archived";
+  readonly createdAt: string;
+  readonly statusUpdatedAt: string | null;
+}
+
+export interface M1WorkspaceView {
+  readonly facts: readonly M1ProjectFactView[];
+  readonly approvalRequests: readonly M1ApprovalRequestView[];
+  readonly contractedPassport?: M1ContractedPassportView | null;
+  readonly contractDocument?: M1ContractDocumentView | null;
+  readonly stateRevision?: number | null;
 }
 
 export interface SourceRegistryItem {
@@ -561,6 +612,7 @@ export interface DocumentationView {
 export interface ProjectWorkspaceView {
   readonly project: ProjectSummary;
   readonly actor: ProjectCeoActor;
+  readonly m1: M1WorkspaceView;
   readonly packages: readonly ProjectPackageView[];
   readonly sources: readonly SourceRegistryItem[];
   readonly decisions: readonly DecisionView[];
@@ -591,6 +643,10 @@ export interface ProjectWorkspaceView {
 }
 
 export const PROJECTCEO_OPERATION_NAMES = [
+  "create_project_fact",
+  "create_approval_request",
+  "submit_approval_request",
+  "decide_approval_request",
   "create_invitation",
   "revoke_invitation",
   "revoke_guest_grant",

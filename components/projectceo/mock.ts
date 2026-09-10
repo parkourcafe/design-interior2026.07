@@ -42,6 +42,10 @@ export const KORA_ARCHITECTURE_PACKAGE_ID = "kora-architecture-release";
 const fixtureRu = ru.projectCeo.fixture;
 
 const fixtureOperations: ProjectCeoOperationStates = {
+  create_project_fact: { status: "unavailable", reason: "fixture_read_only" },
+  create_approval_request: { status: "unavailable", reason: "fixture_read_only" },
+  submit_approval_request: { status: "unavailable", reason: "fixture_read_only" },
+  decide_approval_request: { status: "unavailable", reason: "fixture_read_only" },
   create_invitation: { status: "unavailable", reason: "fixture_read_only" },
   revoke_invitation: { status: "unavailable", reason: "fixture_read_only" },
   revoke_guest_grant: { status: "unavailable", reason: "fixture_read_only" },
@@ -645,6 +649,13 @@ function roleScopedWorkspace(role: ProjectCeoRole): ProjectWorkspaceView {
   return {
     project: isGuest ? koraGuestSummary : koraSummary,
     actor,
+    m1: {
+      facts: [],
+      approvalRequests: [],
+      contractedPassport: null,
+      contractDocument: null,
+      stateRevision: null,
+    },
     packages: isGuest
       ? packages.filter((item) => item.id === KORA_ARCHITECTURE_PACKAGE_ID)
       : packages,

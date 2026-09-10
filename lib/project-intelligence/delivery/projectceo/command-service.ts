@@ -6,6 +6,7 @@ import {
   ProjectCeoAuthenticatedReadPostgresAdapter,
   ProjectBrainHumanPostgresAdapter,
   ProjectCeoM4HumanPostgresAdapter,
+  ProjectCeoPlatformPostgresAdapter,
   ProjectIntelligenceAdapterError,
   type CommandMutation,
   type FoundationErrorCode,
@@ -36,6 +37,7 @@ import {
   confirmReleaseSnapshot,
   RELEASE_SCHEMA_VERSION,
 } from "../../modules/package/release-snapshot";
+import { can } from "../../../../components/projectceo/role-policy";
 
 type UnknownRecord = Readonly<Record<string, unknown>>;
 type CommandErrorCode =
@@ -241,6 +243,7 @@ export class ProjectCeoCommandService {
   private readonly product: ProjectBrainHumanPostgresAdapter;
   private readonly execution: ProjectCeoM4HumanPostgresAdapter;
   private readonly m3: ProjectCeoM3HumanPostgresAdapter;
+  private readonly platform: ProjectCeoPlatformPostgresAdapter;
 
   constructor(private readonly dependencies: ProjectCeoCommandDependencies) {
     this.foundation = new FoundationPostgresAdapter(dependencies.client);
@@ -248,6 +251,7 @@ export class ProjectCeoCommandService {
     this.read = new ProjectCeoAuthenticatedReadPostgresAdapter(dependencies.client);
     this.product = new ProjectBrainHumanPostgresAdapter(dependencies.client);
     this.execution = new ProjectCeoM4HumanPostgresAdapter(dependencies.client);
+    this.platform = new ProjectCeoPlatformPostgresAdapter(dependencies.client);
   }
 
   private idempotencyKey(command: ProjectCeoCommand): string {
@@ -452,6 +456,60 @@ export class ProjectCeoCommandService {
         return completed(requestId, await this.execution.acceptMilestone({
           projectId: command.projectId,
           milestoneId: command.payload.milestoneId,
+          expectedStateRevision: scope.stateRevision,
+          idempotencyKey,
+        }));
+      }
+      if (
+        command.kind === "create_project_fact"
+        || command.kind === "create_approval_request"
+        || command.kind === "submit_approval_request"
+        || command.kind === "decide_approval_request"
+      ) {
+        const scope = await this.scopeOnly(command.projectId);
+        if (command.kind === "create_project_fact") {
+          return completed(requestId, await this.platform.createProjectFact({
+            projectId: command.projectId,
+            factType: command.payload.factType,
+            content: command.payload.content,
+            extractionKind: command.payload.extractionKind,
+            sourceId: command.payload.sourceId,
+            sourceRevisionId: command.payload.sourceRevisionId,
+            statedReason: command.payload.statedReason,
+            supersedesFactId: command.payload.supersedesFactId,
+            expectedStateRevision: scope.stateRevision,
+            idempotencyKey,
+          }));
+        }
+        if (command.kind === "create_approval_request") {
+          // The browser selects only the M1 subject. The capability that can
+          // decide it is a server-owned policy, never a client-provided role.
+          const approverCapability = command.payload.subjectKind === "client_passport"
+            ? "review_selection"
+            : "review_claim";
+          return completed(requestId, await this.platform.createApprovalRequest({
+            projectId: command.projectId,
+            subjectKind: command.payload.subjectKind,
+            subjectId: command.payload.subjectId,
+            approverCapability,
+            reason: command.payload.reason,
+            expectedStateRevision: scope.stateRevision,
+            idempotencyKey,
+          }));
+        }
+        if (command.kind === "submit_approval_request") {
+          return completed(requestId, await this.platform.submitApprovalRequest({
+            projectId: command.projectId,
+            requestId: command.payload.requestId,
+            expectedStateRevision: scope.stateRevision,
+            idempotencyKey,
+          }));
+        }
+        return completed(requestId, await this.platform.decideApprovalRequest({
+          projectId: command.projectId,
+          requestId: command.payload.requestId,
+          decision: command.payload.decision,
+          reason: command.payload.reason,
           expectedStateRevision: scope.stateRevision,
           idempotencyKey,
         }));
@@ -1060,14 +1118,14 @@ export class ProjectCeoCommandService {
         );
       }
       if (command.kind === "distribute_release") {
-        // Роли те же, что у права `distribute_release` в базе
-        // (`_role_capabilities`, `20260717090000`) и в гейте 2 A6 §6.1.
-        // До 11.08 здесь стоял только `owner_lead`, и это было расхождение не в
-        // пользу безопасности, а против честности: поверхность предлагала
-        // выдачу архитектору (`role-policy.ts`), база её разрешала, а
-        // приложение отвечало `forbidden` — то есть кнопка обещала то, чего не
-        // делала.
-        if (scope.role !== "owner_lead" && scope.role !== "architect") {
+        // Серверный scope остаётся источником actor role; capability policy
+        // держит этот guard в паритете с UI и role-capability migration.
+        const uiRole = scope.role === "owner_lead"
+          ? "owner"
+          : scope.role === "client_approver"
+            ? "client"
+            : scope.role;
+        if (!can(uiRole, "distribute_release")) {
           return failure(requestId, "error", "forbidden");
         }
         const read = await this.read.getProjectWorkspaceRead({

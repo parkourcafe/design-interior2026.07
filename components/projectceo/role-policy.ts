@@ -76,6 +76,7 @@ const ROLE_CAPABILITIES: Readonly<Record<ProjectCeoRole, readonly ProjectCeoCapa
 
 const TAB_CAPABILITY: Readonly<Record<ProjectCeoTab, ProjectCeoCapability>> = {
   overview: "view_project",
+  passport: "view_project",
   sources: "review_source",
   decisions: "view_project",
   // Пакет документации готовит студийная сторона — то же право, что открывает

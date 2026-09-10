@@ -308,8 +308,38 @@ begin
   if v_count <> 2 then
     raise exception 'DB4_APPROVAL_READ_FILTER_INVALID:%', v_count;
   end if;
+  if not exists (
+    select 1
+    from jsonb_array_elements(v_approved -> 'requests') request
+    where request ->> 'requestId' = current_setting('projectceo.db4_req1')
+      and request ? 'requestedByCurrentActor'
+      and (request ->> 'requestedByCurrentActor')::boolean = true
+  ) then
+    raise exception 'DB4_APPROVAL_REQUESTER_PROJECTION_MISSING';
+  end if;
 end
 $read_filter$;
+commit;
+
+begin;
+set local role authenticated;
+set local request.jwt.claim.sub = '31111111-1111-4111-8111-111111111111';
+do $owner_read_projection$
+declare
+  v_approved jsonb;
+begin
+  v_approved := projectceo_platform_api.list_approval_requests(
+    '41111111-1111-4111-8111-111111111111', 'approved');
+  if not exists (
+    select 1
+    from jsonb_array_elements(v_approved -> 'requests') request
+    where request ->> 'requestId' = current_setting('projectceo.db4_selfreq')
+      and (request ->> 'requestedByCurrentActor')::boolean = true
+  ) then
+    raise exception 'DB4_APPROVAL_CURRENT_ACTOR_PROJECTION_INVALID';
+  end if;
+end
+$owner_read_projection$;
 commit;
 
 begin;

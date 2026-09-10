@@ -156,6 +156,19 @@ function changeCommand(target: string): ProjectCeoCommand {
   };
 }
 
+function distributeCommand(): ProjectCeoCommand {
+  return {
+    contractVersion: "projectceo-command/0.1",
+    commandId: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+    kind: "distribute_release",
+    projectId,
+    payload: {
+      productionPackageVersionId: "package-a-v1",
+      recipientUserId: "77777777-7777-4777-8777-777777777777",
+    },
+  };
+}
+
 describe("ProjectCEO command service", () => {
   it("returns a typed unavailable result before any partial invitation write when the token secret is absent", async () => {
     const calls: { readonly functionName: string; readonly args: Readonly<Record<string, unknown>> }[] = [];
@@ -236,5 +249,31 @@ describe("ProjectCEO command service", () => {
     const result = await service.execute(changeCommand("package-a-v1"), "ambiguous");
     expect(result).toMatchObject({ status: "error", error: { code: "scope_conflict" } });
     expect(calls.some((call) => call.functionName.endsWith("get_project_delivery"))).toBe(false);
+  });
+
+  it("authorizes distribute_release from capability and refuses builder before reads", async () => {
+    const architectCalls: { readonly functionName: string; readonly args: Readonly<Record<string, unknown>> }[] = [];
+    const architect = new ProjectCeoCommandService({
+      client: fakeClient(architectCalls, [{
+        accessScope: "project",
+        organizationId: "44444444-4444-4444-8444-444444444444",
+        projectId,
+        role: "architect",
+        stateRevision: 9,
+      }]),
+      executionEnabled: "true",
+    });
+    const architectResult = await architect.execute(distributeCommand(), "architect-distribute");
+    expect(architectResult).toMatchObject({ status: "error", error: { code: "scope_conflict" } });
+    expect(architectCalls.some((call) => call.functionName.endsWith("get_project_workspace_read_v11"))).toBe(true);
+
+    const builderCalls: { readonly functionName: string; readonly args: Readonly<Record<string, unknown>> }[] = [];
+    const builder = new ProjectCeoCommandService({
+      client: fakeClient(builderCalls),
+      executionEnabled: "true",
+    });
+    const builderResult = await builder.execute(distributeCommand(), "builder-distribute");
+    expect(builderResult).toMatchObject({ status: "error", error: { code: "forbidden" } });
+    expect(builderCalls.some((call) => call.functionName.endsWith("get_project_workspace_read_v11"))).toBe(false);
   });
 });

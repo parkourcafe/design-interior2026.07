@@ -20,5 +20,10 @@ export function GET() {
     llm_provider: provider,
     llm_configured: llmConfigured,
   };
-  return NextResponse.json({ status: "ok", ts: new Date().toISOString(), env });
+  return NextResponse.json({
+    status: "ok",
+    ts: new Date().toISOString(),
+    commit: process.env.VERCEL_GIT_COMMIT_SHA ?? null,
+    env,
+  });
 }

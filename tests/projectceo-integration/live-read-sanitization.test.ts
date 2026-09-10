@@ -23,12 +23,19 @@ function foundation(data: unknown) {
 function fakeClient(
   productOverrides: Readonly<Record<string, unknown>> = {},
   projectEntries: readonly Readonly<Record<string, unknown>>[] = defaultProjectEntries,
+  platformApprovalRequests: readonly Readonly<Record<string, unknown>>[] = [],
 ): PostgresRpcClient {
   return {
   schema: (schemaName) => ({
     rpc: async (functionName) => {
       if (schemaName === "projectceo_api" && functionName === "list_projects") {
         return { data: foundation(projectEntries), error: null };
+      }
+      if (schemaName === "projectceo_platform_api" && functionName === "list_project_facts") {
+        return { data: { facts: [] }, error: null };
+      }
+      if (schemaName === "projectceo_platform_api" && functionName === "list_approval_requests") {
+        return { data: { requests: platformApprovalRequests }, error: null };
       }
       if (schemaName === "projectceo_read_api" && functionName === "get_project_workspace_read_v11") {
         return { data: {
@@ -234,11 +241,89 @@ function executionWithPhotoDecision(decision: "accepted" | "rejected" | null) {
 }
 
 describe("ProjectCEO live DTO sanitizer", () => {
+  it.each([
+    ["builder", "builder"],
+    ["client", "client_approver"],
+  ] as const)("keeps internal M1 facts and approval operations out of the %s projection", async (_label, role) => {
+    const result = await new ProjectCeoLiveReadPort(
+      fakeClient({}, [{
+        accessScope: "project",
+        organizationId,
+        projectId,
+        role,
+        stateRevision: 4,
+      }]),
+      {
+        userId: "66666666-6666-4666-8666-666666666666",
+        displayName: "Controlled user",
+      },
+    ).getProjectWorkspace({ projectId, requestId: `m1-hidden-${role}` });
+
+    expect(result.error).toBeNull();
+    expect(result.data?.m1).toEqual({ facts: [], approvalRequests: [] });
+    expect(result.data?.operations.create_project_fact).toEqual({
+      status: "unavailable",
+      reason: "capability_missing",
+    });
+    expect(result.data?.operations.create_approval_request).toEqual({
+      status: "unavailable",
+      reason: "capability_missing",
+    });
+  });
+
+  it("selects only the current actor's draft for approval submission", async () => {
+    const ownRequest = "88888888-8888-4888-8888-888888888881";
+    const foreignRequest = "88888888-8888-4888-8888-888888888882";
+    const result = await new ProjectCeoLiveReadPort(
+      fakeClient({}, defaultProjectEntries, [
+        {
+          requestId: foreignRequest,
+          subjectKind: "project_passport",
+          subjectId: projectId,
+          approverCapability: "review_claim",
+          status: "draft",
+          requestedByCurrentActor: false,
+          requestedReason: "Чужой черновик",
+          selfApproved: false,
+          decidedBy: null,
+          decisionReason: null,
+          createdAt: "2026-08-31T00:00:00Z",
+        },
+        {
+          requestId: ownRequest,
+          subjectKind: "project_passport",
+          subjectId: projectId,
+          approverCapability: "review_claim",
+          status: "draft",
+          requestedByCurrentActor: true,
+          requestedReason: "Мой черновик",
+          selfApproved: false,
+          decidedBy: null,
+          decisionReason: null,
+          createdAt: "2026-08-31T00:01:00Z",
+        },
+      ]),
+      {
+        userId: "66666666-6666-4666-8666-666666666666",
+        displayName: "Controlled user",
+      },
+    ).getProjectWorkspace({ projectId, requestId: "m1-draft-owner" });
+
+    expect(result.error).toBeNull();
+    expect(result.data?.operations.submit_approval_request).toEqual({
+      status: "available",
+      commandTargetId: ownRequest,
+    });
+    expect(result.data?.m1.approvalRequests.map((request) => request.requestedByCurrentActor))
+      .toEqual([false, true]);
+  });
+
   // Guardrail модуля 4 (10.08.2026) закрыт по умолчанию, а проверки ниже
   // описывают поведение поверхности исполнения, когда модуль есть. Сам запрет
   // проверяется отдельно — последним тестом файла и в
   // tests/ap1/commands/execution-guardrail.test.ts.
   const previousExecution = process.env.REMHAOS_EXECUTION_ENABLED;
+  const previousExecutionV2V3 = process.env.REMHAOS_M4_V2_V3_ENABLED;
   // Модуль 3 включён: этот файл проверяет поверхность модуля, а не его
   // выключатель. Выключателю посвящён отдельный тест в конце файла — иначе
   // «поверхность работает» и «поверхность закрыта» проверялись бы одним
@@ -246,11 +331,14 @@ describe("ProjectCEO live DTO sanitizer", () => {
   const previousDocumentation = process.env.REMHAOS_DOCUMENTATION_ENABLED;
   beforeAll(() => {
     process.env.REMHAOS_EXECUTION_ENABLED = "true";
+    process.env.REMHAOS_M4_V2_V3_ENABLED = "true";
     process.env.REMHAOS_DOCUMENTATION_ENABLED = "true";
   });
   afterAll(() => {
     if (previousExecution === undefined) delete process.env.REMHAOS_EXECUTION_ENABLED;
     else process.env.REMHAOS_EXECUTION_ENABLED = previousExecution;
+    if (previousExecutionV2V3 === undefined) delete process.env.REMHAOS_M4_V2_V3_ENABLED;
+    else process.env.REMHAOS_M4_V2_V3_ENABLED = previousExecutionV2V3;
     if (previousDocumentation === undefined) delete process.env.REMHAOS_DOCUMENTATION_ENABLED;
     else process.env.REMHAOS_DOCUMENTATION_ENABLED = previousDocumentation;
   });
@@ -623,24 +711,16 @@ describe("ProjectCEO live DTO sanitizer", () => {
     });
   });
 
-  // Три теста ниже до 11.08 проверяли предпосылку приёмки вехи: пока хоть одно
-  // фото не принято, приёмка не предлагается, а после — предлагается точной
-  // вехой. С открытием инкремента 1 приёмка вехи стала недостижима по более
-  // сильной причине: команда принадлежит инкременту 2, которого не открывал ни
-  // один подписанный документ (A6 §1.1). Ответ поверхности теперь один и тот же
-  // при любом состоянии фотодоказательств — и это то, что обязано быть
-  // проверено, потому что именно это видит человек.
-  //
-  // Фикстуры трёх состояний оставлены намеренно: логика предпосылки в порту
-  // никуда не делась, она просто перекрыта. Когда инкремент 2 откроют отдельным
-  // решением, эти три теста возвращаются к прежним утверждениям — вместе с
-  // прежними фикстурами, а не заново.
+  // V2/V3 открываются только отдельным disposable-флагом. Под ним поверхность
+  // снова отражает реальные предпосылки: без принятого фото команда закрыта,
+  // после принятия получает точную веху. При выключенном флаге отдельный тест
+  // ниже продолжает проверять более сильный `increment_not_authorized`.
   it.each([
     ["undecided", null],
     ["rejected", "rejected"],
     ["accepted", "accepted"],
   ] as const)(
-    "keeps milestone acceptance closed as increment 2 with photo evidence %s",
+    "gates milestone acceptance by photo evidence under the V2/V3 flag: %s",
     async (label, decision) => {
       const result = await new ProjectCeoLiveReadPort(fakeClient({
         executionPackages: executionWithPhotoDecision(decision),
@@ -649,10 +729,17 @@ describe("ProjectCEO live DTO sanitizer", () => {
         displayName: "Controlled user",
       }).getProjectWorkspace({ projectId, requestId: `milestone-${label}` });
 
-      expect(result.data?.operations.accept_milestone).toEqual({
-        status: "unavailable",
-        reason: "increment_not_authorized",
-      });
+      expect(result.data?.operations.accept_milestone).toEqual(
+        decision === "accepted"
+          ? {
+              status: "available",
+              commandTargetId: "55555555-5555-4555-8555-555555555555",
+            }
+          : {
+              status: "unavailable",
+              reason: "prerequisite_missing",
+            },
+      );
     },
   );
 
@@ -850,6 +937,37 @@ describe("ProjectCEO live DTO sanitizer", () => {
     expect(result.data?.operations.publish_baseline).toEqual({
       status: "available",
       commandTargetId: expected,
+    });
+  });
+
+  it("does not offer baseline publication when an approved revision is superseded", async () => {
+    const result = await new ProjectCeoLiveReadPort(fakeClient({
+      approvalPackages: [{
+        id: "approval-1",
+        status: "approved",
+        createdAt: "2026-07-18T00:00:00.000Z",
+        items: [{
+          targetKind: "decision_revision",
+          entityId: "decision-a",
+          revisionId: "decision-r1",
+        }],
+      }],
+      packages: [{ id: packageId, kind: "work_package", name: "Architecture", status: "active" }],
+      latestBaseline: null,
+      approvalSupersededEntities: [{
+        targetKind: "decision_revision",
+        entityId: "decision-a",
+        approvedRevisionId: "decision-r1",
+        currentRevisionId: "decision-r2",
+      }],
+    }), {
+      userId: "66666666-6666-4666-8666-666666666666",
+      displayName: "Owner",
+    }).getProjectWorkspace({ projectId, requestId: "baseline-superseded" });
+
+    expect(result.data?.operations.publish_baseline).toEqual({
+      status: "unavailable",
+      reason: "prerequisite_missing",
     });
   });
 
