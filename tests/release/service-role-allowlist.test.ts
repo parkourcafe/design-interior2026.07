@@ -23,21 +23,18 @@ const callers: Readonly<Record<string, string>> = {
   "lib/llm/recording.ts": "system-ai-recording",
   "app/api/account/delete/route.ts": "authenticated-account-delete",
   "app/api/integrations/telegram/webhook/route.ts": "system-telegram-webhook",
-  "lib/integration-gateway/runtime/worker-client.ts": "system-integration-worker"
+  "lib/integration-gateway/runtime/worker-client.ts": "system-integration-worker",
+  "lib/intake.ts": "public-intake-read",
+  "lib/designer.ts": "public-designer-read",
+  "app/join/[token]/page.tsx": "invite-preview",
+  "app/join/[token]/actions.ts": "invite-accept"
 };
 
 // Exact temporary inventory, not permission for new usages. WP-26 removes the
 // authenticated studio/dashboard callers where existing RLS is sufficient.
 // Public token-bound dependencies remain here until their request-bound
 // contract exists; each is classified explicitly in WP-26 evidence.
-const residualRawCallers: Readonly<Record<string, string>> = {
-  "app/dashboard/projects/[id]/page.tsx": "BLOCKED_HOTSPOT: private client-uploads signing needs a project-scoped Storage RLS policy",
-  "lib/intake.ts": "BLOCKED_HOTSPOT / class (b): public token path needs a split from authenticated helpers or an approved request-bound contract",
-  "lib/designer.ts": "BLOCKED_HOTSPOT / class (b): public token path needs a split from authenticated helpers or an approved request-bound contract",
-  "app/join/[token]/page.tsx": "BLOCKED_HOTSPOT: invite preview is unauthenticated and existing RLS has no token lookup contract",
-  "app/join/[token]/actions.ts": "BLOCKED_HOTSPOT: invite acceptance needs an atomic request-bound contract; existing RLS cannot see invited rows",
-  "app/api/pilot/route.ts": "BLOCKED_HOTSPOT: anonymous fixed event insert needs an additive RLS policy",
-};
+const residualRawCallers: Readonly<Record<string, string>> = {};
 const helper = "lib/supabase/token-scoped.ts";
 const rawModule = "lib/supabase/admin";
 const scopedModule = "lib/supabase/token-scoped";

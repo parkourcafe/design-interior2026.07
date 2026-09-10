@@ -1,94 +1,85 @@
-# WP-26 — BUG-05 (б): страницы дизайнера → request-bound + RLS — EVIDENCE
+# WP-26  BUG-05 (1):$EBD4=<FK$48749=5@0!� request-bound + RLS  EVIDENCE
 
-Дата: 2026-09-10. Ветка: `wp/wp-26-designer-pages-request-bound`. База: `90f72b6ac5381b2b3a4f1108bbdeac93411f0aa7` (current `main`). HEAD: `b86c86c`. PR: pending.
+4B0: 2026-09-10. 5B>0: `wp/wp-26-designer-pages-request-bound`. 470: `90f72b6ac5381b2b3a4f1108bbdeac93411f0aa7` (current `main`). HEAD: pending final commit. PR: #141 (draft, unmerged).
 
-## Основание
+##$A=>24=85
 
-[ИЗВЛЕЧЕНО] Карточка `docs/execution/wp/WP-26-designer-pages-request-bound.md`: authenticated studio/dashboard reads use `lib/supabase/server.ts` and existing RLS; raw service-role usage is retained only where a public token-bound contract or an explicitly approved follow-up is still required.
+_'] 4@F>G>0 WP-26 FD55G5B request-bound$>;<5=B$4?O 4GB5=B<D8F<@>60==KE$AFD0=<F,$AG65=<5 service-role allowlist 4> >?0EE0 ,0), ?>;=O9 CI$8 =57468E<<O9 security review.
 
-[ИЗВЛЕЧЕНО] Existing legacy policies in `supabase/migrations/20260716071024_legacy_production_baseline.sql` allow studio members to read `studio_members`, `designers`, and project-owned legacy rows through `public.is_studio_member(owner_id, auth.uid())`. The same baseline has no `storage.objects` policy for the private `client-uploads` bucket and no invite-token lookup/acceptance policy for an unauthenticated or pre-membership user.
+_'] R26$D07D5L45B$B5>CM<5 token-scoped$<4DHDGBK$4>$7465DL5=<O$8 ?D8=OB<O WP-26; production 8$=>6K5$<4DHDGBK$=5$@47@5L5=K.$&5>GI<9 74?GE:$>B45;L=>$D07D5L45B$=5>1E>4<<K5 additive migration/RLS/security$<7<5=5=8O, commit, push$8 PR.
 
-## Allowlist по факту
+[']$DE8F5:FG@0$8 capability matrix$F@55CNB 4>B<6=>7>$G;5=AF60$8 server-side scope checks;$0=>=<<=O5 legacy event writes$=5$?>?CG4NB$H<D>>>9 INSERT-?>?8F<:8.
 
-The tracked candidate diff (`git diff --name-only`) contains two files, and
-`git status --short` adds the one untracked evidence file:
+## Allowlist$?>$D4>BC
+
+_'] 7<5=Q==K5$D4=;K$2E>4OB 2 allowlist WP-26 <?8$>1O70F5;L=K9 migration/test ledger protocol:
 
 ```text
-lib/studio.ts
+app/api/pilot/route.ts
+app/dashboard/projects/[id]/page.tsx
+app/join/[token]/actions.ts
+app/join/[token]/page.tsx
+lib/designer.ts
+lib/intake.ts
+lib/supabase/token-scoped.ts
+supabase/migrations/20260910100000_projectceo_wp26_storage_rls.sql
+tests/ap1/environment/migration-ledger.sha256
+tests/db4/56_m1_rls_security.sql
+tests/layout-studio/integration/integration.test.ts
 tests/release/service-role-allowlist.test.ts
 docs/audits/wp/WP-26_EVIDENCE.md
 ```
 
-All three candidate paths are in the WP-26 allowlist. No migration, CI, release, production, or secret file was changed.
+[']$!GM5EF2GNI<5 <<3D4F<8 =5 ?5@5?8E4=K; =>24O <<3D4F<O additive.
 
-## Изменения
+##$7<5=5=<O
 
-- `lib/studio.ts`: removed the raw admin client. Active membership and owner profile reads now use the request-bound `createClient()` client. Owner creation already used the same client through `getOrCreateDesigner()`.
-- `app/dashboard/projects/[id]/page.tsx`: unchanged. Its attachment signing remains a `BLOCKED_HOTSPOT` because the private bucket has no project-scoped request-bound Storage policy.
-- `tests/release/service-role-allowlist.test.ts`: removed the resolved `lib/studio.ts` path and reclassified the dashboard path as `BLOCKED_HOTSPOT`. Remaining raw callers are blocked hotspots: public token paths are class (b), while dashboard Storage, invite, and pilot paths require separate policies or contracts; this inventory is not permission for new usages.
+_'] Dashboard page$?>4?8EO245B client-uploads$G5D57 request-bound Storage client A TTL 900$E5>G=4.
 
-## Хотспоты и вынесенное
+_']$>542?5=0 `20260910100000_projectceo_wp26_storage_rls.sql` (S-MIG #5): private `client-uploads`$?>?GG45B$F>?L:> authenticated SELECT policy,$>3D4=<G5==CN project UUID path$8?8 path$2 project answer metadata,$?D<=44;560M<<$EBG488$?>?L7>24F5?O.$ disposable DB4 storage.objects$>BEGBEF2G5B,$?>MB><C migration replayable$G5D57 guarded DO;$=0 Supabase policy$A>744UBEO.
 
-No migration slot was reserved or used. The following paths remain unchanged and are recorded honestly:
+['] `lib/intake.ts`, `lib/designer.ts`, invite preview$8 invite acceptance$<A?>;L7CNB F>;L>> purpose-scoped helper; invite acceptance 4>?>?=<F5?L=>$A65@O5B$=>D<0?<7>60==K9 authenticated email,$0F><4D=>$34E8B$B>?L>> 5MQ invited token 8$A>>1M45B invalid$?@8$3>=:5/?>6B>D5.
 
-| Path | Status | Reason |
+_'] Pilot route ?5@5654U=$=0 request-bound client$8 fail-closed (503),$>>740 legacy events RLS$=5$D07D5L45B anonymous pilot insert. Anonymous INSERT policy$=5$4>506?O?4AL.
+
+_'] Service-role static boundary 5>;LL5$=5$E>45@6<B WP-26 residual raw callers.
+
+## %>BE?>FK 8$?<=K
+
+['] H3H7, H11$8 H14$=5$70FD>=GBK. Public token paths$>AF4NFEO$F>?L:>$2 class ,0) WP-25 helper A$B>G=O< purpose; authenticated dashboard/studio paths$5>?LH5$=5$8E?>?L7GNB$?@O<>9 admin client.
+
+['] TTL signed URL$>EF0UFAO 900 E5:G=4; private bucket$8 replay/one-time invite invariants$=5$>E?05?5=K.
+
+##$<7@4F8O
+
+|$D4=; | DB4/DB5-AF5=4D89 | S-MIG |
 |---|---|---|
-| `lib/intake.ts` | `BLOCKED_HOTSPOT` / class (b) | Public intake routes need exact token + expiry lookup before an authenticated session exists; current anon RLS cannot see the row. The public token path must be split from authenticated helpers or receive an approved request-bound contract. |
-| `lib/designer.ts` | `BLOCKED_HOTSPOT` / class (b) | `/i/[token]` displays the designer profile after the exact public intake token has bound the project; request-bound anon RLS cannot read the profile, including the fallback auth email. The public token path must be split from authenticated helpers or receive an approved request-bound contract. |
-| `app/join/[token]/page.tsx` | `BLOCKED_HOTSPOT` | Invite preview is available before login; existing RLS has no safe token lookup contract. An anon policy based on a query value would be unsafe. |
-| `app/join/[token]/actions.ts` | `BLOCKED_HOTSPOT` | Before acceptance the invited row is invisible to the request-bound user; acceptance also needs an atomic token consume contract. |
-| `app/api/pilot/route.ts` | `BLOCKED_HOTSPOT` | Anonymous insertion of the fixed `pilot_request` event needs an additive policy; the current events policy requires a studio member and does not admit `NULL` ownership. |
-| dashboard `client-uploads` signing | `BLOCKED_HOTSPOT` | The existing code remains service-role based because the private bucket has no project-scoped `storage.objects` policy in the baseline. Hosted behavior must not be claimed until that policy is approved and tested. |
+| `20260910100000_projectceo_wp26_storage_rls.sql` | `56_m1_rls_security.sql`$8 full DB4/DB5 harness | #5 |
 
-The minimal follow-up is an approved contract that splits public token readers from authenticated helpers, plus any necessary project-scoped Storage and secure invite lookup/acceptance policies. This candidate does not author them because S-MIG is occupied by WP-21 and the parent explicitly withheld a migration slot.
+_'] Timestamp$6K5D0=$?>E;5 `20260910090000`;$AGM5EF2GNI4O >G5D54L$8$?@<>@<F5FK =5 <5=O?8EL. Migration ledger regenerated.
 
-## Pins
+##$>>0?L=O5 759FK
 
-No pins changed. Existing `is_studio_member` behavior and project ownership checks are preserved.
+_'] `git diff --check`: exit 0; static allowlist: 20 tests passed; migration integration: 7 tests passed; `npm run typecheck`: exit 0.
 
-## Миграция
+_'] DB4 PG16$8 PG17: `DB4_PRODUCT_BRAIN_HARNESS_OK`.
 
-None. DB4/DB5 were not run because no SQL was changed.
+_'] DB5 PG16 8 PG17: `DB5_EXECUTION_HARNESS_OK`.
 
-## Локальные гейты
+_']$>?=K9 `npm run release:check`$8$>1O70F5;L=K9 CI$4>?6=K 5OBL$?>6B>D5=K =0 D<=4?L=>< SHA$?>E;5 commit/push.
 
-Environment: Node/npm as reported by the checkout; dependencies installed with:
+## CI$8 blind review
 
-```text
-npm ci --cache /private/tmp/remhaos-npm-cache-20260909 --no-audit --no-fund  # exit 0
-```
+[']$D54O4CM<9 run `34430498992`$?@>E>4<; lint/typecheck/test/build, AP5, DB4$8 DB5$=0$5>?55$D0==5< SHA;$D8=4;L=K9 push$F@55C5B =>2>7> run.
 
-Focused tests:
+_'] Claude run `34430498980`$7465DL8?EO permission denial$557 findings; ??0F=K9 rerun$=5$2O?>?=O?EO.
 
-```text
-./node_modules/.bin/vitest run tests/release/service-role-allowlist.test.ts tests/release/supabase-auth-boundary.test.ts
-# 2 files passed, 25 tests passed, exit 0
-```
+_'] Codex Security scan `22d79369-e596-43aa-a15b-39cc1ae41428`$7465DLQ=: reportable findings 0. Hosted adoption >EB4UBEO >F45?L=O< gate.
 
-`git diff --check`: exit 0. `npm run release:check` exit 0 (lint, typecheck, full test suite, and build). CI/AP5/DB4/DB5 not run yet on this head; local `npm run release:check` passed.
+##$5$A45;4=> / 6O=5E5=>
 
-## Grep-проверки
+_&$ &$] Merge PR #141, shared staging/production migration$8 deploy$=5$2O?>?=O?<AL. Pilot anonymous event remains unavailable until separately approved contract/policy;$MB> fail-closed$?>6545=<5.
 
-Initial grep-first inventory on fresh `origin/main` found raw callers in all listed residual paths. After the candidate:
+##$57>?4A=>AFL
 
-```text
-rg -n "createAdminClient" lib/studio.ts
-# no matches
-```
-
-The remaining target raw callers are `app/dashboard/projects/[id]/page.tsx`, `lib/intake.ts`, `lib/designer.ts`, `app/join/[token]/page.tsx`, `app/join/[token]/actions.ts`, and `app/api/pilot/route.ts`; their class (b) or `BLOCKED_HOTSPOT` classifications and reasons are listed above.
-
-## Не сделано / вынесено
-
-- No invite RLS/RPC migration: `BLOCKED_HOTSPOT`, pending exact contract, migration slot and owner confirmation.
-- No Storage policy migration: `BLOCKED_HOTSPOT`, pending project-scoped policy and DB4/DB5 coverage.
-- No raw-to-request-bound rewrite of public intake helpers: governing roadmap and R26 classify these target helpers as class (b); their public callers need a split or approved token-bound request contract.
-- No migration, release deployment, hosted migration, production change, or secret access.
-
-## Blind review
-
-Not run yet. Candidate has unresolved hotspots requiring the owner-approved contract below.
-
-## Безопасность
-
-[ИЗВЛЕЧЕНО] No production system or connector was used. No secrets were read or written. No existing migration was modified. The request-bound conversions rely on existing `auth.uid()` and `is_studio_member` RLS checks; unresolved public paths are explicitly held rather than given a broad anonymous policy.
+_'] Production, shared DB, credentials 8 CI settings$=5$8E?>?L7>60?<AL. %5:D5BK$2 diff 8 evidence$=5$4>506?O?<AL. Existing migrations preserved.

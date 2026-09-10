@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
-import { createAdminClient } from "@/lib/supabase/admin";
+import { createScopedServiceClient } from "@/lib/supabase/token-scoped";
 import { ru } from "@/lib/i18n/ru";
 import { isInviteExpired } from "@/lib/studio-invite";
 import JoinButton from "./join-button";
@@ -24,7 +24,7 @@ export default async function JoinPage({ params }: { params: Promise<{ token: st
 
   // Не проверяем существование токена сырым клиентом: читаем метаданные
   // service-role'ом только чтобы показать имя студии и валидность ссылки.
-  const admin = createAdminClient();
+  const admin = createScopedServiceClient("invite-preview");
   const { data: invite } = await admin
     .from("studio_members")
     .select("owner_id, status, token_expires_at")

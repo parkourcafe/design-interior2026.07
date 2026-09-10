@@ -19,6 +19,10 @@ const purposes = new Set([
   "authenticated-account-delete",
   "system-telegram-webhook",
   "system-integration-worker",
+  "public-intake-read",
+  "public-designer-read",
+  "invite-preview",
+  "invite-accept",
 ] as const);
 
 type ServicePurpose = typeof purposes extends Set<infer Purpose> ? Purpose : never;

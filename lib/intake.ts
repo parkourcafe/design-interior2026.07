@@ -1,4 +1,4 @@
-import { createAdminClient } from "@/lib/supabase/admin";
+import { createScopedServiceClient } from "@/lib/supabase/token-scoped";
 import { normalizeCustomQuestions, type CustomBriefQuestion } from "@/lib/brief/custom-questions";
 
 export interface IntakeProject {
@@ -13,7 +13,7 @@ export interface IntakeProject {
 // публичный доступ авторизуется ТОЛЬКО этим токеном.
 export async function getProjectByIntakeToken(token: string): Promise<IntakeProject | null> {
   if (!token) return null;
-  const admin = createAdminClient();
+  const admin = createScopedServiceClient("public-intake-read");
   // B4 (Фаза 2): токен с истёкшим сроком неотличим от несуществующего —
   // наружу не утекает даже факт его бывшего существования.
   const { data } = await admin

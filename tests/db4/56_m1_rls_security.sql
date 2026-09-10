@@ -503,4 +503,30 @@ end
 $anon_denied$;
 commit;
 
+
+-- WP-26: private client uploads remain readable only through the
+-- authenticated request-bound Storage surface.
+do $wp26_storage_policy$
+declare
+  v_policy_count integer;
+  v_bucket_public boolean;
+begin
+  if to_regclass('storage.objects') is null then return; end if;
+  select count(*) into v_policy_count
+  from pg_catalog.pg_policies
+  where schemaname = 'storage' and tablename = 'objects'
+    and policyname = 'client_uploads_studio_select';
+  if v_policy_count <> 1 then
+    raise exception 'DB4_WP26_STORAGE_POLICY_MISSING:%', v_policy_count;
+  end if;
+  select public into v_bucket_public from storage.buckets where id = 'client-uploads';
+  if coalesce(v_bucket_public, true) then
+    raise exception 'DB4_WP26_CLIENT_UPLOADS_PUBLIC';
+  end if;
+  if not pg_catalog.has_table_privilege('authenticated', 'storage.objects', 'SELECT') then
+    raise exception 'DB4_WP26_STORAGE_SELECT_GRANT_MISSING';
+  end if;
+end
+$wp26_storage_policy$;
+
 select 'DB4_M1_RLS_SECURITY_OK' as result;
