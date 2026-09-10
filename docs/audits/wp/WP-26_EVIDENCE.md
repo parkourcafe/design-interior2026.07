@@ -1,6 +1,6 @@
 # WP-26 — BUG-05 (б): страницы дизайнера → request-bound + RLS — EVIDENCE
 
-Дата: 2026-09-10. Ветка: `wp/wp-26-designer-pages-request-bound`. База: `1e132cb47bc9893ac1d46c46051898cf1df0eb70`. HEAD: candidate commit pending fresh-main sync. PR: pending.
+Дата: 2026-09-10. Ветка: `wp/wp-26-designer-pages-request-bound`. База: `90f72b6ac5381b2b3a4f1108bbdeac93411f0aa7` (current `main`). HEAD: `b86c86c`. PR: pending.
 
 ## Основание
 
@@ -65,7 +65,7 @@ Focused tests:
 # 2 files passed, 25 tests passed, exit 0
 ```
 
-`git diff --check`: exit 0. `npm run release:check` exit 0 (lint, typecheck, full test suite, and build). No CI or hosted checks were run.
+`git diff --check`: exit 0. `npm run release:check` exit 0 (lint, typecheck, full test suite, and build). CI/AP5/DB4/DB5 not run yet on this head; local `npm run release:check` passed.
 
 ## Grep-проверки
 
@@ -80,7 +80,7 @@ The remaining target raw callers are `app/dashboard/projects/[id]/page.tsx`, `li
 
 ## Не сделано / вынесено
 
-- No invite RLS/RPC migration: `BLOCKED_HOTSPOT`, pending exact contract and S-MIG slot.
+- No invite RLS/RPC migration: `BLOCKED_HOTSPOT`, pending exact contract, migration slot and owner confirmation.
 - No Storage policy migration: `BLOCKED_HOTSPOT`, pending project-scoped policy and DB4/DB5 coverage.
 - No raw-to-request-bound rewrite of public intake helpers: governing roadmap and R26 classify these target helpers as class (b); their public callers need a split or approved token-bound request contract.
 - No migration, release deployment, hosted migration, production change, or secret access.
