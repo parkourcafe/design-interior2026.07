@@ -1,6 +1,6 @@
 # WP-24 — Адаптер читает legacy-паспорт и договор request-bound под RLS — EVIDENCE
 
-Дата: 2026-09-10. Ветка: `wp/wp-24-m1-adapter-reads-legacy-passport`. HEAD: pending final commit. PR: new PR after #139 merge. Сессия: Codex repository-only.
+Дата: 2026-09-10. Ветка: `wp/wp-24-m1-adapter-reads-legacy-passport`. HEAD: `e9d22aa` (merge with current `main`). PR: [#140](https://github.com/parkourcafe/design-interior2026.07/pull/140) (draft). Сессия: Codex repository-only.
 
 ## Основание
 
@@ -27,15 +27,16 @@ app/api/dashboard/contracts/route.ts:113: .from("contract_documents")
 
 [ИНТЕРПРЕТИРОВАНО] Для выполнения критерия WP-24 нужен новый серверный read-контракт/adapter и явно разрешённый способ проекции внутренней паспортной таблицы, а также подключение результата к `ProjectWorkspaceView`/UI. Это затрагивает файлы вне карточки allowlist и требует решения по RLS/security boundary. Без такого решения безопасный runtime нельзя выдумывать.
 
-Статус пакета: `IMPLEMENTED_LOCAL_PENDING_PR_CI`.
+Статус пакета: `IMPLEMENTED_CI_GREEN_PR_OPEN`.
 
 ## Решение владельца по ролям
 
 [ПОДТВЕРЖДЕНО ВЛАДЕЛЬЦЕМ, 2026-09-10] Новый read-only RPC может обслуживать
 только роли `owner_lead` и `architect`, и только при active membership
 конкретного пользователя в конкретном проекте и прохождении всех scope-проверок.
-Остальные роли запрещены. Это решение не разрешает migration/RLS/security
-реализацию, commit, push, merge или production.
+Остальные роли запрещены. Последующим owner-сообщением разрешены additive
+migration/RLS/security реализация в repository-only/disposable scope,
+commit/push и открытие PR. Merge и shared staging/production остаются закрыты.
 
 [СВЕРЕНО С УТВЕРЖДЁННЫМ КОНТРАКТОМ, 2026-09-10] Основание доступа —
 `docs/product-intelligence/wave-3/FOUNDATION_CONTRACT_FREEZE.md:61-96`:
@@ -63,13 +64,14 @@ architect; поэтому owner-approved role set не противоречит 
 [НЕСОВПАДЕНИЕ ОБЪЁМА, НЕ НОВОЕ РЕШЕНИЕ] Карточка WP-24 в строке 5 говорит
 `S-UI ... Миграция: нет`, а в строке 10 требует чтение private passport через
 RLS. Для варианта 2 существующего прямого доступа недостаточно: новый
-request-bound RPC неизбежно требует additive migration. Это не меняет роли или
-архитектуру, но требует отдельного уже оговорённого owner gate на migration
-slot и реализацию; до него SQL/RLS/security не меняются.
+request-bound RPC неизбежно требует additive migration. Owner согласовал S-MIG
+#6 и разрешил реализацию SQL/RLS/security в repository-only/disposable scope;
+это не меняет роли или утверждённую архитектуру. Merge и shared
+staging/production по-прежнему требуют отдельного owner gate.
 
 ## Независимый security review
 
-[PASS С ОГРАНИЧЕНИЕМ, 2026-09-10] Повторная проверка proposed RPC по frozen
+[PASS С ОГРАНИЧЕНИЕМ, 2026-09-10] Независимая проверка реализованного RPC по frozen
 документам подтверждает:
 
 - `FOUNDATION_CONTRACT_FREEZE.md:61-96`: `view_project` есть у Owner/lead и
@@ -83,12 +85,12 @@ slot и реализацию; до него SQL/RLS/security не меняютс
   `READ_CONTRACTS_REPORT.md:52-67` требуют server-derived scope, project-
   scoped reads, fixed `search_path`, minimal grants, private-table isolation и
   отсутствие service-role path;
-- proposed RPC соблюдает эти требования после вызова канонического authorizer,
+- реализованный RPC соблюдает эти требования после вызова канонического authorizer,
   явного deny ролей вне `owner_lead|architect`, exact-project filters,
   `SECURITY DEFINER`, `search_path=''`, authenticated-only execute и DTO без
   Storage metadata.
 
-Реализация прошла независимый diff/security review после локального SQL-прогона; shared staging/production не использовались.
+Реализация прошла независимый diff/security review после локального SQL-прогона и обязательного CI; shared staging/production не использовались.
 
 ## Пины
 
@@ -106,11 +108,18 @@ slot и реализацию; до него SQL/RLS/security не меняютс
 
 ## Не сделано / требуется от владельца
 
-[ИЗВЛЕЧЕНО] Owner разрешил additive migration/RLS/security implementation, commit/push/new PR. Очередь согласована: WP-24 S-MIG #6; replay follow-up WP-21 остаётся отдельным пакетом и получает S-MIG #7 при запуске. Merge нового PR и shared staging/production остаются owner gates.
+[ИЗВЛЕЧЕНО] Owner разрешил additive migration/RLS/security implementation,
+commit/push/new PR. Очередь согласована: WP-24 S-MIG #6; replay follow-up WP-21
+остаётся отдельным пакетом и получает S-MIG #7 при запуске. PR #140 открыт в
+draft; merge и shared staging/production остаются owner gates.
 
 ## Blind review
 
-PASS: Codex Security diff scan `807ca1dc-5621-496d-8250-e29e6a8e8f5c` на диапазоне `1e132cb..414829d` завершён; reportable findings: 0. Два кандидата deferred только для hosted privilege/serialization проверки, shared staging/production остаются owner-gated.
+PASS: Codex Security diff scan `807ca1dc-5621-496d-8250-e29e6a8e8f5c` на
+диапазоне `1e132cb..414829d` завершён; reportable findings: 0. Два кандидата
+deferred только для hosted privilege/serialization проверки, shared
+staging/production остаются owner-gated. CI run `34424739437` завершён
+успешно: lint/typecheck/test/build, AP5, DB4 PG16/17 и DB5 PG16/17.
 
 ## Безопасность
 
