@@ -201,9 +201,27 @@ export interface M1ApprovalRequestView {
   readonly createdAt: string;
 }
 
+export interface M1ContractedPassportView {
+  readonly projectId: string;
+  readonly revisionNo: number;
+  readonly passport: Readonly<Record<string, unknown>>;
+  readonly llmOk: boolean;
+  readonly createdAt: string;
+}
+
+export interface M1ContractDocumentView {
+  readonly documentId: string;
+  readonly status: "uploaded" | "received" | "signed" | "archived";
+  readonly createdAt: string;
+  readonly statusUpdatedAt: string | null;
+}
+
 export interface M1WorkspaceView {
   readonly facts: readonly M1ProjectFactView[];
   readonly approvalRequests: readonly M1ApprovalRequestView[];
+  readonly contractedPassport?: M1ContractedPassportView | null;
+  readonly contractDocument?: M1ContractDocumentView | null;
+  readonly stateRevision?: number | null;
 }
 
 export interface SourceRegistryItem {

@@ -372,6 +372,8 @@ describe("Layout Studio delivery/UI slice", () => {
       // M1 approval read projection exposes only current-actor ownership of
       // drafts; the actor identity remains server-side.
       "20260831170000_projectceo_platform_approval_request_actor_projection.sql",
+      // S-MIG #6 / DB4-59: request-bound M1 legacy passport/contract read.
+      "20260910090000_projectceo_m1_legacy_read_contract.sql",
     ]);
   });
 

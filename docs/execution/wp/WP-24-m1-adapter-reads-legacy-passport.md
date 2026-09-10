@@ -2,7 +2,7 @@
 
 | Трек/шаг | Волна | Оценка | Серия | Миграция |
 |---|---|---|---|---|
-| 2.4 | W4–W5 | 3–5 РС | S-UI (после WP-23) | нет |
+| 2.4 | W4–W5 | 3–5 РС | S-UI + S-MIG #6 | `20260910090000` additive |
 
 Контракт программы: `docs/execution/REMHAOS_MASTER_TZ_2026-09-08.md`. Карта: `docs/audits/REMHAOS_COMPLETION_ROADMAP_2026-09-08.md`. Аудит: `docs/audits/REMHAOS_GLOBAL_AUDIT_2026-09-08.md`.
 
@@ -13,23 +13,30 @@
 - WP-21, WP-23 (общая панель)
 
 ## Allowlist файлов (правишь только это)
-- M1-адаптер (из #124)
-- `components/projectceo/m1-passport-panel.tsx`
-- `tests/db4/53_m1_passport_versions_contract.sql`, `56_m1_rls_security.sql` (расширение)
-- UI-тест
+- `supabase/migrations/20260910090000_projectceo_m1_legacy_read_contract.sql`
+- `lib/project-intelligence/adapters/postgres/m1-legacy-read.ts`
+- `lib/project-intelligence/adapters/postgres/index.ts`
+- `lib/project-intelligence/delivery/projectceo/live-read-port.ts`
+- `components/projectceo/contracts.ts`, `m1-passport-panel.tsx`, `m1-project-panel.tsx`, `mock.ts`
+- `lib/i18n/ru.ts`
+- `tests/ap1/environment/migration-ledger.sha256`
+- `tests/layout-studio/integration/integration.test.ts`
+- `tests/db4/53_m1_passport_versions_contract.sql`, `56_m1_rls_security.sql`, `59_m1_legacy_read_rpc.sql`
+- `tests/db5/run.zsh` (DB5 invokes M1 security/read checks)
+- `tests/projectceo-integration/m1-legacy-read-adapter.test.ts`
 - `docs/audits/wp/WP-24_EVIDENCE.md`
 
 ## Запрещено
 - H1–H7, H11, H14
 
 ## Шаги
-1. Проекция: последняя ревизия паспорта + статус договора; чтение request-bound; чужой/anon — 0 строк (DB4 56).
+1. Проекция: последняя ревизия паспорта + статус договора; чтение request-bound через canonical `_authorize_project_human(project_id, 'view_project')`; роли `owner_lead`/`architect`; чужой/anon/builder/client — deny (DB4-59, DB5).
 
 ## Гейты
 - полный CI
 
 ## Критерий приёмки
-- дизайнер видит паспорт и договор; изоляция доказана DB4 56
+- owner/architect видят паспорт и договор; изоляция и ACL доказаны DB4-59/DB5, без storage metadata
 
 ## Обязательные правила (кратко; полностью — `docs/audits/wp/WP_PROTOCOL.md`)
 
