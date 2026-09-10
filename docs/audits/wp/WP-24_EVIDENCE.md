@@ -53,6 +53,20 @@ organization/project/role, project-scoped reads, fixed `search_path`, minimal
 grants, private-table isolation и отсутствие service-role path. Proposed RPC
 соответствует этим требованиям после вызова канонического authorizer.
 
+[СВЕРЕНО С ГЕНЕРАЛЬНЫМ ТЗ, 2026-09-10] `docs/execution/wp/WP-24-m1-adapter-
+reads-legacy-passport.md:9-32` определяет read-only результат как последнюю
+`project_passport_revisions` и статус `contract_documents`, с designer-facing
+критерием и DB4 56 isolation. `FOUNDATION_CONTRACT_FREEZE.md:61-96` и
+`projectceo_foundation._role_capabilities` дают `view_project` owner/lead и
+architect; поэтому owner-approved role set не противоречит capability matrix.
+
+[НЕСОВПАДЕНИЕ ОБЪЁМА, НЕ НОВОЕ РЕШЕНИЕ] Карточка WP-24 в строке 5 говорит
+`S-UI ... Миграция: нет`, а в строке 10 требует чтение private passport через
+RLS. Для варианта 2 существующего прямого доступа недостаточно: новый
+request-bound RPC неизбежно требует additive migration. Это не меняет роли или
+архитектуру, но требует отдельного уже оговорённого owner gate на migration
+slot и реализацию; до него SQL/RLS/security не меняются.
+
 ## Пины
 
 Пинов нет.
