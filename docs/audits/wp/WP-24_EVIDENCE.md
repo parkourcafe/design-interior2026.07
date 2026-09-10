@@ -37,6 +37,22 @@ app/api/dashboard/contracts/route.ts:113: .from("contract_documents")
 Остальные роли запрещены. Это решение не разрешает migration/RLS/security
 реализацию, commit, push, merge или production.
 
+[СВЕРЕНО С УТВЕРЖДЁННЫМ КОНТРАКТОМ, 2026-09-10] Основание доступа —
+`docs/product-intelligence/wave-3/FOUNDATION_CONTRACT_FREEZE.md:61-96`:
+active Organization membership + active exact ProjectMembership + capability.
+Для чтения используется capability `view_project`, которую матрица даёт
+Owner/lead и Architect/designer/PM. Техническая реализация должна вызывать
+канонический `_authorize_project_human(project_id, 'view_project')`, а затем
+ограничить effective role до `owner_lead|architect`; это также проверяет
+активную RU Organization и устраняет ручное дублирование authorizer.
+
+[СВЕРЕНО С АРХИТЕКТУРОЙ, 2026-09-10] `architecture-v1.md:210-222`,
+`wave-3/integration/REQUEST_BOUND_CONTRACT.md:5-12` и
+`wave-4/ap1/READ_CONTRACTS_REPORT.md:52-67` требуют server-derived actor/
+organization/project/role, project-scoped reads, fixed `search_path`, minimal
+grants, private-table isolation и отсутствие service-role path. Proposed RPC
+соответствует этим требованиям после вызова канонического authorizer.
+
 ## Пины
 
 Пинов нет.
@@ -51,7 +67,7 @@ app/api/dashboard/contracts/route.ts:113: .from("contract_documents")
 
 ## Не сделано / требуется от владельца
 
-[ИНТЕРПРЕТИРОВАНО] Role decision получен. Остаются отдельные owner gates:
+[ИНТЕРПРЕТИРОВАНО] Role decision и архитектурное основание получены. Остаются отдельные owner gates:
 назначение migration slot и разрешение на additive migration/RLS/security
 реализацию. До них WP-24 закрывать нельзя; production/shared DB не использовались.
 
