@@ -26,16 +26,17 @@ const callers: Readonly<Record<string, string>> = {
   "lib/integration-gateway/runtime/worker-client.ts": "system-integration-worker"
 };
 
-// Exact temporary inventory, not permission for new usages. WP-26 owns the
-// designer/session cases; other omissions require their own scoped decision.
+// Exact temporary inventory, not permission for new usages. WP-26 removes the
+// authenticated studio/dashboard callers where existing RLS is sufficient.
+// Public token-bound dependencies remain here until their request-bound
+// contract exists; each is classified explicitly in WP-26 evidence.
 const residualRawCallers: Readonly<Record<string, string>> = {
-  "lib/intake.ts": "Existing intake token/expiry lookup, omitted from WP-25 route allowlist",
-  "lib/designer.ts": "WP-26: existing public designer profile/auth lookup",
-  "lib/studio.ts": "WP-26: existing authenticated studio resolution",
-  "app/dashboard/projects/[id]/page.tsx": "WP-26: existing RLS-checked attachment signing",
-  "app/join/[token]/page.tsx": "Existing invitation metadata lookup, outside WP-25",
-  "app/join/[token]/actions.ts": "Existing authenticated invitation acceptance, outside WP-25",
-  "app/api/pilot/route.ts": "Existing rate-limited pilot event, outside WP-25",
+  "app/dashboard/projects/[id]/page.tsx": "BLOCKED_HOTSPOT: private client-uploads signing needs a project-scoped Storage RLS policy",
+  "lib/intake.ts": "BLOCKED_HOTSPOT / class (b): public token path needs a split from authenticated helpers or an approved request-bound contract",
+  "lib/designer.ts": "BLOCKED_HOTSPOT / class (b): public token path needs a split from authenticated helpers or an approved request-bound contract",
+  "app/join/[token]/page.tsx": "BLOCKED_HOTSPOT: invite preview is unauthenticated and existing RLS has no token lookup contract",
+  "app/join/[token]/actions.ts": "BLOCKED_HOTSPOT: invite acceptance needs an atomic request-bound contract; existing RLS cannot see invited rows",
+  "app/api/pilot/route.ts": "BLOCKED_HOTSPOT: anonymous fixed event insert needs an additive RLS policy",
 };
 const helper = "lib/supabase/token-scoped.ts";
 const rawModule = "lib/supabase/admin";
