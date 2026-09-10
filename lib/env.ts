@@ -7,12 +7,24 @@ export function appUrl(): string {
   return url.replace(/\/$/, "");
 }
 
+function publicEnvValue(
+  name: string,
+  fallback: string | (() => string),
+): string {
+  const value = process.env[name]?.trim();
+  if (value) return value;
+
+  if (process.env.NODE_ENV === "production") {
+    console.warn(`[env] ${name} is not configured; using a neutral placeholder.`);
+  }
+  return typeof fallback === "function" ? fallback() : fallback;
+}
+
 // Контакт поддержки для случаев, когда персональный дизайнер неизвестен
 // (клиентский самостоятельный бриф, Вход Б). Показывается рядом с согласием
-// на обработку ПДн. Владелец должен убедиться, что этот адрес реально
-// принимает почту (тот же домен, что и SMTP-отправитель).
+// на обработку ПДн. В production адрес должен быть задан окружением деплоя.
 export function supportEmail(): string {
-  return process.env.NEXT_PUBLIC_SUPPORT_EMAIL ?? "saidalarust@gmail.com";
+  return publicEnvValue("NEXT_PUBLIC_SUPPORT_EMAIL", "support@example.invalid");
 }
 
 export interface LegalOperator {
@@ -27,9 +39,9 @@ export interface LegalOperator {
 // исходный код и могут быть обновлены без изменения юридического текста.
 export function legalOperator(): LegalOperator {
   return {
-    name: process.env.NEXT_PUBLIC_LEGAL_OPERATOR_NAME?.trim() || "Saida Nigmatullaeva",
-    address: process.env.NEXT_PUBLIC_LEGAL_OPERATOR_ADDRESS?.trim() || "Индонезия, Бали, Убуд",
-    email: process.env.NEXT_PUBLIC_LEGAL_OPERATOR_EMAIL?.trim() || supportEmail(),
-    phone: process.env.NEXT_PUBLIC_LEGAL_OPERATOR_PHONE?.trim() || "+6281943286395",
+    name: publicEnvValue("NEXT_PUBLIC_LEGAL_OPERATOR_NAME", "Оператор не указан"),
+    address: publicEnvValue("NEXT_PUBLIC_LEGAL_OPERATOR_ADDRESS", "Адрес не указан"),
+    email: publicEnvValue("NEXT_PUBLIC_LEGAL_OPERATOR_EMAIL", supportEmail),
+    phone: publicEnvValue("NEXT_PUBLIC_LEGAL_OPERATOR_PHONE", "Телефон не указан"),
   };
 }
