@@ -110,7 +110,7 @@ slot и реализацию; до него SQL/RLS/security не меняютс
 
 ## Blind review
 
-Ожидает финального diff scan на итоговом SHA; затем приложу результаты CI/AP5/DB4/DB5 и PR.
+PASS: Codex Security diff scan `807ca1dc-5621-496d-8250-e29e6a8e8f5c` на диапазоне `1e132cb..414829d` завершён; reportable findings: 0. Два кандидата deferred только для hosted privilege/serialization проверки, shared staging/production остаются owner-gated.
 
 ## Безопасность
 
