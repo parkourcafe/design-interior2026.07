@@ -1,7 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
-import { createAdminClient } from "@/lib/supabase/admin";
 import { requestBaseUrl } from "@/lib/base-url";
 import { ru } from "@/lib/i18n/ru";
 import type { Passport } from "@/lib/types";
@@ -226,16 +225,15 @@ async function ReviewBoard({
     : [];
   let attachments: { name: string; url: string; isImage: boolean }[] = [];
   if (attachMeta.length > 0) {
-    // Bucket приватный — подписываем ссылки service-role'ом (доступ к проекту
-    // дизайнера уже проверен RLS выше).
-    const admin = createAdminClient();
+    // Bucket приватный — request-bound Storage RLS повторно проверяет проект.
+    const storage = supabase.storage;
     const signed = await Promise.all(
       attachMeta.map(async (a) => {
         const path = a.path as string;
         const name = typeof a.name === "string" ? a.name : path.split("/").pop() ?? "файл";
         // TTL не больше 15 минут — тот же инвариант, что и в
         // project-intelligence storage-адаптере (storage.ts).
-        const { data } = await admin.storage.from("client-uploads").createSignedUrl(path, 900);
+        const { data } = await storage.from("client-uploads").createSignedUrl(path, 900);
         if (!data?.signedUrl) return null;
         return { name, url: data.signedUrl, isImage: /\.(png|jpe?g|webp|gif|heic)$/i.test(name) };
       }),

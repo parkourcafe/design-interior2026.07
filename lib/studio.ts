@@ -1,4 +1,3 @@
-import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import { getOrCreateDesigner, type DesignerRow } from "@/lib/designer";
 
@@ -26,13 +25,12 @@ export async function getStudio(): Promise<Studio | null> {
   } = await supabase.auth.getUser();
   if (!user) return null;
 
-  const admin = createAdminClient();
   const email = (user.email ?? "").toLowerCase();
 
   let ownerId: string | null = null;
 
   // Уже активный участник? (активация — только через ссылку-приглашение)
-  const { data: active } = await admin
+  const { data: active } = await supabase
     .from("studio_members")
     .select("owner_id")
     .eq("member_id", user.id)
@@ -42,7 +40,7 @@ export async function getStudio(): Promise<Studio | null> {
 
   // Участник: студия = владелец.
   if (ownerId) {
-    const { data: designer } = await admin
+    const { data: designer } = await supabase
       .from("designers")
       .select(SELECT)
       .eq("id", ownerId)

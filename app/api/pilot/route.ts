@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { createAdminClient } from "@/lib/supabase/admin";
+import { createClient } from "@/lib/supabase/server";
 import { checkRateLimit, clientIp } from "@/lib/rate-limit";
 
 export const dynamic = "force-dynamic";
@@ -12,12 +12,13 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "rate_limited" }, { status: 429 });
   }
 
-  const admin = createAdminClient();
-  await admin.from("events").insert({
+  const supabase = await createClient();
+  const { error } = await supabase.from("events").insert({
     designer_id: null,
     project_id: null,
     type: "pilot_request",
   });
 
+  if (error) return NextResponse.json({ error: "pilot_request_unavailable" }, { status: 503 });
   return NextResponse.json({ ok: true });
 }

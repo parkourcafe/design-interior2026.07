@@ -1,7 +1,7 @@
 "use server";
 
 import { createClient } from "@/lib/supabase/server";
-import { createAdminClient } from "@/lib/supabase/admin";
+import { createScopedServiceClient } from "@/lib/supabase/token-scoped";
 import { isInviteExpired } from "@/lib/studio-invite";
 
 // Активация приглашения по ссылке-токену. Доступ к студии даётся ТОЛЬКО здесь —
@@ -16,7 +16,7 @@ export async function acceptInvite(
   } = await supabase.auth.getUser();
   if (!user) return { ok: false, error: "unauthorized" };
 
-  const admin = createAdminClient();
+  const admin = createScopedServiceClient("invite-accept");
   const { data: invite } = await admin
     .from("studio_members")
     .select("id, owner_id, status, token_expires_at")
@@ -32,8 +32,17 @@ export async function acceptInvite(
     return { ok: false, error: "invalid" };
   }
 
+  const { data: inviteEmail } = await admin
+    .from("studio_members")
+    .select("email")
+    .eq("id", inv.id)
+    .maybeSingle();
+  if (!inviteEmail?.email || inviteEmail.email.trim().toLowerCase() !== (user.email ?? "").trim().toLowerCase()) {
+    return { ok: false, error: "invalid" };
+  }
+
   // Гасим токен в этой же операции: ссылка одноразовая.
-  const { error } = await admin
+  const { data: activated, error } = await admin
     .from("studio_members")
     .update({
       member_id: user.id,
@@ -43,8 +52,11 @@ export async function acceptInvite(
       token_expires_at: null,
     })
     .eq("id", inv.id)
-    .eq("status", "invited"); // защита от гонки: активируем только всё ещё «invited»
+    .eq("status", "invited")
+    .select("id")
+    .maybeSingle(); // защита от гонки: активируем только всё ещё «invited"
 
   if (error) return { ok: false, error: "failed" };
+  if (!activated) return { ok: false, error: "invalid" };
   return { ok: true };
 }

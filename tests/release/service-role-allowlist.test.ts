@@ -23,20 +23,18 @@ const callers: Readonly<Record<string, string>> = {
   "lib/llm/recording.ts": "system-ai-recording",
   "app/api/account/delete/route.ts": "authenticated-account-delete",
   "app/api/integrations/telegram/webhook/route.ts": "system-telegram-webhook",
-  "lib/integration-gateway/runtime/worker-client.ts": "system-integration-worker"
+  "lib/integration-gateway/runtime/worker-client.ts": "system-integration-worker",
+  "lib/intake.ts": "public-intake-read",
+  "lib/designer.ts": "public-designer-read",
+  "app/join/[token]/page.tsx": "invite-preview",
+  "app/join/[token]/actions.ts": "invite-accept"
 };
 
-// Exact temporary inventory, not permission for new usages. WP-26 owns the
-// designer/session cases; other omissions require their own scoped decision.
-const residualRawCallers: Readonly<Record<string, string>> = {
-  "lib/intake.ts": "Existing intake token/expiry lookup, omitted from WP-25 route allowlist",
-  "lib/designer.ts": "WP-26: existing public designer profile/auth lookup",
-  "lib/studio.ts": "WP-26: existing authenticated studio resolution",
-  "app/dashboard/projects/[id]/page.tsx": "WP-26: existing RLS-checked attachment signing",
-  "app/join/[token]/page.tsx": "Existing invitation metadata lookup, outside WP-25",
-  "app/join/[token]/actions.ts": "Existing authenticated invitation acceptance, outside WP-25",
-  "app/api/pilot/route.ts": "Existing rate-limited pilot event, outside WP-25",
-};
+// Exact temporary inventory, not permission for new usages. WP-26 removes the
+// authenticated studio/dashboard callers where existing RLS is sufficient.
+// Public token-bound dependencies remain here until their request-bound
+// contract exists; each is classified explicitly in WP-26 evidence.
+const residualRawCallers: Readonly<Record<string, string>> = {};
 const helper = "lib/supabase/token-scoped.ts";
 const rawModule = "lib/supabase/admin";
 const scopedModule = "lib/supabase/token-scoped";

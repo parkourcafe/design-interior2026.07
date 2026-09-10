@@ -1,5 +1,5 @@
 import { createClient } from "@/lib/supabase/server";
-import { createAdminClient } from "@/lib/supabase/admin";
+import { createScopedServiceClient } from "@/lib/supabase/token-scoped";
 import type { PricingConfig, ProposalDefaults, DesignerProfile } from "@/lib/types";
 
 export interface DesignerRow {
@@ -66,7 +66,7 @@ export function isProfileComplete(d: {
 // email берём из auth.users как запасной идентификатор — чтобы клиент ВСЕГДА
 // знал, от кого пришёл бриф, даже если дизайнер не заполнил имя/студию.
 export async function getDesignerPublic(designerId: string): Promise<DesignerPublic | null> {
-  const admin = createAdminClient();
+  const admin = createScopedServiceClient("public-designer-read");
   const { data } = await admin
     .from("designers")
     .select("name, studio_name, profile")
