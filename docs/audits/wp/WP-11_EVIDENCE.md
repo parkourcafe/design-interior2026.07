@@ -65,7 +65,11 @@ skipped; production build — pass.
 
 ## CI и review
 
-[ИЗВЛЕЧЕНО] PR CI: `PENDING`. Независимое review: `PENDING`.
+[ИЗВЛЕЧЕНО] PR #142 CI на `f717231`: change scope, lint/typecheck/test/build,
+AP5, DB4 и DB5 на PostgreSQL 16/17 — `PASS`. Claude review — `PASS`.
+
+[ИНТЕРПРЕТИРОВАНО] Следующий commit изменяет только этот receipt. Перед merge
+GitHub должен повторно подтвердить обязательные проверки на итоговом HEAD.
 
 ## Не сделано / owner gate
 
