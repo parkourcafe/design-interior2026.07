@@ -74,7 +74,7 @@ _']$>?=K9 `npm run release:check`$8$>1O70F5;L=K9 CI$4>?6=K 5OBL$?>6B>D5
 
 _'] Claude run `34430498980`$7465DL8?EO permission denial$557 findings; ??0F=K9 rerun$=5$2O?>?=O?EO.
 
-_'] Codex Security scan `22d79369-e596-43aa-a15b-39cc1ae41428`$7465DLQ=: reportable findings 0. Hosted adoption >EB4UBEO >F45?L=O< gate.
+_'] Codex Security scan `75bf6bfc-79c3-407c-9b12-514824d23968`$7465DLQ=: reportable findings 0. Hosted adoption >EB4UBEO >F45?L=O< gate.
 
 ##$5$A45;4=> / 6O=5E5=>
 
