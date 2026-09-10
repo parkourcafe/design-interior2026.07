@@ -1,6 +1,6 @@
 # WP-26 — BUG-05 (б): страницы дизайнера → request-bound + RLS — EVIDENCE
 
-Дата: 2026-09-10. Ветка: `wp/wp-26-designer-pages-request-bound`. База: `90f72b6ac5381b2b3a4f1108bbdeac93411f0aa7` (current `main`). HEAD: `c0078db`. PR: #141 (draft, unmerged).
+Дата: 2026-09-10. Ветка: `wp/wp-26-designer-pages-request-bound`. База: `90f72b6ac5381b2b3a4f1108bbdeac93411f0aa7` (current `main`). HEAD: `2cec919`. PR: #141 (draft, unmerged).
 
 ## Основание
 
@@ -70,9 +70,9 @@ docs/audits/wp/WP-26_EVIDENCE.md
 
 ## CI и blind review
 
-[ИЗВЛЕЧЕНО] CI run `34448842912` на SHA `9b500bf`: lint/typecheck/test/build, AP5 authenticated browser matrix, DB4 PG16/17, DB5 PG16/17, change scope и cycle 7 — pass. Hosted AP1/Supabase Preview skipped by workflow; Vercel canceled by ignored build step.
+[ИЗВЛЕЧЕНО] CI run `34449413044` на SHA `2cec919`: lint/typecheck/test/build, AP5 authenticated browser matrix, DB4 PG16/17, DB5 PG16/17, change scope и cycle 7 — pass. Hosted AP1/Supabase Preview skipped by workflow; Vercel canceled by ignored build step.
 
-[ИЗВЛЕЧЕНО] Claude review run `34448842879` — pass, без findings.
+[ИЗВЛЕЧЕНО] Claude review run `34449413064` — pass, без findings.
 
 [ИЗВЛЕЧЕНО] Codex Security scan `75bf6bfc-79c3-407c-9b12-514824d23968` по exact diff завершён: reportable findings 0. Hosted adoption остаётся отдельным gate.
 
