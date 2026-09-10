@@ -37,7 +37,8 @@ begin
   from pg_catalog.pg_policies
   where schemaname = 'public'
     and tablename = 'contract_documents';
-  if v_policy_count <> 3 then
+  -- owner/designer routes plus the narrow SECURITY DEFINER read owner policy
+  if v_policy_count <> 4 then
     raise exception 'DB4_M1_CONTRACT_POLICY_COUNT:%', v_policy_count;
   end if;
 

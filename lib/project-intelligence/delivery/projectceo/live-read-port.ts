@@ -11,6 +11,8 @@ import {
   type FoundationErrorCode,
   type PostgresRpcClient,
   type ProjectListItem,
+  ProjectCeoM1LegacyReadPostgresAdapter,
+  type M1LegacyProjectRead,
 } from "../../adapters/postgres";
 import {
   PROJECTCEO_UI_CONTRACT_VERSION,
@@ -787,6 +789,7 @@ function m1Views(input: {
     readonly decisionReason: string | null;
     readonly createdAt: string;
   }[];
+  readonly legacyRead: M1LegacyProjectRead | null;
 }): M1WorkspaceView {
   const facts: M1ProjectFactView[] = input.facts.flatMap((fact) => {
     if (
@@ -828,7 +831,13 @@ function m1Views(input: {
       createdAt: timestamp(request.createdAt),
     }];
   });
-  return { facts, approvalRequests };
+  return {
+    facts,
+    approvalRequests,
+    contractedPassport: input.legacyRead?.data.passportRevision ?? null,
+    contractDocument: input.legacyRead?.data.contractDocument ?? null,
+    stateRevision: input.legacyRead?.stateRevision ?? null,
+  };
 }
 
 function m4Views(envelopes: readonly ExecutionDeliveryEnvelope[]): {
@@ -1473,6 +1482,7 @@ function onboarding(projectCount: number): OnboardingState {
 export class ProjectCeoLiveReadPort implements ProjectCeoUiReadPort {
   private readonly foundation: FoundationPostgresAdapter;
   private readonly authenticatedRead: ProjectCeoAuthenticatedReadPostgresAdapter;
+  private readonly m1LegacyRead: ProjectCeoM1LegacyReadPostgresAdapter;
   private readonly platform: ProjectCeoPlatformPostgresAdapter;
 
   constructor(
@@ -1481,6 +1491,7 @@ export class ProjectCeoLiveReadPort implements ProjectCeoUiReadPort {
   ) {
     this.foundation = new FoundationPostgresAdapter(client);
     this.authenticatedRead = new ProjectCeoAuthenticatedReadPostgresAdapter(client);
+    this.m1LegacyRead = new ProjectCeoM1LegacyReadPostgresAdapter(client);
     this.platform = new ProjectCeoPlatformPostgresAdapter(client);
   }
 
@@ -1605,11 +1616,17 @@ export class ProjectCeoLiveReadPort implements ProjectCeoUiReadPort {
       // delivery surface. Keep the RPC read behind the server-derived role.
       const m1 = actor.role === "owner" || actor.role === "architect"
         ? await (async () => {
-            const [facts, approvalRequests] = await Promise.all([
+            const [facts, approvalRequests, legacyRead] = await Promise.all([
               this.platform.listProjectFacts(input.projectId),
               this.platform.listApprovalRequests(input.projectId),
+              this.m1LegacyRead.getM1LegacyProjectRead({ projectId: input.projectId }).catch((error: unknown) => {
+                // The read projection is additive. Older disposable databases may
+                // predate its migration; retain the existing M1 surface there.
+                if (error instanceof ProjectIntelligenceAdapterError && error.code === "not_found") return null;
+                throw error;
+              }),
             ]);
-            return m1Views({ facts, approvalRequests });
+            return m1Views({ facts, approvalRequests, legacyRead });
           })()
         : { facts: [], approvalRequests: [] };
       const packages = projectPackages({ packages: delivery.packages });

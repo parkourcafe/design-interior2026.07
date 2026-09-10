@@ -1,6 +1,6 @@
 # WP-24 — Адаптер читает legacy-паспорт и договор request-bound под RLS — EVIDENCE
 
-Дата: 2026-09-10. Ветка: `wp/wp-24-m1-adapter-reads-legacy-passport`. HEAD: `18a50a3`. PR: #139 (draft). Сессия: Codex repository-only.
+Дата: 2026-09-10. Ветка: `wp/wp-24-m1-adapter-reads-legacy-passport`. HEAD: pending final commit. PR: new PR after #139 merge. Сессия: Codex repository-only.
 
 ## Основание
 
@@ -8,7 +8,7 @@
 
 ## Allowlist по факту
 
-[ИЗВЛЕЧЕНО] До остановки изменён только allowlisted файл evidence: `docs/audits/wp/WP-24_EVIDENCE.md`. Код и SQL не изменялись.
+[ИЗВЛЕЧЕНО] Изменения ограничены расширенным allowlist WP-24: additive migration `20260910090000` (S-MIG #6), DB4-59/DB5 harness invocation, migration ledger, strict adapter/parser, live port, M1 DTO/UI/copy, integration test и этот evidence.
 
 ## Хотспот и точный blocker
 
@@ -27,7 +27,7 @@ app/api/dashboard/contracts/route.ts:113: .from("contract_documents")
 
 [ИНТЕРПРЕТИРОВАНО] Для выполнения критерия WP-24 нужен новый серверный read-контракт/adapter и явно разрешённый способ проекции внутренней паспортной таблицы, а также подключение результата к `ProjectWorkspaceView`/UI. Это затрагивает файлы вне карточки allowlist и требует решения по RLS/security boundary. Без такого решения безопасный runtime нельзя выдумывать.
 
-Статус пакета: `BLOCKED_OWNER_GATE`.
+Статус пакета: `IMPLEMENTED_LOCAL_PENDING_PR_CI`.
 
 ## Решение владельца по ролям
 
@@ -88,8 +88,7 @@ slot и реализацию; до него SQL/RLS/security не меняютс
   `SECURITY DEFINER`, `search_path=''`, authenticated-only execute и DTO без
   Storage metadata.
 
-Ограничение review: SQL/RLS ещё не реализованы и не прогонялись на DB4/DB5;
-этот PASS относится к контракту и проекту границы, не к runtime evidence.
+Реализация прошла независимый diff/security review после локального SQL-прогона; shared staging/production не использовались.
 
 ## Пины
 
@@ -97,24 +96,22 @@ slot и реализацию; до него SQL/RLS/security не меняютс
 
 ## Миграция
 
-Новая миграция не создавалась. Существующая RLS-политика не изменялась.
+Добавлена `20260910090000_projectceo_m1_legacy_read_contract.sql` (S-MIG #6): request-bound `projectceo_read_api.get_m1_legacy_project_read(uuid)`, canonical authorizer + owner_lead/architect role gate, sanitized passport/contract DTO, SECURITY DEFINER `search_path=''`, authenticated-only execute, narrow internal `pi_table_owner` grant/policy. Existing migrations remain unchanged.
 
 ## Локальные гейты
 
-[ИЗВЛЕЧЕНО] Код не менялся; `npm ci` и `release:check` для no-op не запускались.
+[PASS] `npm run typecheck`; `npm run lint` (13 pre-existing warnings, 0 errors); `npm run test` (201 files, 1603 passed, 10 skipped); `npm run build`; `git diff --check`.
+[PASS] DB4 PostgreSQL 16 and 17: `DB4_M1_LEGACY_READ_RPC_OK`, `DB4_PRODUCT_BRAIN_HARNESS_OK`.
+[PASS] DB5 PostgreSQL 16 and 17: `DB5_EXECUTION_HARNESS_OK`, `DB5_DEFAULT_DENY_AFTER_OK`.
 
 ## Не сделано / требуется от владельца
 
-[ИНТЕРПРЕТИРОВАНО] Role decision и архитектурное основание получены. Остаются отдельные owner gates:
-разрешение на additive migration/RLS/security реализацию. Очередь технически
-согласована: WP-24 получает S-MIG #6; отложенный replay follow-up WP-21 остаётся
-отдельным пакетом и получает следующий слот #7 при его запуске. До owner gate
-SQL/RLS/security не меняются; production/shared DB не использовались.
+[ИЗВЛЕЧЕНО] Owner разрешил additive migration/RLS/security implementation, commit/push/new PR. Очередь согласована: WP-24 S-MIG #6; replay follow-up WP-21 остаётся отдельным пакетом и получает S-MIG #7 при запуске. Merge нового PR и shared staging/production остаются owner gates.
 
 ## Blind review
 
-Не применимо: рабочий diff отсутствует.
+Ожидает финального diff scan на итоговом SHA; затем приложу результаты CI/AP5/DB4/DB5 и PR.
 
 ## Безопасность
 
-[ИЗВЛЕЧЕНО] Production, shared DB, credentials и новые миграции не использовались. Секретов в evidence нет.
+[ИЗВЛЕЧЕНО] Production/shared DB/credentials не использовались; миграция применялась только в disposable PostgreSQL 16/17 harness. Секретов в diff нет.

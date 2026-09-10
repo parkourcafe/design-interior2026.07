@@ -6,6 +6,7 @@ import { ru } from "@/lib/i18n/ru";
 import { PROJECTCEO_COMMAND_CONTRACT_VERSION } from "@/lib/project-intelligence/delivery/projectceo/command-contract";
 import { sendProjectCeoCommand, ProjectCeoCommandButton } from "./command-client";
 import { Badge } from "./badges";
+import { M1PassportPanel } from "./m1-passport-panel";
 import type {
   M1ProjectFactView,
   M1ApprovalRequestView,
@@ -306,6 +307,7 @@ export function M1ProjectPanel({
   if (role !== "owner" && role !== "architect") return null;
   return (
     <div className="grid gap-5 lg:grid-cols-2">
+      <M1PassportPanel m1={view.m1} />
       <Facts view={view} />
       <Approvals view={view} role={role} />
     </div>

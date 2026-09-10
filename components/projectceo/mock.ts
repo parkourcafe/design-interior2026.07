@@ -652,6 +652,9 @@ function roleScopedWorkspace(role: ProjectCeoRole): ProjectWorkspaceView {
     m1: {
       facts: [],
       approvalRequests: [],
+      contractedPassport: null,
+      contractDocument: null,
+      stateRevision: null,
     },
     packages: isGuest
       ? packages.filter((item) => item.id === KORA_ARCHITECTURE_PACKAGE_ID)

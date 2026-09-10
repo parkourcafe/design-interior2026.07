@@ -89,7 +89,8 @@ for sql in \
   "${repo_root}/tests/db4/52_source_ingest_worker.sql" \
   "${repo_root}/tests/db4/53_m3_read_gate.sql" \
   "${repo_root}/tests/db4/54_workspace_read_superseded_approvals.sql" \
-  "${repo_root}/tests/db4/56_m1_rls_security.sql"; do
+  "${repo_root}/tests/db4/56_m1_rls_security.sql" \
+  "${repo_root}/tests/db4/59_m1_legacy_read_rpc.sql"; do
   print -r -- "Running ${sql:t}"
   run_file "${sql}"
 done
