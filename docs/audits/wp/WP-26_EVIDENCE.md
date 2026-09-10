@@ -1,6 +1,6 @@
 # WP-26  BUG-05 (1):$EBD4=<FK$48749=5@0!’ request-bound + RLS  EVIDENCE
 
-4B0: 2026-09-10. 5B>0: `wp/wp-26-designer-pages-request-bound`. 470: `90f72b6ac5381b2b3a4f1108bbdeac93411f0aa7` (current `main`). HEAD: pending final commit. PR: #141 (draft, unmerged).
+4B0: 2026-09-10. 5B>0: `wp/wp-26-designer-pages-request-bound`. 470: `90f72b6ac5381b2b3a4f1108bbdeac93411f0aa7` (current `main`). HEAD: `1619e1c`. PR: #141 (draft, unmerged).
 
 ##$A=>24=85
 
