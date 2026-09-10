@@ -1,6 +1,6 @@
 # WP-11 — Snapshot-tooling v2 — EVIDENCE
 
-Дата: 2026-09-10. Ветка: `wp/wp-11-snapshot-tooling-v2`. База: `main@ef3c18c`. Implementation HEAD: `813758c`. PR: `PENDING`.
+Дата: 2026-09-10. Ветка: `wp/wp-11-snapshot-tooling-v2`. База: `main@ef3c18c`. Implementation HEAD: `813758c`. PR: `#142`.
 
 ## Основание
 
