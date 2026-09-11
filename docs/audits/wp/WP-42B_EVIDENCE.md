@@ -60,6 +60,12 @@ the database receives only its SHA-256 digest.
 path, authenticated-only EXECUTE and no table grant to public/anon/
 authenticated/service_role.
 
+[ИЗВЛЕЧЕНО] Independent Codex Security diff scan
+`a161d25f-eece-4994-9e1b-808b36d89ccc` completed against code SHA
+`09f8c3f811f8d8bd926e277e21b261a7d7213cad`: 19 runtime surfaces reviewed,
+four candidates validated and zero reportable findings. The final evidence-only
+commit follows this reviewed code SHA and does not change runtime or SQL.
+
 ## Не сделано
 
 [ИЗВЛЕЧЕНО] No second Supabase project, shared/disposable deployment, real
