@@ -323,6 +323,10 @@ $$;
 
 -- Definer-only private objects. The app cannot activate policies or inspect
 -- receipts; authenticated human operations have no service-role grant.
+-- Managed Supabase's migration role is not a superuser: the new function
+-- owner needs CREATE on the containing schema during ALTER FUNCTION OWNER.
+-- This transaction-local migration privilege is revoked immediately below.
+grant create on schema public to remhaos_legal_owner;
 do $$
 declare t text; f record;
 begin
@@ -342,6 +346,7 @@ begin
   end loop;
 end;
 $$;
+revoke create on schema public from remhaos_legal_owner;
 grant execute on function public.get_current_consent_document(text),
   public.record_browser_consent(text,text,text,uuid,boolean,uuid),
   public.get_browser_consent_receipt(text,text,text),public.has_browser_consent(text,text,text),public.withdraw_browser_consent(text,text,text,uuid) to anon, authenticated;

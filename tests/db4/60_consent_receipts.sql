@@ -12,6 +12,7 @@ begin
   raise exception 'DB4_CONSENT_UNEXPECTED_ALLOW:%',p_sql;
 end;
 $$;
+select pg_temp.expect(not has_schema_privilege('remhaos_legal_owner','public','CREATE'),'temporary owner CREATE revoked');
 select pg_temp.expect(not has_schema_privilege('anon','remhaos_legal','USAGE'),'anon schema');
 select pg_temp.expect(not has_schema_privilege('authenticated','remhaos_legal','USAGE'),'auth schema');
 select pg_temp.expect(not has_schema_privilege('service_role','remhaos_legal','USAGE'),'service schema');

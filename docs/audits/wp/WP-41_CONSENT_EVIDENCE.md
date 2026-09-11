@@ -94,3 +94,25 @@ VERIFIED 11.09.2026:
 BLOCKED_ON_OWNER для юридической редакции, R23/retention и activation/merge.
 При live проверке #144 уже ready (не draft), но OPEN; его статус не менялся нами.
 Новый PR зависит от ветки #144; самостоятельное слияние не выполняется.
+
+## CI portability correction
+
+PR #145, первоначальный HEAD `0acc05617d8a3681ec21122560473eadf7afaf95`.
+CI `34557615451`: lint/typecheck/test/build, DB4/DB5 обеих версий — PASS;
+AP5 не дошёл до браузерных тестов: managed Supabase postgres не superuser и
+отклонил `ALTER FUNCTION OWNER` без CREATE для нового владельца public schema.
+Это дефект новой миграции, не проблема доступа/биллинга и не пропущенный PASS.
+
+В той же ещё не слитой/не применённой к shared DB миграции CREATE выдаётся только
+NOLOGIN владельцу непосредственно перед сменой owner и снимается до COMMIT.
+При ошибке весь transaction откатывается. Added DB4 assertion проверяет отсутствие
+эффективного CREATE после миграции. Исторические миграции не изменялись.
+Независимое focused security re-review этого исправления: PASS; постоянного
+расширения привилегий не найдено. Финальный SQL hash:
+`096a3e94b1185c48a26b2e0e25ecdbcee86620148011e1b69ff351dc380b949e`.
+
+Повторные проверки owner-fix: npm ci и release:check PASS (1708 passed /
+10 skipped, 13 прежних lint warnings); полные DB4/DB5 PG16+PG17 PASS на новом
+SQL hash. Независимое re-review PASS. Следующий GitHub CI проверяет исправленную
+миграцию именно в managed Supabase topology; успех локального postgres не
+подменяет этот gate.
