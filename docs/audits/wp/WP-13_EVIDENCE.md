@@ -1,6 +1,7 @@
 # WP-13 — Production-adoption operator script — EVIDENCE
 
-Дата: 2026-09-11. Ветка: `wp/wp-13-adopt-production-script`. HEAD: `PENDING`. PR: `PENDING`.
+Дата: 2026-09-11. Ветка: `wp/wp-13-adopt-production-script`. Implementation
+HEAD: `f72e2cf`. Exact PR HEAD будет указан в PR после push; PR: `PENDING`.
 
 ## Основание
 
