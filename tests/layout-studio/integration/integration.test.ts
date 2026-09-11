@@ -330,6 +330,9 @@ describe("Layout Studio delivery/UI slice", () => {
       // отношения не имеет.
       "20260910090000_projectceo_m1_legacy_read_contract.sql",
       "20260910100000_projectceo_wp26_storage_rls.sql",
+      // WP-14 hardens observed legacy-adopted objects only. К Layout Studio
+      // отношения не имеет.
+      "20260911110000_legacy_adopted_hardening.sql",
     ];
     const actual = readdirSync(join(repoRoot, "supabase/migrations"), { withFileTypes: true })
       // Предмет проверки — миграции, а не всё содержимое папки. Рядом с ними
