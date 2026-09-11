@@ -91,10 +91,21 @@ describe("M3 surface matrix", () => {
     );
   });
 
-  it("keeps the enable script exactly mirroring what the guardrail revoked", () => {
+  it("keeps the enable script to module-gated M3 doors only", () => {
     const enable = read("tests/ap1/environment/enable-m3-publication.sql").replace(/\s+/g, "");
-    for (const signature of M3_REVOKED_SIGNATURES) {
+    const moduleGated = M3_SURFACE
+      .flatMap((row) => row.rpcs)
+      .filter((rpc) => rpc.closure === "revoked_from_authenticated")
+      .map((rpc) => rpc.signature);
+    for (const signature of moduleGated) {
       expect(enable).toContain(signature.replace(/\s+/g, ""));
+    }
+    // Raw doors остаются закрытыми после флипа и не возвращаются disposable
+    // M3 switch: они не являются безопасной поверхностью включённого модуля.
+    for (const signature of M3_REVOKED_SIGNATURES.filter(
+      (signature) => !moduleGated.includes(signature),
+    )) {
+      expect(enable).not.toContain(signature.replace(/\s+/g, ""));
     }
   });
 

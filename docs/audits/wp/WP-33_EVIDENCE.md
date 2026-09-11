@@ -32,6 +32,12 @@
 
 [ИЗВЛЕЧЕНО] `npm run test:ap5` — `BLOCKED_EXTERNAL`: отсутствует `NEXT_PUBLIC_SUPABASE_URL`; никаких env-файлов или credentials не читалось.
 
+## Hosted CI correction
+
+[ИЗВЛЕЧЕНО] Первый CI run `34601317901` подтвердил DB4 06 и default-deny до `enable-m3-publication.sql`, затем остановился: enable fixture уже grant-ил новые request-bound doors, но его self-check продолжал требовать три raw signatures. Исправление меняет только этот self-check и matrix test: enable script проверяет module-gated M3 surface и явным negative assertion не возвращает raw doors.
+
+[ИЗВЛЕЧЕНО] После исправления targeted tests — 60 passed; `NEXT_TELEMETRY_DISABLED=1 npm run release:check` — pass, 1,646 passed / 10 skipped. Runtime и migration не менялись, поэтому security scan `1773b465-4da1-4db9-9099-73338df17a86` остаётся review того же runtime/ACL diff.
+
 ## Grep-проверки
 
 [ИЗВЛЕЧЕНО] Runtime `publish_baseline` больше не вызывает `projectceo_api.publish_version` или `publish_project_baseline`; он вызывает только `ProjectBrainHumanPostgresAdapter.publishBaselineAtomic` с server-confirmed latest-version/baseline coordinates, state revision, command id и idempotency key.
