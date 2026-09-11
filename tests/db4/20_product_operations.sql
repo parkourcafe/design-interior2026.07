@@ -702,12 +702,46 @@ rollback;
 
 begin;
 set local role authenticated;
+set local request.jwt.claim.sub = '31111111-1111-4111-8111-111111111111';
+select projectceo_api.register_source_inventory(
+  '41111111-1111-4111-8111-111111111111',
+  jsonb_build_array(jsonb_build_object(
+    'physicalRecordId', '5eeeeeee-1111-4111-8111-111111111111',
+    'sanitizedName', 'work-package-source.pdf',
+    'hierarchy', jsonb_build_object(
+      'projectId', '41111111-1111-4111-8111-111111111111',
+      'packageId', '49999999-9999-4999-8999-999999999999',
+      'floorId', 'floor-db4', 'zoneId', 'zone-db4', 'disciplineId', 'architecture'
+    ),
+    'availability', 'materialized', 'documentStatus', 'current',
+    'sizeBytes', 2048, 'checksum', repeat('b', 64),
+    'sourceRevisionId', 'revision-source-1', 'semanticConflict', false
+  )),
+  jsonb_build_object(
+    'projectId', '41111111-1111-4111-8111-111111111111',
+    'entries', jsonb_build_array(), 'exactHashGroups', jsonb_build_array()
+  ),
+  :'db4_state_revision'::bigint,
+  'db4-work-package-materialization'
+);
+commit;
+
+select state_revision as state_revision
+from project_intelligence.project_workflows
+where project_id = '41111111-1111-4111-8111-111111111111'
+\gset db4_
+
+begin;
+set local role authenticated;
 set local request.jwt.claim.sub =
   '31111111-1111-4111-8111-111111111111';
-select projectceo_product_api.publish_production_package_version(
+select projectceo_product_api.publish_work_package_release_request_bound(
   '41111111-1111-4111-8111-111111111111',
-  :'db4_work_package_descriptor'::jsonb,
+  '49999999-9999-4999-8999-999999999999',
+  'baseline-db4-v1',
+  null,
   :'db4_state_revision'::bigint,
+  'db4-publish-work-package-v1',
   'db4-publish-work-package-v1'
 );
 commit;

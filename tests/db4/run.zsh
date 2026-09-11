@@ -62,6 +62,7 @@ for sql in \
   "${repo_root}/tests/ap1/environment/enable-m4-v1-impact.sql" \
   "${repo_root}/tests/db4/10_schema_security.sql" \
   "${repo_root}/tests/db4/20_product_operations.sql" \
+  "${repo_root}/tests/db4/62_publish_work_package_release_request_bound.sql" \
   "${repo_root}/tests/db4/30_m2_expansion_operations.sql" \
   "${repo_root}/tests/db4/31_m2_approved_commit_operations.sql" \
   "${repo_root}/tests/db4/32_m2_layout_version_operations.sql" \

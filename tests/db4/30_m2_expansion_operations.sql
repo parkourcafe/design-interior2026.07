@@ -1,6 +1,11 @@
 -- DB4 additive M2 expansion rehearsal. Run after 20_product_operations.sql.
 -- This is a disposable-clone test only; it never targets production.
 
+select state_revision as m2_expected_state_revision
+from project_intelligence.project_workflows
+where project_id = '41111111-1111-4111-8111-111111111111'
+\gset db4_
+
 begin;
 set local role authenticated;
 set local request.jwt.claim.sub = '31111111-1111-4111-8111-111111111111';
@@ -8,7 +13,7 @@ select projectceo_product_api.append_m2_workspace_revision(
   '41111111-1111-4111-8111-111111111111',
   '41111111-1111-4111-8111-111111111111',
   'room', 'db4-room', 'db4-room-r1', null, 'draft',
-  '{"name":"Кухня-гостиная","areaM2":42}', 'DB4 M2 room', 29, 'db4-m2-room'
+  '{"name":"Кухня-гостиная","areaM2":42}', 'DB4 M2 room', :'db4_m2_expected_state_revision'::bigint, 'db4-m2-room'
 );
 commit;
 
@@ -19,7 +24,7 @@ select projectceo_product_api.append_m2_workspace_revision(
   '41111111-1111-4111-8111-111111111111',
   '41111111-1111-4111-8111-111111111111',
   'variant', 'db4-variant', 'db4-variant-r1', null, 'draft',
-  '{"roomId":"db4-room","title":"Тёплый вариант","description":"Пилот"}', 'DB4 M2 variant', 30, 'db4-m2-variant'
+  '{"roomId":"db4-room","title":"Тёплый вариант","description":"Пилот"}', 'DB4 M2 variant', :'db4_m2_expected_state_revision'::bigint + 1, 'db4-m2-variant'
 );
 commit;
 
@@ -30,7 +35,7 @@ select projectceo_product_api.append_m2_workspace_revision(
   '41111111-1111-4111-8111-111111111111',
   '41111111-1111-4111-8111-111111111111',
   'material', 'db4-material', 'db4-material-r1', null, 'draft',
-  '{"variantId":"db4-variant","name":"Керамогранит","supplierRef":"SKU-DB4","unit":"м²","unitCostRub":4500,"quantity":42}', 'DB4 M2 material', 31, 'db4-m2-material'
+  '{"variantId":"db4-variant","name":"Керамогранит","supplierRef":"SKU-DB4","unit":"м²","unitCostRub":4500,"quantity":42}', 'DB4 M2 material', :'db4_m2_expected_state_revision'::bigint + 2, 'db4-m2-material'
 );
 commit;
 
@@ -41,7 +46,7 @@ select projectceo_product_api.append_m2_workspace_revision(
   '41111111-1111-4111-8111-111111111111',
   '41111111-1111-4111-8111-111111111111',
   'budget', 'db4-budget', 'db4-budget-r1', null, 'draft',
-  '{"currency":"RUB","minRub":180000,"maxRub":260000,"contingencyPct":10}', 'DB4 M2 budget', 32, 'db4-m2-budget'
+  '{"currency":"RUB","minRub":180000,"maxRub":260000,"contingencyPct":10}', 'DB4 M2 budget', :'db4_m2_expected_state_revision'::bigint + 3, 'db4-m2-budget'
 );
 commit;
 
@@ -52,7 +57,7 @@ select projectceo_product_api.append_m2_workspace_revision(
   '41111111-1111-4111-8111-111111111111',
   '41111111-1111-4111-8111-111111111111',
   'client_handoff', 'db4-handoff', 'db4-handoff-r1', null, 'submitted',
-  '{"approvalPackageId":"approval-db4-root","title":"Передача клиенту","note":"Пакет approval подтверждён"}', 'DB4 M2 handoff', 33, 'db4-m2-handoff'
+  '{"approvalPackageId":"approval-db4-root","title":"Передача клиенту","note":"Пакет approval подтверждён"}', 'DB4 M2 handoff', :'db4_m2_expected_state_revision'::bigint + 4, 'db4-m2-handoff'
 );
 commit;
 
