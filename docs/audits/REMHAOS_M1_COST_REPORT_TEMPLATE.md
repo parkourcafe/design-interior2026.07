@@ -16,7 +16,7 @@ Owner command (requires `psql`, a separately approved read-only DB URL in `LAUNC
 npx tsx scripts/ops/launch-metrics.ts --database 2026-09-01T00:00:00Z 2026-09-02T00:00:00Z > launch-metrics.json
 ```
 
-Replace the example window with the approved measurement interval. No migration, grant, activation or provider call is performed. The script reads only `events` and M1 rows from `projectceo_platform.ai_calls` in a read-only repeatable-read transaction. Missing read privileges are a blocker, not permission to grant access or use a privileged runtime account.
+Replace the example window with the approved measurement interval. No migration, grant, activation or provider call is performed. The script reads only `events` and M1 rows from `projectceo_platform.ai_calls` in a read-only repeatable-read transaction. BEGIN READ ONLY and PGOPTIONS constrain this script’s transaction; they do not verify that the supplied credential has read-only grants. The operator must separately verify a dedicated read-only credential and its permitted table scope before running the command. The script neither creates nor certifies that credential. Missing read privileges are a blocker, not permission to grant access or use a privileged runtime account.
 
 | Brief alias | Scope / completed evidence | Provider attempts | Known cost RUB | Missing cost / attribution | Full pass cost RUB |
 |---|---|---:|---:|---|---:|

@@ -1,3 +1,5 @@
+import { redirect } from "next/navigation";
+import { getStudio } from "@/lib/studio";
 import { createClient } from "@/lib/supabase/server";
 import { ru } from "@/lib/i18n/ru";
 
@@ -13,6 +15,8 @@ function pct(a: number, b: number): string {
 }
 
 export default async function AnalyticsPage() {
+  const studio = await getStudio();
+  if (studio?.role !== "owner") redirect("/dashboard");
   const supabase = await createClient();
   const events: LaunchEvent[] = [];
   // PostgREST caps responses: read every page rather than silently truncate history.

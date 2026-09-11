@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { mkdtemp, writeFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -47,5 +47,34 @@ describe("launch metrics", () => {
   it("does not infer database execution from environment or accept unbounded queries", async () => {
     await expect(main([])).rejects.toThrow("usage");
     await expect(main(["--database", "2026-09-12T00:00:00Z", "2026-09-11T00:00:00Z"])).rejects.toThrow("invalid_window");
+  });
+});
+
+
+const analyticsState = vi.hoisted(() => ({ role: "owner" as "owner" | "member" | null, clients: 0, eventReads: 0 }));
+vi.mock("next/navigation", () => ({ redirect: (path: string) => { throw new Error(`redirect:${path}`); } }));
+vi.mock("@/lib/studio", () => ({ getStudio: async () => analyticsState.role ? { role: analyticsState.role } : null }));
+vi.mock("@/lib/supabase/server", () => ({ createClient: async () => {
+  analyticsState.clients++;
+  return { from: (table: string) => {
+    if (table === "events") analyticsState.eventReads++;
+    const query = { select: () => query, order: () => query, range: async () => ({ data: [], error: null }) };
+    return query;
+  } };
+} }));
+import AnalyticsPage from "../../app/dashboard/analytics/page";
+
+describe("owner-only analytics", () => {
+  beforeEach(() => { analyticsState.role = "owner"; analyticsState.clients = 0; analyticsState.eventReads = 0; });
+  it.each(["member", null] as const)("denies %s before creating the events client", async (role) => {
+    analyticsState.role = role;
+    await expect(AnalyticsPage()).rejects.toThrow("redirect:/dashboard");
+    expect(analyticsState.clients).toBe(0);
+    expect(analyticsState.eventReads).toBe(0);
+  });
+  it("allows the owner to read events", async () => {
+    expect(await AnalyticsPage()).toBeTruthy();
+    expect(analyticsState.clients).toBe(1);
+    expect(analyticsState.eventReads).toBe(1);
   });
 });
