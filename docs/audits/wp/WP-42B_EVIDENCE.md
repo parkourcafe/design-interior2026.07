@@ -2,6 +2,7 @@
 
 Дата: 11.09.2026. Ветка: `wp/wp-42b-regional-auth-routing`.
 CONTEXT_MODE: `repository_only`.
+PR: #147 (draft).
 
 ## Основание и allowlist
 
