@@ -48,14 +48,14 @@ begin
   end if;
   perform projectceo_foundation._assert_state_revision(expected_state_revision);
   perform projectceo_foundation._assert_idempotency_key(idempotency_key);
-  select kind into package_kind from projectceo_foundation.project_packages
-  where project_packages.project_id = publish_work_package_release_request_bound.project_id
-    and project_packages.id = publish_work_package_release_request_bound.package_id
-    and project_packages.status = 'active';
-  if package_kind is null then perform projectceo_product._raise('P1104','not_found','{"entity":"package"}'::jsonb); end if;
-  if package_kind <> 'work_package' then perform projectceo_product._raise('P1109','scope_conflict','{"reason":"WORK_PACKAGE_REQUIRED"}'::jsonb); end if;
   select organization_id, actor_user_id, actor_id into ctx
   from projectceo_foundation._authorize_package_human(project_id, package_id, 'publish_release');
+  select package.kind into package_kind from projectceo_foundation.project_packages package
+  where package.organization_id=ctx.organization_id
+    and package.project_id=publish_work_package_release_request_bound.project_id
+    and package.id=publish_work_package_release_request_bound.package_id
+    and package.status='active';
+  if package_kind <> 'work_package' then perform projectceo_product._raise('P1109','scope_conflict','{"reason":"WORK_PACKAGE_REQUIRED"}'::jsonb); end if;
   key_digest := project_intelligence._sha256_text(btrim(idempotency_key));
   request_digest := project_intelligence._sha256_jsonb(jsonb_build_object(
     'commandRef',command_text,'expectedBaselineId',expected_baseline_id,
