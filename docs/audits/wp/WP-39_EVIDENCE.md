@@ -1,6 +1,6 @@
 # WP-39 — HTTP-маршрут enroll (Р20 (а)) request-bound, CSRF, тесты — EVIDENCE
 
-Дата: 2026-09-11. Ветка: `wp/wp-39-enroll-http-route`. HEAD: `4f9c3bf4de37b5ef2f22842beeafabbc741c50ad`. PR: `PENDING`.
+Дата: 2026-09-11. Ветка: `wp/wp-39-enroll-http-route`. HEAD: `0dc9030`. PR: #150 (draft).
 
 ## Основание
 
@@ -37,7 +37,8 @@ warnings, typecheck PASS, Vitest 206 files: 1646 PASS / 10 skipped, build PASS.
 
 ## CI
 
-[ИЗВЛЕЧЕНО] Draft PR и run id каждой job будут добавлены после push на точном HEAD.
+[ИЗВЛЕЧЕНО] Draft PR #150 создан. Run id каждой job будет добавлен после CI
+на точном final HEAD.
 
 ## Grep-проверки
 
