@@ -508,12 +508,12 @@ select set_config(
 do $unapproved_baseline_rejected$
 begin
   begin
-    perform projectceo_product_api.publish_project_baseline(
+    perform projectceo_product_api.publish_baseline_atomic(
       '41111111-1111-4111-8111-111111111111',
-      current_setting(
-        'projectceo.db4_baseline_descriptor'
-      )::jsonb,
+      :'db4_graph_version_id',
+      null,
       current_setting('projectceo.db4_state_revision')::bigint,
+      'db4-baseline-before-review',
       'db4-baseline-before-review'
     );
     raise exception 'DB4_UNAPPROVED_BASELINE_PUBLISHED';
@@ -564,10 +564,12 @@ begin;
 set local role authenticated;
 set local request.jwt.claim.sub =
   '31111111-1111-4111-8111-111111111111';
-select projectceo_product_api.publish_project_baseline(
+select projectceo_product_api.publish_baseline_atomic(
   '41111111-1111-4111-8111-111111111111',
-  :'db4_baseline_descriptor'::jsonb,
+  :'db4_graph_version_id',
+  null,
   :'db4_state_revision'::bigint,
+  'db4-publish-baseline-v1',
   'db4-publish-baseline-v1'
 );
 commit;
@@ -584,7 +586,7 @@ set local request.jwt.claim.sub =
   '31111111-1111-4111-8111-111111111111';
 select projectceo_product_api.publish_release_request_bound(
   '41111111-1111-4111-8111-111111111111',
-  'baseline-db4-v1',
+  'baseline:db4-publish-baseline-v1',
   null,
   :'db4_state_revision'::bigint,
   'package-db4-root-v1',
@@ -600,7 +602,7 @@ where project_id = '41111111-1111-4111-8111-111111111111'
 select jsonb_build_object(
   'id', 'package-db4-work-v1',
   'packageId', '49999999-9999-4999-8999-999999999999',
-  'baselineId', 'baseline-db4-v1',
+  'baselineId', 'baseline:db4-publish-baseline-v1',
   'previousVersionId', null,
   'exactRevisionRefs', jsonb_build_object(
     'sources', jsonb_build_array('revision-source-1'),
@@ -611,7 +613,7 @@ select jsonb_build_object(
   ),
   'semanticHash', 'sha256:' || encode(
     project_intelligence._sha256_jsonb(jsonb_build_object(
-      'baselineId', 'baseline-db4-v1',
+      'baselineId', 'baseline:db4-publish-baseline-v1',
       'exactRevisionRefs', jsonb_build_object(
         'assumptions', '[]'::jsonb,
         'decisions', jsonb_build_array('revision-decision-db4-r1'),
@@ -662,8 +664,8 @@ begin
       current_setting('projectceo.db4_state_revision')::bigint,
       'db4-invalid-work-subset'
     );
-    raise exception 'DB4_WORK_PACKAGE_OUTSIDE_BASELINE';
-  exception when sqlstate 'P1111' then null;
+    raise exception 'DB4_RAW_WORK_PACKAGE_RELEASE_REMAINS_REACHABLE';
+  exception when insufficient_privilege then null;
   end;
 end
 $work_package_outside_baseline_rejected$;
@@ -707,7 +709,7 @@ set local request.jwt.claim.sub =
 select projectceo_product_api.publish_work_package_release_request_bound(
   '41111111-1111-4111-8111-111111111111',
   '49999999-9999-4999-8999-999999999999',
-  'baseline-db4-v1',
+  'baseline:db4-publish-baseline-v1',
   null,
   :'db4_state_revision'::bigint,
   'db4-publish-work-package-v1',
@@ -1002,7 +1004,7 @@ set local request.jwt.claim.sub =
 select projectceo_product_api.approve_no_change(
   '41111111-1111-4111-8111-111111111111',
   'package-db4-root-v1',
-  'baseline-db4-v1',
+  'baseline:db4-publish-baseline-v1',
   'Human confirmed no change for exact package version',
   :'db4_state_revision'::bigint,
   'db4-no-change-root-v1'
@@ -1126,7 +1128,7 @@ begin
     perform projectceo_product_api.approve_no_change(
       '41111111-1111-4111-8111-111111111111',
       'package-db4-root-v1',
-      'baseline-db4-v1',
+      'baseline:db4-publish-baseline-v1',
       'Different digest under same key',
       current_setting(
         'projectceo.db4_expected_state_revision'
@@ -1146,7 +1148,7 @@ begin
     update projectceo_product.project_baselines
     set semantic_content = '{}'::jsonb
     where project_id = '41111111-1111-4111-8111-111111111111'
-      and baseline_id = 'baseline-db4-v1';
+      and baseline_id = 'baseline:db4-publish-baseline-v1';
     raise exception 'DB4_BASELINE_MUTABLE';
   exception when object_not_in_prerequisite_state then null;
   end;
@@ -1178,7 +1180,7 @@ begin
     '49999999-9999-4999-8999-999999999999'
   );
   if v_project #>> '{data,latestBaseline,id}'
-       is distinct from 'baseline-db4-v1'
+       is distinct from 'baseline:db4-publish-baseline-v1'
      or jsonb_array_length(v_project #> '{data,packageVersions}') <> 2
      or jsonb_array_length(v_project #> '{data,releaseArtifacts}') <> 1
      or jsonb_array_length(v_project #> '{data,acknowledgements}') <> 1 then
@@ -1202,7 +1204,7 @@ begin
     select count(*)
     from projectceo_product.project_baseline_refs pbr
     where pbr.project_id = '41111111-1111-4111-8111-111111111111'
-      and pbr.baseline_id = 'baseline-db4-v1'
+      and pbr.baseline_id = 'baseline:db4-publish-baseline-v1'
   ) <> 5 then
     raise exception 'DB4_BASELINE_REF_COUNT';
   end if;
@@ -1218,7 +1220,7 @@ begin
     select 1
     from projectceo_product.no_change_terminals nct
     where nct.project_id = '41111111-1111-4111-8111-111111111111'
-      and nct.baseline_id = 'baseline-db4-v1'
+      and nct.baseline_id = 'baseline:db4-publish-baseline-v1'
       and nct.production_package_version_id = 'package-db4-root-v1'
   ) then
     raise exception 'DB4_NO_CHANGE_TERMINAL_MISSING';

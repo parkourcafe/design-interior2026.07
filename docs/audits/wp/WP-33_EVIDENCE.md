@@ -36,7 +36,15 @@
 
 [ИЗВЛЕЧЕНО] Первый CI run `34601317901` подтвердил DB4 06 и default-deny до `enable-m3-publication.sql`, затем остановился: enable fixture уже grant-ил новые request-bound doors, но его self-check продолжал требовать три raw signatures. Исправление меняет только этот self-check и matrix test: enable script проверяет module-gated M3 surface и явным negative assertion не возвращает raw doors.
 
-[ИЗВЛЕЧЕНО] После исправления targeted tests — 60 passed; `NEXT_TELEMETRY_DISABLED=1 npm run release:check` — pass, 1,646 passed / 10 skipped. Runtime и migration не менялись, поэтому security scan `1773b465-4da1-4db9-9099-73338df17a86` остаётся review того же runtime/ACL diff.
+[ИЗВЛЕЧЕНО] После fixture correction targeted tests — 60 passed; `NEXT_TELEMETRY_DISABLED=1 npm run release:check` — pass, 1,646 passed / 10 skipped. Последующий approved-snapshot hardening получил отдельный final security review ниже.
+
+## Approved-snapshot hardening and dependent fixtures
+
+[ИЗВЛЕЧЕНО] Второй hosted DB4 failure показал, что DB4/DB5 positive fixtures всё ещё вызывали revoked raw baseline/release RPC. Финальная migration `20260911160000` теперь оставляет исходную atomic transaction/replay implementation только как non-public delegate, а public same-signature request-bound door сначала авторизует запрос и требует хотя бы один approval package в статусе `approved` для active project package. Delegate отозван у всех callable roles; module-gated grant остаётся только на public door.
+
+[ИЗВЛЕЧЕНО] DB4/DB5 fixtures используют `publish_baseline_atomic`, `publish_release_request_bound` и `publish_work_package_release_request_bound`; старые raw publication calls проверяются только как закрытые `insufficient_privilege`. Canonical IDs atomic baseline обновлены на `baseline:db4-publish-baseline-v1` и `baseline:db5-publish-baseline-v2`.
+
+[ИЗВЛЕЧЕНО] Fresh independent Codex Security review `20f8b2bc-e236-4ded-a269-c6e317949282`: 0 findings; проверены authorization-before-lookup, approved-snapshot guard, delegate reachability и сохранение module-gated ACL.
 
 ## Grep-проверки
 
