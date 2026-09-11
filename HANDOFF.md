@@ -1,7 +1,7 @@
-# HANDOFF — проект «Свод» (для продолжения в новой сессии)
+# HANDOFF — RemHaOS (для продолжения в новой сессии)
 
 ## Что это за продукт
-«Свод» — MVP pre-sale инструмента для интерьерных дизайнеров: **Бриф → Цена → КП (коммерческое предложение)**.
+RemHaOS — MVP pre-sale инструмента для интерьерных дизайнеров: **Бриф → Цена → КП (коммерческое предложение)**.
 Клиент проходит поведенческий (JTBD) бриф по ссылке без регистрации → система строит машиночитаемый «паспорт» проекта + карточки рисков → дизайнер на Review Board принимает/отклоняет риски и собирает КП.
 Два равноправных входа: **дизайнер** (кабинет за логином) и **клиент** (публичный бриф). Есть и самостоятельный бриф клиента → шаринг-ссылка `/b/[token]` (это НЕ маркетплейс).
 Язык интерфейса — русский, валюта — рубль.
@@ -14,17 +14,20 @@
 - Supabase: Postgres + RLS + Auth (magic link + 6-значный код) + Storage (`client-uploads`).
 - LLM за интерфейсом `lib/llm/provider.ts` → `completeJSON(prompt, schema)` (Zod safeParse + один repair-retry + деградация к rule-карточкам).
   **Провайдер продукта — z.ai / Zhipu GLM (`glm-4.6`)** — это осознанное ОТСТУПЛЕНИЕ от guardrail CLAUDE.md («без китайских API»), одобрено владельцем. env: `LLM_PROVIDER=zai`, `ZAI_API_KEY`, `ZAI_BASE_URL=https://api.z.ai/api/paas/v4`.
-- Деплой: Vercel (Production branch = `main`).
+- Деплой: Vercel; production branch — `release`. Изменять её или делать
+  production deploy может только владелец в отдельном контролируемом gate.
 
 ## Репозиторий и правила git
 - Репозиторий: **`parkourcafe/design-interior2026.07`** (работать ТОЛЬКО с ним).
-- Ветка разработки: **`claude/new-session-gsayp3`**. Разработка → PR через GitHub MCP → merge → `git reset --hard origin/main`.
-- Коммиты подписывать `Co-Authored-By: Claude ...`. Модель-идентификатор НЕ писать в коммитах/PR/артефактах — только в чате.
-- PR создавать только по явной просьбе.
+- Default branch и база PR: **`main`**. Разработка ведётся в изолированной
+  рабочей ветке и попадает в `main` только через проверяемый PR.
+- Не использовать `git reset --hard`, не добавлять model-identifiers в коммиты,
+  PR или артефакты.
 
 ## Supabase (актуально)
-- Реальный проект приложения: **`design2026`**, ветка `main (PRODUCTION)`, тариф PRO, орг `saidanigmatullaeva@gmail.com's Org`.
-- **Все миграции применены и подтверждены** (проверено SELECT-ом): колонки `projects.custom_questions`, `designers.profile`, `projects.designer_id` (nullable) на месте. Миграции 0001–0004 в `supabase/migrations/`.
+- Production-проект приложения: **`ztnycrchwxqczqbyegnp`**, организация
+  **Remhaos+ Pet ID**. Его legacy-линия миграций не совпадает с репозиторным
+  clean bootstrap; применение миграций возможно только отдельным adoption gate.
 
 ## Ограничения среды разработки (важно)
 - Песочница **блокирует весь исходящий HTTP** (curl/WebFetch/внешние CDN → 403). Поэтому: нельзя увидеть отрендеренный прод-сайт, нельзя скачать внешние медиа (CloudFront), Google Fonts при локальном тесте не грузятся.

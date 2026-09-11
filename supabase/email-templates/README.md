@@ -9,27 +9,28 @@
 
 ## Часть А — вставить шаблоны (2 минуты, нужно для демо)
 
-1. Supabase → проект **design2026** → **Authentication** → **Emails** → **Templates**.
-2. Открыть **Magic Link** → в поле письма вставить содержимое `magic_link.html`. Subject: `Вход в Свод — ваш код`.
-3. Открыть **Confirm signup** → вставить содержимое `confirm_signup.html`. Subject: `Подтвердите вход в Свод`.
+1. Supabase → production-проект **RemHaOS** → **Authentication** → **Emails** → **Templates**.
+2. Открыть **Magic Link** → в поле письма вставить содержимое `magic_link.html`. Subject: `Вход в RemHaOS — ваш код`.
+3. Открыть **Confirm signup** → вставить содержимое `confirm_signup.html`. Subject: `Подтвердите вход в RemHaOS`.
 4. Сохранить. Отправить себе тестовое письмо (попробовать войти) — проверить, что код и кнопка на месте.
 
 Больше для демо ничего не нужно: встроенной почты Supabase хватает.
 
 ## Часть Б — свой SMTP через Resend (для боевой рассылки клиентам)
 
-**Конфигурация проекта:** домен `arhidom.space` (куплен на **Vercel** → DNS настраивается в Vercel).
-Отправитель: `noreply@arhidom.space`, имя `Свод`.
+**Конфигурация проекта:** домен `remhaos.com` (DNS настраивается у текущего
+регистратора домена).
+Отправитель: `noreply@remhaos.com`, имя `RemHaOS`.
 
 ### Шаг 1. Resend: добавить домен
 1. **resend.com** → Sign up (можно через Google).
-2. Слева **Domains** → **Add Domain** → ввести `arhidom.space` → Add.
+2. Слева **Domains** → **Add Domain** → ввести `remhaos.com` → Add.
 3. Resend покажет **3 DNS-записи** (MX/TXT — SPF, TXT — DKIM, TXT — DMARC). Не закрывать эту страницу.
 
 ### Шаг 2. Vercel: добавить эти 3 записи в DNS
-1. **vercel.com** → аккаунт → вкладка **Domains** → выбрать **arhidom.space** → раздел **DNS Records**.
+1. У текущего регистратора домена открыть DNS-записи для **remhaos.com**.
 2. Для каждой записи из Resend нажать **Add** и перенести Type / Name / Value.
-   - ⚠️ В поле **Name** вписывать только префикс без домена: Resend показывает `send.arhidom.space` → в Vercel ввести `send`; `resend._domainkey.arhidom.space` → `resend._domainkey`; `_dmarc.arhidom.space` → `_dmarc`. Для корня — оставить `@`.
+   - ⚠️ В поле **Name** вписывать только префикс без домена: Resend показывает `send.remhaos.com` → в DNS ввести `send`; `resend._domainkey.remhaos.com` → `resend._domainkey`; `_dmarc.remhaos.com` → `_dmarc`. Для корня — оставить `@`.
    - Значение (Value) копировать целиком, особенно длинный DKIM (`p=...`).
 3. Сохранить каждую.
 
@@ -40,11 +41,11 @@
 - Resend → **API Keys** → **Create API Key** → скопировать `re_…` (показывается один раз).
 
 ### Шаг 5. Supabase: включить Custom SMTP
-Supabase → проект **design2026** → **Project Settings** → **Authentication** → **SMTP Settings** → Enable Custom SMTP:
+Supabase → production-проект **RemHaOS** → **Project Settings** → **Authentication** → **SMTP Settings** → Enable Custom SMTP:
 - Host: `smtp.resend.com`
 - Port: `465`
 - Username: `resend`
 - Password: ключ `re_…`
-- Sender email: `noreply@arhidom.space`
-- Sender name: `Свод`
+- Sender email: `noreply@remhaos.com`
+- Sender name: `RemHaOS`
 - Сохранить → отправить себе тестовое письмо (попробовать войти).
