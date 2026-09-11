@@ -10,6 +10,8 @@ import ShareBrief from "@/components/share-brief";
 import DesignerCard from "@/components/designer-card";
 import type { DesignerPublic } from "@/lib/designer";
 
+import IntakeConsentGate from "./IntakeConsentGate";
+
 type Answers = Record<string, unknown>;
 
 function pluralQuestions(n: number): string {
@@ -27,19 +29,20 @@ const BUDGET_BRACKETS: { value: string; label: string; range: [number, number] }
   { value: "premium", label: "от 6 млн ₽", range: [6_000_000, 12_000_000] },
 ];
 
-export default function IntakeWizard({
-  token,
-  selfServe = false,
-  customQuestions = [],
-  designer = null,
-  baseUrl = "",
-}: {
+type IntakeWizardProps = {
   token: string;
   selfServe?: boolean;
   customQuestions?: CustomBriefQuestion[];
   designer?: DesignerPublic | null;
   baseUrl?: string;
-}) {
+};
+
+export default function IntakeWizard(props: IntakeWizardProps) {
+  return <IntakeConsentGate key={props.token} token={props.token}>{(consentVerified) => <ConsentedIntakeWizard {...props} consentVerified={consentVerified} />}</IntakeConsentGate>;
+}
+
+function ConsentedIntakeWizard({ token, selfServe = false, customQuestions = [], designer = null, baseUrl = "", consentVerified }: IntakeWizardProps & { consentVerified: boolean }) {
+  const [submitError, setSubmitError] = useState("");
   const [started, setStarted] = useState(false);
   const [answers, setAnswers] = useState<Answers>({});
   const [step, setStep] = useState(0);
@@ -119,7 +122,7 @@ export default function IntakeWizard({
     if (started) {
       fetch("/api/intake/start", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", "X-Intake-Token": token },
         body: JSON.stringify({ token }),
       }).catch(() => {});
     }
@@ -142,7 +145,7 @@ export default function IntakeWizard({
       case "contact": {
         const c = (v ?? {}) as { name?: string; phone?: string; email?: string; consent?: boolean };
         return Boolean(
-          c.name?.trim() && (c.phone?.trim() || c.email?.trim()) && c.consent === true,
+          c.name?.trim() && (c.phone?.trim() || c.email?.trim()) && (consentVerified || c.consent === true),
         );
       }
       case "multi":
@@ -159,20 +162,18 @@ export default function IntakeWizard({
 
   async function finish() {
     setSubmitting(true);
-    const res = await fetch("/api/intake/submit", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ token, answers: { ...answers, comments } }),
-    });
-    setSubmitting(false);
-    if (res.ok) {
-      try {
-        localStorage.removeItem(storageKey);
-      } catch {
-        /* ignore */
-      }
+    setSubmitError("");
+    try {
+      const res = await fetch("/api/intake/submit", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "X-Intake-Token": token },
+        body: JSON.stringify({ token, answers: { ...answers, comments } }),
+      });
+      if (!res.ok) { setSubmitError(res.status === 403 ? ru.consent.required : ru.consent.saveError); return; }
+      try { localStorage.removeItem(storageKey); } catch { /* ignore */ }
       setDone(true);
-    }
+    } catch { setSubmitError(ru.consent.saveError); }
+    finally { setSubmitting(false); }
   }
 
   function next() {
@@ -242,6 +243,7 @@ export default function IntakeWizard({
           Можно отправить дизайнеру уже сейчас. Или добавить детали ещё на {deep.length}{" "}
           {pluralQuestions(deep.length)} — предложение получится точнее. Черновик сохраняется сам.
         </p>
+        {submitError && <p role="alert">{submitError}</p>}
         <div className="mt-8 flex flex-col gap-3">
           <button onClick={finish} disabled={submitting} className="btn-primary px-6 py-3.5 text-base">
             {submitting ? ru.brief.saving : "Отправить сейчас"}
@@ -268,6 +270,7 @@ export default function IntakeWizard({
 
   return (
     <main className="mx-auto flex min-h-screen max-w-xl flex-col px-6 pb-28">
+      {submitError && <p role="alert">{submitError}</p>}
       {/* Тонкий прогресс-бар сверху (пружинящий). */}
       <div className="fixed inset-x-0 top-0 z-20 h-[3px] bg-[#eceae4]">
         <div
@@ -292,6 +295,7 @@ export default function IntakeWizard({
             value={answers[question.id]}
             onChange={(v) => setAnswer(question.id, v)}
             token={token}
+            consentVerified={consentVerified}
             supportLine={
               designer
                 ? ru.brief.supportViaDesigner
@@ -339,12 +343,14 @@ function QuestionInput({
   onChange,
   token,
   supportLine,
+  consentVerified = false,
 }: {
   question: Question;
   value: unknown;
   onChange: (v: unknown) => void;
   token: string;
   supportLine?: string;
+  consentVerified?: boolean;
 }) {
   switch (question.type) {
     case "object":
@@ -376,7 +382,7 @@ function QuestionInput({
     case "style":
       return <StyleInput value={value} onChange={onChange} />;
     case "contact":
-      return <ContactInput value={value} onChange={onChange} supportLine={supportLine} />;
+      return <ContactInput value={value} onChange={onChange} supportLine={supportLine} consentVerified={consentVerified} />;
     case "files":
       return <FilesInput token={token} />;
     default:
@@ -621,10 +627,12 @@ function ContactInput({
   value,
   onChange,
   supportLine,
+  consentVerified = false,
 }: {
   value: unknown;
   onChange: (v: unknown) => void;
   supportLine?: string;
+  consentVerified?: boolean;
 }) {
   const c = (value ?? {}) as { name?: string; phone?: string; email?: string; consent?: boolean };
   return (
@@ -660,7 +668,7 @@ function ContactInput({
       </div>
       <p className="text-xs text-muted">Укажите имя и хотя бы один способ связи.</p>
 
-      <label className="flex items-start gap-2.5 pt-2 text-sm">
+      {!consentVerified && <label className="flex items-start gap-2.5 pt-2 text-sm">
         <input
           type="checkbox"
           className="mt-0.5 h-4 w-4 shrink-0"
@@ -668,11 +676,11 @@ function ContactInput({
           onChange={(e) => onChange({ ...c, consent: e.target.checked })}
         />
         <span>{ru.brief.consent}</span>
-      </label>
+      </label>}
       <Link className="inline-flex min-h-11 items-center underline" href="/legal/privacy" target="_blank" rel="noopener noreferrer">
         {ru.landing.legal.privacyTitle}
       </Link>
-      {c.consent !== true && <p className="text-xs text-muted">{ru.brief.consentRequired}</p>}
+      {!consentVerified && c.consent !== true && <p className="text-xs text-muted">{ru.brief.consentRequired}</p>}
       {supportLine && <p className="text-xs text-muted">{supportLine}</p>}
     </div>
   );
@@ -680,25 +688,31 @@ function ContactInput({
 
 function FilesInput({ token }: { token: string }) {
   const [uploaded, setUploaded] = useState<string[]>([]);
+  const [uploadError, setUploadError] = useState("");
   const [busy, setBusy] = useState(false);
 
   async function onFile(e: React.ChangeEvent<HTMLInputElement>) {
     const files = Array.from(e.target.files ?? []);
     if (files.length === 0) return;
     setBusy(true);
-    for (const file of files) {
-      const form = new FormData();
-      form.append("token", token);
-      form.append("file", file);
-      const res = await fetch("/api/intake/upload", { method: "POST", body: form });
-      if (res.ok) setUploaded((prev) => [...prev, file.name]);
-    }
-    setBusy(false);
+    setUploadError("");
+    try {
+      for (const file of files) {
+        const form = new FormData();
+        form.append("token", token);
+        form.append("file", file);
+        const res = await fetch("/api/intake/upload", { method: "POST", headers: { "X-Intake-Token": token }, body: form });
+        if (!res.ok) { setUploadError(res.status === 403 ? ru.consent.required : ru.consent.uploadError); break; }
+        setUploaded((prev) => [...prev, file.name]);
+      }
+    } catch { setUploadError(ru.consent.uploadError); }
+    finally { setBusy(false); }
   }
 
   return (
     <div className="space-y-3">
       <p className="text-sm text-muted">{ru.brief.uploadHint}</p>
+      {uploadError && <p role="alert">{uploadError}</p>}
       <input type="file" multiple onChange={onFile} disabled={busy} accept="image/*,.pdf" />
       {busy && <p className="text-sm text-muted">{ru.brief.saving}</p>}
       <ul className="text-sm text-muted">

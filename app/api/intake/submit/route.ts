@@ -1,3 +1,4 @@
+import { enforceIntakeConsent, intakeTokenMatches } from "@/lib/legal/intake-consent";
 import { NextResponse } from "next/server";
 import { createScopedServiceClient } from "@/lib/supabase/token-scoped";
 import { getProjectByIntakeToken } from "@/lib/intake";
@@ -11,6 +12,8 @@ export const dynamic = "force-dynamic";
 // (rules + LLM с деградацией), выставить статус brief_completed,
 // событие brief_completed.
 export async function POST(request: Request) {
+  const denied = await enforceIntakeConsent(request);
+  if (denied) return denied;
   // Защита стоимости LLM: не более 30 завершений брифа с одного IP в час.
   if (!(await checkRateLimit("intake_submit", clientIp(request), 30, 60 * 60 * 1000))) {
     return NextResponse.json(
@@ -23,6 +26,7 @@ export async function POST(request: Request) {
     token?: string;
     answers?: AnswersMap;
   };
+  if (!intakeTokenMatches(request, body.token)) return NextResponse.json({ error: "invalid_scope" }, { status: 403 });
   const project = await getProjectByIntakeToken(body.token ?? "");
   if (!project) return NextResponse.json({ error: "not_found" }, { status: 404 });
 

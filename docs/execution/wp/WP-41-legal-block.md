@@ -65,3 +65,33 @@
 - Дополнение по независимому review: `components/landing/footer.tsx` — убрать
   ссылку mailto на нейтральный placeholder, заменить на существующую /support.
   Иначе новый юридический раздел снова показывает фиктивный контакт через footer.
+
+## 11.09.2026 — отдельный разрешённый consent/security срез
+
+После вопроса «Разрешаешь реализацию серверной фиксации согласий в репозитории,
+включая additive migration, локальные/disposable проверки, commit/push и PR —
+без merge и production?» владелец ответил «da». Это разрешает перечисленные
+работы; прежняя строка CONSENT_SECURITY/OWNER_GATE относится к истории #144.
+Юридические проекты не становятся утверждёнными текстами вследствие этого ответа.
+
+Ветка `wp/wp-41-consent-records`, зависимость — draft PR #144.
+Резерв: S-MIG #7, timestamp `20260911090000`, DB4 #60. Конфликты проверяются
+перед push; старые миграции неизменны. Additive SQL создаёт частный реестр
+неизменяемых редакций, отдельную активацию, receipts и append-only withdrawals.
+Записи утверждённых документов/активаций отсутствуют; runtime default-off.
+
+Расширенный allowlist этого среза:
+- `lib/legal/**`, `lib/i18n/ru.ts`, `.env.example`;
+- `app/api/intake/{consent,start,submit,upload}/route.ts`, `app/i/[token]/**`;
+- `proxy.ts`, `app/api/auth/{consent,register}/route.ts`,
+  `app/auth/{callback,consent}/**`, `app/login/page.tsx`;
+- новая migration выше; `tests/db4/60_consent_receipts.sql`,
+  `tests/db4/run.zsh`, dedicated consent concurrency harness;
+- `tests/auth/*consent*`, consent UI/route tests;
+- `tests/ap1/environment/migration-ledger.sha256`,
+  `tests/layout-studio/integration/integration.test.ts`: только новый migration pin;
+- эта карточка и `docs/audits/wp/WP-41_CONSENT_EVIDENCE.md`.
+
+Merge, запись в shared staging/production, env activation, утверждение
+юридических текстов, retention/data-plane решений требуют отдельного разрешения.
+Полный WP-41 не объявляется закрытым по итогам технического среза.
