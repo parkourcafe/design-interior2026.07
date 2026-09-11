@@ -48,6 +48,10 @@
 
 [ИЗВЛЕЧЕНО] Следующий hosted DB4 schema-security gate обнаружил PostgreSQL default `PUBLIC EXECUTE`, добавленный самим `CREATE FUNCTION` wrapper. Migration теперь явно выполняет `REVOKE ALL` для public wrapper до M3 switch; итоговый независимый security review повторяется после этого исправления.
 
+[ИЗВЛЕЧЕНО] Следующий DB4 inventory gate обнаружил, что delegate увеличивал public `projectceo_product_api` RPC surface. Он перенесён в private `projectceo_product` schema и остаётся закрытым для всех callable roles; public API сохраняет только исходную request-bound signature.
+
+[ИЗВЛЕЧЕНО] Final independent Codex Security review `dbcfbc03-ac5a-4661-ba9a-13369157eebd`: 0 findings; проверены private placement delegate, default-deny и отсутствие второй public RPC surface.
+
 ## Grep-проверки
 
 [ИЗВЛЕЧЕНО] Runtime `publish_baseline` больше не вызывает `projectceo_api.publish_version` или `publish_project_baseline`; он вызывает только `ProjectBrainHumanPostgresAdapter.publishBaselineAtomic` с server-confirmed latest-version/baseline coordinates, state revision, command id и idempotency key.

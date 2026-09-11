@@ -10,7 +10,12 @@ alter function projectceo_product_api.publish_baseline_atomic(
   uuid, text, text, bigint, text, text
 ) rename to _publish_baseline_atomic_unchecked;
 
-revoke all on function projectceo_product_api._publish_baseline_atomic_unchecked(
+-- The delegate is an implementation detail, not a second exposed API RPC.
+alter function projectceo_product_api._publish_baseline_atomic_unchecked(
+  uuid, text, text, bigint, text, text
+) set schema projectceo_product;
+
+revoke all on function projectceo_product._publish_baseline_atomic_unchecked(
   uuid, text, text, bigint, text, text
 ) from public, anon, authenticated, service_role,
        pi_human_executor, pi_worker_executor;
@@ -68,7 +73,7 @@ begin
     );
   end if;
 
-  return projectceo_product_api._publish_baseline_atomic_unchecked(
+  return projectceo_product._publish_baseline_atomic_unchecked(
     project_id,
     expected_latest_version_id,
     previous_baseline_id,
