@@ -1,6 +1,6 @@
 # WP-33 — M3 atomic publication switch — EVIDENCE
 
-Дата: 2026-09-11. Ветка: `wp/wp-33-m3-atomic-final`. HEAD: `0a270dd` + uncommitted WP-33 patch. PR: ещё не открыт.
+Дата: 2026-09-11. Ветка: `wp/wp-33-m3-atomic-final`. Runtime SHA: `67dbfab`. PR: #155 (draft).
 
 ## Основание
 
