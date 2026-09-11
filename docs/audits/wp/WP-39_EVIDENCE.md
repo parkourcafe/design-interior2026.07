@@ -1,6 +1,6 @@
 # WP-39 — HTTP-маршрут enroll (Р20 (а)) request-bound, CSRF, тесты — EVIDENCE
 
-Дата: 2026-09-11. Ветка: `wp/wp-39-enroll-http-route`. HEAD: `PENDING`. PR: `PENDING`.
+Дата: 2026-09-11. Ветка: `wp/wp-39-enroll-http-route`. HEAD: `4f9c3bf4de37b5ef2f22842beeafabbc741c50ad`. PR: `PENDING`.
 
 ## Основание
 
@@ -31,8 +31,9 @@ file. Все файлы входят в allowlist карточки WP-39.
 
 ## Локальные гейты
 
-[ИЗВЛЕЧЕНО] `npm ci` с isolated npm cache; focused route tests; полный
-`npm run release:check` — результаты будут дополнены на точном HEAD.
+[ИЗВЛЕЧЕНО] `npm ci` с isolated npm cache — PASS. Focused route tests —
+4/4 PASS. `npm run release:check` на изменении: lint 0 errors / 13 existing
+warnings, typecheck PASS, Vitest 206 files: 1646 PASS / 10 skipped, build PASS.
 
 ## CI
 
@@ -53,7 +54,12 @@ flow. Follow-up: подключить UI только отдельным WP с �
 
 ## Blind review
 
-PENDING: независимое review нового HTTP security surface после точного final SHA.
+[ИЗВЛЕЧЕНО] Независимое review exact SHA `4f9c3bf` — вердикт «no actionable
+security/contract findings». Проверены строгий body, порядок CSRF, request-bound
+client/identity, server-derived idempotency, controlled errors и `no-store`.
+Отдельный Codex Security diff scan `312b235b-fed9-45d7-8675-051574578f5d`
+завершён: 5 surfaces reviewed, 0 findings. Реальный Auth/PostgREST owner/foreign
+execution остаётся CI/disposable доказательством.
 
 ## Безопасность
 
