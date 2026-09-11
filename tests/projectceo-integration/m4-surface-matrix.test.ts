@@ -121,10 +121,15 @@ describe("M4 surface matrix", () => {
       .flatMap((row) => row.rpcs)
       .filter((rpc) => rpc.schema === "projectceo_product_api")
       .map((rpc) => rpc.signature);
-    expect(revokedInMigration.length).toBe(productSignatures.length);
+    // Historical guardrail revoked four doors; WP-35 physically removes the
+    // two legacy ones, leaving only request-bound signatures in the surface.
+    expect(revokedInMigration.length).toBe(4);
     for (const signature of productSignatures) {
       expect(squash(revokeBlock)).toContain(squash(signature));
     }
+    const drop = read("supabase/migrations/20260911170000_projectceo_m4_drop_legacy_release_doors.sql");
+    expect(drop).toContain("drop function projectceo_product_api.distribute_release(uuid, text, uuid, bigint, text)");
+    expect(drop).toContain("drop function projectceo_product_api.acknowledge_release(uuid, uuid, text, bigint, text)");
   });
 
   /**
