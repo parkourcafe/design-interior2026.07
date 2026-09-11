@@ -25,6 +25,7 @@ grant execute on function
   projectceo_api.publish_version(uuid, text, bigint, text, jsonb, text),
   projectceo_product_api.publish_project_baseline(uuid, jsonb, bigint, text),
   projectceo_product_api.publish_production_package_version(uuid, jsonb, bigint, text),
+  projectceo_product_api.publish_work_package_release_request_bound(uuid, uuid, text, text, bigint, text, text),
   projectceo_api.review_source(uuid, text, text, bigint, text, text),
   projectceo_m3_api.register_documentation_sheet(uuid, uuid, text, text, text, text, text, text, text[], text, bigint, text),
   projectceo_m3_api.attach_documentation_sheet_specifications(uuid, uuid, text, text, text, text[], text, bigint, text)
@@ -39,6 +40,7 @@ begin
     'projectceo_api.publish_version(uuid, text, bigint, text, jsonb, text)',
     'projectceo_product_api.publish_project_baseline(uuid, jsonb, bigint, text)',
     'projectceo_product_api.publish_production_package_version(uuid, jsonb, bigint, text)',
+    'projectceo_product_api.publish_work_package_release_request_bound(uuid, uuid, text, text, bigint, text, text)',
     'projectceo_api.review_source(uuid, text, text, bigint, text, text)',
     'projectceo_m3_api.register_documentation_sheet(uuid, uuid, text, text, text, text, text, text, text[], text, bigint, text)',
     'projectceo_m3_api.attach_documentation_sheet_specifications(uuid, uuid, text, text, text, text[], text, bigint, text)'

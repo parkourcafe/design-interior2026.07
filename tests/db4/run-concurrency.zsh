@@ -316,13 +316,13 @@ worker_org=$(psql_exec db4-release-worker-org "
 # воркер и этот сценарий проверяли бы разные значения, а комментарий врал бы.
 worker_artifact=$(psql_exec db4-release-worker-artifact-id "
   select 'release-artifact:' || left(encode(project_intelligence._sha256_text(
-    '${worker_org}' || E'\\x1f' || '${project}' || E'\\x1f' || 'package-db4-work-v1'
+    '${worker_org}' || E'\\x1f' || '${project}' || E'\\x1f' || 'release:db4-publish-work-package-v1'
   ), 'hex'), 32)
 ")
 worker_descriptor=$(psql_exec db4-release-worker-descriptor "
   select jsonb_build_object(
     'artifactId', '${worker_artifact}',
-    'productionPackageVersionId', 'package-db4-work-v1',
+    'productionPackageVersionId', 'release:db4-publish-work-package-v1',
     'format', 'logical_json',
     'semanticHash', 'sha256:' || encode(
       project_intelligence._sha256_jsonb(jsonb_build_object(
@@ -345,7 +345,7 @@ worker_descriptor=$(psql_exec db4-release-worker-descriptor "
   )::text
   from projectceo_product.production_package_versions ppv
   where ppv.project_id='${project}'
-    and ppv.production_package_version_id='package-db4-work-v1'
+    and ppv.production_package_version_id='release:db4-publish-work-package-v1'
 ")
 worker_call="begin;
 set local role service_role;
@@ -353,7 +353,7 @@ select projectceo_product_api.build_release_artifact(
   '${project}',
   '${worker_descriptor}'::jsonb,
   ${worker_state},
-  'worker:release-artifact:package-db4-work-v1'
+  'worker:release-artifact:release:db4-publish-work-package-v1'
 );
 commit;"
 
@@ -390,7 +390,7 @@ worker_result=$(psql_exec db4-release-worker-assert "
   select count(*)::text || '|' || count(distinct artifact_id)::text
   from projectceo_product.release_artifacts
   where project_id='${project}'
-    and production_package_version_id='package-db4-work-v1'
+    and production_package_version_id='release:db4-publish-work-package-v1'
 ")
 if [[ "${worker_result}" != "1|1" ]]; then
   print -u2 -r -- "Concurrent release artifact persisted invalid state: ${worker_result}"
@@ -403,7 +403,7 @@ worker_repeat=$(psql_exec db4-release-worker-repeat-assert "
   select count(*)::text
   from projectceo_product.release_artifacts
   where project_id='${project}'
-    and production_package_version_id='package-db4-work-v1'
+    and production_package_version_id='release:db4-publish-work-package-v1'
 ")
 if [[ "${worker_repeat}" != "1" ]]; then
   print -u2 -r -- "Release artifact repeat created a duplicate: ${worker_repeat}"
