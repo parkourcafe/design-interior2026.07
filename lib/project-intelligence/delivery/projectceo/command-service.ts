@@ -31,11 +31,7 @@ import {
 import {
   confirmBaselineSnapshot,
 } from "../../modules/decisions";
-import {
-  computeReleaseSemanticHash,
-  confirmReleaseSnapshot,
-  RELEASE_SCHEMA_VERSION,
-} from "../../modules/package/release-snapshot";
+import { confirmReleaseSnapshot } from "../../modules/package/release-snapshot";
 import { can } from "../../../../components/projectceo/role-policy";
 
 type UnknownRecord = Readonly<Record<string, unknown>>;
@@ -898,25 +894,12 @@ export class ProjectCeoCommandService {
         }
         if (!confirmation.ok) return failure(requestId, "error", "stale_state");
 
-        const descriptor = {
-          id: `release:${command.commandId}`,
-          packageId: confirmation.composition.packageId,
-          baselineId: confirmation.composition.baselineId,
-          previousVersionId: confirmation.composition.previousVersionId,
-          exactRevisionRefs: confirmation.composition.exactRevisionRefs,
-          organizationId: scope.organizationId,
+        return completed(requestId, await this.product.publishReleaseRequestBound({
           projectId: command.projectId,
-          schemaVersion: RELEASE_SCHEMA_VERSION,
-          semanticHash: computeReleaseSemanticHash({
-            organizationId: scope.organizationId,
-            projectId: command.projectId,
-            composition: confirmation.composition,
-          }),
-        };
-        return completed(requestId, await this.product.publishProductionPackageVersion({
-          projectId: command.projectId,
-          descriptor,
+          expectedBaselineId: confirmation.composition.baselineId,
+          expectedPreviousVersionId: confirmation.composition.previousVersionId,
           expectedStateRevision: scope.stateRevision,
+          commandRef: `release:${command.commandId}`,
           idempotencyKey,
         }));
       }

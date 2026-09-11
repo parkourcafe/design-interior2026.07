@@ -196,6 +196,14 @@ function fakeClient(calls: Call[], options: FakeClientOptions = {}): PostgresRpc
       status: "published",
       semanticHash,
     },
+    "projectceo_product_api.publish_release_request_bound": {
+      id: "release:cccccccc-cccc-4ccc-8ccc-cccccccccccc",
+      projectId,
+      packageId,
+      versionNo: 1,
+      status: "published",
+      semanticHash,
+    },
     "projectceo_product_api.publish_project_baseline": {
       id: "baseline-v3",
       projectId,
@@ -894,18 +902,18 @@ describe("AP1 supported human commands", () => {
     expect(result).toMatchObject({ status: "completed", replay: false });
 
     const published = calls.find((call) => (
-      call.name === "projectceo_product_api.publish_production_package_version"
-    ))?.args as { descriptor: Record<string, unknown> } | undefined;
-    expect(published?.descriptor).toMatchObject({
-      packageId,
-      baselineId: "baseline-v2",
-      previousVersionId: null,
-      organizationId,
-      projectId,
-      schemaVersion: "project-ceo-production-package/0.1",
-      exactRevisionRefs: baselineRefs,
+      call.name === "projectceo_product_api.publish_release_request_bound"
+    ));
+    expect(published?.args).toMatchObject({
+      project_id: projectId,
+      expected_baseline_id: "baseline-v2",
+      expected_previous_version_id: null,
+      expected_state_revision: 9,
+      command_ref: "release:cccccccc-cccc-4ccc-8ccc-cccccccccccc",
     });
-    expect(String(published?.descriptor.semanticHash)).toMatch(/^sha256:[0-9a-f]{64}$/);
+    expect(calls.some((call) => (
+      call.name === "projectceo_product_api.publish_production_package_version"
+    ))).toBe(false);
   });
 
   it("refuses the release with stale_state when a version was published after the preview", async () => {
