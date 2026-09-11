@@ -1,7 +1,7 @@
 # WP-14 — legacy-adopted hardening — EVIDENCE
 
-Дата: 2026-09-11. Ветка: `wp/wp-14-legacy-adopted-hardening`. HEAD перед
-commit: `07d9ea4`. PR: `PENDING`.
+Дата: 2026-09-11. Ветка: `wp/wp-14-legacy-adopted-hardening`. Implementation
+commit: `ea0d48307e3eea5497e79abf1e73e5b00cec7952`. PR: `PENDING`.
 
 ## Основание
 
@@ -97,7 +97,12 @@ objects. Поэтому migration использует `to_regclass` и catalog 
 
 ## Blind review
 
-PENDING: требуется независимый review exact final SHA после commit.
+[ИЗВЛЕЧЕНО] Independent read-only security review exact implementation SHA
+`ea0d48307e3eea5497e79abf1e73e5b00cec7952`: PASS, no findings. Проверены
+allowlist, ledger 93→94, no-op clean bootstrap, restrictive deny-policy,
+эффективный anon denial с сохранением `authenticated`, неизменность
+`is_studio_member`, RLS и закрытый helper ACL. Перед push повторно сверяется
+final evidence SHA.
 
 ## Безопасность
 
