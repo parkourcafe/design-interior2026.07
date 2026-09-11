@@ -52,6 +52,12 @@
 
 [ИЗВЛЕЧЕНО] Final independent Codex Security review `dbcfbc03-ac5a-4661-ba9a-13369157eebd`: 0 findings; проверены private placement delegate, default-deny и отсутствие второй public RPC surface.
 
+## Hosted итог на PR #155
+
+[ИЗВЛЕЧЕНО] Hosted CI на final code: DB4 PostgreSQL 16/17 — pass; DB5 PostgreSQL 16/17 — pass; `lint / typecheck / test / build` — pass; `change scope` — pass; Claude review — pass.
+
+[ИЗВЛЕЧЕНО] AP5 authenticated browser matrix завершился `AP5_NO_SKIPS_FAILED skipped=9`. Имена skipped tests не доступны: artifact `ap5-playwright-report` был запрошен read-only дважды, но оба свежих signed Azure Blob URLs вернули HTTP 403. Статус имён тестов: `BLOCKED_EXTERNAL`. Код, CI settings, rerun и merge не выполнялись на основании этого неполного evidence.
+
 ## Grep-проверки
 
 [ИЗВЛЕЧЕНО] Runtime `publish_baseline` больше не вызывает `projectceo_api.publish_version` или `publish_project_baseline`; он вызывает только `ProjectBrainHumanPostgresAdapter.publishBaselineAtomic` с server-confirmed latest-version/baseline coordinates, state revision, command id и idempotency key.
