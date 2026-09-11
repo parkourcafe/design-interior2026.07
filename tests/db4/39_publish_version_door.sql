@@ -100,7 +100,7 @@ $db4_publish_version_shape$;
 
 /* Raw M3 publication is retired by WP-33. Its former positive/idempotency
    behavior is covered through publish_baseline_atomic; direct RPC callers now
-   must fail at the ACL boundary above. */
+   must fail at the ACL boundary above.
 -- Положительный путь: член проекта публикует версию графа через дверь, и
 -- версия действительно появляется — то есть предпосылка baseline закрывается.
 do $db4_publish_version_effect$
