@@ -334,6 +334,8 @@ describe("Layout Studio delivery/UI slice", () => {
       // отношения не имеет.
       "20260911110000_legacy_adopted_hardening.sql",
       "20260911140000_projectceo_publish_work_package_release_request_bound.sql",
+      // Root release is a Project Intelligence security door, not Layout Studio.
+      "20260911150000_projectceo_publish_release_request_bound.sql",
     ];
     const actual = readdirSync(join(repoRoot, "supabase/migrations"), { withFileTypes: true })
       // Предмет проверки — миграции, а не всё содержимое папки. Рядом с ними
