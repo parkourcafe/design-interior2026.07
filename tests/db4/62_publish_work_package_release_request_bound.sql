@@ -10,7 +10,7 @@ begin
   where project_id = '41111111-1111-4111-8111-111111111111'
     and production_package_version_id = 'release:db4-publish-work-package-v1';
   if not found or v_version.package_id <> '49999999-9999-4999-8999-999999999999'::uuid
-     or v_version.baseline_id <> 'baseline-db4-v1' then
+     or v_version.baseline_id <> 'baseline:db4-publish-baseline-v1' then
     raise exception 'DB4_WORK_PACKAGE_REQUEST_BOUND_RELEASE_MISSING';
   end if;
   select coalesce(jsonb_agg(revision_id order by ordinal), '[]'::jsonb) into v_sources

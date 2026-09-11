@@ -66,13 +66,17 @@ describe("M3 surface matrix", () => {
    * матрицы: ей бы верили.
    */
   it("matches the guardrail migration signature for signature", () => {
-    const migration = read(
+    const migrations = [
       "supabase/migrations/20260811010000_projectceo_m3_publication_guardrail.sql",
-    );
-    const revokeBlock = migration.slice(
-      migration.indexOf("revoke execute on function"),
-      migration.indexOf("from authenticated;"),
-    );
+      "supabase/migrations/20260911160000_projectceo_m3_atomic_publication_flip.sql",
+    ];
+    const revokeBlock = migrations.map((path) => {
+      const migration = read(path);
+      return migration.slice(
+        migration.indexOf("revoke execute on function"),
+        migration.indexOf("from authenticated;"),
+      );
+    }).join("\n");
     for (const signature of M3_REVOKED_SIGNATURES) {
       const withoutSpaces = signature.replace(/\s+/g, "");
       expect(revokeBlock.replace(/\s+/g, "")).toContain(withoutSpaces);
@@ -82,13 +86,26 @@ describe("M3 surface matrix", () => {
       .split("\n")
       .map((line) => line.trim().replace(/,$/, ""))
       .filter((line) => line.includes("(") && line.includes("."));
-    expect(revokedInMigration.length).toBe(M3_REVOKED_SIGNATURES.length);
+    expect([...new Set(revokedInMigration)].sort()).toEqual(
+      [...M3_REVOKED_SIGNATURES].sort(),
+    );
   });
 
-  it("keeps the enable script exactly mirroring what the guardrail revoked", () => {
+  it("keeps the enable script to module-gated M3 doors only", () => {
     const enable = read("tests/ap1/environment/enable-m3-publication.sql").replace(/\s+/g, "");
-    for (const signature of M3_REVOKED_SIGNATURES) {
+    const moduleGated = M3_SURFACE
+      .flatMap((row) => row.rpcs)
+      .filter((rpc) => rpc.closure === "revoked_from_authenticated")
+      .map((rpc) => rpc.signature);
+    for (const signature of moduleGated) {
       expect(enable).toContain(signature.replace(/\s+/g, ""));
+    }
+    // Raw doors остаются закрытыми после флипа и не возвращаются disposable
+    // M3 switch: они не являются безопасной поверхностью включённого модуля.
+    for (const signature of M3_REVOKED_SIGNATURES.filter(
+      (signature) => !moduleGated.includes(signature),
+    )) {
+      expect(enable).not.toContain(signature.replace(/\s+/g, ""));
     }
   });
 

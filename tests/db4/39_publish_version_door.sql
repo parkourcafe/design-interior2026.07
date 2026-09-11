@@ -71,12 +71,12 @@ begin
       raise exception 'DB4_PUBLISH_VERSION_DOOR_OVERGRANTED:%', v_grantee;
     end if;
   end loop;
-  if not pg_catalog.has_function_privilege(
+  if pg_catalog.has_function_privilege(
     'authenticated',
     'projectceo_api.publish_version(uuid, text, bigint, text, jsonb, text)',
     'EXECUTE'
   ) then
-    raise exception 'DB4_PUBLISH_VERSION_DOOR_UNREACHABLE';
+    raise exception 'DB4_RAW_PUBLISH_VERSION_REMAINS_REACHABLE';
   end if;
 
   -- Главное про «не добавляет прав»: до двери у `authenticated` уже были и
@@ -98,6 +98,9 @@ begin
 end
 $db4_publish_version_shape$;
 
+/* Raw M3 publication is retired by WP-33. Its former positive/idempotency
+   behavior is covered through publish_baseline_atomic; direct RPC callers now
+   must fail at the ACL boundary above.
 -- Положительный путь: член проекта публикует версию графа через дверь, и
 -- версия действительно появляется — то есть предпосылка baseline закрывается.
 do $db4_publish_version_effect$
@@ -229,3 +232,6 @@ begin
   end;
 end
 $db4_publish_version_refusals$;
+*/
+
+select 'DB4_PUBLISH_VERSION_DOOR_RETIRED_OK' as result;

@@ -336,6 +336,8 @@ describe("Layout Studio delivery/UI slice", () => {
       "20260911140000_projectceo_publish_work_package_release_request_bound.sql",
       // Root release is a Project Intelligence security door, not Layout Studio.
       "20260911150000_projectceo_publish_release_request_bound.sql",
+      // WP-33 changes the ProjectCEO M3 publication ACL only.
+      "20260911160000_projectceo_m3_atomic_publication_flip.sql",
     ];
     const actual = readdirSync(join(repoRoot, "supabase/migrations"), { withFileTypes: true })
       // Предмет проверки — миграции, а не всё содержимое папки. Рядом с ними
