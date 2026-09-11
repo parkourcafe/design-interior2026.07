@@ -46,6 +46,8 @@
 
 [ИЗВЛЕЧЕНО] Fresh independent Codex Security review `20f8b2bc-e236-4ded-a269-c6e317949282`: 0 findings; проверены authorization-before-lookup, approved-snapshot guard, delegate reachability и сохранение module-gated ACL.
 
+[ИЗВЛЕЧЕНО] Следующий hosted DB4 schema-security gate обнаружил PostgreSQL default `PUBLIC EXECUTE`, добавленный самим `CREATE FUNCTION` wrapper. Migration теперь явно выполняет `REVOKE ALL` для public wrapper до M3 switch; итоговый независимый security review повторяется после этого исправления.
+
 ## Grep-проверки
 
 [ИЗВЛЕЧЕНО] Runtime `publish_baseline` больше не вызывает `projectceo_api.publish_version` или `publish_project_baseline`; он вызывает только `ProjectBrainHumanPostgresAdapter.publishBaselineAtomic` с server-confirmed latest-version/baseline coordinates, state revision, command id и idempotency key.

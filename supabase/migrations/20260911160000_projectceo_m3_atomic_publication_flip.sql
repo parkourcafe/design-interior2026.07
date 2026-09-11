@@ -87,6 +87,14 @@ alter function projectceo_product_api.publish_baseline_atomic(
   uuid, text, text, bigint, text, text
 ) set statement_timeout = '30s';
 
+-- `CREATE FUNCTION` grants EXECUTE to PUBLIC by default. This wrapper is a
+-- module-gated door, so restore the original default-deny posture before the
+-- M3 switch selectively grants it to `authenticated` in disposable runtime.
+revoke all on function projectceo_product_api.publish_baseline_atomic(
+  uuid, text, text, bigint, text, text
+) from public, anon, authenticated, service_role,
+       pi_human_executor, pi_worker_executor;
+
 create or replace function projectceo_platform._module_signatures(p_module text)
 returns text[] language sql immutable security definer set search_path = '' as $function$
   select case p_module
