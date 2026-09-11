@@ -12,15 +12,27 @@ export async function POST(request: Request) {
 
   const admin = createScopedServiceClient("intake-start");
 
-  // событие brief_started — только один раз
-  if (project.status === "created") {
-    await admin.from("projects").update({ status: "brief_in_progress" }).eq("id", project.id);
-    await admin.from("events").insert({
-      designer_id: project.designer_id,
-      project_id: project.id,
-      type: "brief_started",
-    });
-  }
+  try {
 
-  return NextResponse.json({ ok: true });
+    // событие brief_started — только один раз
+    if (project.status === "created") {
+      const update = await admin.from("projects").update({ status: "brief_in_progress" }).eq("id", project.id);
+      if (update.error) throw new Error("update_failed");
+      const started = await admin.from("events").insert({
+        designer_id: project.designer_id,
+        project_id: project.id,
+        type: "brief_started",
+      });
+      if (started.error) throw new Error("event_failed");
+    }
+
+    return NextResponse.json({ ok: true });
+  } catch {
+    try {
+      await admin.from("events").insert({
+        designer_id: project.designer_id, project_id: project.id, type: "intake_start_failed",
+      });
+    } catch { /* Telemetry must not mask the operation failure. */ }
+    return NextResponse.json({ error: "intake_start_failed" }, { status: 500 });
+  }
 }

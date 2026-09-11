@@ -32,36 +32,42 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "not_found" }, { status: 404 });
   }
   const projectId = (proposal as { project_id: string }).project_id;
+  const { data: project, error: projectError } = await admin.from("projects").select("designer_id").eq("id", projectId).maybeSingle();
+  if (projectError || !project) return NextResponse.json({ error: "proposal_respond_failed" }, { status: 500 });
+  const designerId = (project as { designer_id: string | null }).designer_id;
+  try {
+    // Первый ответ — финальный: повторные клики не перезаписывают решение.
+    const { data: existing, error: existingError } = await admin
+      .from("events")
+      .select("type")
+      .eq("project_id", projectId)
+      .in("type", RESPONSE_TYPES)
+      .order("created_at", { ascending: true })
+      .limit(1);
+    if (existingError) throw new Error("response_read_failed");
+    const first = existing?.[0];
+    if (first) {
+      return NextResponse.json({ ok: true, response: first.type });
+    }
 
-  // Первый ответ — финальный: повторные клики не перезаписывают решение.
-  const { data: existing } = await admin
-    .from("events")
-    .select("type")
-    .eq("project_id", projectId)
-    .in("type", RESPONSE_TYPES)
-    .order("created_at", { ascending: true })
-    .limit(1);
-  const first = existing?.[0];
-  if (first) {
-    return NextResponse.json({ ok: true, response: first.type });
+    const recorded = await admin.from("events").insert({
+      designer_id: designerId,
+      project_id: projectId,
+      type: eventType,
+    });
+    if (recorded.error) throw new Error("response_write_failed");
+
+    if (eventType === "proposal_accepted") {
+      const proposalUpdate = await admin.from("proposals").update({ status: "accepted" }).eq("id", (proposal as { id: string }).id);
+      const projectUpdate = await admin.from("projects").update({ status: "proposal_accepted" }).eq("id", projectId);
+      if (proposalUpdate.error || projectUpdate.error) throw new Error("response_update_failed");
+    }
+
+    return NextResponse.json({ ok: true, response: eventType });
+  } catch {
+    try {
+      await admin.from("events").insert({ designer_id: designerId, project_id: projectId, type: "proposal_respond_failed" });
+    } catch { /* Telemetry must not mask the operation failure. */ }
+    return NextResponse.json({ error: "proposal_respond_failed" }, { status: 500 });
   }
-
-  const { data: project } = await admin
-    .from("projects")
-    .select("designer_id")
-    .eq("id", projectId)
-    .maybeSingle();
-
-  await admin.from("events").insert({
-    designer_id: (project as { designer_id?: string | null } | null)?.designer_id ?? null,
-    project_id: projectId,
-    type: eventType,
-  });
-
-  if (eventType === "proposal_accepted") {
-    await admin.from("proposals").update({ status: "accepted" }).eq("id", (proposal as { id: string }).id);
-    await admin.from("projects").update({ status: "proposal_accepted" }).eq("id", projectId);
-  }
-
-  return NextResponse.json({ ok: true, response: eventType });
 }

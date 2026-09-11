@@ -3,11 +3,9 @@ import { ru } from "@/lib/i18n/ru";
 
 export const dynamic = "force-dynamic";
 
-interface EventRow {
-  type: string;
-  project_id: string | null;
-  created_at: string;
-}
+import { activationMetrics, activationStages, launchErrorTypes, type LaunchEvent } from "@/lib/analytics/launch-metrics";
+
+const l = ru.analytics;
 
 function pct(a: number, b: number): string {
   if (b === 0) return "—";
@@ -16,63 +14,39 @@ function pct(a: number, b: number): string {
 
 export default async function AnalyticsPage() {
   const supabase = await createClient();
-  const { data } = await supabase
-    .from("events")
-    .select("type, project_id, created_at")
-    .order("created_at", { ascending: true });
-
-  const events = (data ?? []) as EventRow[];
-  const count = (t: string) => events.filter((e) => e.type === t).length;
-
-  const links = count("intake_link_created");
-  const started = count("brief_started");
-  const completed = count("brief_completed");
-  const proposals = count("proposal_created");
-  const sent = count("proposal_sent");
-
-  // Время до отправленного КП: от brief_completed до proposal_sent по проекту.
-  const firstTs = new Map<string, number>();
-  const sentTs = new Map<string, number>();
-  for (const e of events) {
-    if (!e.project_id) continue;
-    const ts = Date.parse(e.created_at);
-    if (e.type === "brief_completed" && !firstTs.has(e.project_id)) firstTs.set(e.project_id, ts);
-    if (e.type === "proposal_sent") sentTs.set(e.project_id, ts);
+  const events: LaunchEvent[] = [];
+  // PostgREST caps responses: read every page rather than silently truncate history.
+  for (let offset = 0; ; offset += 1000) {
+    const { data, error } = await supabase.from("events")
+      .select("type, project_id, created_at").order("created_at").order("id").range(offset, offset + 999);
+    if (error || !data) return <p role="alert">{l.loadError}</p>;
+    events.push(...data as LaunchEvent[]);
+    if (data.length < 1000) break;
   }
-  const durations: number[] = [];
-  for (const [pid, s] of sentTs) {
-    const c = firstTs.get(pid);
-    if (c && s >= c) durations.push(s - c);
-  }
-  const avgDays =
-    durations.length > 0
-      ? (durations.reduce((a, b) => a + b, 0) / durations.length / 86_400_000).toFixed(1)
-      : "—";
-
-  const funnel = [
-    { label: "Ссылки на бриф", value: links, of: links },
-    { label: "Начали бриф", value: started, of: links },
-    { label: "Завершили бриф", value: completed, of: links },
-    { label: "Создано КП", value: proposals, of: links },
-    { label: "Отправлено КП", value: sent, of: links },
-  ];
+  const metrics = activationMetrics(events);
+  const links = metrics.counts.intake_link_created;
+  const started = metrics.counts.brief_started;
+  const completed = metrics.counts.brief_completed;
+  const sent = metrics.counts.proposal_sent;
+  const avgDays = metrics.timeToProposal.meanMs === null ? "—" : (metrics.timeToProposal.meanMs / 86_400_000).toFixed(1);
+  const funnel = activationStages.map((type) => ({ label: l.stages[type], value: metrics.counts[type], of: links }));
 
   return (
     <div>
       <h1 className="font-display text-3xl font-semibold">{ru.nav.analytics}</h1>
-      <p className="mt-1 text-sm text-muted">Воронка по вашим событиям. Обновляется в реальном времени.</p>
+      <p className="mt-1 text-sm text-muted">{l.description}</p>
 
       {/* Ключевые метрики */}
       <div className="mt-6 grid grid-cols-2 gap-4 sm:grid-cols-4">
-        <Tile label="Доходимость брифа" value={pct(completed, started)} hint="завершили / начали · цель >60%" />
-        <Tile label="Начали из ссылки" value={pct(started, links)} hint="начали / ссылок" />
-        <Tile label="Бриф → КП отправлено" value={pct(sent, completed)} hint="отправлено / завершили" />
-        <Tile label="Среднее время до КП" value={avgDays === "—" ? "—" : `${avgDays} дн.`} hint="от завершения брифа" />
+        <Tile label={l.completion} value={pct(completed, started)} hint={l.completionHint} />
+        <Tile label={l.started} value={pct(started, links)} hint={l.startedHint} />
+        <Tile label={l.sent} value={pct(sent, completed)} hint={l.sentHint} />
+        <Tile label={l.proposalTime} value={avgDays === "—" ? "—" : `${avgDays} ${l.days}`} hint={l.proposalTimeHint} />
       </div>
 
       {/* Воронка */}
       <div className="mt-8">
-        <h2 className="mb-3 font-display text-2xl font-semibold">Воронка</h2>
+        <h2 className="mb-3 font-display text-2xl font-semibold">{l.funnel}</h2>
         <div className="card space-y-3">
           {funnel.map((f) => (
             <div key={f.label}>
@@ -93,9 +67,19 @@ export default async function AnalyticsPage() {
         </div>
       </div>
 
+      <section className="mt-8">
+        <h2 className="mb-3 font-display text-2xl font-semibold">{l.errorsTitle}</h2>
+        <p className="mb-3 text-sm text-muted">{l.errorsHint}</p>
+        <dl className="space-y-2">
+          {launchErrorTypes.map((type) => <div className="flex justify-between gap-4" key={type}>
+            <dt>{l.errors[type]}</dt><dd>{metrics.errorEvents[type]}</dd>
+          </div>)}
+        </dl>
+      </section>
+      {metrics.projectsWithoutLink > 0 && <p className="mt-4 text-sm text-muted">{l.excluded}: {metrics.projectsWithoutLink}</p>}
       {events.length === 0 && (
         <p className="mt-6 text-sm text-muted">
-          Пока нет событий. Создайте проект и отправьте бриф — данные появятся здесь.
+          {l.empty}
         </p>
       )}
     </div>
