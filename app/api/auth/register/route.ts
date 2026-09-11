@@ -1,12 +1,29 @@
-import { NextResponse } from "next/server";
-import { createClient } from "@/lib/supabase/server";
+import { NextRequest, NextResponse } from "next/server";
 import { checkRateLimit, clientIp } from "@/lib/rate-limit";
+import {
+  MARKET_ROUTING_COOKIE,
+  MarketRoutingReceiptError,
+  verifyMarketRoutingReceipt,
+} from "@/lib/market/receipt";
+import { createRegionalRouteClient } from "@/lib/supabase/regional";
+import { RegionalSupabaseConfigurationError } from "@/lib/supabase/cells";
+import { bindMarketRoutingReceipt } from "@/lib/market/bind";
 
 export const dynamic = "force-dynamic";
 
+function responseWithSessionCookies(
+  source: NextResponse,
+  body: Record<string, string>,
+  status: number,
+) {
+  const response = NextResponse.json(body, { status });
+  source.cookies.getAll().forEach((cookie) => response.cookies.set(cookie));
+  return response;
+}
+
 // Регистрация выполняется request-bound Auth-клиентом. Service role не участвует
 // в человеческих операциях и настройки подтверждения email остаются в силе.
-export async function POST(request: Request) {
+export async function POST(request: NextRequest) {
   // Не более 10 регистраций с одного IP в час.
   if (!(await checkRateLimit("register", clientIp(request), 10, 60 * 60 * 1000))) {
     return NextResponse.json(
@@ -29,12 +46,30 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Пароль — минимум 6 символов." }, { status: 400 });
   }
 
-  const supabase = await createClient();
+  const rawReceipt = request.cookies.get(MARKET_ROUTING_COOKIE)?.value;
+  let receipt;
+  try {
+    receipt = verifyMarketRoutingReceipt(rawReceipt);
+  } catch (error) {
+    const code = error instanceof MarketRoutingReceiptError ? error.message : "routing_receipt_invalid";
+    return NextResponse.json({ error: code }, { status: 428 });
+  }
+
+  const response = NextResponse.json({ ok: true, requiresConfirmation: true });
+  let supabase;
+  try {
+    supabase = createRegionalRouteClient(receipt.cellCode, request, response);
+  } catch (error) {
+    if (error instanceof RegionalSupabaseConfigurationError) {
+      return NextResponse.json({ error: error.message }, { status: 503 });
+    }
+    throw error;
+  }
   const { data, error } = await supabase.auth.signUp({
     email,
     password,
     options: {
-      emailRedirectTo: new URL("/auth/callback", request.url).toString(),
+      emailRedirectTo: new URL(`/auth/callback?market_receipt=${encodeURIComponent(rawReceipt!)}`, request.url).toString(),
     },
   });
 
@@ -49,5 +84,14 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: msg || "Не удалось создать аккаунт." }, { status: 400 });
   }
 
-  return NextResponse.json({ ok: true, requiresConfirmation: !data.session });
+  if (data.session) {
+    try {
+      await bindMarketRoutingReceipt(supabase, rawReceipt!, receipt);
+    } catch {
+      await supabase.auth.signOut();
+      return responseWithSessionCookies(response, { error: "market_routing_binding_failed" }, 503);
+    }
+  }
+
+  return response;
 }

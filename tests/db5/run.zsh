@@ -91,6 +91,7 @@ for sql in \
   "${repo_root}/tests/db4/53_m1_passport_versions_contract.sql" \
   "${repo_root}/tests/db4/56_m1_rls_security.sql" \
   "${repo_root}/tests/db4/59_m1_legacy_read_rpc.sql" \
+  "${repo_root}/tests/db4/61_market_routing_receipts.sql" \
   "${repo_root}/tests/db5/10_schema_security.sql" \
   "${repo_root}/tests/db5/20_execution_operations.sql" \
   "${repo_root}/tests/db5/26_impact_policy_benchmark.sql" \
