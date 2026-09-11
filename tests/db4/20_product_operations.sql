@@ -578,47 +578,16 @@ from project_intelligence.project_workflows
 where project_id = '41111111-1111-4111-8111-111111111111'
 \gset db4_
 
-select jsonb_build_object(
-  'id', 'package-db4-root-v1',
-  'packageId', '41111111-1111-4111-8111-111111111111',
-  'baselineId', 'baseline-db4-v1',
-  'previousVersionId', null,
-  'exactRevisionRefs', jsonb_build_object(
-    'sources', jsonb_build_array('revision-source-1'),
-    'requirements', jsonb_build_array('revision-requirement-db4'),
-    'assumptions', jsonb_build_array('revision-assumption-db4'),
-    'decisions', jsonb_build_array('revision-decision-db4-r1'),
-    'selections', jsonb_build_array('revision-selection-db4-r1')
-  ),
-  'semanticHash', 'sha256:' || encode(
-    project_intelligence._sha256_jsonb(jsonb_build_object(
-      'baselineId', 'baseline-db4-v1',
-      'exactRevisionRefs', jsonb_build_object(
-        'assumptions', jsonb_build_array('revision-assumption-db4'),
-        'decisions', jsonb_build_array('revision-decision-db4-r1'),
-        'requirements', jsonb_build_array('revision-requirement-db4'),
-        'selections', jsonb_build_array('revision-selection-db4-r1'),
-        'sources', jsonb_build_array('revision-source-1')
-      ),
-      'organizationId', :'db4_organization_id'::uuid,
-      'packageId', '41111111-1111-4111-8111-111111111111',
-      'previousVersionId', null,
-      'projectId', '41111111-1111-4111-8111-111111111111',
-      'schemaVersion', 'project-ceo-production-package/0.1'
-    )),
-    'hex'
-  )
-) as root_package_descriptor
-\gset db4_
-
 begin;
 set local role authenticated;
 set local request.jwt.claim.sub =
   '31111111-1111-4111-8111-111111111111';
-select projectceo_product_api.publish_production_package_version(
+select projectceo_product_api.publish_release_request_bound(
   '41111111-1111-4111-8111-111111111111',
-  :'db4_root_package_descriptor'::jsonb,
+  'baseline-db4-v1',
+  null,
   :'db4_state_revision'::bigint,
+  'db4-publish-root-package-v1',
   'db4-publish-root-package-v1'
 );
 commit;

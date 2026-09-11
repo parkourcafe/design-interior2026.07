@@ -419,6 +419,26 @@ export class ProjectBrainHumanPostgresAdapter {
     );
   }
 
+  async publishReleaseRequestBound(input: {
+    readonly projectId: string;
+    readonly expectedBaselineId: string;
+    readonly expectedPreviousVersionId: string | null;
+    readonly expectedStateRevision: number;
+    readonly commandRef: string;
+    readonly idempotencyKey: string;
+  }): Promise<CommandMutation<ProductionPackageVersion>> {
+    return parseCommandMutation<ProductionPackageVersion>(
+      await callProductRpc(this.client, "publish_release_request_bound", {
+        project_id: input.projectId,
+        expected_baseline_id: input.expectedBaselineId,
+        expected_previous_version_id: input.expectedPreviousVersionId,
+        expected_state_revision: input.expectedStateRevision,
+        command_ref: input.commandRef,
+        idempotency_key: input.idempotencyKey,
+      }),
+    );
+  }
+
   async distributeRelease(input: {
     readonly projectId: string;
     readonly artifactId: string;
