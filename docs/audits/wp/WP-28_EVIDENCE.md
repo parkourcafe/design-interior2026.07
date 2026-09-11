@@ -22,16 +22,16 @@
 
 [ИЗВЛЕЧЕНО] Database error responses are checked before emitting successful completion; failures return a fixed 500 error. Error telemetry itself remains best-effort and cannot mask the original failure. Successful rule fallback emits `intake_ai_fallback`, distinct from failed submission.
 
-[ИЗВЛЕЧЕНО] Analytics reads paginated request-bound events, fails visibly on query errors, counts ordered stages by unique project and excludes projects without a link event. Duplicate/retry events cannot inflate conversions. Time metrics use the first start and first subsequent finish; sample counts and missing-pair censoring are explicit in the CLI/templates.
+[ИЗВЛЕЧЕНО] Analytics requires `getStudio()?.role === "owner"` before creating its event-query client, then reads paginated request-bound events, fails visibly on query errors, counts ordered stages by unique project and excludes projects without a link event. Duplicate/retry events cannot inflate conversions. Time metrics use the first start and first subsequent finish; sample counts and missing-pair censoring are explicit in the CLI/templates.
 
-[ИЗВЛЕЧЕНО] CLI has explicit fixture mode and explicit owner-only bounded DB mode. It does not load env files, mutate DB or grant access. The URL is read from the process environment and never passed as a command-line argument or printed; subprocess failures are sanitized. Output contains aggregates only.
+[ИЗВЛЕЧЕНО] CLI has explicit fixture mode and explicit owner-only bounded DB mode. It does not load env files, mutate DB or grant access. Transaction-level READ ONLY prevents this script writing; it does not prove that the supplied credential has read-only grants. Verification of a dedicated read-only credential is a separate operator prerequisite. The URL is read from the process environment and never passed as a command-line argument or printed; subprocess failures are sanitized. Output contains aggregates only.
 
 [ИЗВЛЕЧЕНО] Null/invalid costs are unknown. Known sums, missing costs, unscoped calls and failure counts remain separate; no unscoped cost-per-brief inference. Empty telemetry cannot establish zero cost. Snapshot reporting never marks adoption or paid wedge complete.
 
 ## Локальные гейты
 [ИЗВЛЕЧЕНО] Node v22.23.0; npm 10.9.8. `npm ci --cache /private/tmp/wp28-npm-cache` exit 0. Initial default-cache attempt failed due to root-owned cache; no shared cache repair performed. Final npm ci reported 12 pre-existing dependency advisories (3 moderate, 8 high, 1 critical); dependency files were unchanged, no audit fix applied.
 
-[ИЗВЛЕЧЕНО] Focused tests: 2 files, 15/15 pass. `npm run release:check` exit 0: lint, typecheck, 207 test files (1657 passed, 10 skipped), production build. Log: local `/private/tmp/wp28-release-check-final.log` (not hosted/production evidence).
+[ИЗВЛЕЧЕНО] Focused tests: 2 files, 18/18 pass. `npm run release:check` exit 0: lint, typecheck, 207 test files (1660 passed, 10 skipped), production build. Log: local `/private/tmp/wp28-review-release-check.log` (not hosted/production evidence).
 
 [ИЗВЛЕЧЕНО] Lint: 13 existing unused-variable warnings in `lib/llm/gigachat.ts`, `lib/risks/llm.ts`, and four untouched test files; no errors. `git diff --check` exit 0.
 
@@ -50,3 +50,10 @@
 
 ## Безопасность
 [ИЗВЛЕЧЕНО] No production/shared DB/API/provider calls, deployments, activation flags, credentials files, migration edits or merge performed. No private runtime table access added to application routes. CLI reading is separately owner-run only.
+
+
+## Independent review correction
+[ИЗВЛЕЧЕНО] Independent review of `be3be79635cc1d915d15e72ca33b54527a0a473f` raised MAJOR: analytics lacked an owner-only role gate. Corrected by checking the server-derived studio role before creating the event-query client. Member and unauthenticated cases are tested to redirect with zero event reads; owner case proceeds. The orchestrator explicitly authorized the minimal page/test change. Fix SHA: `434f8fbc6f2c17f6e0394beb9e341b8950dbdf4a`; exact-final independent re-review remains pending.
+[ИЗВЛЕЧЕНО] The cost template now distinguishes transaction-level read-only enforcement from credential grants; no credential capability is asserted from BEGIN READ ONLY.
+
+[ИЗВЛЕЧЕНО] After the review correction, `npm ci --cache /private/tmp/wp28-npm-cache && npm run release:check` completed with exit 0: 207 test files, 1660 passed, 10 skipped; lint/typecheck/build passed. The 13 untouched-file lint warnings remain. No SQL/flags/private runtime changes.
