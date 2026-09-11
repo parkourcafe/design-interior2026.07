@@ -587,7 +587,7 @@ select projectceo_product_api.publish_release_request_bound(
   'baseline-db4-v1',
   null,
   :'db4_state_revision'::bigint,
-  'db4-publish-root-package-v1',
+  'package-db4-root-v1',
   'db4-publish-root-package-v1'
 );
 commit;

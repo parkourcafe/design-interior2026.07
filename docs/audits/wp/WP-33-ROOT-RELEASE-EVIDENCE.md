@@ -22,7 +22,7 @@
 ## Безопасность
 [ИЗВЛЕЧЕНО] Root package, baseline, previous version, exact revision refs и semantic hash выводятся в PostgreSQL. Клиент не передаёт эти поля. Raw release RPC не отзывается этим пакетом; финальный M3 flip остаётся в WP-33.
 
-[ИЗВЛЕЧЕНО] Independent Codex Security diff scan `187e868f-efce-4b46-ab8c-ecbd29a6a84e` по диапазону `6aa8c31..6949ea5`: 2 security-relevant source surfaces, 0 findings. Runtime code не менялся после проверенного SHA; следующий commit содержит только evidence.
+[ИЗВЛЕЧЕНО] Independent Codex Security review будет повторён на итоговом runtime SHA после CI-compatible fixture correction.
 
 ## Не сделано
 [ИЗВЛЕЧЕНО] Shared DB, production, deploy, flags и merge не выполнялись.

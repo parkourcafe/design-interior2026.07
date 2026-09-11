@@ -103,7 +103,7 @@ begin
     perform projectceo_product._raise('P1111','validation_failed','{"reason":"ROOT_RELEASE_REFS_REQUIRED"}'::jsonb);
   end if;
   content:=jsonb_build_object('baselineId',current_baseline,'exactRevisionRefs',jsonb_build_object('sources',to_jsonb(source_ids),'requirements',to_jsonb(requirement_ids),'assumptions',to_jsonb(assumption_ids),'decisions',to_jsonb(decision_ids),'selections',to_jsonb(selection_ids)),'organizationId',ctx.organization_id,'packageId',root_package_id,'previousVersionId',current_previous,'projectId',project_id,'schemaVersion','project-ceo-production-package/0.1');
-  descriptor:=jsonb_build_object('id',projectceo_product._assert_text('release:'||command_text,'versionId',160),'packageId',root_package_id,'baselineId',current_baseline,'previousVersionId',current_previous,'exactRevisionRefs',content->'exactRevisionRefs','semanticHash','sha256:'||encode(project_intelligence._sha256_jsonb(content),'hex'));
+  descriptor:=jsonb_build_object('id',command_text,'packageId',root_package_id,'baselineId',current_baseline,'previousVersionId',current_previous,'exactRevisionRefs',content->'exactRevisionRefs','semanticHash','sha256:'||encode(project_intelligence._sha256_jsonb(content),'hex'));
   inner_key:='root-release:'||encode(key_digest,'hex');
   raw:=projectceo_product_api.publish_production_package_version(project_id,descriptor,expected_state_revision,inner_key);
   result:=raw->'result'; result_state:=(raw->>'stateRevision')::bigint;
