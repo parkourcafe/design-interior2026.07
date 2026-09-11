@@ -1,5 +1,7 @@
 "use client";
 
+import Link from "next/link";
+
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { ru } from "@/lib/i18n/ru";
@@ -359,6 +361,10 @@ export default function LoginPage() {
           </button>
         </div>
       )}
+      <nav className="mt-8 flex flex-wrap gap-x-5 gap-y-2" aria-label={ru.landing.legal.operatorTitle}>
+        <Link className="inline-flex min-h-11 items-center underline" href="/legal/privacy" target="_blank" rel="noopener noreferrer">{ru.landing.legal.privacyTitle}</Link>
+        <Link className="inline-flex min-h-11 items-center underline" href="/legal/terms" target="_blank" rel="noopener noreferrer">{ru.landing.legal.termsTitle}</Link>
+      </nav>
     </main>
   );
 }

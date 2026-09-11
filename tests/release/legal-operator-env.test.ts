@@ -8,6 +8,10 @@ const publicKeys = [
   "NEXT_PUBLIC_LEGAL_OPERATOR_ADDRESS",
   "NEXT_PUBLIC_LEGAL_OPERATOR_EMAIL",
   "NEXT_PUBLIC_LEGAL_OPERATOR_PHONE",
+  "NEXT_PUBLIC_LEGAL_OPERATOR_INN",
+  "NEXT_PUBLIC_LEGAL_OPERATOR_OGRNIP",
+  "NEXT_PUBLIC_LEGAL_OPERATOR_REGISTRATION_AUTHORITY",
+  "NEXT_PUBLIC_LEGAL_OPERATOR_REGISTRATION_DATE",
 ] as const;
 
 afterEach(() => {
@@ -63,7 +67,23 @@ describe("public legal operator environment", () => {
       phone: "Телефон не указан",
     });
     const warningText = warn.mock.calls.flat().join("\n");
-    for (const key of publicKeys) expect(warningText).toContain(key);
+    for (const key of publicKeys.slice(0, 5)) expect(warningText).toContain(key);
+  });
+
+  it("keeps optional registration values empty until configured", async () => {
+    for (const key of publicKeys) vi.stubEnv(key, "");
+    vi.stubEnv("NODE_ENV", "test");
+    const { legalOperator } = await import("../../lib/env");
+    expect(legalOperator()).not.toHaveProperty("inn");
+    vi.stubEnv("NEXT_PUBLIC_LEGAL_OPERATOR_INN", " test-inn ");
+    vi.stubEnv("NEXT_PUBLIC_LEGAL_OPERATOR_OGRNIP", "test-ogrnip");
+    expect(legalOperator()).toMatchObject({ inn: "test-inn", ogrnip: "test-ogrnip" });
+  });
+
+  it("uses statically addressable public env keys for client bundles", async () => {
+    const source = await readFile(resolve(process.cwd(), "lib/env.ts"), "utf8");
+    expect(source).not.toContain("process.env[name]");
+    for (const key of publicKeys) expect(source).toContain(`process.env.${key}`);
   });
 
   it("returns configured public values without warnings", async () => {

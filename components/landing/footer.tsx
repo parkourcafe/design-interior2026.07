@@ -32,9 +32,13 @@ export default function LandingFooter() {
             <Link className="text-ivorymuted hover:text-ivory" href="/security">{n.security}</Link>
             <Link className="text-ivorymuted hover:text-ivory" href="/legal/privacy">{f.legalPrivacy}</Link>
             <Link className="text-ivorymuted hover:text-ivory" href="/legal/terms">{f.legalTerms}</Link>
-            <a className="text-ivorymuted hover:text-ivory" href={`mailto:${SUPPORT_EMAIL}`}>
-              {f.support}: {SUPPORT_EMAIL}
-            </a>
+            {SUPPORT_EMAIL.endsWith(".invalid") ? (
+              <Link className="inline-flex min-h-11 items-center text-ivorymuted hover:text-ivory" href="/support">{f.support}</Link>
+            ) : (
+              <a className="inline-flex min-h-11 items-center break-all text-ivorymuted hover:text-ivory" href={`mailto:${SUPPORT_EMAIL}`}>
+                {f.support}: {SUPPORT_EMAIL}
+              </a>
+            )}
           </nav>
         </div>
         <div className="mt-12 flex flex-wrap items-center justify-between gap-3 border-t border-linedark pt-6 text-[12.5px] text-ivorymuted/70">

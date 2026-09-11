@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { quickQuestions, deepQuestions, type Question } from "@/lib/brief/questions";
 import { customQuestionToRuntimeQuestion, type CustomBriefQuestion } from "@/lib/brief/custom-questions";
@@ -668,6 +669,9 @@ function ContactInput({
         />
         <span>{ru.brief.consent}</span>
       </label>
+      <Link className="inline-flex min-h-11 items-center underline" href="/legal/privacy" target="_blank" rel="noopener noreferrer">
+        {ru.landing.legal.privacyTitle}
+      </Link>
       {c.consent !== true && <p className="text-xs text-muted">{ru.brief.consentRequired}</p>}
       {supportLine && <p className="text-xs text-muted">{supportLine}</p>}
     </div>
