@@ -29,7 +29,6 @@ import {
   isExecutionV2V3Enabled,
 } from "./execution-flag";
 import {
-  computeBaselineSemanticHash,
   confirmBaselineSnapshot,
 } from "../../modules/decisions";
 import {
@@ -959,61 +958,18 @@ export class ProjectCeoCommandService {
         }, command.payload.snapshotToken);
         if (!confirmation.ok) return failure(requestId, "error", "stale_state");
 
-        // Версия графа — предпосылка baseline, и её ещё нет: она рождается
-        // здесь, через дверь `20260810080000`. Идемпотентность производная от
-        // ключа команды, поэтому повтор запроса не создаёт вторую версию.
-        const version = await this.foundation.publishVersion({
+        // Атомарная дверь создаёт версию графа и baseline в одной транзакции.
+        // Клиент по-прежнему предъявляет только токен preview; координаты
+        // версии и прежнего baseline подтверждены этим серверным чтением, а
+        // descriptor, refs и hash выводятся SQL-операцией, а не браузером.
+        return completed(requestId, await this.product.publishBaselineAtomic({
           projectId: command.projectId,
           expectedLatestVersionId: typeof record(read.data.latestBaseline).graphVersionId === "string"
             ? record(read.data.latestBaseline).graphVersionId as string
             : null,
-          expectedStateRevision: scope.stateRevision,
-          // Метка обязана быть детерминированной. Часы в ней ломали ровно то,
-          // ради чего существует ключ идемпотентности: `label` входит в
-          // request digest RPC, поэтому повтор той же команды после потери
-          // ответа давал ДРУГОЙ digest и получал `idempotency_conflict` вместо
-          // прежнего результата. Идентификатор команды и есть то, что у повтора
-          // совпадает по определению.
-          label: `baseline:${command.commandId}`,
-          selectedRevisions: [],
-          idempotencyKey: `${idempotencyKey}:version`,
-        });
-        const versionId = record(record(version.result).version).id;
-        const graphVersionId = typeof versionId === "string" && versionId.length > 0
-          ? versionId
-          : null;
-        if (!graphVersionId) throw new ProjectIntelligenceAdapterError("internal_error", null);
-
-        const descriptor = {
-          id: `baseline:${command.commandId}`,
-          graphVersionId,
           previousBaselineId: confirmation.composition.previousBaselineId,
-          packageIds: confirmation.composition.packageIds,
-          sourceRevisionIds: confirmation.composition.sourceRevisionIds,
-          requirementRevisionIds: confirmation.composition.requirementRevisionIds,
-          assumptionRevisionIds: confirmation.composition.assumptionRevisionIds,
-          decisionRevisionIds: confirmation.composition.decisionRevisionIds,
-          selectionRevisionIds: confirmation.composition.selectionRevisionIds,
-          semanticHash: computeBaselineSemanticHash({
-            organizationId: scope.organizationId,
-            projectId: command.projectId,
-            graphVersionId,
-            previousBaselineId: confirmation.composition.previousBaselineId,
-            packageIds: confirmation.composition.packageIds,
-            sourceRevisionIds: confirmation.composition.sourceRevisionIds,
-            requirementRevisionIds: confirmation.composition.requirementRevisionIds,
-            assumptionRevisionIds: confirmation.composition.assumptionRevisionIds,
-            decisionRevisionIds: confirmation.composition.decisionRevisionIds,
-            selectionRevisionIds: confirmation.composition.selectionRevisionIds,
-            approvalPackageIds: confirmation.composition.approvalPackageIds,
-            packages,
-          }),
-          approvalPackageIds: confirmation.composition.approvalPackageIds,
-        };
-        return completed(requestId, await this.product.publishProjectBaseline({
-          projectId: command.projectId,
-          descriptor,
-          expectedStateRevision: version.stateRevision,
+          expectedStateRevision: scope.stateRevision,
+          commandRef: command.commandId,
           idempotencyKey,
         }));
       }
