@@ -3,7 +3,7 @@
 | ID | Requirement | Source | Code/evidence | Status | Gate |
 |---|---|---|---|---|---|
 | B1 | One public RemHaOS product | ADR-0005; owner variant B | ADR-0008 | VERIFIED | none |
-| B2 | RU and international data cells | owner variant B | validated `DataCell` contract | PARTIAL | persistence + infrastructure |
+| B2 | RU/international markets map to existing `ru`/`us` cell IDs | owner variant B; frozen DB schema | validated `DataCell` contract | PARTIAL | persistence + infrastructure |
 | B3 | Assign market before data collection | owner variant B | pure resolver + auditable basis | PARTIAL | Auth/intake integration |
 | B4 | Conservative RU default | attached plan; owner variant B | resolver tests | VERIFIED | none |
 | B5 | No silent RU to international downgrade | attached plan; owner variant B | resolver tests | VERIFIED | none |

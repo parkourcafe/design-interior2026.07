@@ -5,6 +5,10 @@
 - [ИЗВЛЕЧЕНО] ADR-0005 уже утверждает публичный бренд RemHaOS.
 - [ИЗВЛЕЧЕНО] Текущие Supabase clients используют один глобальный endpoint;
   второй data plane не существует в коде или проверенной инфраструктуре.
+- [ИЗВЛЕЧЕНО] Frozen migration `20260716072000_project_intelligence_core.sql`
+  ограничивает физические cell codes значениями `us` и `ru`, при этом seed
+  создаёт только `ru`. Поэтому market `international` явно отображается в cell
+  `us`; историческая migration не изменяется.
 - [ИНТЕРПРЕТИРОВАНО] Первый безопасный срез — чистые market/cell policies без
   сетевых подключений и persistence, чтобы не обходить migration/security gate.
 - [ИЗВЛЕЧЕНО] `npx vitest run tests/market/contract.test.ts`: 10/10 PASS.
@@ -33,3 +37,6 @@
 - [ИЗВЛЕЧЕНО] Exact final blind review: PASS для additive ADR/code slice.
   Reviewer отдельно сохранил G42-GOV по frozen architecture как owner gate,
   не как defect текущей реализации.
+- [ИЗВЛЕЧЕНО] После сверки frozen schema mapping изменён на
+  `international market → us cell`; targeted 14/14 и полный release check PASS
+  с теми же итогами 1629 PASS / 10 SKIP. Exact schema-aligned blind review: PASS.

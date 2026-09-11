@@ -10,9 +10,9 @@
 - Latest checks: final targeted suite 14/14 PASS; `npm run release:check` PASS
   (lint 0 errors/13 pre-existing warnings, typecheck PASS, 1629 tests PASS/10 SKIP,
   build PASS)
-- Active reviewers: exact final blind review PASS; governance contradiction remains
-  isolated in owner gate G42-GOV
-- Next action: commit, push and open draft PR; then prepare gated persistence slice
+- Active reviewers: exact schema-aligned blind review PASS; governance contradiction
+  remains isolated in owner gate G42-GOV
+- Next action: push schema-alignment commit to draft PR; then prepare gated persistence slice
 - Owner gate: migration/RLS/security and shared/production infrastructure
 
 ## Governance limitation
@@ -32,6 +32,9 @@ plans remain unchanged until gate G42-GOV is approved.
   regional limitation and preserves one product/four workspaces.
 - Current Supabase clients read one global endpoint. This slice does not claim
   that two data planes exist.
+- Frozen core schema already restricts physical `cell_code` to `ru | us`.
+  Public market `international` maps explicitly to `us`; no historical migration
+  is rewritten.
 - `architecture-v1.md` is a frozen input protected by a byte-for-byte contract.
   ADR-0008 is therefore the additive decision record; editing the frozen file
   remains in G42-GOV.

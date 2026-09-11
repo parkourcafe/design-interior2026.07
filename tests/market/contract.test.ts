@@ -30,7 +30,7 @@ describe("market routing contract", () => {
     expect(resolveMarket({ declaredMarket: "international", locale: "en-US" }))
       .toMatchObject({
         market: "international",
-        dataCell: { id: "international" },
+        dataCell: { id: "us" },
         routingBasis: { declaredMarket: "international", reason: "declared" },
       });
   });
@@ -59,7 +59,7 @@ describe("market routing contract", () => {
 
   it("maps a project to exactly one validated cell", () => {
     expect(dataCellForMarket("ru")).toEqual({ id: "ru" });
-    expect(dataCellForMarket("international")).toEqual({ id: "international" });
+    expect(dataCellForMarket("international")).toEqual({ id: "us" });
     expect(() => dataCellForMarket("us")).toThrow("invalid_market");
   });
 });
@@ -67,7 +67,7 @@ describe("market routing contract", () => {
 describe("regional provider policy", () => {
   it("keeps data-cell policy separate from locale, currency and legal jurisdiction", () => {
     expect(regionalPolicy("ru")).toMatchObject({ dataCell: { id: "ru" } });
-    expect(regionalPolicy("international")).toMatchObject({ dataCell: { id: "international" } });
+    expect(regionalPolicy("international")).toMatchObject({ dataCell: { id: "us" } });
     expect(regionalPolicy("international")).not.toHaveProperty("currency");
     expect(regionalPolicy("international")).not.toHaveProperty("legalDocumentSet");
   });

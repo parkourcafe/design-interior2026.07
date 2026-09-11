@@ -3,8 +3,8 @@
 ## Goal
 
 Create the non-production contract for variant B: one RemHaOS codebase with
-isolated `ru` and `international` data cells. This package does not create or
-activate the second database.
+`ru` and `international` markets routed to isolated existing cell identifiers
+`ru` and `us`. This package does not create or activate the second database.
 
 ## Allowlist
 
@@ -18,6 +18,7 @@ activate the second database.
 ## Acceptance
 
 - only canonical markets `ru` and `international`;
+- explicit mapping uses existing schema cells: `ru → ru`, `international → us`;
 - unknown/invalid input resolves conservatively to `ru`;
 - RU signals cannot silently downgrade to international;
 - routing basis retains the declaration, trusted signal categories and reason;

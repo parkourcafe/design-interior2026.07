@@ -1,5 +1,5 @@
 export const MARKETS = Object.freeze(["ru", "international"] as const);
-export const DATA_CELL_IDS = Object.freeze(["ru", "international"] as const);
+export const DATA_CELL_IDS = Object.freeze(["ru", "us"] as const);
 
 export type Market = (typeof MARKETS)[number];
 export type DataCellId = (typeof DATA_CELL_IDS)[number];
@@ -40,7 +40,7 @@ export interface MarketResolution {
 
 const DATA_CELL_BY_MARKET: Readonly<Record<Market, DataCellId>> = Object.freeze({
   ru: "ru",
-  international: "international",
+  international: "us",
 });
 
 export function parseMarket(value: unknown): Market | null {
