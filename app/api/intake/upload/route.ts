@@ -1,3 +1,4 @@
+import { enforceIntakeConsent, intakeTokenMatches } from "@/lib/legal/intake-consent";
 import { NextResponse } from "next/server";
 import { createScopedServiceClient } from "@/lib/supabase/token-scoped";
 import { getProjectByIntakeToken } from "@/lib/intake";
@@ -7,10 +8,13 @@ export const dynamic = "force-dynamic";
 // Опциональная загрузка плана/фото — ТОЛЬКО хранение, без анализа изображений.
 // Метаданные пишутся в answers (question_id = 'attachments').
 export async function POST(request: Request) {
+  const denied = await enforceIntakeConsent(request);
+  if (denied) return denied;
   const form = await request.formData().catch(() => null);
   if (!form) return NextResponse.json({ error: "bad_request" }, { status: 400 });
 
   const token = String(form.get("token") ?? "");
+  if (!intakeTokenMatches(request, token)) return NextResponse.json({ error: "invalid_scope" }, { status: 403 });
   const file = form.get("file");
   const project = await getProjectByIntakeToken(token);
   if (!project) return NextResponse.json({ error: "not_found" }, { status: 404 });

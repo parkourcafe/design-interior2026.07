@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
-import { notFound } from "next/navigation";
+import Link from "next/link";
+import { redirect } from "next/navigation";
 import { getProjectByIntakeToken } from "@/lib/intake";
 import { getDesignerPublic, type DesignerPublic } from "@/lib/designer";
 import { requestBaseUrl } from "@/lib/base-url";
@@ -15,7 +16,7 @@ export const metadata: Metadata = { robots: { index: false, follow: false } };
 export default async function IntakePage({ params }: { params: Promise<{ token: string }> }) {
   const { token } = await params;
   const project = await getProjectByIntakeToken(token);
-  if (!project) notFound();
+  if (!project) redirect(`/i/${encodeURIComponent(token)}/consent`);
 
   const baseUrl = await requestBaseUrl();
 
@@ -32,6 +33,7 @@ export default async function IntakePage({ params }: { params: Promise<{ token: 
         <main className="mx-auto flex min-h-screen max-w-lg flex-col justify-center px-6 text-center">
           <h1 className="text-2xl font-semibold">{ru.client.shareTitle}</h1>
           <p className="mt-2 text-muted">{ru.client.shareHint}</p>
+          <Link className="inline-flex min-h-11 items-center underline" href={`/i/${encodeURIComponent(token)}/consent`}>{ru.consent.manage}</Link>
           <ShareBrief url={`${baseUrl}/b/${token}`} />
         </main>
       );
@@ -40,6 +42,7 @@ export default async function IntakePage({ params }: { params: Promise<{ token: 
       <main className="mx-auto flex min-h-screen max-w-lg flex-col justify-center px-6 text-center">
         <h1 className="text-2xl font-semibold">{ru.brief.done.title}</h1>
         <p className="mt-2 text-muted">{ru.brief.done.subtitle}</p>
+        <Link className="inline-flex min-h-11 items-center underline" href={`/i/${encodeURIComponent(token)}/consent`}>{ru.consent.manage}</Link>
       </main>
     );
   }

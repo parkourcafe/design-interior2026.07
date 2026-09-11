@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { ru } from "@/lib/i18n/ru";
 import { safeProjectCeoLoginNext } from "@/lib/project-intelligence/delivery/projectceo/invitation-login";
@@ -13,6 +13,10 @@ async function supabaseClient() {
   const { createClient } = await import("@/lib/supabase/browser");
   return createClient();
 }
+
+import AccountWithdrawal from "@/app/auth/consent/AccountWithdrawal";
+import { ConsentForm } from "@/app/auth/consent/ConsentForm";
+import { accountConsentDestination } from "@/lib/legal/account-consent";
 
 type Tab = "password" | "code";
 
@@ -33,6 +37,11 @@ function passwordErrorMessage(error: unknown): string {
 
 export default function LoginPage() {
   const router = useRouter();
+  const [consentEpoch, setConsentEpoch] = useState(0);
+  const [preauthReady, setPreauthReady] = useState(false);
+  const withdrawPreauth = useCallback(() => { setPreauthReady(false); setConsentEpoch((value) => value + 1); }, []);
+  const [consentActive, setConsentActive] = useState(false);
+  const consentReady = useCallback((enabled: boolean) => { setConsentActive(enabled); setPreauthReady(true); }, []);
 
   const [tab, setTab] = useState<Tab>("password");
   const [email, setEmail] = useState("");
@@ -79,13 +88,14 @@ export default function LoginPage() {
   }
 
   function goToAuthenticatedDestination() {
-    router.push(loginNext());
+    router.push(consentActive ? accountConsentDestination(loginNext()) : loginNext());
     router.refresh();
   }
 
   // ── Вход через Google (OAuth) ──────────────────────────────
   async function google() {
     setCallbackError(null);
+    if (!preauthReady) { setCallbackError(ru.consent.required); return; }
     try {
       const supabase = await supabaseClient();
       const { error } = await supabase.auth.signInWithOAuth({
@@ -116,14 +126,15 @@ export default function LoginPage() {
       const supabase = await supabaseClient();
 
       if (signup) {
-        const { data, error } = await supabase.auth.signUp({
-          email,
-          password,
-          options: { emailRedirectTo: authCallbackUrl() },
+        if (!preauthReady) { setPwBusy(false); setPwError(ru.consent.required); return; }
+        const response = await fetch("/api/auth/register", {
+          method: "POST", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ email, password, next: loginNext() }),
         });
+        const data = await response.json();
         setPwBusy(false);
-        if (error) return setPwError(passwordErrorMessage(error));
-        if (!data.session) {
+        if (!response.ok) return setPwError(data.error || ru.auth.genericError);
+        if (data.requiresConfirmation) {
           setSignupConfirmationSent(true);
           return;
         }
@@ -174,6 +185,7 @@ export default function LoginPage() {
 
   async function sendCode(e: React.FormEvent) {
     e.preventDefault();
+    if (!preauthReady) { setOtp("error"); setOtpDetail(ru.consent.required); return; }
     setOtp("sending");
     try {
       const supabase = await supabaseClient();
@@ -211,6 +223,10 @@ export default function LoginPage() {
     <main className="mx-auto flex min-h-screen max-w-md flex-col justify-center px-6">
       <h1 className="font-display text-3xl font-semibold">{ru.auth.title}</h1>
       <p className="mt-2 text-sm text-muted">{ru.auth.subtitle}</p>
+
+      <ConsentForm key={consentEpoch} action="preauth" onReady={consentReady} />
+      <AccountWithdrawal key={`${consentEpoch}-${preauthReady}`} preauth onWithdraw={withdrawPreauth} />
+      <Link className="inline-flex min-h-11 items-center underline" href="/auth/consent">{ru.consent.manage}</Link>
 
       {callbackError && (
         <p className="mt-4 rounded-md border border-red-300 bg-red-50 p-3 text-xs text-red-700">

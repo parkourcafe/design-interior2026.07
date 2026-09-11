@@ -1,0 +1,20 @@
+import { beforeEach, expect, it, vi } from "vitest";
+const mocks = vi.hoisted(() => ({ has: vi.fn(), project: vi.fn(), admin: vi.fn(), pipeline: vi.fn() }));
+vi.mock("@/lib/supabase/server", () => ({ createClient: async () => ({}) }));
+vi.mock("@/lib/legal/consent-policy", async (original) => ({ ...await original<typeof import("@/lib/legal/consent-policy")>(), consentEnabled: () => true }));
+vi.mock("@/lib/legal/consent-server", async (original) => ({ ...await original<typeof import("@/lib/legal/consent-server")>(), hasBrowserConsent: mocks.has }));
+vi.mock("@/lib/intake", () => ({ getProjectByIntakeToken: mocks.project }));
+vi.mock("@/lib/supabase/token-scoped", () => ({ createScopedServiceClient: mocks.admin }));
+vi.mock("@/lib/brief/pipeline", () => ({ runRiskPipeline: mocks.pipeline }));
+vi.mock("@/lib/rate-limit", () => ({ checkRateLimit: async () => true, clientIp: () => "test" }));
+import { POST as start } from "@/app/api/intake/start/route";
+import { POST as submit } from "@/app/api/intake/submit/route";
+import { POST as upload } from "@/app/api/intake/upload/route";
+beforeEach(() => { vi.clearAllMocks(); mocks.has.mockResolvedValue(false); });
+it.each([start, submit, upload])("rejects consent before reading payload or invoking writes/AI", async handler => {
+  const request = new Request("https://app.invalid/api/intake", { method: "POST", headers: { origin: "https://app.invalid", "x-intake-token": "t" }, body: "private bytes" });
+  const json = vi.spyOn(request, "json"); const form = vi.spyOn(request, "formData");
+  expect((await handler(request)).status).toBe(403);
+  expect(json).not.toHaveBeenCalled(); expect(form).not.toHaveBeenCalled();
+  expect(mocks.project).not.toHaveBeenCalled(); expect(mocks.admin).not.toHaveBeenCalled(); expect(mocks.pipeline).not.toHaveBeenCalled();
+});

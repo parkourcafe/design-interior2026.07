@@ -8,7 +8,7 @@ database=pi_db4
 password=pi_db4_local_only
 
 cleanup() {
-  docker rm -f "${container}" >/dev/null 2>&1 || true
+  docker rm -fv "${container}" >/dev/null 2>&1 || true
 }
 trap cleanup EXIT INT TERM
 
@@ -90,10 +90,16 @@ for sql in \
   "${repo_root}/tests/db4/53_m3_read_gate.sql" \
   "${repo_root}/tests/db4/54_workspace_read_superseded_approvals.sql" \
   "${repo_root}/tests/db4/56_m1_rls_security.sql" \
-  "${repo_root}/tests/db4/59_m1_legacy_read_rpc.sql"; do
+  "${repo_root}/tests/db4/59_m1_legacy_read_rpc.sql" \
+  "${repo_root}/tests/db4/60_consent_receipts.sql"; do
   print -r -- "Running ${sql:t}"
   run_file "${sql}"
 done
+
+PI_DB4_CONTAINER="${container}" \
+PI_DB4_DATABASE="${database}" \
+PI_DB4_PASSWORD="${password}" \
+  zsh "${repo_root}/tests/db4/run-consent-concurrency.zsh"
 
 # Апгрейд населённой базы живёт в `run-telegram-upgrade.zsh` — там же, где
 # сценарии 45/46. Второй харнесс поднимал ради того же доказательства ещё

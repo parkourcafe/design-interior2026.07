@@ -2,6 +2,9 @@ import { NextResponse } from "next/server";
 import type { EmailOtpType } from "@supabase/supabase-js";
 import { createClient } from "@/lib/supabase/server";
 
+import { consentEnabled } from "@/lib/legal/consent-policy";
+import { accountConsentDestination } from "@/lib/legal/account-consent";
+
 export const dynamic = "force-dynamic";
 
 // Установка сессии из magic link. Поддерживаем ДВА варианта, чтобы вход был
@@ -23,17 +26,18 @@ export async function GET(request: Request) {
   const nextParam = searchParams.get("next");
   const next = nextParam && /^\/(?![/\\])/.test(nextParam) ? nextParam : "/dashboard";
 
+  const destination = consentEnabled() && next !== "/auth/reset-password" ? accountConsentDestination(next) : next;
   const supabase = await createClient();
 
   if (code) {
     const { error } = await supabase.auth.exchangeCodeForSession(code);
-    if (!error) return NextResponse.redirect(`${origin}${next}`);
+    if (!error) return NextResponse.redirect(`${origin}${destination}`);
     return NextResponse.redirect(`${origin}/login?error=${encodeURIComponent(error.message)}`);
   }
 
   if (tokenHash && type) {
     const { error } = await supabase.auth.verifyOtp({ type, token_hash: tokenHash });
-    if (!error) return NextResponse.redirect(`${origin}${next}`);
+    if (!error) return NextResponse.redirect(`${origin}${destination}`);
     return NextResponse.redirect(`${origin}/login?error=${encodeURIComponent(error.message)}`);
   }
 
