@@ -96,7 +96,7 @@ select projectceo_api.review_source(
   '41111111-1111-4111-8111-111111111111',
   'revision-requirement-db4',
   'revision-requirement-db4',
-  51,
+  52,
   'confirmed',
   'db4-door-confirm'
 );
@@ -145,7 +145,7 @@ begin
     '41111111-1111-4111-8111-111111111111',
     'revision-requirement-db4',
     'revision-requirement-db4',
-    51,
+    52,
     'confirmed',
     'db4-door-confirm'
   );
@@ -171,7 +171,7 @@ begin
       '41111111-1111-4111-8111-111111111111',
       'revision-area-db4',
       'revision-area-db4',
-      52,
+      53,
       'confirmed',
       'db4-door-forbidden'
     );
@@ -213,7 +213,7 @@ begin
       '41111111-1111-4111-8111-111111111111',
       'revision-source-1',
       'revision-source-1',
-      52,
+      53,
       'rejected',
       'db4-door-already-decided'
     );
