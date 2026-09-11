@@ -11,6 +11,16 @@ import { bindMarketRoutingReceipt } from "@/lib/market/bind";
 
 export const dynamic = "force-dynamic";
 
+function responseWithSessionCookies(
+  source: NextResponse,
+  body: Record<string, string>,
+  status: number,
+) {
+  const response = NextResponse.json(body, { status });
+  source.cookies.getAll().forEach((cookie) => response.cookies.set(cookie));
+  return response;
+}
+
 // Регистрация выполняется request-bound Auth-клиентом. Service role не участвует
 // в человеческих операциях и настройки подтверждения email остаются в силе.
 export async function POST(request: NextRequest) {
@@ -79,7 +89,7 @@ export async function POST(request: NextRequest) {
       await bindMarketRoutingReceipt(supabase, rawReceipt!, receipt);
     } catch {
       await supabase.auth.signOut();
-      return NextResponse.json({ error: "market_routing_binding_failed" }, { status: 503 });
+      return responseWithSessionCookies(response, { error: "market_routing_binding_failed" }, 503);
     }
   }
 

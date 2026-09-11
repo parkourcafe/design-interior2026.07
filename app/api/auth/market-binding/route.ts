@@ -10,6 +10,16 @@ import { bindMarketRoutingReceipt } from "@/lib/market/bind";
 
 export const dynamic = "force-dynamic";
 
+function responseWithSessionCookies(
+  source: NextResponse,
+  body: Record<string, string>,
+  status: number,
+) {
+  const response = NextResponse.json(body, { status });
+  source.cookies.getAll().forEach((cookie) => response.cookies.set(cookie));
+  return response;
+}
+
 /** Binds a browser-created Auth session to its previously selected data cell. */
 export async function POST(request: NextRequest) {
   const rawReceipt = request.cookies.get(MARKET_ROUTING_COOKIE)?.value;
@@ -33,11 +43,12 @@ export async function POST(request: NextRequest) {
   }
 
   const { data, error } = await supabase.auth.getUser();
-  if (error || !data.user) return NextResponse.json({ error: "auth_required" }, { status: 401 });
+  if (error || !data.user) return responseWithSessionCookies(response, { error: "auth_required" }, 401);
   try {
     await bindMarketRoutingReceipt(supabase, rawReceipt!, receipt);
   } catch {
-    return NextResponse.json({ error: "market_routing_binding_failed" }, { status: 503 });
+    await supabase.auth.signOut();
+    return responseWithSessionCookies(response, { error: "market_routing_binding_failed" }, 503);
   }
   return response;
 }

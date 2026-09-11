@@ -77,7 +77,8 @@ export async function GET(request: NextRequest) {
       return response;
     } catch {
       await supabase.auth.signOut();
-      return NextResponse.redirect(`${origin}/login?error=market_routing_binding_failed`);
+      response.headers.set("location", `${origin}/login?error=market_routing_binding_failed`);
+      return response;
     }
   }
 
