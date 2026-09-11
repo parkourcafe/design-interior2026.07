@@ -205,8 +205,6 @@ begin
     ('projectceo_product_api.publish_project_baseline(uuid,jsonb,bigint,text)'),
     ('projectceo_product_api.publish_production_package_version(uuid,jsonb,bigint,text)'),
     ('projectceo_product_api.build_release_artifact(uuid,jsonb,bigint,text)'),
-    ('projectceo_product_api.distribute_release(uuid,text,uuid,bigint,text)'),
-    ('projectceo_product_api.acknowledge_release(uuid,uuid,text,bigint,text)'),
     ('projectceo_product_api.distribute_release_request_bound(uuid,text,uuid,bigint,text)'),
     ('projectceo_product_api.acknowledge_release_request_bound(uuid,uuid,text,bigint,text)'),
     ('projectceo_product_api.approve_no_change(uuid,text,text,text,bigint,text)'),
@@ -241,8 +239,13 @@ begin
   -- выпуском work package (20260911140000) и до 25 с root request-bound
   -- выпуском (20260911150000): перепись существует ровно
   -- затем, чтобы новая RPC в схеме не появлялась молча.
-  if v_count <> 25 then
+  if v_count <> 23 then
     raise exception 'DB4_UNEXPECTED_RPC_COUNT:%', v_count;
+  end if;
+
+  if to_regprocedure('projectceo_product_api.distribute_release(uuid,text,uuid,bigint,text)') is not null
+     or to_regprocedure('projectceo_product_api.acknowledge_release(uuid,uuid,text,bigint,text)') is not null then
+    raise exception 'DB4_LEGACY_M4_DOOR_STILL_EXISTS';
   end if;
 
   if has_function_privilege(

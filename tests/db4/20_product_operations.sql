@@ -957,9 +957,7 @@ select projectceo_product_api.acknowledge_release_request_bound(
 );
 commit;
 
--- Прежние двери выведены из строя (`20260825060000`): гранты среды на них
--- ещё существуют, но тело отвечает отказом при любых аргументах — «дверь
--- недостижима по существу, покрытие живо» на request-bound версиях выше.
+-- WP-35 физически удаляет legacy-двери; request-bound coverage живёт выше.
 begin;
 set local role authenticated;
 set local request.jwt.claim.sub =
@@ -977,7 +975,7 @@ begin
       'db4-legacy-distribute-probe'
     );
     raise exception 'DB4_LEGACY_DISTRIBUTE_ALIVE';
-  exception when sqlstate 'P1111' then v_refused := v_refused + 1;
+  exception when undefined_function then v_refused := v_refused + 1;
   end;
   begin
     perform projectceo_product_api.acknowledge_release(
@@ -988,7 +986,7 @@ begin
       'db4-legacy-ack-probe'
     );
     raise exception 'DB4_LEGACY_ACK_ALIVE';
-  exception when sqlstate 'P1111' then v_refused := v_refused + 1;
+  exception when undefined_function then v_refused := v_refused + 1;
   end;
   if v_refused <> 2 then
     raise exception 'DB4_LEGACY_DOORS_REFUSALS_EXPECTED_2_GOT_%', v_refused;

@@ -26,9 +26,7 @@ declare
   v_classified text[] := array[
     -- Инкремент 1 (открыт A6, закрыт по умолчанию до явного включения среды).
     'projectceo_product_api.distribute_release_request_bound(uuid, text, uuid, bigint, text)',
-    'projectceo_product_api.distribute_release(uuid, text, uuid, bigint, text)',
     'projectceo_product_api.acknowledge_release_request_bound(uuid, uuid, text, bigint, text)',
-    'projectceo_product_api.acknowledge_release(uuid, uuid, text, bigint, text)',
     'projectceo_m4_api.submit_change_request(uuid, uuid, text, text, text, text, bigint, integer, bigint, text)',
     'projectceo_m4_api.replay_submit_change_request(uuid, uuid, text, text, text, text, bigint, integer, text)',
     -- Инкремент 2 (не открыт ничем).
