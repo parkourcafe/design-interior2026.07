@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { createScopedServiceClient } from "@/lib/supabase/token-scoped";
+import { createRegionalPublicTokenClient } from "@/lib/supabase/regional-admin";
 import { getProjectByIntakeToken } from "@/lib/intake";
 import { runRiskPipeline } from "@/lib/brief/pipeline";
 import { checkRateLimit, clientIp } from "@/lib/rate-limit";
@@ -27,7 +27,7 @@ export async function POST(request: Request) {
   if (!project) return NextResponse.json({ error: "not_found" }, { status: 404 });
 
   const answers = body.answers ?? {};
-  const admin = createScopedServiceClient("intake-submit");
+  const admin = createRegionalPublicTokenClient(project.cellCode, "intake-submit");
 
   // 1. Сохранить сырые ответы (upsert по project_id + question_id).
   const answerRows = Object.entries(answers).map(([question_id, value]) => ({

@@ -5,11 +5,10 @@ import { useRouter } from "next/navigation";
 import { ru } from "@/lib/i18n/ru";
 import { safeProjectCeoLoginNext } from "@/lib/project-intelligence/delivery/projectceo/invitation-login";
 
-// Supabase-клиент (~70 КБ) грузим лениво — только когда пользователь реально
-// отправляет форму. Так стартовый бандл страницы входа остаётся лёгким.
-async function supabaseClient() {
-  const { createClient } = await import("@/lib/supabase/browser");
-  return createClient();
+// Клиент загружается только после явного выбора data cell.
+async function supabaseClient(market: "ru" | "international") {
+  const { createRegionalBrowserClient } = await import("@/lib/supabase/regional");
+  return createRegionalBrowserClient(market === "ru" ? "ru" : "us");
 }
 
 type Tab = "password" | "code";
@@ -81,11 +80,39 @@ export default function LoginPage() {
     router.refresh();
   }
 
+  const [market, setMarket] = useState<"ru" | "international" | "">("");
+
+  async function selectMarket(): Promise<"ru" | "international" | null> {
+    if (!market) {
+      setCallbackError(ru.auth.marketSelectionError);
+      return null;
+    }
+    const response = await fetch("/api/market/select", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ market }),
+    });
+    if (!response.ok) {
+      setCallbackError(ru.auth.marketSelectionError);
+      return null;
+    }
+    return market;
+  }
+
+  async function bindSelectedMarket(): Promise<boolean> {
+    const response = await fetch("/api/auth/market-binding", { method: "POST" });
+    if (response.ok) return true;
+    setCallbackError(ru.auth.marketSelectionError);
+    return false;
+  }
+
   // ── Вход через Google (OAuth) ──────────────────────────────
   async function google() {
     setCallbackError(null);
     try {
-      const supabase = await supabaseClient();
+      const selectedMarket = await selectMarket();
+      if (!selectedMarket) return;
+      const supabase = await supabaseClient(selectedMarket);
       const { error } = await supabase.auth.signInWithOAuth({
         provider: "google",
         // Возврат на текущий origin (не из env) — иначе Supabase не найдёт адрес
@@ -111,17 +138,26 @@ export default function LoginPage() {
     setPwError(null);
     setSignupConfirmationSent(false);
     try {
-      const supabase = await supabaseClient();
-
       if (signup) {
-        const { data, error } = await supabase.auth.signUp({
-          email,
-          password,
-          options: { emailRedirectTo: authCallbackUrl() },
+        const selectedMarket = await selectMarket();
+        if (!selectedMarket) {
+          setPwBusy(false);
+          return setPwError(ru.auth.marketSelectionError);
+        }
+        const registerResponse = await fetch("/api/auth/register", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ email, password }),
         });
+        const result = await registerResponse.json().catch(() => ({})) as {
+          error?: unknown;
+          requiresConfirmation?: unknown;
+        };
         setPwBusy(false);
-        if (error) return setPwError(passwordErrorMessage(error));
-        if (!data.session) {
+        if (!registerResponse.ok) {
+          return setPwError(typeof result.error === "string" ? result.error : ru.auth.genericError);
+        }
+        if (result.requiresConfirmation !== false) {
           setSignupConfirmationSent(true);
           return;
         }
@@ -129,9 +165,16 @@ export default function LoginPage() {
         return;
       }
 
+      const selectedMarket = await selectMarket();
+      if (!selectedMarket) {
+        setPwBusy(false);
+        return setPwError(ru.auth.marketSelectionError);
+      }
+      const supabase = await supabaseClient(selectedMarket);
       const { error } = await supabase.auth.signInWithPassword({ email, password });
       setPwBusy(false);
       if (error) return setPwError(passwordErrorMessage(error));
+      if (!(await bindSelectedMarket())) return;
       goToAuthenticatedDestination();
     } catch (error) {
       setPwBusy(false);
@@ -147,7 +190,9 @@ export default function LoginPage() {
     }
     setPwBusy(true);
     try {
-      const supabase = await supabaseClient();
+      const selectedMarket = await selectMarket();
+      if (!selectedMarket) return;
+      const supabase = await supabaseClient(selectedMarket);
       const { error } = await supabase.auth.resetPasswordForEmail(email.trim(), {
         redirectTo: authCallbackUrl("/auth/reset-password"),
       });
@@ -174,7 +219,13 @@ export default function LoginPage() {
     e.preventDefault();
     setOtp("sending");
     try {
-      const supabase = await supabaseClient();
+      const selectedMarket = await selectMarket();
+      if (!selectedMarket) {
+        setOtp("error");
+        setOtpDetail(ru.auth.marketSelectionError);
+        return;
+      }
+      const supabase = await supabaseClient(selectedMarket);
       const { error } = await supabase.auth.signInWithOtp({
         email,
         options: { emailRedirectTo: authCallbackUrl() },
@@ -192,10 +243,16 @@ export default function LoginPage() {
     setVerifying(true);
     setCodeError(null);
     try {
-      const supabase = await supabaseClient();
+      const selectedMarket = await selectMarket();
+      if (!selectedMarket) {
+        setVerifying(false);
+        return setCodeError(ru.auth.marketSelectionError);
+      }
+      const supabase = await supabaseClient(selectedMarket);
       const { error } = await supabase.auth.verifyOtp({ email, token: code.trim(), type: "email" });
       setVerifying(false);
       if (error) return setCodeError(error.message);
+      if (!(await bindSelectedMarket())) return;
       goToAuthenticatedDestination();
     } catch {
       setVerifying(false);
@@ -216,10 +273,25 @@ export default function LoginPage() {
         </p>
       )}
 
+      <label className="label mt-5" htmlFor="market">
+        {ru.auth.marketLabel}
+        <select
+          id="market"
+          value={market}
+          onChange={(event) => setMarket(event.target.value as "ru" | "international" | "")}
+          className="input mt-1"
+        >
+          <option value="" disabled>{ru.auth.marketPlaceholder}</option>
+          <option value="ru">{ru.auth.marketRu}</option>
+          <option value="international">{ru.auth.marketInternational}</option>
+        </select>
+        <span className="mt-1 block text-xs font-normal text-muted">{ru.auth.marketHint}</span>
+      </label>
+
       {/* Способы входа — всегда сверху, кроме экрана ввода кода. */}
       {!inCodeEntry && (
         <div className="mt-6 space-y-4">
-          {showGoogle && (
+          {showGoogle && !signup && (
             <>
               <button
                 type="button"

@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { createScopedServiceClient } from "@/lib/supabase/token-scoped";
+import { createRegionalPublicTokenClient } from "@/lib/supabase/regional-admin";
 import { getProjectByIntakeToken } from "@/lib/intake";
 
 export const dynamic = "force-dynamic";
@@ -16,7 +16,7 @@ export async function POST(request: Request) {
   if (!project) return NextResponse.json({ error: "not_found" }, { status: 404 });
   if (!(file instanceof File)) return NextResponse.json({ error: "no_file" }, { status: 400 });
 
-  const admin = createScopedServiceClient("intake-upload");
+  const admin = createRegionalPublicTokenClient(project.cellCode, "intake-upload");
   const path = `${project.id}/${Date.now()}-${file.name}`;
   const { error: uploadError } = await admin.storage
     .from("client-uploads")

@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
-import { createScopedServiceClient } from "@/lib/supabase/token-scoped";
+import { parseIntakeLinkToken } from "@/lib/intake";
+import { createRegionalPublicTokenClient } from "@/lib/supabase/regional-admin";
 import { ru } from "@/lib/i18n/ru";
 import type { Passport } from "@/lib/types";
 import PassportView from "@/components/passport-view";
@@ -16,11 +17,13 @@ export const metadata: Metadata = { robots: { index: false, follow: false } };
 // (заявку клиента), без карточек рисков — это инструмент дизайнера.
 export default async function BriefSharePage({ params }: { params: Promise<{ token: string }> }) {
   const { token } = await params;
-  const admin = createScopedServiceClient("public-brief");
+  const routed = parseIntakeLinkToken(token);
+  if (!routed) notFound();
+  const admin = createRegionalPublicTokenClient(routed.cellCode, "public-brief");
   const { data: project } = await admin
     .from("projects")
     .select("client_name, passport")
-    .eq("intake_token", token)
+    .eq("intake_token", routed.token)
     .maybeSingle();
 
   if (!project) notFound();
