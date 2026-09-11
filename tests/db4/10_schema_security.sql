@@ -5,7 +5,6 @@ declare
   v_missing text;
   v_problem text;
   v_count bigint;
-  v_public_functions text;
 begin
   select expected.name into v_missing
   from (values
@@ -243,15 +242,7 @@ begin
   -- выпуском (20260911150000): перепись существует ровно
   -- затем, чтобы новая RPC в схеме не появлялась молча.
   if v_count <> 25 then
-    select string_agg(
-      format('%I(%s)', p.proname, pg_get_function_identity_arguments(p.oid)),
-      ', ' order by p.proname, pg_get_function_identity_arguments(p.oid)
-    ) into v_public_functions
-    from pg_proc p
-    join pg_namespace n on n.oid = p.pronamespace
-    where n.nspname = 'projectceo_product_api'
-      and p.prokind = 'f';
-    raise exception 'DB4_UNEXPECTED_RPC_COUNT:%:%', v_count, v_public_functions;
+    raise exception 'DB4_UNEXPECTED_RPC_COUNT:%', v_count;
   end if;
 
   if has_function_privilege(

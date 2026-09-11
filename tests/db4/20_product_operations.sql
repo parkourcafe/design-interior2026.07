@@ -505,12 +505,17 @@ select set_config(
   :'db4_state_revision',
   false
 );
+select set_config(
+  'projectceo.db4_graph_version_id',
+  :'db4_graph_version_id',
+  false
+);
 do $unapproved_baseline_rejected$
 begin
   begin
     perform projectceo_product_api.publish_baseline_atomic(
       '41111111-1111-4111-8111-111111111111',
-      :'db4_graph_version_id',
+      current_setting('projectceo.db4_graph_version_id'),
       null,
       current_setting('projectceo.db4_state_revision')::bigint,
       'db4-baseline-before-review',
