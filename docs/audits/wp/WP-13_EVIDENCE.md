@@ -1,7 +1,9 @@
 # WP-13 — Production-adoption operator script — EVIDENCE
 
-Дата: 2026-09-11. Ветка: `wp/wp-13-adopt-production-script`. Implementation
-HEAD: `f72e2cf`. Exact PR HEAD будет указан в PR после push; PR: `PENDING`.
+Дата: 2026-09-11. Ветка: `wp/wp-13-adopt-production-script`. PR HEAD:
+`0e8924ebfe17ca074cd7b7f952a472a081574b1c`. PR: #151.
+
+Статус: `BLOCKED_SECURITY_DESIGN`.
 
 ## Основание
 
@@ -57,10 +59,35 @@ fresh snapshot assertion он в отдельной транзакции доб�
 `AP1_ADOPTION_VERIFY_DB_OK` и завершился `AP1_ADOPTION_COMPLETE
 modules_opened=false deployment_performed=false`.
 
+[ИНТЕРПРЕТИРОВАНО] Эти проверки подтверждают только локальную исполнимость
+текущего кода. Они не доказывают, что Approval B, allowlist target или snapshot
+безопасно и проверяемо привязаны к shared DB.
+
 ## CI
 
-[ИНТЕРПРЕТИРОВАНО] CI запускается после push на точном HEAD. До этого файла
-нет CI receipt; локальный результат не заменяет CI.
+[ИЗВЛЕЧЕНО] На `0e8924ebfe17ca074cd7b7f952a472a081574b1c` CI run
+`34564069559`: change scope, gates, DB4 (PG16/17), DB5 (PG16/17) и cycle 7
+completed `SUCCESS`; AP5 оставался `IN_PROGRESS` на момент фиксации этого
+receipt. Claude review run `34564069633` completed `SUCCESS`.
+
+[ИНТЕРПРЕТИРОВАНО] Зелёные или ожидающие CI jobs не снимают блокер security
+design ниже и не являются разрешением merge или какого-либо target execution.
+
+## Independent review
+
+[ИЗВЛЕЧЕНО] Независимый review на
+`0e8924ebfe17ca074cd7b7f952a472a081574b1c` дал вердикт `BLOCKER`:
+
+1. `AP1_APPROVAL_RECORD` проверяется как произвольный текст с префиксом
+   `Approval B:`, без проверяемой привязки к decision artifact.
+2. Однострочный allowlist file предоставляется вызывающим; в режиме `prod`
+   это не доказывает привязку выбранного target к безопасному endpoint и может
+   направить запуск на shared DB.
+3. Snapshot counts передаются вызывающим и не связаны с immutable snapshot
+   hash/time или классификацией drift.
+
+[ИНТЕРПРЕТИРОВАНО] Это security-design проблема. Её нельзя устранять заменой
+локальных проверок, дополнительным тестом или ослаблением refusal paths.
 
 ## Не сделано / owner gate
 
@@ -68,8 +95,12 @@ modules_opened=false deployment_performed=false`.
 Approval B, target allowlist file, clone rehearsal на восстановленном backup,
 shared DB, deployment и merge не выполнялись.
 
-[ИНТЕРПРЕТИРОВАНО] Скрипт намеренно требует идентификатор Approval B и
-однострочный allowlist-ref; без них он не открывает target connection.
+[ИЗВЛЕЧЕНО] Текущий пакет не должен быть merged, пока владелец не выберет
+одно из условий, сформулированных в блокере ниже.
+
+## Exact blocker
+
+`Owner-approved, verifiable approval artifact bound to target endpoint fingerprint, immutable git SHA/ledger hash, fresh snapshot hash/time and drift classification, or scope reduction to clone-only.`
 
 ## Безопасность
 
