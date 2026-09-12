@@ -342,6 +342,12 @@ describe("Layout Studio delivery/UI slice", () => {
       // R1 foundation: immutable external asset and representation identities.
       // This belongs to the ArchiDom R1 chain, not Layout Studio itself.
       "20260912090630_r1_asset_identity_versions.sql",
+      // R1 object/revision/representation bindings are a private Foundation
+      // contract and intentionally do not change Layout Studio's schema.
+      "20260912094000_r1_object_representation_bindings.sql",
+      // R1 technical references bind a DWG source to its exact preview
+      // representation; Layout Studio remains unchanged.
+      "20260912094500_r1_technical_reference_preview_binding.sql",
       // R1 private attestation trigger ACL correction; no Layout Studio changes.
       "20260912143217_r1_attestation_pair_private_acl.sql",
       // R1 asset event actor attribution; no Layout Studio changes.
