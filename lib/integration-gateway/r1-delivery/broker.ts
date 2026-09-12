@@ -41,7 +41,7 @@ export interface R1DeliveryScope {
 export interface R1DeliveryStreamRequest {
   readonly scope: R1DeliveryScope;
   readonly start: number;
-  /** `undefined` means through the immutable representation's final byte. */
+  /** `undefined` or a valid end beyond EOF means through the final byte. */
   readonly endExclusive?: number;
   /** The dedicated HTTP broker supplies its request-abort signal here. */
   readonly signal?: AbortSignal;
@@ -59,6 +59,8 @@ export interface R1DeliveryChunk {
 }
 
 interface R1DeliveryStorageDescriptor {
+  /** Exact canonical scope derived by request-bound server authorization. */
+  readonly effectiveScope: R1DeliveryScope;
   readonly bucket: "client-uploads";
   readonly privateStorageLocator: string;
   readonly storageGeneration: string;
@@ -72,6 +74,7 @@ interface R1DeliveryStorageDescriptor {
  * Implemented by the private data plane only. Each invocation must call a
  * request-bound server authorization that derives actor, organization,
  * project, package and the exact immutable asset/representation pair.
+ * Return the canonical authorized selectors as the descriptor's effectiveScope.
  */
 export interface R1DeliveryAuthorizer {
   authorize(
@@ -86,8 +89,9 @@ export interface R1DeliveryRevocationWatch {
 }
 
 /**
- * The dedicated broker subscribes once per stream to its private revocation
- * channel. A polling implementation is insufficient: an already open stream
+ * The dedicated broker subscribes once per stream, after initial authorization,
+ * using the returned effective scope. A polling implementation is insufficient:
+ * an already open stream
  * must stop before it emits a later bounded chunk.
  */
 export interface R1DeliveryRevocationWatcher {
@@ -146,6 +150,11 @@ function assertR1DeliveryScope(scope: R1DeliveryScope): void {
 }
 
 function assertDescriptor(value: R1DeliveryStorageDescriptor): void {
+  try {
+    assertR1DeliveryScope(value.effectiveScope);
+  } catch {
+    throw new R1DeliveryBrokerError("internal_error");
+  }
   if (
     value.bucket !== "client-uploads"
     || typeof value.privateStorageLocator !== "string"
@@ -317,7 +326,8 @@ export class R1PrivateDeliveryBroker {
   ) {}
 
   async *stream(input: R1DeliveryStreamRequest): AsyncGenerator<R1DeliveryChunk> {
-    assertR1DeliveryScope(input.scope);
+    const requestedScope = { ...input.scope };
+    assertR1DeliveryScope(requestedScope);
     if (!Number.isSafeInteger(input.start) || input.start < 0) {
       throw new R1DeliveryBrokerError("validation_failed");
     }
@@ -329,12 +339,36 @@ export class R1PrivateDeliveryBroker {
     }
 
     let cursor = input.start;
-    let expectedTotalBytes: number | undefined;
-    let expectedSha256: string | undefined;
-    let expectedStorageLocator: string | undefined;
-    let expectedStorageGeneration: string | undefined;
-    let requestedEndExclusive = input.endExclusive;
-    const revocationWatch = openRevocationWatch(this.revocations, input.scope);
+    const requestedEnd = input.endExclusive;
+    assertNotAborted(input.signal);
+    const initialDeadline = new R1DeliveryChunkDeadline([input.signal]);
+    let expected: R1DeliveryStorageDescriptor;
+    try {
+      const descriptor = await authorizeChunk({
+        authorizer: this.authorizer,
+        scope: { ...requestedScope },
+        deadline: initialDeadline,
+      });
+      assertDescriptor(descriptor);
+      initialDeadline.assertCurrent();
+      if (
+        descriptor.effectiveScope.projectId.toLowerCase() !== requestedScope.projectId.toLowerCase()
+        || descriptor.effectiveScope.packageId.toLowerCase() !== requestedScope.packageId.toLowerCase()
+        || descriptor.effectiveScope.assetVersionId.toLowerCase() !== requestedScope.assetVersionId.toLowerCase()
+        || descriptor.effectiveScope.representationVersionId.toLowerCase() !== requestedScope.representationVersionId.toLowerCase()
+      ) {
+        throw new R1DeliveryBrokerError("internal_error");
+      }
+      expected = { ...descriptor, effectiveScope: { ...descriptor.effectiveScope } };
+    } finally {
+      initialDeadline.close();
+    }
+    if (cursor >= expected.totalBytes) {
+      throw new R1DeliveryBrokerError("validation_failed");
+    }
+    const requestedEndExclusive = Math.min(requestedEnd ?? expected.totalBytes, expected.totalBytes);
+    assertNotAborted(input.signal);
+    const revocationWatch = openRevocationWatch(this.revocations, { ...expected.effectiveScope });
 
     try {
       while (true) {
@@ -345,33 +379,25 @@ export class R1PrivateDeliveryBroker {
         try {
           const descriptor = await authorizeChunk({
             authorizer: this.authorizer,
-            scope: input.scope,
+            // Recheck after subscribing so a revoke before the watch opened
+            // cannot be missed before the first storage read.
+            scope: { ...expected.effectiveScope },
             deadline,
           });
           assertDescriptor(descriptor);
           deadline.assertCurrent();
           if (
-            (expectedTotalBytes !== undefined && descriptor.totalBytes !== expectedTotalBytes)
-            || (expectedSha256 !== undefined && descriptor.sha256 !== expectedSha256)
-            || (expectedStorageLocator !== undefined && descriptor.privateStorageLocator !== expectedStorageLocator)
-            || (expectedStorageGeneration !== undefined && descriptor.storageGeneration !== expectedStorageGeneration)
+            descriptor.totalBytes !== expected.totalBytes
+            || descriptor.sha256 !== expected.sha256
+            || descriptor.privateStorageLocator !== expected.privateStorageLocator
+            || descriptor.storageGeneration !== expected.storageGeneration
+            || descriptor.effectiveScope.projectId !== expected.effectiveScope.projectId
+            || descriptor.effectiveScope.packageId !== expected.effectiveScope.packageId
+            || descriptor.effectiveScope.assetVersionId !== expected.effectiveScope.assetVersionId
+            || descriptor.effectiveScope.representationVersionId !== expected.effectiveScope.representationVersionId
           ) {
             throw new R1DeliveryBrokerError("internal_error");
           }
-          expectedTotalBytes = descriptor.totalBytes;
-          expectedSha256 = descriptor.sha256;
-          expectedStorageLocator = descriptor.privateStorageLocator;
-          expectedStorageGeneration = descriptor.storageGeneration;
-          if (cursor >= descriptor.totalBytes) {
-            if (cursor === descriptor.totalBytes) return;
-            throw new R1DeliveryBrokerError("validation_failed");
-          }
-          if (requestedEndExclusive === undefined) requestedEndExclusive = descriptor.totalBytes;
-          if (requestedEndExclusive > descriptor.totalBytes) {
-            throw new R1DeliveryBrokerError("validation_failed");
-          }
-          if (cursor >= requestedEndExclusive) return;
-
           const endExclusive = Math.min(rangeEndExclusive({
             start: cursor,
             totalBytes: descriptor.totalBytes,
