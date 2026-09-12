@@ -1,19 +1,35 @@
 # HANDOFF — RemHaOS (для продолжения в новой сессии)
 
 ## Что это за продукт
-RemHaOS — MVP pre-sale инструмента для интерьерных дизайнеров: **Бриф → Цена → КП (коммерческое предложение)**.
-Клиент проходит поведенческий (JTBD) бриф по ссылке без регистрации → система строит машиночитаемый «паспорт» проекта + карточки рисков → дизайнер на Review Board принимает/отклоняет риски и собирает КП.
-Два равноправных входа: **дизайнер** (кабинет за логином) и **клиент** (публичный бриф). Есть и самостоятельный бриф клиента → шаринг-ссылка `/b/[token]` (это НЕ маркетплейс).
+RemHaOS — единый интерьерный проект с четырьмя ролевыми рабочими пространствами:
+
+1. **M1 · Заказчик** — Contracted Project Passport.
+2. **M2 · Дизайнер** — Approved Design Intent + Approved Selections.
+3. **M3 · Архитектор** — Released Production Package.
+4. **M4 · ГлавПрораб** — As-built & Warranty Archive.
+
+Пространства используют общие Organization, Project и package contracts;
+это не четыре независимых приложения. Сценарий **Бриф → Цена → КП** —
+существующая pre-sale поверхность M1, а не граница всего продукта.
+В ней клиент проходит бриф по ссылке, а дизайнер проверяет риски и готовит КП.
+Самостоятельный бриф `/b/[token]` также относится к этой поверхности.
 Язык интерфейса — русский, валюта — рубль.
+
+Актуальные основания: `docs/canonical/remhaos-v1/REMHAOS_CHARTER_v0.5_CANONICAL.md`,
+`docs/canonical/remhaos-v1/REMHAOS_DECISION_LOG_v1.md` и утверждённое владельцем
+MASTER ТЗ текущего запуска. Состояние конкретных пакетов проверять по их
+текущим commit/PR и evidence; merge и локальные проверки не доказывают production.
 
 ## Владелец / стиль общения
 Основатель — нетехническая, предпочитает **короткие ответы и голосовой ввод**. Объяснять простыми словами, по шагам. Все внешние настройки (Supabase/Resend/DNS) вести пошагово.
 
 ## Стек
-- Next.js 14 App Router, TypeScript strict, Tailwind CSS, Vitest (54 теста).
+- Next.js App Router, TypeScript strict, Tailwind CSS, Vitest; точные версии —
+  в `package.json` и `package-lock.json` текущего checkout.
 - Supabase: Postgres + RLS + Auth (magic link + 6-значный код) + Storage (`client-uploads`).
 - LLM за интерфейсом `lib/llm/provider.ts` → `completeJSON(prompt, schema)` (Zod safeParse + один repair-retry + деградация к rule-карточкам).
-  **Провайдер продукта — z.ai / Zhipu GLM (`glm-4.6`)** — это осознанное ОТСТУПЛЕНИЕ от guardrail CLAUDE.md («без китайских API»), одобрено владельцем. env: `LLM_PROVIDER=zai`, `ZAI_API_KEY`, `ZAI_BASE_URL=https://api.z.ai/api/paas/v4`.
+  Допустимый провайдер определяется действующим контрактом и журналом решений;
+  этот handoff не разрешает смену провайдера или платные вызовы.
 - Деплой: Vercel; production branch — `release`. Изменять её или делать
   production deploy может только владелец в отдельном контролируемом gate.
 
@@ -29,12 +45,13 @@ RemHaOS — MVP pre-sale инструмента для интерьерных д
   **Remhaos+ Pet ID**. Его legacy-линия миграций не совпадает с репозиторным
   clean bootstrap; применение миграций возможно только отдельным adoption gate.
 
-## Ограничения среды разработки (важно)
+## Исторические ограничения прошлой среды (перепроверить перед применением)
 - Песочница **блокирует весь исходящий HTTP** (curl/WebFetch/внешние CDN → 403). Поэтому: нельзя увидеть отрендеренный прод-сайт, нельзя скачать внешние медиа (CloudFront), Google Fonts при локальном тесте не грузятся.
 - Локально тестировать можно так: `npm run build` + `npm start` + Playwright-core через `/opt/pw-browsers/chromium_headless_shell-1194/chrome-linux/headless_shell`, отсекая внешние хосты в `page.route`. (playwright-core ставить временно и удалять из package.json перед коммитом.)
 
-## Что уже сделано (последняя большая волна)
-Аудит сайта — все пункты закрыты и запушены:
+## Исторический отчёт о pre-sale поверхности
+Ниже сохранён отчёт прежней сессии. Это не текущая приёмка M1–M4 и не
+подтверждение состояния production; результаты сверять с актуальным кодом и CI:
 1. Файлы клиента (план/фото) и голосовые комментарии к вопросам теперь **видны дизайнеру** на странице проекта (подписанные ссылки из Storage).
 2. Бюджетный уровень считается по **середине** вилки (был верх → «съедал» budget-риск).
 3. Пустой экран брифа при восстановлении черновика — защищён (clamp шага).
@@ -46,12 +63,14 @@ RemHaOS — MVP pre-sale инструмента для интерьерных д
 9. **Логин облегчён 157→92 КБ**: Supabase-клиент грузится лениво (`await import`) при отправке формы (`app/login/page.tsx`).
 10. **Медиа лендинга оптимизированы**: 3 картинки → `next/image` (fill+sizes, webp/avif, lazy, фикс сдвигов); `remotePatterns` для CDN в `next.config.mjs`; `preconnect` в `app/layout.tsx`. Базовый URL медиа вынесен в `NEXT_PUBLIC_MEDIA_BASE` (по умолчанию CDN). Скрипт `npm run fetch:media` (`scripts/fetch-landing-media.mjs`) качает медиа в `public/landing` для самостоятельного хостинга — запускать ЛОКАЛЬНО (в песочнице CDN заблокирован).
 
-Метрики (прод, локально, свой код): FCP < 120 мс, вес страниц 92–176 КБ, overflow 0, pageErrors 0.
+Исторически были заявлены FCP < 120 мс, вес страниц 92–176 КБ, overflow 0,
+pageErrors 0. Текущий checkout и production этими числами не подтверждены.
 
-## Что осталось (на завтра, операционка на стороне владельца)
-1. **Часть А — код в письме.** В Supabase → Authentication → Emails → Templates → шаблоны **Magic Link** и **Confirm signup** вставить HTML с `{{ .Token }}` (6-значный код) и `{{ .ConfirmationURL }}` (ссылка). Готовый HTML — в переписке. 2 минуты. Логин уже умеет вход по коду (`verifyOtp({email, token, type:'email'})`).
-2. **Часть Б — SMTP (Resend).** Встроенная почта Supabase лимитирована. Настроить кастомный SMTP: Resend → верифицировать домен (DNS SPF/DKIM) → API key → в Supabase Project Settings → Authentication → SMTP Settings: host `smtp.resend.com`, port `465`, user `resend`, password = ключ `re_…`, sender `noreply@домен`.
-   **ОТКРЫТЫЙ ВОПРОС к владельцу: есть ли свой домен для почты?** Если нет — SMTP отложить (для демо хватает встроенной), домен+Resend позже.
+## Почта и внешние настройки
+Текущую готовность шаблонов проверять по `supabase/email-templates/README.md`:
+сохранённые HTML содержат прежний бренд и пока не готовы к установке в production.
+Изменения production Auth/SMTP, DNS, credentials и платных ресурсов требуют
+отдельного owner gate непосредственно перед действием.
 
 ## Ключевые файлы
 - Бриф (источник истины вопросов): `lib/brief/questions.ts` (поле `tier: 'quick'`); паспорт: `lib/brief/passport.ts` (`buildPassport`, покрыт тестами).
