@@ -1,7 +1,8 @@
 import { spawn } from "node:child_process";
 import { createHash } from "node:crypto";
-import { createReadStream } from "node:fs";
-import { lstat, mkdtemp, open, rm } from "node:fs/promises";
+import { constants, createReadStream } from "node:fs";
+import type { BigIntStats } from "node:fs";
+import { chmod, lstat, mkdir, mkdtemp, open, realpath, rm } from "node:fs/promises";
 import { isAbsolute, join } from "node:path";
 import { Readable } from "node:stream";
 import { pipeline } from "node:stream/promises";
@@ -31,6 +32,7 @@ export interface ClamAvProcessResult {
 
 const maxOutputBytes = 65_536;
 const chunkBytes = 65_536;
+const maxExecutableBytes = 100_000_000n;
 const maxSignatureAgeSeconds = 86_400;
 const failure = (timedOut = false, reason = "scan_incomplete"): ClamAvProcessResult => ({ exitCode: null, timedOut, reason });
 
@@ -38,6 +40,12 @@ async function digestFile(path: string, signal: AbortSignal): Promise<string> {
   const hash = createHash('sha256');
   for await (const chunk of createReadStream(path, { signal })) hash.update(chunk);
   return hash.digest('hex');
+}
+
+function sameFile(left: BigIntStats, right: BigIntStats): boolean {
+  return left.isFile() && right.isFile() && left.dev === right.dev && left.ino === right.ino
+    && left.size === right.size && left.mode === right.mode && left.nlink === right.nlink
+    && left.mtimeNs === right.mtimeNs && left.ctimeNs === right.ctimeNs;
 }
 
 /** Local process adapter. Production must additionally supply the OS sandbox
@@ -52,7 +60,7 @@ export function createClamAvProcessRunner(config: ClamAvProcessConfig): R1ClamAv
         || !/^[a-f0-9]{64}$/.test(config.executableSha256)
         || !Number.isSafeInteger(input.timeoutMs) || input.timeoutMs < 1 || input.timeoutMs > 300_000
         || !Number.isSafeInteger(input.byteLength) || input.byteLength < 1 || input.byteLength > 100_000_000
-        || !/^[a-f0-9]{64}$/.test(input.checksumHex) || process.platform === 'win32') return failure();
+        || !/^[a-f0-9]{64}$/.test(input.checksumHex) || !['darwin', 'linux'].includes(process.platform)) return failure();
 
       const controller = new AbortController();
       let timedOut = false;
@@ -61,11 +69,49 @@ export function createClamAvProcessRunner(config: ClamAvProcessConfig): R1ClamAv
       if (outerSignal.aborted) abort();
       const timer = setTimeout(() => { timedOut = true; abort(); }, input.timeoutMs);
       let scratch: string | undefined;
+      let executableDirectory: string | undefined;
       let phase = "verify_executable";
       try {
         const { signal } = controller;
         signal.throwIfAborted();
-        if (await digestFile(config.executable, signal) !== config.executableSha256) return failure(false, phase);
+        // The package-manager path may be replaced after verification. Copy
+        // through one descriptor, then verify and execute only our private copy.
+        // Worker UID/root and runtime libraries remain trusted (MASTER 5.3).
+        scratch = await mkdtemp(join(config.scratchDirectory, 'r1-av-'));
+        executableDirectory = join(scratch, 'runtime');
+        await mkdir(executableDirectory, { mode: 0o700 });
+        const executablePath = join(executableDirectory, 'clamscan');
+        const installedPath = await realpath(config.executable);
+        const installed = await open(installedPath, constants.O_RDONLY | constants.O_NOFOLLOW);
+        let installedStat: BigIntStats;
+        try {
+          installedStat = await installed.stat({ bigint: true });
+          if (!installedStat.isFile() || installedStat.nlink !== 1n || !(installedStat.mode & 0o111n)
+            || installedStat.size < 1n || installedStat.size > maxExecutableBytes) return failure(false, phase);
+          const snapshot = await open(executablePath, 'wx', 0o600);
+          try {
+            let offset = 0;
+            const size = Number(installedStat.size);
+            while (offset < size) {
+              signal.throwIfAborted();
+              const buffer = Buffer.alloc(Math.min(chunkBytes, size - offset));
+              const { bytesRead } = await installed.read(buffer, 0, buffer.length, offset);
+              if (!bytesRead) return failure(false, phase);
+              await snapshot.writeFile(buffer.subarray(0, bytesRead));
+              offset += bytesRead;
+            }
+          } finally { await snapshot.close(); }
+          if (!sameFile(installedStat, await installed.stat({ bigint: true }))) return failure(false, phase);
+        } finally { await installed.close(); }
+        if (await digestFile(executablePath, signal) !== config.executableSha256) return failure(false, phase);
+        await chmod(executablePath, 0o500);
+        await chmod(executableDirectory, 0o500);
+        const executableStat = await lstat(executablePath, { bigint: true });
+        const executableUnchanged = async () => (
+          await realpath(config.executable) === installedPath
+          && sameFile(installedStat, await lstat(installedPath, { bigint: true }))
+          && sameFile(executableStat, await lstat(executablePath, { bigint: true }))
+        );
         phase = "verify_input";
         const initial = await input.file.stat({ bigint: true });
         if (!initial.isFile() || initial.size !== BigInt(input.byteLength) || initial.nlink !== 1n) return failure(false, phase);
@@ -92,8 +138,6 @@ export function createClamAvProcessRunner(config: ClamAvProcessConfig): R1ClamAv
         } finally { await daily.close(); }
 
         signal.throwIfAborted();
-        phase = "create_scratch";
-        scratch = await mkdtemp(join(config.scratchDirectory, 'r1-av-'));
         const args = [
           ...databasePaths.map(path => `--database=${path}`),
           // Freshness is checked on daily.cvd above. With separate -d files,
@@ -104,8 +148,10 @@ export function createClamAvProcessRunner(config: ClamAvProcessConfig): R1ClamAv
           '--max-recursion=2', '--max-scantime=0', '--follow-file-symlinks=0', '--follow-dir-symlinks=0',
           `--tempdir=${scratch}`, '-',
         ];
+        if (!await executableUnchanged()) return failure(false, 'executable_changed');
+        signal.throwIfAborted();
         phase = "execute_scanner";
-        const child = spawn(config.executable, args, {
+        const child = spawn(executablePath, args, {
           shell: false, detached: true, cwd: scratch,
           env: { NODE_ENV: 'production', LANG: 'C', LC_ALL: 'C', TMPDIR: scratch },
           stdio: ['pipe', 'pipe', 'pipe'],
@@ -157,6 +203,7 @@ export function createClamAvProcessRunner(config: ClamAvProcessConfig): R1ClamAv
         try { [exitCode] = await Promise.all([closed, feeding]); }
         finally { signal.removeEventListener('abort', kill); }
         if (signal.aborted || overflow || streamFailed || bytes !== input.byteLength) return failure(timedOut || outerSignal.aborted);
+        if (!await executableUnchanged()) return failure(false, 'executable_changed');
         const sourceSha256 = hash.digest('hex');
         if (sourceSha256 !== input.checksumHex) return failure(false, phase);
         const final = await input.file.stat({ bigint: true });
@@ -181,7 +228,10 @@ export function createClamAvProcessRunner(config: ClamAvProcessConfig): R1ClamAv
         clearTimeout(timer);
         outerSignal.removeEventListener('abort', abort);
         if (scratch) {
-          try { await rm(scratch, { recursive: true, force: true }); }
+          try {
+            if (executableDirectory) await chmod(executableDirectory, 0o700);
+            await rm(scratch, { recursive: true, force: true });
+          }
           catch { return failure(timedOut || outerSignal.aborted, 'cleanup_failed'); }
         }
       }

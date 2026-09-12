@@ -1,8 +1,10 @@
 import { createHash } from 'node:crypto';
-import { chmod, mkdtemp, open, readFile, rm, writeFile } from 'node:fs/promises';
+import { existsSync, lstatSync, renameSync } from 'node:fs';
+import { chmod, mkdtemp, open, readFile, rename, rm, symlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { dirname, join } from 'node:path';
 import * as fsPromises from 'node:fs/promises';
+import * as childProcess from 'node:child_process';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { createClamAvProcessRunner } from './clamav-process';
@@ -11,6 +13,10 @@ import { scanWithR1ClamAv } from './clamav-adapter';
 vi.mock('node:fs/promises', async (importOriginal) => {
   const original = await importOriginal<typeof import('node:fs/promises')>();
   return { ...original, rm: vi.fn(original.rm) };
+});
+vi.mock('node:child_process', async (importOriginal) => {
+  const original = await importOriginal<typeof import('node:child_process')>();
+  return { ...original, spawn: vi.fn(original.spawn) };
 });
 
 const roots: string[] = [];
@@ -77,6 +83,64 @@ describe('local ClamAV process boundary', () => {
     expect(await scanWithR1ClamAv(runner, { ...input, checksumHex: '0'.repeat(64) })).toBe('scan_failed');
     await writeFile(config.executable, '#!/bin/false\n');
     expect(await scanWithR1ClamAv(runner, input)).toBe('scan_failed');
+  });
+
+  it.each(['atomic replacement', 'in-place write', 'package symlink update'])(
+    'rejects executable %s after verification without running substituted bytes', async (change) => {
+      const { root, input, config } = await fixture(`process.stdin.resume(); process.stdin.on('end', () => console.log(${JSON.stringify(summary)}));`);
+      const marker = join(root, 'unverified-executable-ran');
+      const replacement = join(root, 'replacement-engine');
+      const malicious = `#!${process.execPath}\nrequire('node:fs').writeFileSync(${JSON.stringify(marker)}, 'ran'); process.stdin.resume(); process.stdin.on('end', () => console.log(${JSON.stringify(summary)}));\n`;
+      await writeFile(replacement, malicious, { mode: 0o700 });
+      const executable = change === 'package symlink update' ? join(root, 'package-engine') : config.executable;
+      if (change === 'package symlink update') await symlink(config.executable, executable);
+      const runner = createClamAvProcessRunner({ ...config, executable });
+      const original = input.file.stat.bind(input.file);
+      vi.spyOn(input.file, 'stat').mockImplementationOnce(async () => {
+        if (change === 'in-place write') await writeFile(executable, malicious);
+        else if (change === 'package symlink update') {
+          const newLink = join(root, 'updated-package-link');
+          await symlink(replacement, newLink);
+          await rename(newLink, executable);
+        } else await rename(replacement, executable);
+        return original({ bigint: true });
+      });
+      expect(await scanWithR1ClamAv(runner, input)).toBe('scan_failed');
+      expect(existsSync(marker)).toBe(false);
+    },
+  );
+
+  it('executes the sealed private snapshot when the package path changes at spawn', async () => {
+    const { root, runner, input, config } = await fixture(`process.stdin.resume(); process.stdin.on('end', () => console.log(${JSON.stringify(summary)}));`);
+    const marker = join(root, 'unverified-executable-ran');
+    const replacement = join(root, 'replacement-engine');
+    await writeFile(replacement, `#!${process.execPath}\nrequire('node:fs').writeFileSync(${JSON.stringify(marker)}, 'ran'); process.stdin.resume(); process.stdin.on('end', () => console.log(${JSON.stringify(summary)}));\n`, { mode: 0o700 });
+    const original = await vi.importActual<typeof import('node:child_process')>('node:child_process');
+    let launchedPath = '';
+    vi.mocked(childProcess.spawn).mockImplementationOnce((...args: Parameters<typeof childProcess.spawn>) => {
+      launchedPath = args[0];
+      renameSync(replacement, config.executable);
+      return original.spawn(...args);
+    });
+    expect(await scanWithR1ClamAv(runner, input)).toBe('scan_failed');
+    expect(existsSync(marker)).toBe(false);
+    expect(launchedPath).not.toBe(config.executable);
+    expect(existsSync(launchedPath)).toBe(false);
+  });
+
+  it('uses a read-only, separately owned inode in a private executable directory', async () => {
+    const { runner, input, config } = await fixture(`process.stdin.resume(); process.stdin.on('end', () => console.log(${JSON.stringify(summary)}));`);
+    const original = await vi.importActual<typeof import('node:child_process')>('node:child_process');
+    vi.mocked(childProcess.spawn).mockImplementationOnce((...args: Parameters<typeof childProcess.spawn>) => {
+      const stat = lstatSync(args[0]);
+      expect(stat.isFile()).toBe(true);
+      expect(stat.nlink).toBe(1);
+      expect(stat.ino).not.toBe(lstatSync(config.executable).ino);
+      expect(stat.mode & 0o777).toBe(0o500);
+      expect(lstatSync(dirname(args[0])).mode & 0o777).toBe(0o500);
+      return original.spawn(...args);
+    });
+    expect(await scanWithR1ClamAv(runner, input)).toBe('clean');
   });
 
   it('rejects expired or missing signatures', async () => {

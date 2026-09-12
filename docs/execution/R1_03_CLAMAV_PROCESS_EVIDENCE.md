@@ -45,6 +45,53 @@ Cleanup errors and cancellation during final verification are sanitized failures
 - Independent read-only review of an isolated source snapshot: PASS after
   fixing cancellation during final verification and cleanup error propagation.
 
+## PR #160 review correction — 2026-09-12
+
+Baseline: `e1c3269`. Scope: executable verification/launch binding and the
+three-attempt job budget; no scanner policy, deployment or shared state changes.
+
+The runner resolves the trusted installed executable (including package-manager
+symlinks), opens the resolved regular file with `O_NOFOLLOW`, and copies through
+that descriptor into an exclusively created file in its private job directory.
+The actual copy must match the configured SHA-256 before execution. The writer
+is closed, and both the copied executable and its separate runtime directory
+are sealed to mode `0500`. The executable-copy limit is 100,000,000 bytes.
+Only this snapshot is spawned; the installed package path is never executed.
+Source path/inode/metadata and snapshot identity are checked before and after
+the subprocess, and unexpected replacement fails closed. Cleanup unseals and
+removes only the per-job directory.
+
+This binds execution across an ordinary atomic package update as well as an
+in-place source write. It assumes the worker UID/root and dynamic libraries are
+trusted; mode bits are not the complete OS sandbox required by MASTER §5.3.
+The borrowed input descriptor and scanner limits retain their prior contracts.
+Scan attempts must now be safe integers in `1..3`, rejecting fractional and
+non-finite values before generating an idempotency key.
+
+Verification of the correction:
+
+- Before the fix, the new tests produced eight failures: four replacement
+  races returned `clean`, the private-copy assertion failed, and `NaN`, `1.5`
+  and `2.5` attempts were accepted.
+- After the fix, all 26 focused process/job tests passed, including atomic
+  rename, in-place write, package symlink update, and replacement immediately
+  inside the spawn call. Substituted scripts leave no execution marker; stable
+  private snapshots execute successfully and are removed afterwards.
+- Full local quality checks passed: lint 0 errors/13 existing warnings,
+  typecheck, 210 files / 1,695 tests, and `npm run build -- --webpack`.
+- Native macOS: the existing installed ClamAV 1.5.4 and official CVDs passed
+  all six scenarios in `scripts/test-r1-clamav-local.ts` through the new copied
+  executable, including clean, EICAR and gzip EICAR. This also exercised the
+  installed Homebrew symlink and dynamic-library loading after relocation.
+- Linux: the unchanged TypeScript source, transpiled to CommonJS, passed a
+  Node-only synthetic process harness in the existing `node:24-alpine` image:
+  clean, stable symlink, replacement after verification, replacement at spawn,
+  invalid attempts, and three distinct replay-stable attempt keys. The
+  disposable container had no network and ran nonroot with a read-only root.
+  This is process-protocol evidence, not Linux antivirus or Gate 0 acceptance.
+- Independent read-only review of the four source/test files and native/Linux
+  logs found no actionable issue in this correction's scope.
+
 ## Remaining integration
 
 This local process runner is not an OS sandbox. Network denial, nonroot UID,
