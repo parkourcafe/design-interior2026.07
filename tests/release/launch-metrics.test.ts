@@ -53,12 +53,21 @@ describe("launch metrics", () => {
 
 const analyticsState = vi.hoisted(() => ({ role: "owner" as "owner" | "member" | null, clients: 0, eventReads: 0 }));
 vi.mock("next/navigation", () => ({ redirect: (path: string) => { throw new Error(`redirect:${path}`); } }));
-vi.mock("@/lib/studio", () => ({ getStudio: async () => analyticsState.role ? { role: analyticsState.role } : null }));
+vi.mock("@/lib/studio", () => ({ getStudio: async () => analyticsState.role ? { role: analyticsState.role, studioId: "11111111-1111-4111-8111-111111111111" } : null }));
 vi.mock("@/lib/supabase/server", () => ({ createClient: async () => {
   analyticsState.clients++;
   return { from: (table: string) => {
     if (table === "events") analyticsState.eventReads++;
-    const query = { select: () => query, order: () => query, range: async () => ({ data: [], error: null }) };
+    const query = {
+      select: () => query,
+      eq: (column: string, value: string) => {
+        expect(column).toBe("designer_id");
+        expect(value).toBe("11111111-1111-4111-8111-111111111111");
+        return query;
+      },
+      order: () => query,
+      range: async () => ({ data: [], error: null }),
+    };
     return query;
   } };
 } }));

@@ -22,7 +22,8 @@ export default async function AnalyticsPage() {
   // PostgREST caps responses: read every page rather than silently truncate history.
   for (let offset = 0; ; offset += 1000) {
     const { data, error } = await supabase.from("events")
-      .select("type, project_id, created_at").order("created_at").order("id").range(offset, offset + 999);
+      .select("type, project_id, created_at").eq("designer_id", studio.studioId)
+      .order("created_at").order("id").range(offset, offset + 999);
     if (error || !data) return <p role="alert">{l.loadError}</p>;
     events.push(...data as LaunchEvent[]);
     if (data.length < 1000) break;

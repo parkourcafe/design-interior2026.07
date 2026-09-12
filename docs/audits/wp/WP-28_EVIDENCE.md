@@ -57,3 +57,20 @@
 [ИЗВЛЕЧЕНО] The cost template now distinguishes transaction-level read-only enforcement from credential grants; no credential capability is asserted from BEGIN READ ONLY.
 
 [ИЗВЛЕЧЕНО] After the review correction, `npm ci --cache /private/tmp/wp28-npm-cache && npm run release:check` completed with exit 0: 207 test files, 1660 passed, 10 skipped; lint/typecheck/build passed. The 13 untouched-file lint warnings remain. No SQL/flags/private runtime changes.
+
+## Selected-studio confinement correction — 2026-09-12
+
+Final independent review reproduced a remaining boundary gap: multiple active
+memberships cause the existing studio helper to fall back to the user's own
+studio, while RLS can still expose events from joined studios. The analytics
+page now filters every events page by the selected studio's designer_id.
+The helper's wider selection behavior is unchanged.
+
+Regression exercises the actual getStudio with PGRST116, two events pages,
+member denial before event reads, and controlled query failure. Two cases
+failed before the filter; all three pass after it. The existing owner mock was
+updated to provide a studio ID and enforce the scoped query contract.
+Independent Codex review: PASS. Local ordered lint/typecheck/1673 tests and
+Webpack build: PASS, with 13 unchanged lint warnings. No SQL, migration,
+production or shared DB change. This PR is not covered by the owner's separate
+one-time Claude exception for #149/#150/#160/#162/#172/#173/#175.
