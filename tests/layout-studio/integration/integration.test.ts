@@ -339,6 +339,13 @@ describe("Layout Studio delivery/UI slice", () => {
       // WP-33 changes the ProjectCEO M3 publication ACL only.
       "20260911160000_projectceo_m3_atomic_publication_flip.sql",
       "20260911170000_projectceo_m4_drop_legacy_release_doors.sql",
+      // R1 foundation: immutable external asset and representation identities.
+      // This belongs to the ArchiDom R1 chain, not Layout Studio itself.
+      "20260912090630_r1_asset_identity_versions.sql",
+      // R1 private attestation trigger ACL correction; no Layout Studio changes.
+      "20260912143217_r1_attestation_pair_private_acl.sql",
+      // R1 asset event actor attribution; no Layout Studio changes.
+      "20260912152659_r1_asset_event_actor_identity.sql",
     ];
     const actual = readdirSync(join(repoRoot, "supabase/migrations"), { withFileTypes: true })
       // Предмет проверки — миграции, а не всё содержимое папки. Рядом с ними
