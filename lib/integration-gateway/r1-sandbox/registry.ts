@@ -1,7 +1,7 @@
 import { createRequire } from "node:module";
 import { mkdirSync, chmodSync } from "node:fs";
 import { dirname, isAbsolute } from "node:path";
-import type { SandboxIntent } from "./profile";
+import { intentProfile, type SandboxIntent } from "./profile";
 
 interface Statement {
   run(...args: (string | number | null)[]): { changes: number };
@@ -12,7 +12,7 @@ interface Database { exec(sql: string): void; prepare(sql: string): Statement; c
 const { DatabaseSync } = createRequire(process.execPath)("node:sqlite") as {
   DatabaseSync: new (path: string) => Database;
 };
-export type IntentState = "create_inflight" | "created" | "running" | "cleanup" | "cleanup_pending" | "ownership_conflict" | "settled";
+export type IntentState = "measuring" | "create_inflight" | "created" | "running" | "cleanup" | "cleanup_pending" | "ownership_conflict" | "settled";
 export interface IntentRecord extends SandboxIntent {
   readonly supervisorPid: number; readonly revision: number; readonly state: IntentState; readonly containerId: string | null;
   readonly supervisorHeartbeat: number; readonly cancelRequested: boolean; readonly alert: string | null;
@@ -53,11 +53,12 @@ export class SandboxRegistry {
     try { process.kill(Number(row.pid), 0); } catch { throw new Error("sandbox_watchdog_unavailable"); }
   }
   async admit(intent: SandboxIntent, check: () => Promise<void>): Promise<IntentRecord> {
+    intentProfile(intent);
     this.db.exec("BEGIN IMMEDIATE");
     try {
       if (this.live(intent.daemonId).length) throw new Error("sandbox_slot_unavailable");
       await check();
-      const record: IntentRecord = { ...intent, supervisorPid: process.pid, revision: 0, state: "create_inflight", containerId: null,
+      const record: IntentRecord = { ...intent, supervisorPid: process.pid, revision: 0, state: intent.mode === "av" ? "measuring" : "create_inflight", containerId: null,
         supervisorHeartbeat: Date.now(), cancelRequested: false, alert: null, cleanupDeadlineMissedAt: null, cleanupOutcome: null, lateCleanupOwner: null, lateCleanupOwnerPid: null, lateKillDeadline: null, lateCleanupDeadline: null, lateRetryAfter: null, lateAttempts: 0, cleanupOwner: null, cleanupOwnerPid: null, cleanupKillDeadline: null, cleanupDeadline: null, cleanupLeaseUntil: null, conflictAt: null, reconcileAttempts: 0 };
       this.db.prepare("INSERT INTO intents VALUES(?,?,?,?,?)").run(intent.operationId, intent.daemonId, 0, record.state, JSON.stringify(record));
       this.db.prepare("INSERT INTO events(operation,at,payload) VALUES(?,?,?)").run(intent.operationId, Date.now(), JSON.stringify({ event: "creation_intent_committed", revision: 0 }));
@@ -76,6 +77,8 @@ export class SandboxRegistry {
       }
       if (stored.cleanupOutcome === "late" && Object.prototype.hasOwnProperty.call(change, "cleanupOutcome") && change.cleanupOutcome !== "late") throw new Error("sandbox_cleanup_outcome_sticky");
       const next = { ...stored, ...change, revision: stored.revision + 1 };
+      if (stored.mode === "av" && ((next.state === "measuring" && stored.state !== "measuring")
+        || (next.state === "measuring" && next.containerId !== null))) throw new Error("sandbox_create_boundary_immutable");
       if (next.cleanupDeadlineMissedAt != null && next.cleanupOutcome !== "late") throw new Error("sandbox_cleanup_outcome_sticky");
       if ((stored.lateAttempts ?? 0) === (next.lateAttempts ?? 0)) {
         for (const field of ["lateKillDeadline", "lateCleanupDeadline"] as const) {

@@ -1,5 +1,5 @@
 import { boundedCommand, type DockerClient } from "./docker";
-import { SYNTHETIC_SMALL } from "./profile";
+import { AV_PROFILE, SYNTHETIC_SMALL } from "./profile";
 
 export interface HostObservation {
   readonly daemonId: string; readonly bootId: string; readonly at: number;
@@ -40,7 +40,9 @@ export async function observeLocalHost(docker: DockerClient, colimaExecutable: s
 }
 
 /** Used memory is already excluded by MemAvailable; subtract only future headroom. */
-export function assertHostAdmission(host: HostObservation, now: number, excludeOwnedId?: string): void {
+export function assertHostAdmission(host: HostObservation, now: number, excludeOwnedId?: string, profileId: string = SYNTHETIC_SMALL.id): void {
+  const profile = profileId === SYNTHETIC_SMALL.id ? SYNTHETIC_SMALL : profileId === AV_PROFILE.id ? AV_PROFILE : null;
+  if (!profile) throw new Error("sandbox_profile_invalid");
   if (!Number.isSafeInteger(now) || now < host.at || now - host.at > 2_000
     || !Number.isSafeInteger(host.totalBytes) || !Number.isSafeInteger(host.availableBytes)
     || host.availableBytes < 0 || host.availableBytes > host.totalBytes) throw new Error("sandbox_metrics_stale");
@@ -49,9 +51,9 @@ export function assertHostAdmission(host: HostObservation, now: number, excludeO
   const reserved = services.reduce((sum, s) => sum + s.limit, 0);
   const future = services.reduce((sum, s) => sum + Math.max(0, s.limit - s.used), 0);
   const ownedUsed = excludeOwnedId ? (host.serviceEnvelopes.find(s => s.id === excludeOwnedId)?.used ?? 0) : 0;
-  const unconsumed = Math.max(0, SYNTHETIC_SMALL.memoryBytes - ownedUsed);
+  const unconsumed = Math.max(0, profile.memoryBytes - ownedUsed);
   const safety = Math.max(1_073_741_824, Math.ceil(host.totalBytes / 4));
-  if (reserved + safety + SYNTHETIC_SMALL.memoryBytes > host.totalBytes
+  if (reserved + safety + profile.memoryBytes > host.totalBytes
     || future + safety + unconsumed > host.availableBytes) throw new Error("sandbox_capacity_unavailable");
 }
 
