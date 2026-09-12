@@ -342,6 +342,9 @@ describe("Layout Studio delivery/UI slice", () => {
       // R1 foundation: immutable external asset and representation identities.
       // This belongs to the ArchiDom R1 chain, not Layout Studio itself.
       "20260912090630_r1_asset_identity_versions.sql",
+      // R1 object/revision/representation bindings are a private Foundation
+      // contract and intentionally do not change Layout Studio's schema.
+      "20260912094000_r1_object_representation_bindings.sql",
     ];
     const actual = readdirSync(join(repoRoot, "supabase/migrations"), { withFileTypes: true })
       // Предмет проверки — миграции, а не всё содержимое папки. Рядом с ними
