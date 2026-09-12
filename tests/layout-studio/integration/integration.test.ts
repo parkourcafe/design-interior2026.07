@@ -361,6 +361,8 @@ describe("Layout Studio delivery/UI slice", () => {
       "20260913033000_r1_external_upload_control.sql",
       // R1 reservation/session terminal closure correction; no Layout Studio changes.
       "20260913035000_r1_upload_reservation_closure.sql",
+      // R1 private validation job leases and receipts; no Layout Studio changes.
+      "20260913043000_r1_external_validation_jobs.sql",
     ];
     const actual = readdirSync(join(repoRoot, "supabase/migrations"), { withFileTypes: true })
       // Предмет проверки — миграции, а не всё содержимое папки. Рядом с ними
