@@ -29,3 +29,20 @@ Local lint/typecheck/1777 tests/Webpack build PASS;13 existing lint warnings. La
 ## Remaining integration
 
 Independent Claude code review and current-head CI/AP5/DB4/DB5 remain separate pending evidence. No hosted/shared DB or production proof is claimed. Runtime transport and public command/read wiring, full release predicates, real scanner/storage bindings, and Gate0 remain separate work. Merge, shared DB, production, deploy and flags require their owner gates.
+
+## Review follow-up: complete format matrix
+
+Fixture69 now executes all eight declared formats (SKP, DWG, GLB, DAE package,
+PDF, JPG, JPEG, PNG), with an explicit count/set coverage assertion and exact
+seven-field readiness JSON for each. Independent review and corrected PG16/PG17
+runs PASS at fixture SHA9ab5a2670f8aef6fc3601dac5fb3a3777090b2adf22cf098cd806aae4de16bd8.
+The private migration source remains byte-identical. Tests still use synthetic
+validation receipts; this is not real scanner/parser evidence.
+
+The quota-ledger read is protected by the non-null scoped generation→session→
+reservation→ledger FK chain and deletion guards; a successful context cannot
+lose that ledger. The human command intentionally preserves typed auth/stale/
+idempotency errors, unlike the readiness predicate's frozen P1111 contract.
+Current methods remain private with no public/runtime grants; future public
+adapters must sanitize unexpected database errors without masking those codes.
+These review notes required no migration change or new owner-policy decision.

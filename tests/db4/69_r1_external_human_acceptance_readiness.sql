@@ -178,7 +178,7 @@ do $readiness_profile_matrix$
 <<matrix_vars>>
 declare
  c r1_validation_fixture.context%rowtype; b remhaos_integration.external_upload_policy_bindings%rowtype;
- binding uuid:=extensions.gen_random_uuid(); f record; upload jsonb; claim_result jsonb; materialized jsonb; proof jsonb;
+ binding uuid:=extensions.gen_random_uuid(); f record; upload jsonb; claim_result jsonb; materialized jsonb; proof jsonb; checked_formats text[]:=array[]::text[];
  session_id uuid; intake_id uuid; claim_id uuid; seal_id uuid; generation_id uuid; job_id uuid; receipt_id uuid; canonical_id uuid;
  lease_secret text; payload text; digest bytea; started_at timestamptz;
 begin
@@ -200,7 +200,7 @@ begin
    ('jpg','jpg','image/jpeg','image','legacy-image-intake-v1'),
    ('jpeg','jpeg','image/jpeg','image','legacy-image-intake-v1'),
    ('png','png','image/png','image','legacy-image-intake-v1')
-  ) matrix(format,extension,media_type,source_kind,profile) where format in ('skp','glb') loop
+  ) matrix(format,extension,media_type,source_kind,profile) loop
    payload:=rpad(f.format,12,'_'); digest:=project_intelligence._sha256_text(payload);
    upload:=remhaos_integration._begin_external_upload(c.project_id,c.project_id,f.format,octet_length(payload),'supplied-'||f.format||'.label','d-format-upload-'||f.format);
    session_id:=(upload#>>'{result,sessionId}')::uuid; intake_id:=(upload#>>'{result,intakeId}')::uuid;
@@ -226,10 +226,12 @@ begin
    perform remhaos_integration._review_external_file_intake(c.project_id,c.project_id,intake_id,'accepted','synthetic retained-file profile review','e-profile-review-'||f.format);
    proof:=projectceo_foundation.assert_external_source_ready(c.organization_id,c.project_id,c.project_id,(materialized#>>'{result,assetVersionId}')::uuid);
    if proof is distinct from jsonb_build_object('assetVersionId',(materialized#>>'{result,assetVersionId}')::uuid,'generationId',matrix_vars.generation_id,'receiptId',matrix_vars.receipt_id,'sha256',encode(matrix_vars.digest,'hex'),'byteLength',octet_length(matrix_vars.payload),'validatedFormat',f.format,'validationProfile',f.profile) or not exists(select 1 from remhaos_integration.file_intakes i where i.intake_id=matrix_vars.intake_id and i.status='human_reviewed' and i.source_id is null) then raise exception 'READINESS_PROFILE_OR_NATIVE_CONFLATION'; end if;
-   raise notice 'R1_HUMAN_READY_PROFILE_OK %',f.profile;
+   checked_formats:=array_append(checked_formats,f.format);
+   raise notice 'R1_HUMAN_READY_PROFILE_OK format=% profile=%',f.format,f.profile;
    if not exists(select 1 from remhaos_integration.file_intakes i join remhaos_integration.external_generation_intake_links l on l.organization_id=i.organization_id and l.project_id=i.project_id and l.package_id=i.package_id and l.intake_id=i.intake_id join remhaos_integration.external_asset_validation_lineage a on a.organization_id=l.organization_id and a.project_id=l.project_id and a.package_id=l.package_id and a.generation_id=l.generation_id join projectceo_foundation.external_asset_versions av on av.organization_id=a.organization_id and av.project_id=a.project_id and av.package_id=a.package_id and av.asset_version_id=a.asset_version_id join projectceo_foundation.external_assets asset on asset.organization_id=av.organization_id and asset.project_id=av.project_id and asset.package_id=av.package_id and asset.asset_id=av.asset_id where i.intake_id=matrix_vars.intake_id and i.r1_generation_id=matrix_vars.generation_id and i.extension=f.extension and i.media_type=f.media_type and i.source_role='document' and i.checksum=digest and i.size_bytes=octet_length(payload) and i.original_filename='supplied-'||f.format||'.label' and l.display_name_origin='supplied' and av.validated_format=f.format and av.server_sha256=digest and asset.source_kind=f.source_kind) then raise exception 'MATERIALIZATION_FORMAT_MAPPING_FAILED: %',f.format; end if;
    raise notice 'R1_MATERIALIZATION_FORMAT_OK %',f.format;
   end loop;
+  if cardinality(checked_formats)<>8 or not checked_formats @> array['skp','dwg','glb','dae-package','pdf','jpg','jpeg','png']::text[] then raise exception 'READINESS_FORMAT_MATRIX_INCOMPLETE'; end if;
   set constraints all immediate;
   raise sqlstate 'P9001';
  exception when sqlstate 'P9001' then null; end;
