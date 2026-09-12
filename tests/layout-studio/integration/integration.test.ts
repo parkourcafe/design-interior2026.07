@@ -348,6 +348,9 @@ describe("Layout Studio delivery/UI slice", () => {
       // R1 technical references bind a DWG source to its exact preview
       // representation; Layout Studio remains unchanged.
       "20260912094500_r1_technical_reference_preview_binding.sql",
+      // R1 annotations use the existing client review capability and do not
+      // extend the Layout Studio schema.
+      "20260912100000_r1_external_annotations.sql",
     ];
     const actual = readdirSync(join(repoRoot, "supabase/migrations"), { withFileTypes: true })
       // Предмет проверки — миграции, а не всё содержимое папки. Рядом с ними
