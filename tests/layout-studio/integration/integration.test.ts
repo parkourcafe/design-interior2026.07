@@ -357,6 +357,8 @@ describe("Layout Studio delivery/UI slice", () => {
       "20260912143217_r1_attestation_pair_private_acl.sql",
       // R1 asset event actor attribution; no Layout Studio changes.
       "20260912152659_r1_asset_event_actor_identity.sql",
+      // R1 private upload sessions and quota accounting; no Layout Studio changes.
+      "20260913033000_r1_external_upload_control.sql",
     ];
     const actual = readdirSync(join(repoRoot, "supabase/migrations"), { withFileTypes: true })
       // Предмет проверки — миграции, а не всё содержимое папки. Рядом с ними
