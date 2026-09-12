@@ -67,3 +67,15 @@ execution остаётся CI/disposable доказательством.
 [ИЗВЛЕЧЕНО] Production, shared DB, credentials и service role не использовались.
 CSRF same-origin, strict body, request-bound Auth, controlled error envelope и
 `Cache-Control: private, no-store` покрыты route tests.
+
+## Проверка перед merge, 2026-09-12
+
+Общая локальная сборка обнаружила недопустимый export константы из Next.js
+Route Handler. Константа осталась приватной в маршруте; тест использует
+независимое ожидаемое значение протокола. Поведение HTTP не изменилось.
+Независимое review двухфайлового исправления поверх `fba54de` — PASS.
+Локально: lint — 0 errors / 13 прежних warnings; typecheck — PASS;
+1656 tests — PASS; `npm run build -- --webpack` — PASS.
+Содержательное Claude review остаётся внешним gate: Max сообщил об
+исчерпанном лимите; прежний зелёный action сам по себе не доказывает review.
+Новые CI результаты должны относиться к коммиту с этим исправлением.

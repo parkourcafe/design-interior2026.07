@@ -14,7 +14,7 @@ import { isProjectCeoLocalFixtureMode } from "@/lib/project-intelligence/deliver
 
 export const dynamic = "force-dynamic";
 
-export const PROJECTCEO_ENROLL_CONTRACT_VERSION = "projectceo-enroll/0.1" as const;
+const PROJECTCEO_ENROLL_CONTRACT_VERSION = "projectceo-enroll/0.1" as const;
 
 const enrollSchema = z.object({
   contractVersion: z.literal(PROJECTCEO_ENROLL_CONTRACT_VERSION),

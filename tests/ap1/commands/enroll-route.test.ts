@@ -54,11 +54,12 @@ vi.mock("@/lib/project-intelligence/adapters/postgres", () => {
   };
 });
 
-import { POST, PROJECTCEO_ENROLL_CONTRACT_VERSION } from "../../../app/api/projectceo/enroll/route";
+import { POST } from "../../../app/api/projectceo/enroll/route";
 import { ProjectIntelligenceAdapterError } from "../../../lib/project-intelligence/adapters/postgres";
 import { ProjectCeoAuthenticationError } from "../../../lib/project-intelligence/delivery/projectceo/request-context";
 
 const endpoint = "https://app.example/api/projectceo/enroll";
+const PROJECTCEO_ENROLL_CONTRACT_VERSION = "projectceo-enroll/0.1";
 const projectId = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
 
 function request(body: BodyInit | null, headers: HeadersInit = {
