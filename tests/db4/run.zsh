@@ -52,6 +52,7 @@ done
 
 for sql in \
   "${repo_root}/tests/db3/20_foundation_operations.sql" \
+  "${repo_root}/tests/db4/60_r1_asset_identity_versions.sql" \
   "${repo_root}/tests/db4/05_m3_publication_guardrail.sql" \
   "${repo_root}/tests/db4/06_m3_surface_classification.sql" \
   "${repo_root}/tests/db4/07_m4_execution_boundary.sql" \
