@@ -22,6 +22,7 @@ reject a partial terminal transition. Enqueue binds the exact seal fence.
 ## Allowlist
 
 - supabase/migrations/20260913033000_r1_external_upload_control.sql
+- supabase/migrations/20260913035000_r1_upload_reservation_closure.sql
 - tests/ap1/environment/migration-ledger.sha256
 - tests/db4/66_r1_external_upload_control.sql
 - tests/db4/run.zsh
@@ -56,3 +57,21 @@ necessary follow-up work; private evidence-shaped tables alone are not real AV,
 canonical storage, accepted file or construction release proof. GitHub CI/AP5
 and full persistent restart evidence are separate checks. No merge, shared DB,
 production, deploy or flags were changed.
+
+## Additive reservation closure correction
+
+Dedicated Claude review found reservation-only terminal transitions were not
+covered by the deferred session/generation checks. Migration035000 adds a
+reservation-side deferred trigger and requires open/finalizing sessions to retain
+a reserved reservation. Existing finalized and cancelled/failed closure remains
+intact; original033000 is unchanged.
+
+Red PG16 reproduced open/finalizing→committed/orphaned without a session change.
+Green PG16/17 rejected all four paths and passed existing scope, quota-concurrency
+and replay tests. Revoked-policy cancellation is explicitly denied without
+side effects; trusted expiry/reconciliation is future implementation, not an
+assumed cleanup timer. read_eligible remains reserved for a future read contract.
+Independent source closure PASS; local lint/typecheck/1777tests/Webpack PASS.
+The new commit requires fresh CI and persistent restart evidence.
+
+Correction SHA256: `0e2a9cecf607ddfe85d6858d899f946a240d513a1008adcc239f709bf82a5c90`.

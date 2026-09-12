@@ -48,6 +48,7 @@ declare
  p uuid:='41111111-1111-4111-8111-111111111111'; a uuid:='31111111-1111-4111-8111-111111111111'; o uuid;
  binding uuid:=extensions.gen_random_uuid(); response jsonb; replay jsonb; sid uuid; sid2 uuid; intake uuid; claim uuid:=extensions.gen_random_uuid(); receipt uuid:=extensions.gen_random_uuid(); generation uuid:=extensions.gen_random_uuid();
  l remhaos_integration.external_upload_quota_ledgers%rowtype;
+ before_effects jsonb; after_effects jsonb; session_state text; reservation_state text; accepted_transitions text[]:=array[]::text[];
 begin
  select organization_id into strict o from project_intelligence.project_workflows where project_id=p;
  begin
@@ -125,6 +126,59 @@ begin
   update remhaos_integration.external_upload_sessions set declared_byte_length=99,revision=revision+1 where session_id=sid;
   raise exception 'UPLOAD_ORIGIN_CHANGED';
  exception when raise_exception then if sqlerrm<>'UPLOAD_ORIGIN_IMMUTABLE' then raise; end if; end;
+ -- Flush begin's queued session trigger before reservation-only mutations;
+ -- otherwise an initial session event can conceal the missing symmetric trigger.
+ set constraints all immediate;
+ set constraints all deferred;
+ foreach session_state in array array['open','finalizing'] loop
+  begin
+   if session_state='finalizing' then
+    update remhaos_integration.external_upload_sessions set state='finalizing',revision=revision+1 where session_id=sid;
+    set constraints all immediate;
+    set constraints all deferred;
+   end if;
+   foreach reservation_state in array array['committed','orphaned'] loop
+    begin
+     if reservation_state='committed' then
+      update remhaos_integration.external_upload_reservations set state='committed',revision=revision+1 where session_id=sid;
+     else
+      update remhaos_integration.external_upload_reservations set state='orphaned',revision=revision+1,logical_reserved=0,logical_used=0,
+       physical_orphan=physical_reserved+physical_used+physical_orphan,physical_reserved=0,physical_used=0 where session_id=sid;
+     end if;
+     set constraints all immediate;
+     accepted_transitions:=array_append(accepted_transitions,session_state||'->'||reservation_state);
+     raise sqlstate 'P9001';
+    exception
+     when sqlstate 'P9001' then null;
+     when raise_exception then if sqlerrm<>'UPLOAD_ACTIVE_RESERVATION_NOT_RESERVED' then raise; end if;
+    end;
+   end loop;
+   raise sqlstate 'P9001';
+  exception when sqlstate 'P9001' then null; end;
+ end loop;
+ if cardinality(accepted_transitions)>0 then raise exception 'UPLOAD_RESERVATION_ONLY_TERMINAL_ACCEPTED: %',accepted_transitions; end if;
+ -- Cancel retains its existing current-authority requirement. Revocation must
+ -- have no command, session, outbox or accounting effects. Trusted expiry and
+ -- physical reconciliation remain future work, not permission added here.
+ begin
+  update remhaos_integration.external_upload_policy_heads set write_eligible=false,revision=revision+1 where organization_id=o and project_id=p;
+  select jsonb_build_object('session',(select to_jsonb(s) from remhaos_integration.external_upload_sessions s where session_id=sid),
+   'reservation',(select to_jsonb(r) from remhaos_integration.external_upload_reservations r where session_id=sid),
+   'ledger',(select to_jsonb(q) from remhaos_integration.external_upload_quota_ledgers q where organization_id=o and project_id=p),
+   'outbox',(select jsonb_agg(to_jsonb(x) order by operation_id) from remhaos_integration.external_upload_outbox x where session_id=sid),
+   'commands',(select jsonb_agg(to_jsonb(c) order by command_id) from remhaos_integration.command_records c where organization_id=o and project_id=p)) into before_effects;
+  begin
+   perform remhaos_integration._cancel_external_upload(p,p,sid,0,'a-revoked-cancel');
+   raise exception 'UPLOAD_REVOKED_CANCEL_ACCEPTED';
+  exception when sqlstate 'P1111' then if sqlerrm<>'validation_failed' then raise; end if; end;
+  select jsonb_build_object('session',(select to_jsonb(s) from remhaos_integration.external_upload_sessions s where session_id=sid),
+   'reservation',(select to_jsonb(r) from remhaos_integration.external_upload_reservations r where session_id=sid),
+   'ledger',(select to_jsonb(q) from remhaos_integration.external_upload_quota_ledgers q where organization_id=o and project_id=p),
+   'outbox',(select jsonb_agg(to_jsonb(x) order by operation_id) from remhaos_integration.external_upload_outbox x where session_id=sid),
+   'commands',(select jsonb_agg(to_jsonb(c) order by command_id) from remhaos_integration.command_records c where organization_id=o and project_id=p)) into after_effects;
+  if before_effects is distinct from after_effects then raise exception 'UPLOAD_REVOKED_CANCEL_SIDE_EFFECT'; end if;
+  raise sqlstate 'P9001';
+ exception when sqlstate 'P9001' then null; end;
  begin
   perform remhaos_integration._cancel_external_upload(p,p,sid,1,'a-stale-cancel');
   raise exception 'UPLOAD_STALE_CANCEL';
