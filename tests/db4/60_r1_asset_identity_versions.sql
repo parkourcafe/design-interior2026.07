@@ -2,6 +2,48 @@
 
 begin;
 
+do $r1_attestation_private_acl$
+declare
+  v_function oid := 'projectceo_foundation.assert_external_attestation_pair()'::regprocedure;
+  v_role text;
+begin
+  -- Check effective privileges, including PUBLIC inheritance and explicit
+  -- runtime grants. Table RLS alone does not close a private routine's ACL.
+  foreach v_role in array array[
+    'anon', 'authenticated', 'service_role', 'pi_human_executor', 'pi_worker_executor'
+  ] loop
+    if has_function_privilege(v_role, v_function, 'EXECUTE') then
+      raise exception 'DB4_R1_ATTESTATION_RUNTIME_EXECUTE: %', v_role;
+    end if;
+  end loop;
+
+  if not exists (
+    select 1 from pg_proc p
+    where p.oid = v_function
+      and pg_get_userbyid(p.proowner) = 'pi_table_owner'
+      and not p.prosecdef
+      and p.proconfig = array['search_path=""']::text[]
+  ) then
+    raise exception 'DB4_R1_ATTESTATION_FUNCTION_BOUNDARY_CHANGED';
+  end if;
+
+  if not exists (
+    select 1 from pg_trigger t
+    where t.tgrelid = 'projectceo_foundation.external_representation_attestations'::regclass
+      and t.tgname = 'external_representation_attestations_pair'
+      and t.tgfoid = v_function
+      and t.tgenabled = 'O'
+      and not t.tgisinternal
+  ) then
+    raise exception 'DB4_R1_ATTESTATION_TRIGGER_NOT_BOUND';
+  end if;
+end
+$r1_attestation_private_acl$;
+
+-- The private table owner must still execute the bound trigger successfully
+-- and reject a mismatched pair after all runtime execution grants are revoked.
+set local role pi_table_owner;
+
 do $r1_asset_identity_contract$
 declare
   v_organization_id uuid;
