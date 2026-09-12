@@ -1,8 +1,9 @@
 #!/bin/zsh
 set -euo pipefail
 
-# WP-13 is an operator tool for a separately approved historical adoption.
-# It does not enable modules, deploy code, or set application flags.
+# WP-13 is a disposable rehearsal tool for a separately approved historical
+# adoption. Shared-target execution is deliberately disabled until a separate
+# trusted, target-bound executor is reviewed and merged.
 
 repo_root=${0:a:h:h:h:h}
 ledger_path="${repo_root}/tests/ap1/environment/migration-ledger.sha256"
@@ -19,14 +20,16 @@ dry_run=false
 usage() {
   cat <<'USAGE'
 usage: AP1_APPROVAL_RECORD='Approval B: <record-id>' \
-  AP1_DB_URL='<approved target>' \
+  AP1_EXPECTED_RELATIONS=<fixture-count> \
+  AP1_EXPECTED_ROUTINES=<fixture-count> \
+  AP1_EXPECTED_POLICIES=<fixture-count> \
+  AP1_EXPECTED_LEDGER_ROWS=23 \
   zsh tests/ap1/environment/adopt-production.zsh \
-    --target-ref <prod-or-clone-ref> --allowlist-ref <single-line-file> [--dry-run]
+    --target-ref <disposable-label> --allowlist-ref <single-line-file> --dry-run
 
-The allowlist file must contain exactly the selected target ref and no URL.
---dry-run ignores AP1_DB_URL and starts an isolated Docker PostgreSQL container.
-For --dry-run, also pass AP1_EXPECTED_RELATIONS, AP1_EXPECTED_ROUTINES,
-AP1_EXPECTED_POLICIES and AP1_EXPECTED_LEDGER_ROWS=23 from its fixture.
+The allowlist file must contain exactly the selected disposable label and no URL.
+--dry-run starts an isolated Docker PostgreSQL container with no network.
+Any non-disposable target is refused before connection details are read.
 USAGE
 }
 
@@ -94,6 +97,10 @@ allowlisted_ref=$(tr -d '\r\n' < "${allowlist_path}")
 [[ ${allowlisted_ref} == ${target_ref} ]] || fail 'AP1_ADOPTION_REF_NOT_ALLOWLISTED' 65
 [[ $(wc -l < "${allowlist_path}" | tr -d ' ') == 1 ]] || fail 'AP1_ADOPTION_ALLOWLIST_FORMAT_INVALID' 64
 
+if [[ ${dry_run} != true ]]; then
+  fail 'AP1_ADOPTION_SHARED_TARGET_DISABLED' 69
+fi
+
 if [[ ${dry_run} == true ]]; then
   for count_name in AP1_EXPECTED_RELATIONS AP1_EXPECTED_ROUTINES AP1_EXPECTED_POLICIES AP1_EXPECTED_LEDGER_ROWS; do
     value=${(P)count_name:-}
@@ -104,16 +111,6 @@ fi
 
 require_command sha256sum
 require_command docker
-if [[ ${dry_run} != true ]]; then
-  [[ -n ${AP1_DB_URL:-} ]] || fail 'AP1_ADOPTION_DB_URL_REQUIRED' 64
-  # A clone's project ref is visible in its Supabase database URL or pooler
-  # username. `prod` is intentionally a named owner allowlist entry: its
-  # concrete endpoint is never recorded in repository code or evidence.
-  if [[ ${target_ref} != prod && ${AP1_DB_URL} != *"${target_ref}"* ]]; then
-    fail 'AP1_ADOPTION_TARGET_URL_MISMATCH' 65
-  fi
-  require_command psql
-fi
 [[ -f ${ledger_path} && -f ${baseline_path} && -f ${roles_path} ]] \
   || fail 'AP1_ADOPTION_REPOSITORY_INPUT_MISSING' 66
 
@@ -156,15 +153,20 @@ fi
 run_sql_file() {
   local file=$1
   shift
-  "${psql_run[@]}" "$@" < "${file}" >/dev/null
+  "${psql_run[@]}" "$@" < "${file}" >/dev/null \
+    || fail "AP1_ADOPTION_SQL_FILE_FAILED ${file:t}" 70
 }
 
 run_sql() {
-  print -r -- "$1" | "${psql_run[@]}" >/dev/null
+  print -r -- "$1" | "${psql_run[@]}" >/dev/null \
+    || fail 'AP1_ADOPTION_SQL_FAILED' 70
 }
 
 psql_value() {
-  print -r -- "$1" | "${psql_run[@]}" --tuples-only --no-align | tail -n 1 | tr -d '[:space:]'
+  local result
+  result=$(print -r -- "$1" | "${psql_run[@]}" --tuples-only --no-align) \
+    || fail 'AP1_ADOPTION_SQL_VALUE_FAILED' 70
+  print -r -- "$result" | tail -n 1 | tr -d '[:space:]'
 }
 
 seed_dry_run_legacy() {

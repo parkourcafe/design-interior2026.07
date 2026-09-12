@@ -11,6 +11,7 @@ const baselinePath = resolve(repoRoot, "reconciliation-2026-09/baseline-adoption
 const script = readFileSync(scriptPath, "utf8");
 const baseline = readFileSync(baselinePath, "utf8");
 const zshAvailable = spawnSync("zsh", ["--version"], { encoding: "utf8" }).status === 0;
+const dockerAvailable = spawnSync("docker", ["version"], { encoding: "utf8" }).status === 0;
 
 function allowlist(ref: string) {
   const directory = mkdtempSync(resolve(tmpdir(), "wp13-allowlist-"));
@@ -103,7 +104,7 @@ describe("WP-13 historical production adoption contract", () => {
       }
     });
 
-    it("refuses a clone ref that does not identify the supplied target URL", () => {
+    it("refuses every non-disposable target before reading its connection details", () => {
       const ref = allowlist("approved-clone");
       try {
         const result = run(
@@ -113,9 +114,31 @@ describe("WP-13 historical production adoption contract", () => {
             AP1_DB_URL: "postgresql://operator:fixture@db.other-clone.example.test:5432/postgres",
           },
         );
-        expect(result.status).toBe(65);
-        expect(result.stderr).toContain("AP1_ADOPTION_TARGET_URL_MISMATCH");
+        expect(result.status).toBe(69);
+        expect(result.stderr).toContain("AP1_ADOPTION_SHARED_TARGET_DISABLED");
         expect(result.stderr).not.toContain("fixture");
+      } finally {
+        ref.dispose();
+      }
+    });
+  });
+
+  describe.skipIf(!zshAvailable || !dockerAvailable)("disposable execution failures", () => {
+    it("fails closed when the baseline SQL precondition rejects the catalog", () => {
+      const ref = allowlist("rehearsal-local");
+      try {
+        const result = run(
+          ["--target-ref", "rehearsal-local", "--allowlist-ref", ref.path, "--dry-run"],
+          {
+            AP1_APPROVAL_RECORD: "Approval B: local-dry-run",
+            AP1_EXPECTED_RELATIONS: "1",
+            AP1_EXPECTED_ROUTINES: "1",
+            AP1_EXPECTED_POLICIES: "1",
+            AP1_EXPECTED_LEDGER_ROWS: "23",
+          },
+        );
+        expect(result.status).not.toBe(0);
+        expect(result.stderr).toContain("AP1_ADOPTION_SQL_FILE_FAILED baseline-adoption.sql");
       } finally {
         ref.dispose();
       }
