@@ -44,3 +44,23 @@
 - Production, `release`, prod-секреты, коннектор Supabase — запрещены. Строка `@claude` в PR запрещена.
 - Evidence: `docs/audits/wp/WP-13_EVIDENCE.md` по `docs/audits/wp/WP_EVIDENCE_TEMPLATE.md`.
 - Завершение сессии одной строкой: `WP-13: <статус> | PR #N | HEAD <sha> | blockers: …`.
+
+## 2026-09-13 — подготовка нового clone-only executor
+
+Статус: IN_PROGRESS. Текущий разрешённый target — только `reitdpzxtnmdkznesffu`; исторический production-скрипт выше не является разрешением на live-действие. Baseline repair уже выполнен отдельно и не повторяется. Новый executor не использует старый 93-entry набор или текущие дополнительные миграции.
+
+Расширение allowlist оркестратором для разрешённого repository-only пакета:
+
+- `scripts/ops/clone-rehearsal-sql.mjs`
+- `scripts/ops/clone-rehearsal-journal.mjs`
+- `tests/ap1/environment/clone-rehearsal-sql.test.ts`
+- `tests/ap1/environment/clone-rehearsal-journal.test.ts`
+- эта карточка
+
+Компилятор проверяет frozen commit `d5f21817f34f336e10c562a3515d5004711d25e5`, canonical manifest SHA `bf772ca1d8253160310ea442068e49295dd172503f837fbf689a9f9fd6d10230`, ledger и все 98 исходных файлов, включая исключаемый baseline, плюс три auxiliary-файла. Результат — immutable inventory 97 миграций; `executionReady=false`. Только две точные hash-bound auxiliary-директивы `\set ON_ERROR_STOP on` переносятся в обязательство транспорта; произвольные psql-команды запрещены.
+
+Локальный supplemental journal создаётся exclusively с правами0600 в каталоге0700, выполняет fsync файла/каталога и хранит только фиксированные идентификаторы/хеши/классификации. Последовательные STAGED-записи не означают commit. Повторное создание и resume запрещены, torn/corrupt/uncertain запись не даёт продолжить. Это не согласие владельца, не удалённый CAS fence и не защита от доверенного пользователя, намеренно переписавшего локальное хранилище.
+
+Проверки этой вехи: independent source review и closure PASS; исправлена утечка filesystem path в ошибке. Lint/typecheck/1704 tests/Webpack build PASS;17 существующих lint warnings. Тесты включают реальный SIGKILL дочернего процесса с чтением уже fsynced журнала. Существующий lockfile совпал с проверенным dependency tree; использован его локальный symlink. Никакие SQL, GitHub fence или live DB вызовы эти компоненты не выполняли.
+
+До выполнения rehearsal остаются: совместимость реальной общей транзакции (GUC, deferred constraints, dynamic SQL и порядок auxiliary), транспорт с конкретным verified TLS/endpoint, remote absence-CAS fence, exact fresh clone fingerprint/history и отсутствие предыдущей ошибки. Полный WP-13, disposable full-plan proof, hosted и production не закрыты этой вехой. Отдельный code review Claude на итоговом commit остаётся required evidence.
