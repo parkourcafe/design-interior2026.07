@@ -240,9 +240,9 @@ where project_id = '41111111-1111-4111-8111-111111111111'
 \gset db5_
 
 select jsonb_build_object(
-  'id', 'baseline-db5-v2',
+  'id', 'baseline:db5-publish-baseline-v2',
   'graphVersionId', :'db5_graph_version_id',
-  'previousBaselineId', 'baseline-db4-v1',
+  'previousBaselineId', 'baseline:db4-publish-baseline-v1',
   'packageIds', jsonb_build_array(
     '41111111-1111-4111-8111-111111111111',
     '49999999-9999-4999-8999-999999999999'
@@ -286,7 +286,7 @@ select jsonb_build_object(
             '49999999-9999-4999-8999-999999999999'
           )
       ),
-      'previousBaselineId', 'baseline-db4-v1',
+      'previousBaselineId', 'baseline:db4-publish-baseline-v1',
       'projectId', '41111111-1111-4111-8111-111111111111',
       'requirementRevisionIds',
         jsonb_build_array('revision-requirement-db4'),
@@ -304,10 +304,12 @@ begin;
 set local role authenticated;
 set local request.jwt.claim.sub =
   '31111111-1111-4111-8111-111111111111';
-select projectceo_product_api.publish_project_baseline(
+select projectceo_product_api.publish_baseline_atomic(
   '41111111-1111-4111-8111-111111111111',
-  :'db5_baseline_descriptor'::jsonb,
+  :'db5_graph_version_id',
+  'baseline:db4-publish-baseline-v1',
   :'db5_state_revision'::bigint,
+  'db5-publish-baseline-v2',
   'db5-publish-baseline-v2'
 );
 commit;
@@ -343,7 +345,7 @@ begin
     null
   );
   if v_read #>> '{data,extensionStatus,createChangeProposedBaselineId}'
-       <> 'baseline-db5-v2'
+       <> 'baseline:db5-publish-baseline-v2'
      or v_read #>> '{data,latestBaseline,id}' is not null
   then
     raise exception 'DB5_BUILDER_CHANGE_TARGET_READ_INVALID:%', v_read;
@@ -378,8 +380,8 @@ begin
     perform projectceo_m4_api.submit_change_request(
       '41111111-1111-4111-8111-111111111111',
       '41111111-1111-4111-8111-111111111111',
-      'baseline-db4-v1',
-      'baseline-db5-v2',
+      'baseline:db4-publish-baseline-v1',
+      'baseline:db5-publish-baseline-v2',
       'package-db4-root-v1',
       'Client must not create builder change requests',
       0,
@@ -404,8 +406,8 @@ begin
     perform projectceo_m4_api.submit_change_request(
       '41111111-1111-4111-8111-111111111111',
       '41111111-1111-4111-8111-111111111111',
-      'baseline-db4-v1',
-      'baseline-db5-v2',
+      'baseline:db4-publish-baseline-v1',
+      'baseline:db5-publish-baseline-v2',
       'package-db4-root-v1',
       'Guest must not create builder change requests',
       0,
@@ -423,7 +425,7 @@ rollback;
 select jsonb_build_object(
   'id', 'package-db5-root-v2',
   'packageId', '41111111-1111-4111-8111-111111111111',
-  'baselineId', 'baseline-db5-v2',
+  'baselineId', 'baseline:db5-publish-baseline-v2',
   'previousVersionId', 'package-db4-root-v1',
   'exactRevisionRefs', jsonb_build_object(
     'sources', jsonb_build_array('revision-source-1'),
@@ -434,7 +436,7 @@ select jsonb_build_object(
   ),
   'semanticHash', 'sha256:' || encode(
     project_intelligence._sha256_jsonb(jsonb_build_object(
-      'baselineId', 'baseline-db5-v2',
+      'baselineId', 'baseline:db5-publish-baseline-v2',
       'exactRevisionRefs', jsonb_build_object(
         'assumptions', jsonb_build_array('revision-assumption-db4'),
         'decisions', jsonb_build_array('revision-decision-db5-r2'),
@@ -477,8 +479,8 @@ begin
       current_setting('projectceo.db5_preimpact_state')::bigint,
       'db5-premature-package-v2'
     );
-    raise exception 'DB5_PREMATURE_CHANGED_RELEASE_ALLOWED';
-  exception when sqlstate 'P1110' then null;
+    raise exception 'DB5_RAW_RELEASE_REMAINS_REACHABLE';
+  exception when insufficient_privilege then null;
   end;
 end
 $release_before_impact_review$;
@@ -747,8 +749,8 @@ select (
   projectceo_m4_api.submit_change_request(
     '41111111-1111-4111-8111-111111111111',
     '41111111-1111-4111-8111-111111111111',
-    'baseline-db4-v1',
-    'baseline-db5-v2',
+    'baseline:db4-publish-baseline-v1',
+    'baseline:db5-publish-baseline-v2',
     'package-db4-root-v1',
     'Client approved a floor finish replacement',
     175000,
@@ -777,8 +779,8 @@ begin
   v_response := projectceo_m4_api.submit_change_request(
     '41111111-1111-4111-8111-111111111111',
     '41111111-1111-4111-8111-111111111111',
-    'baseline-db4-v1',
-    'baseline-db5-v2',
+    'baseline:db4-publish-baseline-v1',
+    'baseline:db5-publish-baseline-v2',
     'package-db4-root-v1',
     'Client approved a floor finish replacement',
     175000,
@@ -812,8 +814,8 @@ begin
     perform projectceo_m4_api.submit_change_request(
       '41111111-1111-4111-8111-111111111111',
       '41111111-1111-4111-8111-111111111111',
-      'baseline-db4-v1',
-      'baseline-db5-v2',
+      'baseline:db4-publish-baseline-v1',
+      'baseline:db5-publish-baseline-v2',
       'package-db4-root-v1',
       'Same transition under another command key',
       175000,
@@ -965,10 +967,12 @@ begin;
 set local role authenticated;
 set local request.jwt.claim.sub =
   '31111111-1111-4111-8111-111111111111';
-select projectceo_product_api.publish_production_package_version(
+select projectceo_product_api.publish_release_request_bound(
   '41111111-1111-4111-8111-111111111111',
-  :'db5_package_descriptor'::jsonb,
+  'baseline:db5-publish-baseline-v2',
+  'package-db4-root-v1',
   :'db5_state_revision'::bigint,
+  'package-db5-root-v2',
   'db5-publish-package-v2'
 );
 commit;
@@ -1184,7 +1188,7 @@ begin
     from projectceo_product.project_baselines baseline
     where baseline.project_id =
       '41111111-1111-4111-8111-111111111111'
-      and baseline.baseline_id = 'baseline-db5-v2';
+      and baseline.baseline_id = 'baseline:db5-publish-baseline-v2';
 
     insert into projectceo_m4.handover_milestone_refs (
       organization_id,
@@ -1407,8 +1411,8 @@ begin
     perform projectceo_m4_api.submit_change_request(
       '41111111-1111-4111-8111-111111111111',
       '41111111-1111-4111-8111-111111111111',
-      'baseline-db4-v1',
-      'baseline-db5-v2',
+      'baseline:db4-publish-baseline-v1',
+      'baseline:db5-publish-baseline-v2',
       'package-db4-root-v1',
       'Different reason under the same key',
       175000,

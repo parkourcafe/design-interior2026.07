@@ -205,8 +205,6 @@ begin
     ('projectceo_product_api.publish_project_baseline(uuid,jsonb,bigint,text)'),
     ('projectceo_product_api.publish_production_package_version(uuid,jsonb,bigint,text)'),
     ('projectceo_product_api.build_release_artifact(uuid,jsonb,bigint,text)'),
-    ('projectceo_product_api.distribute_release(uuid,text,uuid,bigint,text)'),
-    ('projectceo_product_api.acknowledge_release(uuid,uuid,text,bigint,text)'),
     ('projectceo_product_api.distribute_release_request_bound(uuid,text,uuid,bigint,text)'),
     ('projectceo_product_api.acknowledge_release_request_bound(uuid,uuid,text,bigint,text)'),
     ('projectceo_product_api.approve_no_change(uuid,text,text,text,bigint,text)'),
@@ -219,7 +217,11 @@ begin
     ('projectceo_product_api.list_release_artifact_backlog(integer)'),
     -- Атомарная дверь публикации baseline (20260825030000, M3 backlog #6):
     -- закрыта по умолчанию, открывается выключателем модуля; сценарий 51.
-    ('projectceo_product_api.publish_baseline_atomic(uuid,text,text,bigint,text,text)')
+    ('projectceo_product_api.publish_baseline_atomic(uuid,text,text,bigint,text,text)'),
+    ('projectceo_product_api.publish_release_request_bound(uuid,text,text,bigint,text,text)'),
+    ('projectceo_product_api.publish_work_package_release_request_bound(uuid,uuid,text,text,bigint,text,text)'),
+    ('projectceo_product_api.create_external_annotation(uuid,uuid,uuid,uuid,uuid,text,jsonb,jsonb,jsonb,text,bigint,text)'),
+    ('projectceo_product_api.revise_external_annotation(uuid,uuid,uuid,uuid,text,jsonb,jsonb,jsonb,text,bigint,text)')
   ) expected(signature)
   where to_regprocedure(expected.signature) is null
   limit 1;
@@ -235,10 +237,18 @@ begin
   -- The layout migration retains one owner-only compatibility implementation
   -- behind the public request-bound wrapper. Число выросло до 22 с системным
   -- чтением очереди артефактов выпуска (20260811030000) и до 23 с атомарной
-  -- дверью публикации baseline (20260825030000): перепись существует ровно
+  -- дверью публикации baseline (20260825030000) и до 24 с request-bound
+  -- выпуском work package (20260911140000), root request-bound выпуском
+  -- (20260911150000) и до 25 с R1 external annotation commands (20260912100000):
+  -- перепись существует ровно
   -- затем, чтобы новая RPC в схеме не появлялась молча.
-  if v_count <> 23 then
+  if v_count <> 25 then
     raise exception 'DB4_UNEXPECTED_RPC_COUNT:%', v_count;
+  end if;
+
+  if to_regprocedure('projectceo_product_api.distribute_release(uuid,text,uuid,bigint,text)') is not null
+     or to_regprocedure('projectceo_product_api.acknowledge_release(uuid,uuid,text,bigint,text)') is not null then
+    raise exception 'DB4_LEGACY_M4_DOOR_STILL_EXISTS';
   end if;
 
   if has_function_privilege(
@@ -303,6 +313,25 @@ begin
   limit 1;
   if v_problem is not null then
     raise exception 'DB4_CYCLE6_RPC_GRANT_BROADENED:%', v_problem;
+  end if;
+
+  if not has_function_privilege(
+    'authenticated',
+    'projectceo_product_api.publish_release_request_bound(uuid,text,text,bigint,text,text)',
+    'EXECUTE'
+  ) then
+    raise exception 'DB4_ROOT_RELEASE_AUTHENTICATED_GRANT_MISSING';
+  end if;
+  select forbidden.role_name into v_problem
+  from (values ('anon'),('service_role'),('pi_human_executor'),('pi_worker_executor')) forbidden(role_name)
+  where has_function_privilege(
+    forbidden.role_name,
+    'projectceo_product_api.publish_release_request_bound(uuid,text,text,bigint,text,text)',
+    'EXECUTE'
+  )
+  limit 1;
+  if v_problem is not null then
+    raise exception 'DB4_ROOT_RELEASE_GRANT_BROADENED:%', v_problem;
   end if;
 
   -- Обращение к managed auth из тела SECURITY DEFINER функции. На managed

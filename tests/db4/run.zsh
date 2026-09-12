@@ -52,6 +52,9 @@ done
 
 for sql in \
   "${repo_root}/tests/db3/20_foundation_operations.sql" \
+  "${repo_root}/tests/db4/60_r1_asset_identity_versions.sql" \
+  "${repo_root}/tests/db4/61_r1_object_representation_bindings.sql" \
+  "${repo_root}/tests/db4/62_r1_external_annotations.sql" \
   "${repo_root}/tests/db4/05_m3_publication_guardrail.sql" \
   "${repo_root}/tests/db4/06_m3_surface_classification.sql" \
   "${repo_root}/tests/db4/07_m4_execution_boundary.sql" \
@@ -62,6 +65,7 @@ for sql in \
   "${repo_root}/tests/ap1/environment/enable-m4-v1-impact.sql" \
   "${repo_root}/tests/db4/10_schema_security.sql" \
   "${repo_root}/tests/db4/20_product_operations.sql" \
+  "${repo_root}/tests/db4/62_publish_work_package_release_request_bound.sql" \
   "${repo_root}/tests/db4/30_m2_expansion_operations.sql" \
   "${repo_root}/tests/db4/31_m2_approved_commit_operations.sql" \
   "${repo_root}/tests/db4/32_m2_layout_version_operations.sql" \
@@ -90,6 +94,7 @@ for sql in \
   "${repo_root}/tests/db4/53_m3_read_gate.sql" \
   "${repo_root}/tests/db4/54_workspace_read_superseded_approvals.sql" \
   "${repo_root}/tests/db4/56_m1_rls_security.sql" \
+  "${repo_root}/tests/db4/57_legacy_adopted_hardening.sql" \
   "${repo_root}/tests/db4/59_m1_legacy_read_rpc.sql"; do
   print -r -- "Running ${sql:t}"
   run_file "${sql}"

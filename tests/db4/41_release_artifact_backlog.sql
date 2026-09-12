@@ -5,7 +5,7 @@
 --
 -- Сценарий стоит ПОСЛЕ продуктовых операций намеренно: к этому моменту в
 -- проекте есть и версия с артефактом (`package-db4-root-v1`), и версия без
--- него (`package-db4-work-v1`). Очередь, проверенная на пустой базе, не
+-- него (`release:db4-publish-work-package-v1`). Очередь, проверенная на пустой базе, не
 -- доказала бы главного — что она отдаёт ровно недостающее.
 
 -- 1. Роль `authenticated` не достаёт до очереди. Проверка вызовом, а не
@@ -60,7 +60,7 @@ begin
     raise exception 'DB4_RELEASE_BACKLOG_RETURNED_BUILT_VERSION';
   end if;
   -- Версия без артефакта — попадает. Это и есть работа воркера.
-  if not ('package-db4-work-v1' = any(coalesce(v_ids, array[]::text[]))) then
+  if not ('release:db4-publish-work-package-v1' = any(coalesce(v_ids, array[]::text[]))) then
     raise exception 'DB4_RELEASE_BACKLOG_MISSED_PENDING_VERSION';
   end if;
 

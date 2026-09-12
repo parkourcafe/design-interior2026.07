@@ -505,15 +505,20 @@ select set_config(
   :'db4_state_revision',
   false
 );
+select set_config(
+  'projectceo.db4_graph_version_id',
+  :'db4_graph_version_id',
+  false
+);
 do $unapproved_baseline_rejected$
 begin
   begin
-    perform projectceo_product_api.publish_project_baseline(
+    perform projectceo_product_api.publish_baseline_atomic(
       '41111111-1111-4111-8111-111111111111',
-      current_setting(
-        'projectceo.db4_baseline_descriptor'
-      )::jsonb,
+      current_setting('projectceo.db4_graph_version_id'),
+      null,
       current_setting('projectceo.db4_state_revision')::bigint,
+      'db4-baseline-before-review',
       'db4-baseline-before-review'
     );
     raise exception 'DB4_UNAPPROVED_BASELINE_PUBLISHED';
@@ -564,10 +569,12 @@ begin;
 set local role authenticated;
 set local request.jwt.claim.sub =
   '31111111-1111-4111-8111-111111111111';
-select projectceo_product_api.publish_project_baseline(
+select projectceo_product_api.publish_baseline_atomic(
   '41111111-1111-4111-8111-111111111111',
-  :'db4_baseline_descriptor'::jsonb,
+  :'db4_graph_version_id',
+  null,
   :'db4_state_revision'::bigint,
+  'db4-publish-baseline-v1',
   'db4-publish-baseline-v1'
 );
 commit;
@@ -578,47 +585,16 @@ from project_intelligence.project_workflows
 where project_id = '41111111-1111-4111-8111-111111111111'
 \gset db4_
 
-select jsonb_build_object(
-  'id', 'package-db4-root-v1',
-  'packageId', '41111111-1111-4111-8111-111111111111',
-  'baselineId', 'baseline-db4-v1',
-  'previousVersionId', null,
-  'exactRevisionRefs', jsonb_build_object(
-    'sources', jsonb_build_array('revision-source-1'),
-    'requirements', jsonb_build_array('revision-requirement-db4'),
-    'assumptions', jsonb_build_array('revision-assumption-db4'),
-    'decisions', jsonb_build_array('revision-decision-db4-r1'),
-    'selections', jsonb_build_array('revision-selection-db4-r1')
-  ),
-  'semanticHash', 'sha256:' || encode(
-    project_intelligence._sha256_jsonb(jsonb_build_object(
-      'baselineId', 'baseline-db4-v1',
-      'exactRevisionRefs', jsonb_build_object(
-        'assumptions', jsonb_build_array('revision-assumption-db4'),
-        'decisions', jsonb_build_array('revision-decision-db4-r1'),
-        'requirements', jsonb_build_array('revision-requirement-db4'),
-        'selections', jsonb_build_array('revision-selection-db4-r1'),
-        'sources', jsonb_build_array('revision-source-1')
-      ),
-      'organizationId', :'db4_organization_id'::uuid,
-      'packageId', '41111111-1111-4111-8111-111111111111',
-      'previousVersionId', null,
-      'projectId', '41111111-1111-4111-8111-111111111111',
-      'schemaVersion', 'project-ceo-production-package/0.1'
-    )),
-    'hex'
-  )
-) as root_package_descriptor
-\gset db4_
-
 begin;
 set local role authenticated;
 set local request.jwt.claim.sub =
   '31111111-1111-4111-8111-111111111111';
-select projectceo_product_api.publish_production_package_version(
+select projectceo_product_api.publish_release_request_bound(
   '41111111-1111-4111-8111-111111111111',
-  :'db4_root_package_descriptor'::jsonb,
+  'baseline:db4-publish-baseline-v1',
+  null,
   :'db4_state_revision'::bigint,
+  'package-db4-root-v1',
   'db4-publish-root-package-v1'
 );
 commit;
@@ -631,7 +607,7 @@ where project_id = '41111111-1111-4111-8111-111111111111'
 select jsonb_build_object(
   'id', 'package-db4-work-v1',
   'packageId', '49999999-9999-4999-8999-999999999999',
-  'baselineId', 'baseline-db4-v1',
+  'baselineId', 'baseline:db4-publish-baseline-v1',
   'previousVersionId', null,
   'exactRevisionRefs', jsonb_build_object(
     'sources', jsonb_build_array('revision-source-1'),
@@ -642,7 +618,7 @@ select jsonb_build_object(
   ),
   'semanticHash', 'sha256:' || encode(
     project_intelligence._sha256_jsonb(jsonb_build_object(
-      'baselineId', 'baseline-db4-v1',
+      'baselineId', 'baseline:db4-publish-baseline-v1',
       'exactRevisionRefs', jsonb_build_object(
         'assumptions', '[]'::jsonb,
         'decisions', jsonb_build_array('revision-decision-db4-r1'),
@@ -693,8 +669,8 @@ begin
       current_setting('projectceo.db4_state_revision')::bigint,
       'db4-invalid-work-subset'
     );
-    raise exception 'DB4_WORK_PACKAGE_OUTSIDE_BASELINE';
-  exception when sqlstate 'P1111' then null;
+    raise exception 'DB4_RAW_WORK_PACKAGE_RELEASE_REMAINS_REACHABLE';
+  exception when insufficient_privilege then null;
   end;
 end
 $work_package_outside_baseline_rejected$;
@@ -702,12 +678,46 @@ rollback;
 
 begin;
 set local role authenticated;
+set local request.jwt.claim.sub = '31111111-1111-4111-8111-111111111111';
+select projectceo_api.register_source_inventory(
+  '41111111-1111-4111-8111-111111111111',
+  jsonb_build_array(jsonb_build_object(
+    'physicalRecordId', '5eeeeeee-1111-4111-8111-111111111111',
+    'sanitizedName', 'work-package-source.pdf',
+    'hierarchy', jsonb_build_object(
+      'projectId', '41111111-1111-4111-8111-111111111111',
+      'packageId', '49999999-9999-4999-8999-999999999999',
+      'floorId', 'floor-db4', 'zoneId', 'zone-db4', 'disciplineId', 'architecture'
+    ),
+    'availability', 'materialized', 'documentStatus', 'current',
+    'sizeBytes', 2048, 'checksum', repeat('b', 64),
+    'sourceRevisionId', 'revision-source-1', 'semanticConflict', false
+  )),
+  jsonb_build_object(
+    'projectId', '41111111-1111-4111-8111-111111111111',
+    'entries', jsonb_build_array(), 'exactHashGroups', jsonb_build_array()
+  ),
+  :'db4_state_revision'::bigint,
+  'db4-work-package-materialization'
+);
+commit;
+
+select state_revision as state_revision
+from project_intelligence.project_workflows
+where project_id = '41111111-1111-4111-8111-111111111111'
+\gset db4_
+
+begin;
+set local role authenticated;
 set local request.jwt.claim.sub =
   '31111111-1111-4111-8111-111111111111';
-select projectceo_product_api.publish_production_package_version(
+select projectceo_product_api.publish_work_package_release_request_bound(
   '41111111-1111-4111-8111-111111111111',
-  :'db4_work_package_descriptor'::jsonb,
+  '49999999-9999-4999-8999-999999999999',
+  'baseline:db4-publish-baseline-v1',
+  null,
   :'db4_state_revision'::bigint,
+  'db4-publish-work-package-v1',
   'db4-publish-work-package-v1'
 );
 commit;
@@ -947,9 +957,7 @@ select projectceo_product_api.acknowledge_release_request_bound(
 );
 commit;
 
--- Прежние двери выведены из строя (`20260825060000`): гранты среды на них
--- ещё существуют, но тело отвечает отказом при любых аргументах — «дверь
--- недостижима по существу, покрытие живо» на request-bound версиях выше.
+-- WP-35 физически удаляет legacy-двери; request-bound coverage живёт выше.
 begin;
 set local role authenticated;
 set local request.jwt.claim.sub =
@@ -967,7 +975,7 @@ begin
       'db4-legacy-distribute-probe'
     );
     raise exception 'DB4_LEGACY_DISTRIBUTE_ALIVE';
-  exception when sqlstate 'P1111' then v_refused := v_refused + 1;
+  exception when undefined_function then v_refused := v_refused + 1;
   end;
   begin
     perform projectceo_product_api.acknowledge_release(
@@ -978,7 +986,7 @@ begin
       'db4-legacy-ack-probe'
     );
     raise exception 'DB4_LEGACY_ACK_ALIVE';
-  exception when sqlstate 'P1111' then v_refused := v_refused + 1;
+  exception when undefined_function then v_refused := v_refused + 1;
   end;
   if v_refused <> 2 then
     raise exception 'DB4_LEGACY_DOORS_REFUSALS_EXPECTED_2_GOT_%', v_refused;
@@ -999,7 +1007,7 @@ set local request.jwt.claim.sub =
 select projectceo_product_api.approve_no_change(
   '41111111-1111-4111-8111-111111111111',
   'package-db4-root-v1',
-  'baseline-db4-v1',
+  'baseline:db4-publish-baseline-v1',
   'Human confirmed no change for exact package version',
   :'db4_state_revision'::bigint,
   'db4-no-change-root-v1'
@@ -1123,7 +1131,7 @@ begin
     perform projectceo_product_api.approve_no_change(
       '41111111-1111-4111-8111-111111111111',
       'package-db4-root-v1',
-      'baseline-db4-v1',
+      'baseline:db4-publish-baseline-v1',
       'Different digest under same key',
       current_setting(
         'projectceo.db4_expected_state_revision'
@@ -1143,7 +1151,7 @@ begin
     update projectceo_product.project_baselines
     set semantic_content = '{}'::jsonb
     where project_id = '41111111-1111-4111-8111-111111111111'
-      and baseline_id = 'baseline-db4-v1';
+      and baseline_id = 'baseline:db4-publish-baseline-v1';
     raise exception 'DB4_BASELINE_MUTABLE';
   exception when object_not_in_prerequisite_state then null;
   end;
@@ -1175,7 +1183,7 @@ begin
     '49999999-9999-4999-8999-999999999999'
   );
   if v_project #>> '{data,latestBaseline,id}'
-       is distinct from 'baseline-db4-v1'
+       is distinct from 'baseline:db4-publish-baseline-v1'
      or jsonb_array_length(v_project #> '{data,packageVersions}') <> 2
      or jsonb_array_length(v_project #> '{data,releaseArtifacts}') <> 1
      or jsonb_array_length(v_project #> '{data,acknowledgements}') <> 1 then
@@ -1199,7 +1207,7 @@ begin
     select count(*)
     from projectceo_product.project_baseline_refs pbr
     where pbr.project_id = '41111111-1111-4111-8111-111111111111'
-      and pbr.baseline_id = 'baseline-db4-v1'
+      and pbr.baseline_id = 'baseline:db4-publish-baseline-v1'
   ) <> 5 then
     raise exception 'DB4_BASELINE_REF_COUNT';
   end if;
@@ -1215,7 +1223,7 @@ begin
     select 1
     from projectceo_product.no_change_terminals nct
     where nct.project_id = '41111111-1111-4111-8111-111111111111'
-      and nct.baseline_id = 'baseline-db4-v1'
+      and nct.baseline_id = 'baseline:db4-publish-baseline-v1'
       and nct.production_package_version_id = 'package-db4-root-v1'
   ) then
     raise exception 'DB4_NO_CHANGE_TERMINAL_MISSING';
