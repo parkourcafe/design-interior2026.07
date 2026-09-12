@@ -44,3 +44,17 @@ field, cancellation during final stat, and unchanged caller offset/open handle.
 Independent intent and code review PASS. Final local validation: owned lint,
 full typecheck, 220 test files / 1,835 tests and Webpack build PASS (46 static
 pages; existing support/legal fallback warnings). No production or DB action.
+
+## Independent Claude findings closure
+
+Actual read-only Claude review of c7d50ca identified two concrete input/evidence
+issues. Returned read/stat inconsistencies now retain their determined invalid
+or changed reason if cancellation arrives concurrently; cancellation still
+prevents the next I/O. Idempotency keys reject C0 and DEL before trimming while
+allowing valid Unicode. Raw filesystem and abort reasons remain sanitized.
+
+New regressions reproduced 37 failures before the fixes, then all 89 focused
+tests passed. Independent source closure PASS. Final lint/typecheck, 1,873 tests
+and Webpack build PASS (13 pre-existing lint warnings; existing public display
+fallback warnings). Durable job/fence/receipt-time authority remains the SQL
+pipeline responsibility; no arbitrary rolling expiry was added to byte evidence.

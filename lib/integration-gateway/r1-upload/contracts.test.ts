@@ -46,6 +46,27 @@ describe("R1 upload browser contracts", () => {
     expect(cancelExternalUploadSchema.safeParse({ ...command, idempotencyKey: " " }).success).toBe(false);
     expect(finalizeExternalUploadSchema.safeParse({ ...command, objectClaim: { objectKey: "x" } }).success).toBe(false);
   });
+  it.each([...Array.from({ length: 32 }, (_, index) => index), 127])("rejects control U+%s in all idempotency keys before trimming", (code) => {
+    const control = String.fromCharCode(code);
+    for (const [schema, input] of [
+      [beginExternalUploadSchema, begin], [finalizeExternalUploadSchema, command],
+      [cancelExternalUploadSchema, command], [resumeExternalUploadSchema, { ...command, partNumbers: [1] }],
+    ] as const) {
+      for (const idempotencyKey of [`${control}valid`, `va${control}lid`, `valid${control}`]) {
+        expect(schema.safeParse({ ...input, idempotencyKey }).success).toBe(false);
+      }
+    }
+  });
+  it("preserves valid Unicode idempotency keys and existing trimmed length boundaries", () => {
+    for (const [schema, input] of [
+      [beginExternalUploadSchema, begin], [finalizeExternalUploadSchema, command],
+      [cancelExternalUploadSchema, command], [resumeExternalUploadSchema, { ...command, partNumbers: [1] }],
+    ] as const) {
+      expect(schema.parse({ ...input, idempotencyKey: "  загрузка-東京-é-🔑  " }).idempotencyKey).toBe("загрузка-東京-é-🔑");
+      expect(schema.safeParse({ ...input, idempotencyKey: "я".repeat(512) }).success).toBe(true);
+      expect(schema.safeParse({ ...input, idempotencyKey: "я".repeat(513) }).success).toBe(false);
+    }
+  });
   it("uses existing stable errors without reflecting hostile input", () => {
     let failure: unknown;
     try { parseExternalUploadCommand(beginExternalUploadSchema, { ...begin, privateLocator: "private-test-path" }); }

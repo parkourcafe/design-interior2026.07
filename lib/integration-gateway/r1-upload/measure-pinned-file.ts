@@ -40,10 +40,10 @@ export async function measurePinnedFile(input: {
     if (!Number.isSafeInteger(input.observedByteLength) || input.observedByteLength < 1
       || input.observedByteLength > maxBytes) reject("pinned_measurement_invalid");
     const before = await input.file.stat({ bigint: true });
-    checkAbort();
     if (!before.isFile() || before.nlink !== 1n || before.size !== BigInt(input.observedByteLength)) {
       reject("pinned_measurement_invalid");
     }
+    checkAbort();
     const hash = createHash("sha256");
     const buffer = Buffer.alloc(Math.min(chunkBytes, input.observedByteLength));
     let byteLength = 0;
@@ -51,26 +51,26 @@ export async function measurePinnedFile(input: {
       checkAbort();
       const requested = Math.min(buffer.length, input.observedByteLength - byteLength);
       const { bytesRead } = await input.file.read(buffer, 0, requested, byteLength);
-      checkAbort();
       if (!Number.isSafeInteger(bytesRead) || bytesRead < 1 || bytesRead > requested) {
         reject("pinned_measurement_changed");
       }
+      checkAbort();
       hash.update(buffer.subarray(0, bytesRead));
       byteLength += bytesRead;
     }
     checkAbort();
     const extra = await input.file.read(buffer, 0, 1, byteLength);
-    checkAbort();
     if (extra.bytesRead !== 0) reject("pinned_measurement_changed");
-    const after = await input.file.stat({ bigint: true });
     checkAbort();
+    const after = await input.file.stat({ bigint: true });
     if (!unchanged(before, after)) reject("pinned_measurement_changed");
+    checkAbort();
     const sourceSha256 = hash.digest("hex");
     checkAbort();
     return { sourceSha256, byteLength };
   } catch {
+    // Preserve detected invalid/changed evidence even if cancellation also arrived.
     // Do not propagate filesystem paths or arbitrary AbortSignal.reason values.
-    if (input.signal.aborted) reason = "pinned_measurement_aborted";
     throw new ProjectIntelligenceAdapterError("validation_failed", null, reason);
   }
 }

@@ -14,7 +14,8 @@ const uuid = z.string().uuid();
 const safePositive = z.number().int().positive().safe();
 const projectionRevision = z.number().int().nonnegative().safe();
 const commandRevision = projectionRevision.max(Number.MAX_SAFE_INTEGER - 1);
-const idempotencyKey = z.string().trim().min(1).max(512);
+// Check controls before trim so leading/trailing C0 bytes cannot disappear.
+const idempotencyKey = z.string().regex(/^[^\u0000-\u001f\u007f]*$/u).trim().min(1).max(512);
 const format = z.enum(R1_UPLOAD_FORMATS);
 const sessionCommand = {
   sessionId: uuid,

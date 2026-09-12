@@ -120,6 +120,29 @@ describe("pinned descriptor byte measurement", () => {
     expect(close).not.toHaveBeenCalled();
     expect(f.file.fd).toBeGreaterThan(2);
   });
+  it.each(["initial_stat", "read", "eof", "final_stat"] as const)("preserves detected %s failure when cancellation arrives with its result", async (phase) => {
+    const f = await fixture();
+    let statCalls = 0;
+    const file = phase === "initial_stat" || phase === "final_stat"
+      ? intercepted(f.file, "stat", async (_args, call) => {
+          const stats = await call() as Awaited<ReturnType<typeof f.file.stat>>;
+          if (++statCalls === (phase === "initial_stat" ? 1 : 2)) {
+            Reflect.set(stats, "size", BigInt(Reflect.get(stats, "size")) + 1n);
+            f.controller.abort("simultaneous-cancellation");
+          }
+          return stats;
+        })
+      : intercepted(f.file, "read", async (args, call) => {
+          if (phase === "read" || args[3] === f.bytes.length) {
+            f.controller.abort("simultaneous-cancellation");
+            return { bytesRead: phase === "read" ? 0 : 1 };
+          }
+          return call();
+        });
+    await expect(measurePinnedFile({ ...f.input, file })).rejects.toMatchObject({
+      reason: phase === "initial_stat" ? "pinned_measurement_invalid" : "pinned_measurement_changed",
+    });
+  });
   it("sanitizes filesystem failure and leaves descriptor ownership with the caller", async () => {
     const f = await fixture();
     const close = vi.spyOn(f.file, "close");
