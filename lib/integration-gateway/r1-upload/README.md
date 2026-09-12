@@ -26,3 +26,21 @@ Verification on the final code before this documentation-only addition (Node v22
 | `npm run build -- --webpack` after final code change | PASS, 46 static pages; repository fallback warnings for unset public support/legal display values |
 
 Existing lint warnings occur in `lib/llm/gigachat.ts`, `lib/risks/llm.ts` and four existing test files. Build used the repository's installed Next.js Webpack option with shared installed dependencies, without configuration/credential changes. Database/Auth/storage/browser/real-corpus validation was not run because this slice contains no such implementation. No commit, push, cloud mutation or dependency change was performed by this worker.
+
+## Initial worker byte measurement follow-up
+
+`measure-pinned-file.ts` derives the first trusted checksum/length from a borrowed
+read-only descriptor supplied by the sandbox caller. It uses explicit-offset
+reads bounded to 65,536 bytes, continues positive short reads, checks exact EOF
+and pre/post file identity/size/timestamps, preserves descriptor ownership and
+position, and sanitizes I/O and cancellation failures. The caller must establish
+real immutable pin, no-follow/read-only opening, exclusive writer policy and
+sandbox. Stat comparison alone proves none of those properties; output is byte
+measurement, not a clean scan or persisted lineage receipt.
+
+Tests use real synthetic files and controlled descriptor faults: short reads,
+chunk limits, premature EOF/growth, hardlink/directory rejection, every identity
+field, cancellation during final stat, and unchanged caller offset/open handle.
+Independent intent and code review PASS. Final local validation: owned lint,
+full typecheck, 220 test files / 1,835 tests and Webpack build PASS (46 static
+pages; existing support/legal fallback warnings). No production or DB action.
