@@ -38,6 +38,18 @@ const nodeId = z.string().trim().min(1).max(160);
 const claimRevisionId = z.string().trim().min(1).max(160);
 const commitM2Identifier = z.string().min(1).max(160)
   .refine((value) => value === value.trim(), "identifier_must_be_trimmed");
+// Candidate selectors contain exact persisted identities only; authority and hashes
+// are resolved by the request-bound database command.
+const externalReleaseCandidateRef = z.discriminatedUnion("kind", [
+  z.object({ kind: z.literal("asset_version"), assetVersionId: uuid }).strict(),
+  z.object({ kind: z.literal("representation_version"), representationVersionId: uuid }).strict(),
+  z.object({ kind: z.literal("documentation_sheet_revision"), sheetId: commitM2Identifier, sheetRevisionId: commitM2Identifier }).strict(),
+  z.object({ kind: z.literal("object_representation_binding"), objectRepresentationBindingId: uuid }).strict(),
+  z.object({ kind: z.literal("technical_reference_revision"), technicalReferenceRevisionId: uuid }).strict(),
+  z.object({ kind: z.literal("annotation_revision"), annotationRevisionId: uuid }).strict(),
+]);
+export type ExternalReleaseCandidateRef = z.infer<typeof externalReleaseCandidateRef>;
+
 const commitM2IdentifierList = z.array(commitM2Identifier).max(500);
 const m2ClientVariant = z.object({
   variantId: commitM2Identifier,
@@ -699,6 +711,17 @@ export const projectCeoCommandSchema = z.discriminatedUnion("kind", [
         "specification_revision_ids_must_be_unique",
       ),
       reason: z.string().trim().min(3).max(4000),
+    }).strict(),
+  }).strict(),
+  projectSelector.extend({
+    contractVersion: z.literal(PROJECTCEO_COMMAND_CONTRACT_VERSION),
+    kind: z.literal("attach_external_release_refs"),
+    payload: z.object({
+      packageId: uuid,
+      handoffId: commitM2Identifier,
+      handoffRevisionId: commitM2Identifier,
+      candidateRefs: z.array(externalReleaseCandidateRef).min(1).max(2000),
+      expectedStateRevision: z.number().int().safe().nonnegative(),
     }).strict(),
   }).strict(),
   // Зеркалит publish_baseline: дескриптор с семантическим хешем строит

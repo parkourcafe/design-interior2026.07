@@ -113,4 +113,33 @@ test.describe("AP5 — browser matrix отдельной аутентифици�
     expect(response.status()).toBe(403);
     await context.close();
   });
+
+  for (const role of ["owner", "designer", "builder", "client"] as const) {
+    test(`R1 candidate: ${role} проходит собственную границу Auth/capability/CAS`, async ({ browser }) => {
+      const context = await asRole(browser, role);
+      try {
+        const response = await context.request.post("/api/projectceo/commands", {
+          headers: { Origin: new URL(env.appUrl).origin },
+          data: {
+            contractVersion: "projectceo-command/0.1",
+            commandId: randomUUID(),
+            projectId: handoff().projectId,
+            kind: "attach_external_release_refs",
+            payload: {
+              packageId: handoff().rootPackageId,
+              handoffId: "ap5-missing-external-handoff",
+              handoffRevisionId: randomUUID(),
+              candidateRefs: [{ kind: "asset_version", assetVersionId: randomUUID() }],
+              // The synthetic fixture never reaches this revision. A replaced
+              // revision would reach handoff validation instead of the CAS gate.
+              expectedStateRevision: Number.MAX_SAFE_INTEGER,
+            },
+          },
+        });
+        const authorizedAuthor = role === "owner" || role === "designer";
+        expect(response.status()).toBe(authorizedAuthor ? 409 : 403);
+        expect((await json(response)).error?.code).toBe(authorizedAuthor ? "stale_state" : "forbidden");
+      } finally { await context.close(); }
+    });
+  }
 });

@@ -55,6 +55,7 @@ for sql in \
   "${repo_root}/tests/db4/60_r1_asset_identity_versions.sql" \
   "${repo_root}/tests/db4/61_r1_object_representation_bindings.sql" \
   "${repo_root}/tests/db4/62_r1_external_annotations.sql" \
+  "${repo_root}/tests/db4/63_r1_external_release_attachment_resolver.sql" \
   "${repo_root}/tests/db4/05_m3_publication_guardrail.sql" \
   "${repo_root}/tests/db4/06_m3_surface_classification.sql" \
   "${repo_root}/tests/db4/07_m4_execution_boundary.sql" \
@@ -71,6 +72,7 @@ for sql in \
   "${repo_root}/tests/db4/32_m2_layout_version_operations.sql" \
   "${repo_root}/tests/db4/33_m2_client_review_m3_handoff_operations.sql" \
   "${repo_root}/tests/db4/34_m3_documentation_sheet_operations.sql" \
+  "${repo_root}/tests/db4/64_r1_external_attachment_candidates.sql" \
   "${repo_root}/tests/db4/35_m3_documentation_read_operations.sql" \
   "${repo_root}/tests/db4/36_m2_layout_document_v02_validation.sql" \
   "${repo_root}/tests/db4/37_source_review_door.sql" \

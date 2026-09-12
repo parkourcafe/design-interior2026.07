@@ -117,6 +117,18 @@ export const M3_SURFACE: readonly M3SurfaceRow[] = [
     }],
   },
   {
+    command: "attach_external_release_refs",
+    surface: "documentation_sheets",
+    offState: "module_disabled",
+    rpcs: [{
+      schema: "projectceo_product_api",
+      name: "attach_external_release_refs",
+      signature: "projectceo_product_api.attach_external_release_refs(uuid, uuid, text, text, jsonb, bigint, text)",
+      sharing: "shared_schema",
+      closure: "revoked_from_authenticated",
+    }],
+  },
+  {
     command: "publish_baseline",
     surface: "baseline",
     offState: "module_disabled",

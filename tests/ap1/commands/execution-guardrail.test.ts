@@ -1,11 +1,10 @@
-import { readFileSync } from "node:fs";
-
 import { describe, expect, it, vi } from "vitest";
 
 vi.mock("server-only", () => ({}));
 
 import type { PostgresRpcClient } from "../../../lib/project-intelligence/adapters/postgres";
-import type { ProjectCeoCommand } from "../../../lib/project-intelligence/delivery/projectceo/command-contract";
+import { projectCeoCommandSchema, type ProjectCeoCommand } from "../../../lib/project-intelligence/delivery/projectceo/command-contract";
+import { M3_SURFACE_COMMANDS } from "../../../lib/project-intelligence/delivery/projectceo/m3-surface";
 import { ProjectCeoCommandService } from "../../../lib/project-intelligence/delivery/projectceo/command-service";
 import {
   EXECUTION_INCREMENT_1,
@@ -89,22 +88,20 @@ describe("M4 execution guardrail", () => {
     // роняет тест, и человек обязан решить, относится ли новая команда к
     // модулю 4 или к другому модулю. Четыре M1-команды не входят в M4-карту.
     // Обновлять число можно только вместе с этим решением.
-    const source = readFileSync(
-      new URL(
-        "../../../lib/project-intelligence/delivery/projectceo/command-contract.ts",
-        import.meta.url,
-      ),
-      "utf8",
-    );
-    const kinds = [...source.matchAll(/kind: z\.literal\("([a-z0-9_]+)"\)/g)]
-      .map((match) => match[1]!);
+    // Enumerate actual top-level commands. Nested reference selectors also
+    // have a kind discriminator, but cannot be executed as commands.
+    const kinds = projectCeoCommandSchema.innerType().options.map((option) => option.shape.kind.value);
 
     expect(
       kinds.length,
       "Команда добавлена или удалена в командном контракте. Отнесите её к "
       + "инкременту 1, инкременту 2 или к «не модуль 4» в execution-flag.ts, "
       + "затем обновите это число.",
-    ).toBe(37);
+    ).toBe(38);
+    // R1 attachment preparation belongs to M3, without opening an M4 command.
+    expect(M3_SURFACE_COMMANDS.has("attach_external_release_refs")).toBe(true);
+    expect(EXECUTION_MODULE.has("attach_external_release_refs")).toBe(false);
+    expect(kinds).not.toContain("asset_version");
 
     const declared = [...new Set([
       ...EXECUTION_INCREMENT_1,

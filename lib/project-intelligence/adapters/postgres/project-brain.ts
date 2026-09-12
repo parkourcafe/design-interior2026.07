@@ -1,3 +1,4 @@
+import type { ExternalReleaseCandidateRef } from "../../delivery/projectceo/command-contract";
 import type {
   ApprovalPackage,
   DecisionRevision,
@@ -441,6 +442,33 @@ export class ProjectBrainHumanPostgresAdapter {
           idempotency_key: input.idempotencyKey,
         },
       ),
+    );
+  }
+
+  async attachExternalReleaseRefs(input: {
+    readonly projectId: string;
+    readonly packageId: string;
+    readonly handoffId: string;
+    readonly handoffRevisionId: string;
+    readonly candidateRefs: readonly ExternalReleaseCandidateRef[];
+    readonly expectedStateRevision: number;
+    readonly idempotencyKey: string;
+  }): Promise<CommandMutation<{
+    readonly submissionId: string;
+    readonly subjectDigest: string;
+    readonly status: "candidate";
+    readonly refCount: number;
+  }>> {
+    return parseCommandMutation(
+      await callProductRpc(this.client, "attach_external_release_refs", {
+        p_project_id: input.projectId,
+        p_package_id: input.packageId,
+        p_handoff_id: input.handoffId,
+        p_handoff_revision_id: input.handoffRevisionId,
+        p_candidate_refs: input.candidateRefs,
+        p_expected_state_revision: input.expectedStateRevision,
+        p_idempotency_key: input.idempotencyKey,
+      }),
     );
   }
 
