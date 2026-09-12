@@ -2,6 +2,7 @@ import { assertHostAdmission, observeLocalHost, observeWatchdogIdentity } from "
 import { processGroup, type DockerClient } from "./docker";
 import { reconcileLateOwned } from "./late-reconciliation";
 import { cleanupOwned } from "./lifecycle";
+import { intentProfile } from "./profile";
 import type { SandboxRegistry } from "./registry";
 
 export async function watchdogTick(input: { docker: DockerClient; registry: SandboxRegistry; colimaExecutable: string; profile: string; expectedDaemonId: string }, clockHealthy = true): Promise<void> {
@@ -39,11 +40,11 @@ export async function watchdogTick(input: { docker: DockerClient; registry: Sand
       await cleanupOwned(input.docker, input.registry, record.operationId);
       continue;
     }
-    if (record.state === "running") {
+    if (record.state === "running" || record.state === "measuring") {
       try {
         const pressure = await observeLocalHost(input.docker, input.colimaExecutable, input.profile);
         if (pressure.daemonId !== record.daemonId || pressure.bootId !== record.bootId) throw new Error("sandbox_host_changed");
-        assertHostAdmission(pressure, Date.now(), record.containerId ?? undefined);
+        assertHostAdmission(pressure, Date.now(), record.containerId ?? undefined, intentProfile(record).id);
       } catch {
         await cancelAndCleanup(input, record.operationId);
         continue;

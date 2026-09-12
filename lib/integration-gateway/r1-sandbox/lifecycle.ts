@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import type { DockerClient } from "./docker";
-import { assertOwnedContainer } from "./profile";
+import { assertOwnedContainer, intentProfile } from "./profile";
 import type { IntentRecord, SandboxRegistry } from "./registry";
 
 export async function resolveOwnedId(docker: DockerClient, registry: SandboxRegistry, record: IntentRecord, deadline = Date.now() + 5_000): Promise<IntentRecord> {
@@ -36,6 +36,14 @@ export async function cleanupOwned(docker: DockerClient, registry: SandboxRegist
   let record = registry.read(operationId);
   if (!record) throw new Error("sandbox_intent_missing");
   if (record.state === "settled" || record.state === "ownership_conflict") return record;
+  // AV measurement owns the slot before any create dispatch. The CAS to
+  // create_inflight is mandatory before Docker I/O; this state proves no object
+  // was created, including when its supervisor died during FD measurement.
+  if (record.state === "measuring") {
+    intentProfile(record);
+    if (record.mode !== "av" || record.containerId !== null) throw new Error("sandbox_ownership_conflict");
+    return registry.cas(record, { state: "settled", cancelRequested: true, cleanupOutcome: "timely" });
+  }
   if (record.cleanupDeadlineMissedAt != null) return record;
   const now = Date.now();
   // The first claim's absolute budgets survive owner death, retries and restart.

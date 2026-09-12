@@ -136,3 +136,30 @@ lease integration and RU/Gate0 remain outstanding. These components cannot turn
 a parsed terminal observation into a trusted completed job on their own. No VM,
 image download, provider, live configuration or production action occurred in
 this increment. Independent Claude code review and final-head CI remain pending.
+
+## AV host transport and acceptance — 2026-09-13
+
+Packet C now provides the bounded stdin host transport and AV executor, with
+profile-aware admission, persisted measuring/dispatch state, historical
+synthetic configuration compatibility and watchdog accounting. The AV profile
+remains1CPU/3GiB with768MiB scratch charged inside RAM. Acceptance correlates
+measured source bytes, nonce, manifest/CVD/engine evidence, independent daemon
+identity/wait/exit/OOM, current authority and timely confirmed cleanup. Parsed
+packets alone remain observations.
+
+Independent review and malformed-job closure PASS. Snapshot/freeze/deadline
+setup is inside try/finally; missing/non-cloneable job data returns controlled
+no_result/not_started with zero I/O/reservation and no leaked abort listener.
+Local233 files/2016 tests, lint/typecheck and Webpack build PASS;13 prior lint
+warnings. Test transports and authority adapters remain controlled fixtures.
+
+The real subprocess SIGKILL case kills a supervisor during pipe streaming,
+but its running intent and stale heartbeat are modelled by the test parent
+against a controlled daemon. It proves that controlled recovery path, not an
+end-to-end real Docker/executor/application-lease crash or actual AV scan.
+
+A strict image CLI wrapper matching the fixed argv, verified Linux image/build
+recipe and full-profile real tests are still required. Actual application
+authority/immutable storage/DB integration and RU/Gate0 are not established by
+this packet. No VM/image/provider/DB activation occurred. Dedicated Claude code
+review and exact-head CI are pending; no merge or production action.
