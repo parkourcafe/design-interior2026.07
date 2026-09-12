@@ -56,6 +56,8 @@ declare
   v_representation_version_id uuid := 'a3333333-3333-4333-8333-333333333333';
   v_checked integer;
   v_table text;
+  v_actor_case record;
+  v_constraint text;
 begin
   select organization_id into v_organization_id
   from project_intelligence.project_workflows
@@ -126,6 +128,57 @@ begin
     'human', v_owner_id::text, v_owner_id, 'db4-r1-event', 'db4-r1-event-request'
   );
 
+  insert into projectceo_foundation.external_asset_events (
+    organization_id, project_id, package_id, asset_id, sequence_no, event_type,
+    actor_type, actor_id, actor_user_id, causation_id, request_id
+  ) values (
+    v_organization_id, v_project_id, v_package_id, v_asset_id, 4, 'processed',
+    'system', 'system:external-asset-worker', null, 'db4-r1-event', 'db4-r1-event-system'
+  );
+
+  -- An organization member FK alone must not allow a different audit identity.
+  -- Reject forged human IDs and system IDs missing the command-record namespace.
+  for v_actor_case in
+    select * from (values
+      ('human', '32222222-2222-4222-8222-222222222222', v_owner_id),
+      ('human', 'system:external-asset-worker', v_owner_id),
+      ('system', v_owner_id::text, null::uuid),
+      ('system', 'external-asset-worker', null::uuid),
+      ('system', '', null::uuid)
+    ) as cases(actor_type, actor_id, actor_user_id)
+  loop
+    begin
+      insert into projectceo_foundation.external_asset_events (
+        organization_id, project_id, package_id, asset_id, sequence_no, event_type,
+        actor_type, actor_id, actor_user_id, causation_id, request_id
+      ) values (
+        v_organization_id, v_project_id, v_package_id, v_asset_id, 5, 'invalid-identity',
+        v_actor_case.actor_type, v_actor_case.actor_id, v_actor_case.actor_user_id,
+        'db4-r1-event', 'db4-r1-event-invalid-identity'
+      );
+      raise exception 'DB4_R1_EVENT_ACTOR_IDENTITY_ALLOWED: % / %',
+        v_actor_case.actor_type, v_actor_case.actor_id;
+    exception when check_violation then
+      get stacked diagnostics v_constraint = constraint_name;
+      if v_constraint <> 'external_asset_events_actor_identity_check' then
+        raise exception 'DB4_R1_EVENT_ACTOR_WRONG_CONSTRAINT: %', v_constraint;
+      end if;
+    end;
+  end loop;
+
+  begin
+    insert into projectceo_foundation.external_asset_events (
+      organization_id, project_id, package_id, asset_id, sequence_no, event_type,
+      actor_type, actor_id, actor_user_id, causation_id, request_id
+    ) values (
+      v_organization_id, v_project_id, v_package_id, v_asset_id, 5, 'invalid-system-user',
+      'system', 'system:external-asset-worker', v_owner_id,
+      'db4-r1-event', 'db4-r1-event-system-user'
+    );
+    raise exception 'DB4_R1_SYSTEM_HUMAN_ACTOR_ALLOWED';
+  exception when check_violation then null;
+  end;
+
   begin
     insert into projectceo_foundation.external_asset_events (
       organization_id, project_id, package_id, asset_id, sequence_no, event_type,
@@ -149,6 +202,14 @@ begin
     raise exception 'DB4_R1_CROSS_ORGANIZATION_ACTOR_ALLOWED';
   exception when foreign_key_violation then null;
   end;
+
+  select count(*) into v_checked
+  from projectceo_foundation.external_asset_events
+  where organization_id = v_organization_id
+    and project_id = v_project_id
+    and package_id = v_package_id
+    and asset_id = v_asset_id;
+  if v_checked <> 2 then raise exception 'DB4_R1_EVENT_ACTOR_PERSISTENCE'; end if;
 
   begin
     update projectceo_foundation.external_assets
