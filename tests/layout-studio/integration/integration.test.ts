@@ -345,6 +345,9 @@ describe("Layout Studio delivery/UI slice", () => {
       // R1 object/revision/representation bindings are a private Foundation
       // contract and intentionally do not change Layout Studio's schema.
       "20260912094000_r1_object_representation_bindings.sql",
+      // R1 technical references bind a DWG source to its exact preview
+      // representation; Layout Studio remains unchanged.
+      "20260912094500_r1_technical_reference_preview_binding.sql",
     ];
     const actual = readdirSync(join(repoRoot, "supabase/migrations"), { withFileTypes: true })
       // Предмет проверки — миграции, а не всё содержимое папки. Рядом с ними

@@ -14,6 +14,8 @@ declare
   v_representation_version_id uuid := 'b3333333-3333-4333-8333-333333333333';
   v_glb_asset_id uuid := 'b4444444-4444-4444-8444-444444444444';
   v_glb_asset_version_id uuid := 'b5555555-5555-4555-8555-555555555555';
+  v_pdf_asset_id uuid := 'b5656565-5656-4565-8565-565656565656';
+  v_pdf_asset_version_id uuid := 'b5757575-5757-4575-8575-575757575757';
   v_object_id uuid := 'b6666666-6666-4666-8666-666666666666';
   v_object_revision_id uuid := 'b7777777-7777-4777-8777-777777777777';
   v_second_object_id uuid := 'b7878787-8787-4787-8787-878787878787';
@@ -43,7 +45,8 @@ begin
     organization_id, project_id, package_id, asset_id, source_kind, created_by_user_id
   ) values
     (v_organization_id, v_project_id, v_root_package_id, v_asset_id, 'dwg', v_owner_id),
-    (v_organization_id, v_project_id, v_root_package_id, v_glb_asset_id, 'glb', v_owner_id);
+    (v_organization_id, v_project_id, v_root_package_id, v_glb_asset_id, 'glb', v_owner_id),
+    (v_organization_id, v_project_id, v_root_package_id, v_pdf_asset_id, 'pdf', v_owner_id);
 
   insert into projectceo_foundation.external_asset_versions (
     organization_id, project_id, package_id, asset_id, asset_version_id, revision_no,
@@ -53,7 +56,9 @@ begin
     (v_organization_id, v_project_id, v_root_package_id, v_asset_id, v_asset_version_id, 1,
       decode(repeat('c', 64), 'hex'), 1024, 'dwg', 'r1/private/object-source', 'r1-object-fixture', v_owner_id),
     (v_organization_id, v_project_id, v_root_package_id, v_glb_asset_id, v_glb_asset_version_id, 1,
-      decode(repeat('d', 64), 'hex'), 1024, 'glb', 'r1/private/object-representation', 'r1-object-fixture', v_owner_id);
+      decode(repeat('d', 64), 'hex'), 1024, 'glb', 'r1/private/object-representation', 'r1-object-fixture', v_owner_id),
+    (v_organization_id, v_project_id, v_root_package_id, v_pdf_asset_id, v_pdf_asset_version_id, 1,
+      decode(repeat('f', 64), 'hex'), 1024, 'pdf', 'r1/private/object-sheet', 'r1-object-fixture', v_owner_id);
 
   insert into projectceo_foundation.external_representation_versions (
     organization_id, project_id, package_id, asset_version_id, representation_version_id,
@@ -127,14 +132,16 @@ begin
     organization_id, project_id, package_id, technical_reference_id,
     technical_reference_revision_id, revision_no, supersedes_technical_reference_revision_id,
     status, object_revision_id, sheet_id, sheet_revision_id, reference_asset_version_id,
-    preview_sha256, view_kind, coordinate_space, x_min, y_min, x_max, y_max,
+    preview_representation_version_id, preview_sha256, view_kind, coordinate_space, x_min, y_min, x_max, y_max,
+    view_transform,
     mapping_method, mapping_evidence, created_by_user_id, confirmed_by_user_id, confirmed_at,
     causation_id, request_id
   ) values (
     v_organization_id, v_project_id, v_root_package_id, v_technical_reference_id,
     v_technical_reference_revision_id, 1, null, 'confirmed', v_object_revision_id,
-    'r1-sheet-fixture', 'r1-sheet-rev-1', v_asset_version_id, decode(repeat('1', 64), 'hex'),
+    'r1-sheet-fixture', 'r1-sheet-rev-1', v_asset_version_id, v_representation_version_id, decode(repeat('e', 64), 'hex'),
     'detail', 'sheet_mm', 0, 0, 100, 100,
+    '{"matrix":[1,0,0,1,0,0]}'::jsonb,
     'architect-verified', '{}'::jsonb, v_owner_id, v_owner_id, statement_timestamp(),
     'db4-r1-technical-reference', 'db4-r1-technical-reference-request'
   );
@@ -202,32 +209,71 @@ begin
     insert into projectceo_foundation.technical_reference_versions (
       organization_id, project_id, package_id, technical_reference_id,
       revision_no, status, object_revision_id, sheet_id, sheet_revision_id,
-      reference_asset_version_id, preview_sha256, view_kind, coordinate_space,
+      reference_asset_version_id, preview_representation_version_id, preview_sha256, view_kind, coordinate_space,
       x_min, y_min, x_max, y_max, mapping_method, mapping_evidence,
-      created_by_user_id, causation_id, request_id
+      view_transform, created_by_user_id, causation_id, request_id
     ) values (
       v_organization_id, v_project_id, v_root_package_id, extensions.gen_random_uuid(),
       1, 'candidate', v_object_revision_id, 'r1-sheet-fixture', 'r1-sheet-rev-1',
-      v_glb_asset_version_id, decode(repeat('2', 64), 'hex'), 'detail', 'sheet_mm',
-      0, 0, 100, 100, 'architect-verified', '{}'::jsonb, v_owner_id,
+      v_glb_asset_version_id, null, decode(repeat('2', 64), 'hex'), 'detail', 'sheet_mm',
+      0, 0, 100, 100, 'architect-verified', '{}'::jsonb, '{"matrix":[1,0,0,1,0,0]}'::jsonb, v_owner_id,
       'db4-r1-technical-reference-format', 'db4-r1-technical-reference-format-request'
     );
     raise exception 'DB4_R1_TECHNICAL_REFERENCE_FORMAT_ALLOWED';
   exception when others then
-    if sqlerrm not like '%R1_TECHNICAL_REFERENCE_SCOPE_MISMATCH%' then raise; end if;
+    if sqlerrm not like '%R1_TECHNICAL_REFERENCE_PREVIEW_MISMATCH%' then raise; end if;
+  end;
+
+  begin
+    insert into projectceo_foundation.technical_reference_versions (
+      organization_id, project_id, package_id, technical_reference_id,
+      revision_no, status, object_revision_id, sheet_id, sheet_revision_id,
+      reference_asset_version_id, preview_representation_version_id, preview_sha256, view_kind, coordinate_space,
+      x_min, y_min, x_max, y_max, mapping_method, mapping_evidence,
+      view_transform, created_by_user_id, causation_id, request_id
+    ) values (
+      v_organization_id, v_project_id, v_root_package_id, extensions.gen_random_uuid(),
+      1, 'candidate', v_object_revision_id, 'r1-sheet-fixture', 'r1-sheet-rev-1',
+      v_asset_version_id, v_representation_version_id, decode(repeat('c', 64), 'hex'), 'detail', 'sheet_mm',
+      0, 0, 100, 100, 'architect-verified', '{}'::jsonb, '{"matrix":[1,0,0,1,0,0]}'::jsonb, v_owner_id,
+      'db4-r1-technical-reference-preview', 'db4-r1-technical-reference-preview-request'
+    );
+    raise exception 'DB4_R1_TECHNICAL_REFERENCE_PREVIEW_DIGEST_ALLOWED';
+  exception when others then
+    if sqlerrm not like '%R1_TECHNICAL_REFERENCE_PREVIEW_MISMATCH%' then raise; end if;
+  end;
+
+  begin
+    insert into projectceo_foundation.technical_reference_versions (
+      organization_id, project_id, package_id, technical_reference_id,
+      revision_no, status, object_revision_id, sheet_id, sheet_revision_id,
+      reference_asset_version_id, preview_representation_version_id, preview_sha256, view_kind, coordinate_space,
+      x_min, y_min, x_max, y_max, mapping_method, mapping_evidence,
+      view_transform, created_by_user_id, causation_id, request_id
+    ) values (
+      v_organization_id, v_project_id, v_root_package_id, extensions.gen_random_uuid(),
+      1, 'candidate', v_object_revision_id, 'r1-sheet-fixture', 'r1-sheet-rev-1',
+      v_asset_version_id, v_representation_version_id, decode(repeat('e', 64), 'hex'), 'detail', 'sheet_mm',
+      0, 0, 100, 100, 'architect-verified', '{}'::jsonb, '{"matrix":["x",null,{},[],true,"y"]}'::jsonb, v_owner_id,
+      'db4-r1-technical-reference-transform', 'db4-r1-technical-reference-transform-request'
+    );
+    raise exception 'DB4_R1_TECHNICAL_REFERENCE_NON_NUMERIC_TRANSFORM_ALLOWED';
+  exception when check_violation then null;
   end;
 
   insert into projectceo_foundation.technical_reference_versions (
     organization_id, project_id, package_id, technical_reference_id,
     technical_reference_revision_id, revision_no, supersedes_technical_reference_revision_id,
     status, object_revision_id, sheet_id, sheet_revision_id, reference_asset_version_id,
-    preview_sha256, view_kind, coordinate_space, x_min, y_min, x_max, y_max,
+    preview_representation_version_id, preview_sha256, view_kind, coordinate_space, x_min, y_min, x_max, y_max,
+    view_transform,
     mapping_method, mapping_evidence, created_by_user_id, causation_id, request_id
   ) values (
     v_organization_id, v_project_id, v_root_package_id, v_technical_reference_id,
     v_technical_reference_candidate_revision_id, 2, v_technical_reference_revision_id,
     'candidate', v_object_revision_id, 'r1-sheet-fixture', 'r1-sheet-rev-1', v_asset_version_id,
-    decode(repeat('3', 64), 'hex'), 'detail', 'sheet_mm', 10, 10, 110, 110,
+    v_representation_version_id, decode(repeat('e', 64), 'hex'), 'detail', 'sheet_mm', 10, 10, 110, 110,
+    '{"matrix":[1,0,0,1,0,0]}'::jsonb,
     'architect-reconfirmation', '{}'::jsonb, v_owner_id,
     'db4-r1-technical-reference-candidate', 'db4-r1-technical-reference-candidate-request'
   );
@@ -240,6 +286,51 @@ begin
     'needs_reconfirmation', 'human', v_owner_id::text, v_owner_id,
     'db4-r1-technical-reference-candidate', 'db4-r1-technical-reference-candidate-event'
   );
+
+  insert into projectceo_foundation.technical_reference_versions (
+    organization_id, project_id, package_id, technical_reference_id,
+    technical_reference_revision_id, revision_no, supersedes_technical_reference_revision_id,
+    status, object_revision_id, sheet_id, sheet_revision_id, reference_asset_version_id,
+    preview_representation_version_id, preview_sha256, view_kind, coordinate_space, x_min, y_min, x_max, y_max,
+    view_transform,
+    mapping_method, mapping_evidence, created_by_user_id, causation_id, request_id
+  ) values (
+    v_organization_id, v_project_id, v_root_package_id, 'b5858585-5858-4585-8585-585858585858',
+    'b5959595-5959-4595-8595-595959595959', 1, null,
+    'candidate', v_object_revision_id, 'r1-sheet-fixture', 'r1-sheet-rev-1', v_pdf_asset_version_id,
+    null, decode(repeat('f', 64), 'hex'), 'detail', 'sheet_mm', 20, 20, 120, 120,
+    '{"matrix":[1,0,0,1,0,0]}'::jsonb,
+    'architect-reconfirmation', '{}'::jsonb, v_owner_id,
+    'db4-r1-technical-reference-pdf', 'db4-r1-technical-reference-pdf-request'
+  );
+
+  insert into projectceo_foundation.technical_reference_events (
+    organization_id, project_id, package_id, technical_reference_revision_id, sequence_no,
+    event_type, actor_type, actor_id, actor_user_id, causation_id, request_id
+  ) values (
+    v_organization_id, v_project_id, v_root_package_id, 'b5959595-5959-4595-8595-595959595959', 1,
+    'needs_reconfirmation', 'human', v_owner_id::text, v_owner_id,
+    'db4-r1-technical-reference-pdf', 'db4-r1-technical-reference-pdf-event'
+  );
+
+  begin
+    insert into projectceo_foundation.technical_reference_versions (
+      organization_id, project_id, package_id, technical_reference_id,
+      revision_no, status, object_revision_id, sheet_id, sheet_revision_id,
+      reference_asset_version_id, preview_representation_version_id, preview_sha256, view_kind, coordinate_space,
+      x_min, y_min, x_max, y_max, mapping_method, mapping_evidence,
+      view_transform, created_by_user_id, causation_id, request_id
+    ) values (
+      v_organization_id, v_project_id, v_root_package_id, extensions.gen_random_uuid(),
+      1, 'candidate', v_object_revision_id, 'r1-sheet-fixture', 'r1-sheet-rev-1',
+      v_pdf_asset_version_id, null, decode(repeat('1', 64), 'hex'), 'detail', 'sheet_mm',
+      20, 20, 120, 120, 'architect-reconfirmation', '{}'::jsonb, '{"matrix":[1,0,0,1,0,0]}'::jsonb, v_owner_id,
+      'db4-r1-technical-reference-pdf-digest', 'db4-r1-technical-reference-pdf-digest-request'
+    );
+    raise exception 'DB4_R1_TECHNICAL_REFERENCE_PDF_DIGEST_ALLOWED';
+  exception when others then
+    if sqlerrm not like '%R1_TECHNICAL_REFERENCE_PREVIEW_MISMATCH%' then raise; end if;
+  end;
 
   insert into projectceo_foundation.project_objects (
     organization_id, project_id, package_id, object_id, object_key, object_kind,

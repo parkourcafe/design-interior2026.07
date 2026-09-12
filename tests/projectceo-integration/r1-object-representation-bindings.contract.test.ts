@@ -7,6 +7,10 @@ const sql = readFileSync(
   resolve(__dirname, "../../supabase/migrations/20260912094000_r1_object_representation_bindings.sql"),
   "utf8",
 );
+const previewSql = readFileSync(
+  resolve(__dirname, "../../supabase/migrations/20260912094500_r1_technical_reference_preview_binding.sql"),
+  "utf8",
+);
 
 describe("R1 immutable object and representation bindings", () => {
   it("keeps mappings package-scoped, versioned and private", () => {
@@ -39,5 +43,11 @@ describe("R1 immutable object and representation bindings", () => {
     expect(sql).toContain("technical_reference_id, technical_reference_revision_id");
     expect(sql).toContain("x_min < x_max and y_min < y_max");
     expect(sql).not.toContain("remhaos_integration.project_links");
+    expect(previewSql).toContain("preview_representation_version_id");
+    expect(previewSql).toContain("view_transform");
+    expect(previewSql).toContain("is_r1_affine_matrix");
+    expect(previewSql).toContain("jsonb_typeof(element.value) <> 'number'");
+    expect(previewSql).toContain("assert_r1_technical_reference_preview_binding");
+    expect(previewSql).toContain("R1_TECHNICAL_REFERENCE_PREVIEW_MISMATCH");
   });
 });
