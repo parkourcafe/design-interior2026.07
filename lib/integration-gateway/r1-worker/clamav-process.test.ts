@@ -152,14 +152,35 @@ describe('local ClamAV process boundary', () => {
 
   it('terminates the process on deadline and waits for its exit', async () => {
     const { root, runner, input } = await fixture(`
-      require('node:fs').writeFileSync('../pid', String(process.pid));
+      // Deliberately acknowledge startup after the parent's 500ms budget.
+      setTimeout(() => require('node:fs').writeFileSync('../pid', String(process.pid)), 600);
       process.stdin.resume(); setInterval(() => {}, 1000);
     `);
-    const result = await runner.run({ ...input, timeoutMs: 500 }, new AbortController().signal);
-    expect(result).toMatchObject({ exitCode: null, timedOut: true });
-    const pid = Number(await readFile(join(root, 'pid'), 'utf8'));
-    expect(() => process.kill(pid, 0)).toThrow();
-  });
+    const realSetTimeout = globalThis.setTimeout;
+    const controller = new AbortController();
+    // Control only the parent's deadline. The real child must have started
+    // before we test termination; busy runners can take >500ms to spawn it.
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+    const running = runner.run({ ...input, timeoutMs: 500 }, controller.signal);
+    try {
+      const startupDeadline = Date.now() + 5000;
+      while (!existsSync(join(root, 'pid'))) {
+        if (Date.now() >= startupDeadline) throw new Error('synthetic_scanner_startup_timeout');
+        await new Promise<void>(resolve => realSetTimeout(resolve, 10));
+      }
+      const pid = Number(await readFile(join(root, 'pid'), 'utf8'));
+      expect(() => process.kill(pid, 0)).not.toThrow();
+      await vi.advanceTimersByTimeAsync(499);
+      expect(() => process.kill(pid, 0)).not.toThrow();
+      await vi.advanceTimersByTimeAsync(1);
+      expect(await running).toMatchObject({ exitCode: null, timedOut: true });
+      expect(() => process.kill(pid, 0)).toThrow();
+    } finally {
+      controller.abort();
+      vi.useRealTimers();
+      await running;
+    }
+  }, 10_000);
 
   it('does not return success when cancellation arrives during final file verification', async () => {
     const { runner, input } = await fixture(`process.stdin.resume(); process.stdin.on('end', () => console.log(${JSON.stringify(summary)}));`);
