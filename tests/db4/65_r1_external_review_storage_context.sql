@@ -39,9 +39,9 @@ begin
  if not exists(select 1 from projectceo_foundation.external_review_submission_refs where submission_id=s and semantic_content=descriptor->'semanticContent' and semantic_digest=project_intelligence._sha256_jsonb(descriptor->'semanticContent')) then raise exception 'R109_LEAF_CONVENTION_MISSING'; end if;
 end $reference_regressions$;
 
--- Record private facts as the fixture owner, then exercise the API only under
--- the authenticated role. The authenticated block must not query private
--- tables directly.
+-- Record private facts as the fixture owner, then exercise only the public
+-- SECURITY DEFINER door with request-bound JWT identities. Private-table
+-- assertions remain outside that call path.
 do $subject_preview_prepare$
 declare
  p uuid:='41111111-1111-4111-8111-111111111111'; asset_version uuid;
@@ -61,7 +61,6 @@ begin
  perform set_config('r109.preview_before_counts',before_counts::text,true);
 end $subject_preview_prepare$;
 
-set local role authenticated;
 do $subject_preview$
 declare
  p uuid:='41111111-1111-4111-8111-111111111111'; asset_version uuid;
@@ -103,7 +102,6 @@ begin
   raise exception 'R109_PREVIEW_CROSS_PACKAGE_ALLOWED';
  exception when sqlstate 'P1104' then null; end;
 end $subject_preview$;
-reset role;
 
 do $subject_preview_no_persistence$
 declare after_counts jsonb;
@@ -116,6 +114,13 @@ begin
    'events',(select count(*) from projectceo_foundation.external_review_events),
    'commands',(select count(*) from projectceo_product.command_records)) into after_counts;
  if after_counts is distinct from current_setting('r109.preview_before_counts')::jsonb then raise exception 'R109_PREVIEW_PERSISTED'; end if;
+ if not has_function_privilege('authenticated','projectceo_product_api.preview_external_review_subject(uuid,uuid,jsonb)','EXECUTE')
+   or has_function_privilege('anon','projectceo_product_api.preview_external_review_subject(uuid,uuid,jsonb)','EXECUTE')
+   or has_function_privilege('service_role','projectceo_product_api.preview_external_review_subject(uuid,uuid,jsonb)','EXECUTE')
+   or has_function_privilege('pi_human_executor','projectceo_product_api.preview_external_review_subject(uuid,uuid,jsonb)','EXECUTE')
+   or has_function_privilege('pi_worker_executor','projectceo_product_api.preview_external_review_subject(uuid,uuid,jsonb)','EXECUTE') then
+   raise exception 'R109_PREVIEW_EXECUTE_ACL';
+ end if;
 end $subject_preview_no_persistence$;
 
 do $fixture$
