@@ -367,6 +367,7 @@ describe("Layout Studio delivery/UI slice", () => {
       "20260913053000_r1_external_materialization_isolation.sql",
       // R1 private human acceptance and source readiness; no Layout Studio changes.
       "20260913063000_r1_external_human_acceptance_readiness.sql",
+      "20260915174226_r1_pdf_fallback_architect_authority.sql",
     ];
     const actual = readdirSync(join(repoRoot, "supabase/migrations"), { withFileTypes: true })
       // Предмет проверки — миграции, а не всё содержимое папки. Рядом с ними
