@@ -72,6 +72,7 @@ const UNAVAILABLE = new Set<ProjectCeoCommand["kind"]>([
 const DOCUMENTATION_MODULE = new Set<ProjectCeoCommand["kind"]>([
   "register_source",
   "review_source",
+  "confirm_pdf_dwg_source_pair",
   "register_documentation_sheet",
   "attach_documentation_sheet_specifications",
   "attach_external_release_refs",
@@ -338,6 +339,19 @@ export class ProjectCeoCommandService {
     }
     try {
       const idempotencyKey = this.idempotencyKey(command);
+      if (command.kind === "confirm_pdf_dwg_source_pair") {
+        const scope = await this.scopeOnly(command.projectId.toLowerCase());
+        if (scope.accessScope === "package" && scope.packageId?.toLowerCase() !== command.payload.packageId.toLowerCase()) {
+          return failure(requestId, "error", "forbidden");
+        }
+        const result = await this.foundation.confirmPdfDwgSourcePair({
+          projectId: command.projectId.toLowerCase(), ...command.payload,
+          idempotencyKey: `ui:${command.projectId.toLowerCase()}:${command.kind}:${command.commandId.toLowerCase()}`,
+        });
+        // Observed project revision only: pair confirmation does not increment
+        // workflow state or manufacture a revision inside the immutable receipt.
+        return completed(requestId, { ...result, stateRevision: scope.stateRevision });
+      }
       if (
         command.kind === "register_source"
         || command.kind === "register_documentation_sheet"

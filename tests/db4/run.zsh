@@ -276,5 +276,9 @@ docker exec -e PGPASSWORD="${password}" -i "${container}" \
   psql -X --set ON_ERROR_STOP=1 --set r1_source_pair_restart_check=true \
     --username postgres --dbname "${database}" \
   < "${repo_root}/tests/db4/71_r1_pdf_dwg_source_pair.sql"
+docker exec -e PGPASSWORD="${password}" -i "${container}" \
+  psql -X --set ON_ERROR_STOP=1 \
+    --username postgres --dbname "${database}" \
+  < "${repo_root}/tests/db4/72_r1_pdf_dwg_source_pair_request_door.sql"
 
 print -r -- "DB4_PRODUCT_BRAIN_HARNESS_OK image=${image}"

@@ -97,10 +97,12 @@ describe("M4 execution guardrail", () => {
       "Команда добавлена или удалена в командном контракте. Отнесите её к "
       + "инкременту 1, инкременту 2 или к «не модуль 4» в execution-flag.ts, "
       + "затем обновите это число.",
-    ).toBe(38);
+    ).toBe(39);
     // R1 attachment preparation belongs to M3, without opening an M4 command.
     expect(M3_SURFACE_COMMANDS.has("attach_external_release_refs")).toBe(true);
     expect(EXECUTION_MODULE.has("attach_external_release_refs")).toBe(false);
+    expect(M3_SURFACE_COMMANDS.has("confirm_pdf_dwg_source_pair")).toBe(true);
+    expect(EXECUTION_MODULE.has("confirm_pdf_dwg_source_pair")).toBe(false);
     expect(kinds).not.toContain("asset_version");
 
     const declared = [...new Set([

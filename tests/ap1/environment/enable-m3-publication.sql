@@ -22,6 +22,7 @@
 begin;
 
 grant execute on function
+  projectceo_api.confirm_pdf_dwg_source_pair(uuid, uuid, uuid, uuid, text, text),
   projectceo_product_api.publish_baseline_atomic(uuid, text, text, bigint, text, text),
   projectceo_product_api.publish_release_request_bound(uuid, text, text, bigint, text, text),
   projectceo_product_api.publish_work_package_release_request_bound(uuid, uuid, text, text, bigint, text, text),

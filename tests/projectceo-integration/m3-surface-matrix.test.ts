@@ -70,6 +70,7 @@ describe("M3 surface matrix", () => {
       "supabase/migrations/20260811010000_projectceo_m3_publication_guardrail.sql",
       "supabase/migrations/20260911160000_projectceo_m3_atomic_publication_flip.sql",
       "supabase/migrations/20260912110000_r1_external_release_attachment_manifest.sql",
+      "supabase/migrations/20260915191820_r1_pdf_dwg_source_pair_request_door.sql",
     ];
     const revokeBlock = migrations.map((path) => {
       const migration = read(path);
