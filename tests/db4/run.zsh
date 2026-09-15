@@ -52,6 +52,7 @@ done
 
 for sql in \
   "${repo_root}/tests/db3/20_foundation_operations.sql" \
+  "${repo_root}/tests/db4/70_r1_pdf_fallback_architect_authority.sql" \
   "${repo_root}/tests/db4/60_r1_asset_identity_versions.sql" \
   "${repo_root}/tests/db4/61_r1_object_representation_bindings.sql" \
   "${repo_root}/tests/db4/62_r1_external_annotations.sql" \

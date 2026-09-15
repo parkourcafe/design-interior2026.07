@@ -30,7 +30,7 @@ afterEach(async () => {
   await Promise.all(roots.splice(0).map(root => rm(root, { recursive: true, force: true })));
 });
 
-async function fixture(script: string, ageSeconds = 0) {
+async function fixture(script: string, ageSeconds = 0, acknowledgeSlowStartup = false) {
   const root = await mkdtemp(join(tmpdir(), 'r1-av-process-test-'));
   roots.push(root);
   // Synthetic signature headers only for the subprocess protocol tests. The
@@ -38,7 +38,10 @@ async function fixture(script: string, ageSeconds = 0) {
   const header = `ClamAV-VDB:synthetic:1:1:90:hash:signature:fixture:${Math.floor(Date.now()/1000) - ageSeconds}`;
   for (const name of ['main.cvd', 'daily.cvd', 'bytecode.cvd']) await writeFile(join(root, name), header.padEnd(512));
   const executable = join(root, 'synthetic-engine');
-  await writeFile(executable, `#!${process.execPath}\n${script}\n`);
+  const body = acknowledgeSlowStartup
+    ? `setTimeout(() => { require('node:fs').writeFileSync('../started', String(process.pid)); ${script} }, 2100);`
+    : script;
+  await writeFile(executable, `#!${process.execPath}\n${body}\n`);
   await chmod(executable, 0o700);
   const bytes = Buffer.from('local synthetic scanner fixture');
   await writeFile(join(root, 'input'), bytes);
@@ -49,24 +52,77 @@ async function fixture(script: string, ageSeconds = 0) {
   return { root, config, input, runner: createClamAvProcessRunner(config) };
 }
 
+// Success assertions must not spend their scanner budget on macOS's variable
+// first execution of a new shebang inode. Only parent timers are controlled;
+// the child deliberately acknowledges after 2100 real ms (> the 2000ms budget).
+async function withAcknowledgedStartup<T>(root: string, run: (signal: AbortSignal) => Promise<T>): Promise<T> {
+  const wallSetTimeout = globalThis.setTimeout;
+  const wallClearTimeout = globalThis.clearTimeout;
+  const controller = new AbortController();
+  const spawnStart = vi.mocked(childProcess.spawn).mock.results.length;
+  const children = (): childProcess.ChildProcess[] => vi.mocked(childProcess.spawn).mock.results
+    .slice(spawnStart).flatMap(result => result.type === 'return' ? [result.value] : []);
+  const killChildren = () => {
+    for (const child of children()) {
+      if (child.pid && child.exitCode === null && child.signalCode === null) {
+        try { process.kill(-child.pid, 'SIGKILL'); } catch { child.kill('SIGKILL'); }
+      }
+    }
+  };
+  let wallTimer: ReturnType<typeof setTimeout> | undefined;
+  let cleanupTimer: ReturnType<typeof setTimeout> | undefined;
+  vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+  const running = Promise.resolve().then(() => run(controller.signal));
+  const verified = running.then(async result => {
+    const acknowledgedPid = Number(await readFile(join(root, 'started'), 'utf8'));
+    expect(children()).toHaveLength(1);
+    expect(acknowledgedPid).toBe(children()[0]!.pid);
+    expect(children()[0]!.exitCode).toBe(0);
+    expect(children()[0]!.signalCode).toBeNull();
+    try { process.kill(acknowledgedPid, 0); throw new Error('synthetic_scanner_still_alive'); }
+    catch (error) { expect(error).toMatchObject({ code: 'ESRCH' }); }
+    expect(vi.getTimerCount()).toBe(0);
+    return result;
+  });
+  try {
+    return await Promise.race([verified, new Promise<never>((_resolve, reject) => {
+      wallTimer = wallSetTimeout(() => {
+        controller.abort(); killChildren(); reject(new Error('synthetic_scanner_wall_timeout'));
+      }, 8000);
+    })]);
+  } finally {
+    controller.abort(); killChildren();
+    try {
+      await Promise.race([running.then(() => {}, () => {}), new Promise<never>((_resolve, reject) => {
+        cleanupTimer = wallSetTimeout(() => reject(new Error('synthetic_scanner_cleanup_timeout')), 2000);
+      })]);
+      for (const child of children()) {
+        expect(child.exitCode !== null || child.signalCode !== null).toBe(true);
+      }
+    } finally {
+      wallClearTimeout(wallTimer); wallClearTimeout(cleanupTimer); vi.useRealTimers();
+    }
+  }
+}
+
 describe('local ClamAV process boundary', () => {
   it('streams a pinned descriptor from offset zero and strips parent environment and raw output', async () => {
-    const { input, runner } = await fixture(`
+    const { root, input, runner } = await fixture(`
       if (process.env.R1_FORBIDDEN_TEST_ENV) process.exit(2);
       process.stdin.resume();
       process.stdin.on('end', () => process.stdout.write(${JSON.stringify(summary)}));
-    `);
+    `, 0, true);
     // Advance the borrowed descriptor; the runner must still scan every byte.
     await input.file.read(Buffer.alloc(4), 0, 4, null);
     process.env.R1_FORBIDDEN_TEST_ENV = 'synthetic';
     try {
-      const result = await runner.run(input, new AbortController().signal);
+      const result = await withAcknowledgedStartup(root, signal => runner.run(input, signal));
       expect(result).toMatchObject({ exitCode: 0, timedOut: false, evidence: { sourceSha256: input.checksumHex, byteLength: input.byteLength } });
       expect(result).not.toHaveProperty('output');
       expect(result).not.toHaveProperty('filePath');
       expect(input.file.fd).toBeGreaterThan(2);
     } finally { delete process.env.R1_FORBIDDEN_TEST_ENV; }
-  });
+  }, 12_000);
 
   it.each([
     ['silent success', 'process.stdin.resume();'],
@@ -129,7 +185,7 @@ describe('local ClamAV process boundary', () => {
   });
 
   it('uses a read-only, separately owned inode in a private executable directory', async () => {
-    const { runner, input, config } = await fixture(`process.stdin.resume(); process.stdin.on('end', () => console.log(${JSON.stringify(summary)}));`);
+    const { root, runner, input, config } = await fixture(`process.stdin.resume(); process.stdin.on('end', () => console.log(${JSON.stringify(summary)}));`, 0, true);
     const original = await vi.importActual<typeof import('node:child_process')>('node:child_process');
     vi.mocked(childProcess.spawn).mockImplementationOnce((...args: Parameters<typeof childProcess.spawn>) => {
       const stat = lstatSync(args[0]);
@@ -140,8 +196,10 @@ describe('local ClamAV process boundary', () => {
       expect(lstatSync(dirname(args[0])).mode & 0o777).toBe(0o500);
       return original.spawn(...args);
     });
-    expect(await scanWithR1ClamAv(runner, input)).toBe('clean');
-  });
+    expect(await withAcknowledgedStartup(root, signal => scanWithR1ClamAv({
+      run: (invocation, innerSignal) => runner.run(invocation, AbortSignal.any([signal, innerSignal])),
+    }, input))).toBe('clean');
+  }, 12_000);
 
   it('rejects expired or missing signatures', async () => {
     const { runner, input, config } = await fixture('process.exit(0);', 86_401);
