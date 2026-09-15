@@ -1,3 +1,6 @@
+import { z } from "zod";
+import { sourcePairResultSchema } from "./source-pair-schema";
+import { isDocumentationModuleEnabled } from "../../delivery/projectceo/documentation-flag";
 import type { PostgresRpcClient } from "./contracts";
 import type { ExecutionDeliveryEnvelope } from "./execution";
 import { callRpc } from "./rpc";
@@ -826,6 +829,22 @@ function parseAuthenticatedProjectRead(value: unknown): AuthenticatedProjectRead
 /** Authenticated, request-bound and read-only AP1 projection. */
 export class ProjectCeoAuthenticatedReadPostgresAdapter {
   constructor(private readonly client: PostgresRpcClient) {}
+
+  async getPdfDwgSourcePairConfirmation(input: {
+    readonly projectId: string; readonly packageId: string; readonly confirmationId: string;
+  }, documentationEnabled?: string) {
+    if (!isDocumentationModuleEnabled(documentationEnabled)) {
+      throw new Error("module_disabled");
+    }
+    const ids = z.object({projectId: z.string().uuid(), packageId: z.string().uuid(), confirmationId: z.string().uuid()}).strict().parse(input);
+    const response = z.object({contractVersion: z.literal("r1-source-pair-read/1"), result: sourcePairResultSchema}).strict().parse(
+      await callRpc(this.client, "projectceo_read_api", "get_pdf_dwg_source_pair_confirmation", {
+        project_id: ids.projectId.toLowerCase(), package_id: ids.packageId.toLowerCase(), confirmation_id: ids.confirmationId.toLowerCase(),
+      }),
+    );
+    if (response.result.confirmationId.toLowerCase() !== ids.confirmationId.toLowerCase()) throw new Error("source_pair_read_identity_mismatch");
+    return response;
+  }
 
   async getProjectWorkspaceRead(input: {
     readonly projectId: string;
