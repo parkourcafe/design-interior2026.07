@@ -156,6 +156,13 @@ export const M3_SURFACE: readonly M3SurfaceRow[] = [
   },
 ];
 
+/** Read-only RPCs are separate from the mutation command registry. */
+export const M3_READ_RPCS: readonly M3PublicRpc[] = [{
+  schema: "projectceo_read_api", name: "get_pdf_dwg_source_pair_confirmation",
+  signature: "projectceo_read_api.get_pdf_dwg_source_pair_confirmation(uuid, uuid, uuid)",
+  sharing: "m3_only", closure: "revoked_from_authenticated",
+}];
+
 /** Команды модуля — производная от матрицы, а не второй список рядом с ней. */
 export const M3_SURFACE_COMMANDS: ReadonlySet<ProjectCeoCommand["kind"]> = new Set(
   M3_SURFACE.map((row) => row.command),
@@ -172,7 +179,7 @@ export const M3_REVOKED_SIGNATURES: readonly string[] = [...M3_SURFACE
   .flatMap((row) => row.rpcs)
   .filter((rpc) => rpc.closure === "revoked_from_authenticated")
   .map((rpc) => rpc.signature)
-  .filter((signature, index, all) => all.indexOf(signature) === index), ...M3_RAW_PUBLICATION_SIGNATURES]
+  .filter((signature, index, all) => all.indexOf(signature) === index), ...M3_RAW_PUBLICATION_SIGNATURES, ...M3_READ_RPCS.map((rpc) => rpc.signature)]
   .filter((signature, index, all) => all.indexOf(signature) === index);
 
 /**
