@@ -361,6 +361,8 @@ describe("Layout Studio delivery/UI slice", () => {
       "20260913023000_r1_external_review_storage_context.sql",
       // Authenticated read of the same private review evidence; no Layout Studio changes.
       "20260915090000_r1_external_review_read_contract.sql",
+      // Read-only pre-handoff subject composition; no Layout Studio changes.
+      "20260916010000_r1_external_review_subject_preview.sql",
     ];
     const actual = readdirSync(join(repoRoot, "supabase/migrations"), { withFileTypes: true })
       // Предмет проверки — миграции, а не всё содержимое папки. Рядом с ними
