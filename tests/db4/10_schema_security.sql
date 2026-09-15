@@ -219,7 +219,9 @@ begin
     -- закрыта по умолчанию, открывается выключателем модуля; сценарий 51.
     ('projectceo_product_api.publish_baseline_atomic(uuid,text,text,bigint,text,text)'),
     ('projectceo_product_api.publish_release_request_bound(uuid,text,text,bigint,text,text)'),
-    ('projectceo_product_api.publish_work_package_release_request_bound(uuid,uuid,text,text,bigint,text,text)')
+    ('projectceo_product_api.publish_work_package_release_request_bound(uuid,uuid,text,text,bigint,text,text)'),
+    ('projectceo_product_api.create_external_annotation(uuid,uuid,uuid,uuid,uuid,text,jsonb,jsonb,jsonb,text,bigint,text)'),
+    ('projectceo_product_api.revise_external_annotation(uuid,uuid,uuid,uuid,text,jsonb,jsonb,jsonb,text,bigint,text)')
   ) expected(signature)
   where to_regprocedure(expected.signature) is null
   limit 1;
@@ -236,10 +238,11 @@ begin
   -- behind the public request-bound wrapper. Число выросло до 22 с системным
   -- чтением очереди артефактов выпуска (20260811030000) и до 23 с атомарной
   -- дверью публикации baseline (20260825030000) и до 24 с request-bound
-  -- выпуском work package (20260911140000) и до 25 с root request-bound
-  -- выпуском (20260911150000): перепись существует ровно
+  -- выпуском work package (20260911140000), root request-bound выпуском
+  -- (20260911150000) и до 25 с R1 external annotation commands (20260912100000):
+  -- перепись существует ровно
   -- затем, чтобы новая RPC в схеме не появлялась молча.
-  if v_count <> 23 then
+  if v_count <> 25 then
     raise exception 'DB4_UNEXPECTED_RPC_COUNT:%', v_count;
   end if;
 

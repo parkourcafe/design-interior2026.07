@@ -1,5 +1,5 @@
 id,conflict,status,evidence,resolution
-C-001,"GitHub default branch is claude/new-session-gsayp3 while PR target is main",OPEN,"gh repo view and PR #62 metadata","recorded only; no branch or architecture change"
+C-001,"GitHub default branch is main and PR target is main",RESOLVED,"origin/HEAD resolves to origin/main; current work packages branch from origin/main","historical branch mismatch removed; production branch remains owner-controlled release"
 C-002,"Production ztnycrchwxqczqbyegnp has a separate 13-entry ledger and no canonical private schemas",OPEN,"PRODUCTION_COMPATIBILITY_MATRIX_2026-08-02.md","clean-bootstrap for clones; production adoption requires separate bridge gate"
 C-003,"Historical M1 CLAUDE.md and active RemHaOS four-space charter differ in scope",DOCUMENTED,"AGENTS.md active contract plus CLAUDE.md historical note","active AGENTS.md wins; no redesign performed"
 C-004,"Database Branching is unavailable in the Supabase project",RESOLVED,"local Supabase and disposable clean replay","verification uses local Docker/Colima and clone-only replay"
