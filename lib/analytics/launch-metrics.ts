@@ -4,6 +4,18 @@ export const launchErrorTypes = ["intake_start_failed", "intake_submit_failed", 
 export interface LaunchEvent { type: string; project_id: string | null; created_at: string }
 export interface LaunchAiCall { module: string; project_id: string | null; status: string; cost_rub: number | string | null }
 
+function orderedStageTimes(project: ReadonlyMap<string, readonly number[]>): Map<typeof activationStages[number], number> {
+  const matched = new Map<typeof activationStages[number], number>();
+  let previous = -Infinity;
+  for (const stage of activationStages) {
+    const time = project.get(stage)?.find((value) => value >= previous);
+    if (time === undefined) break;
+    matched.set(stage, time);
+    previous = time;
+  }
+  return matched;
+}
+
 export function activationMetrics(events: readonly LaunchEvent[]) {
   const projects = new Map<string, Map<string, number[]>>();
   let invalidEvents = 0;
@@ -16,23 +28,17 @@ export function activationMetrics(events: readonly LaunchEvent[]) {
   }
   // A cohort of unique projects with a link event; repeat submissions cannot inflate conversion.
   const cohort = [...projects.values()].filter((p) => p.has(activationStages[0]));
+  const orderedCohort = cohort.map(orderedStageTimes);
   const counts = Object.fromEntries(activationStages.map((type) => [type, 0])) as Record<typeof activationStages[number], number>;
-  for (const project of cohort) {
-    let previous = -Infinity;
-    for (const stage of activationStages) {
-      const time = project.get(stage)?.find((value) => value >= previous);
-      if (time === undefined) break;
-      counts[stage]++;
-      previous = time;
-    }
+  for (const project of orderedCohort) {
+    for (const stage of project.keys()) counts[stage]++;
   }
   function duration(start: string, end: string) {
     const values: number[] = [];
-    for (const project of cohort) {
-      const first = project.get(start)?.[0];
-      if (first === undefined) continue;
-      const finish = project.get(end)?.find((time) => time >= first);
-      if (finish !== undefined) values.push(finish - first);
+    for (const project of orderedCohort) {
+      const first = project.get(start as typeof activationStages[number]);
+      const finish = project.get(end as typeof activationStages[number]);
+      if (first !== undefined && finish !== undefined) values.push(finish - first);
     }
     values.sort((a, b) => a - b);
     return { samples: values.length, meanMs: values.length ? values.reduce((a, b) => a + b, 0) / values.length : null,
@@ -50,7 +56,9 @@ export function launchMetrics(events: readonly LaunchEvent[], calls: readonly La
   let unscopedCalls = 0;
   for (const call of m1) {
     if (!call.project_id) unscopedCalls++;
-    const cost = call.cost_rub === null || call.cost_rub === "" ? NaN : Number(call.cost_rub);
+    const cost = typeof call.cost_rub === "string"
+      ? /^(?:0|[1-9]\d*)$/.test(call.cost_rub) ? Number(call.cost_rub) : NaN
+      : call.cost_rub === null ? NaN : call.cost_rub;
     if (!Number.isSafeInteger(cost) || cost < 0) { missingCostCalls++; continue; }
     knownCostRub += cost;
     if (!Number.isSafeInteger(knownCostRub)) throw new Error("cost_sum_out_of_range");

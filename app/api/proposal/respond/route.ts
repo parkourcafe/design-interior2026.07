@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createScopedServiceClient } from "@/lib/supabase/token-scoped";
 import { checkRateLimit, clientIp } from "@/lib/rate-limit";
+import { canAdvanceProposalProjectStatus } from "@/lib/proposal/status";
 
 export const dynamic = "force-dynamic";
 
@@ -32,9 +33,22 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "not_found" }, { status: 404 });
   }
   const projectId = (proposal as { project_id: string }).project_id;
-  const { data: project, error: projectError } = await admin.from("projects").select("designer_id").eq("id", projectId).maybeSingle();
+  const { data: project, error: projectError } = await admin.from("projects").select("designer_id, status").eq("id", projectId).maybeSingle();
   if (projectError || !project) return NextResponse.json({ error: "proposal_respond_failed" }, { status: 500 });
   const designerId = (project as { designer_id: string | null }).designer_id;
+  async function reconcileAcceptedState() {
+    if ((proposal as { status?: string }).status === "sent") {
+      const proposalUpdate = await admin.from("proposals").update({ status: "accepted" })
+        .eq("id", (proposal as { id: string }).id).eq("status", "sent");
+      if (proposalUpdate.error) throw new Error("response_proposal_update_failed");
+    }
+    const projectStatus = (project as { status?: string }).status ?? "";
+    if (canAdvanceProposalProjectStatus(projectStatus, "proposal_accepted")) {
+      const projectUpdate = await admin.from("projects").update({ status: "proposal_accepted" })
+        .eq("id", projectId).eq("status", projectStatus);
+      if (projectUpdate.error) throw new Error("response_project_update_failed");
+    }
+  }
   try {
     // Первый ответ — финальный: повторные клики не перезаписывают решение.
     const { data: existing, error: existingError } = await admin
@@ -47,6 +61,7 @@ export async function POST(request: Request) {
     if (existingError) throw new Error("response_read_failed");
     const first = existing?.[0];
     if (first) {
+      if (first.type === "proposal_accepted") await reconcileAcceptedState();
       return NextResponse.json({ ok: true, response: first.type });
     }
 
@@ -58,9 +73,7 @@ export async function POST(request: Request) {
     if (recorded.error) throw new Error("response_write_failed");
 
     if (eventType === "proposal_accepted") {
-      const proposalUpdate = await admin.from("proposals").update({ status: "accepted" }).eq("id", (proposal as { id: string }).id);
-      const projectUpdate = await admin.from("projects").update({ status: "proposal_accepted" }).eq("id", projectId);
-      if (proposalUpdate.error || projectUpdate.error) throw new Error("response_update_failed");
+      await reconcileAcceptedState();
     }
 
     return NextResponse.json({ ok: true, response: eventType });

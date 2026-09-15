@@ -74,3 +74,51 @@ Independent Codex review: PASS. Local ordered lint/typecheck/1673 tests and
 Webpack build: PASS, with 13 unchanged lint warnings. No SQL, migration,
 production or shared DB change. This PR is not covered by the owner's separate
 one-time Claude exception for #149/#150/#160/#162/#172/#173/#175.
+
+## Current-main independent closure — 2026-09-16
+
+[ИЗВЛЕЧЕНО] The existing branch was normally merged with current `origin/main`
+`c683f166941a5a896f0df92b46d9e517780b75aa`; no rebase or history rewrite was
+used. A fresh blind Codex/security review inspected every changed file against
+that base. Claude is disabled as a verifier by the current owner instruction.
+
+[ИЗВЛЕЧЕНО] The review found four repository-only defects and one disputed
+studio-boundary issue. Corrections implemented:
+
+- duration samples now use the same matched ordered funnel timestamps as stage
+  counts, so pre-link/predecessor events cannot create a sample for an uncounted
+  project stage;
+- AI cost strings accept only canonical unsigned decimal integer RUB; whitespace,
+  hexadecimal, sign, leading-zero, exponent and decimal forms remain unknown;
+- database windows are limited to 31 days; both arrays are limited to 100,000
+  rows and subprocess/fixture input to 16 MiB;
+- partial legacy attempts are repairable on retry for `brief_started`,
+  `proposal_created` and accepted proposal state; send no longer reports
+  `ok:true` after a project/event failure;
+- project-status reconciliation uses conditional monotonic catch-up within
+  `brief_completed → proposal_draft → proposal_sent → proposal_accepted` and
+  refuses equal/backward/unknown/`active_project` transitions.
+
+[ИЗВЛЕЧЕНО] The studio finding was withdrawn by the reviewer. On an ambiguous
+membership read, `getStudio()` selects the authenticated user's own designer
+row and returns `studioId=user.id`; analytics then filters every page by that
+exact `designer_id`. No cross-tenant disclosure was established.
+
+[ИЗВЛЕЧЕНО] The orchestrator expanded the WP allowlist to the pure shared guard
+`lib/proposal/status.ts` and
+`tests/release/proposal-status-reconciliation.test.ts`. This avoids divergent
+status logic between the public response and dashboard reconciliation. No
+migration, command-service, private table or unrelated UI file was added.
+
+[ИЗВЛЕЧЕНО] Final local checks on the working tree: focused 4 files / 41 tests
+PASS; full 219 files / 1795 tests PASS; lint 0 errors / 13 pre-existing warnings;
+typecheck PASS; Webpack build PASS; `git diff --check` PASS. Independent focused
+follow-up returned PASS for all repository-only/no-migration corrections.
+
+[ИНТЕРПРЕТИРОВАНО] Full WP-28 remains `BLOCKED_HOTSPOT`, not complete. Three
+strict guarantees require a serialized additive database command/migration:
+atomic first-response finality, atomic proposal-send/project/event commit, and
+concurrency-safe uniqueness for lifecycle success events. Application retries
+reduce missing telemetry but cannot prove those concurrent invariants. The
+active R1-08A/R1-09 migration slot is owned by the older task, so no migration,
+ledger, DB4 fixture or command hotspot was duplicated here.

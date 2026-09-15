@@ -1,13 +1,17 @@
 /** Owner-run only. Fixtures never establish adoption, payment or provider billing. */
-import { readFile } from "node:fs/promises";
+import { readFile, stat } from "node:fs/promises";
 import { execFileSync } from "node:child_process";
 import { pathToFileURL } from "node:url";
 import { z } from "zod";
 import { launchMetrics } from "../../lib/analytics/launch-metrics";
 
+export const LAUNCH_METRICS_MAX_WINDOW_MS = 31 * 24 * 60 * 60 * 1000;
+export const LAUNCH_METRICS_MAX_SNAPSHOT_BYTES = 16 * 1024 * 1024;
+export const LAUNCH_METRICS_MAX_ROWS = 100_000;
+
 const snapshotSchema = z.object({
-  events: z.array(z.object({ type: z.string(), project_id: z.string().nullable(), created_at: z.string().datetime({ offset: true }) })),
-  ai_calls: z.array(z.object({ module: z.string(), project_id: z.string().nullable(), status: z.enum(["ok", "error"]), cost_rub: z.union([z.number(), z.string(), z.null()]) })),
+  events: z.array(z.object({ type: z.string(), project_id: z.string().nullable(), created_at: z.string().datetime({ offset: true }) })).max(LAUNCH_METRICS_MAX_ROWS),
+  ai_calls: z.array(z.object({ module: z.string(), project_id: z.string().nullable(), status: z.enum(["ok", "error"]), cost_rub: z.union([z.number(), z.string(), z.null()]) })).max(LAUNCH_METRICS_MAX_ROWS),
 });
 
 export async function main(args = process.argv.slice(2)) {
@@ -15,12 +19,14 @@ export async function main(args = process.argv.slice(2)) {
   let source: "FIXTURE" | "OWNER_READ_ONLY_SNAPSHOT";
   let window: { from: string; to: string } | null = null;
   if (args.length === 2 && args[0] === "--fixture" && args[1]) {
+    if ((await stat(args[1])).size > LAUNCH_METRICS_MAX_SNAPSHOT_BYTES) throw new Error("snapshot_too_large");
     snapshot = JSON.parse(await readFile(args[1], "utf8"));
     source = "FIXTURE";
   } else if (args.length === 3 && args[0] === "--database") {
     const from = z.string().datetime({ offset: true }).parse(args[1]);
     const to = z.string().datetime({ offset: true }).parse(args[2]);
-    if (Date.parse(from) >= Date.parse(to)) throw new Error("invalid_window");
+    const windowMs = Date.parse(to) - Date.parse(from);
+    if (windowMs <= 0 || windowMs > LAUNCH_METRICS_MAX_WINDOW_MS) throw new Error("invalid_window");
     const url = process.env.LAUNCH_METRICS_DATABASE_URL;
     if (!url || !["postgres:", "postgresql:"].includes(new URL(url).protocol)) throw new Error("read_only_url_required");
     window = { from: new Date(from).toISOString(), to: new Date(to).toISOString() };
@@ -29,11 +35,11 @@ export async function main(args = process.argv.slice(2)) {
     const sql = `begin isolation level repeatable read read only;
 set local statement_timeout = '30s';
 select json_build_object(
- 'events', coalesce((select json_agg(e) from (select type, project_id, created_at from public.events where created_at >= '${window.from}' and created_at < '${window.to}') e), '[]'::json),
- 'ai_calls', coalesce((select json_agg(c) from (select module, project_id, status, cost_rub::text as cost_rub from projectceo_platform.ai_calls where created_at >= '${window.from}' and created_at < '${window.to}' and module in ('brief','risks','proposal')) c), '[]'::json));
+ 'events', coalesce((select json_agg(e) from (select type, project_id, created_at from public.events where created_at >= '${window.from}' and created_at < '${window.to}' order by created_at limit ${LAUNCH_METRICS_MAX_ROWS + 1}) e), '[]'::json),
+ 'ai_calls', coalesce((select json_agg(c) from (select module, project_id, status, cost_rub::text as cost_rub from projectceo_platform.ai_calls where created_at >= '${window.from}' and created_at < '${window.to}' and module in ('brief','risks','proposal') order by created_at limit ${LAUNCH_METRICS_MAX_ROWS + 1}) c), '[]'::json));
 rollback;`;
     snapshot = JSON.parse(execFileSync("psql", ["-X", "-qAt", "--no-password", "-v", "ON_ERROR_STOP=1"], {
-      input: sql, encoding: "utf8", timeout: 40_000, maxBuffer: 32 * 1024 * 1024,
+      input: sql, encoding: "utf8", timeout: 40_000, maxBuffer: LAUNCH_METRICS_MAX_SNAPSHOT_BYTES,
       env: { ...process.env, PGDATABASE: url, PGOPTIONS: "-c default_transaction_read_only=on", PGCONNECT_TIMEOUT: "10" },
       stdio: ["pipe", "pipe", "pipe"],
     }));

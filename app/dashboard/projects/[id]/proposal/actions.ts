@@ -199,12 +199,19 @@ export async function sendProposal(projectId: string): Promise<{
     }
 
     const projectUpdate = await supabase.from("projects").update({ status: "proposal_sent" }).eq("id", projectId);
+    if (projectUpdate.error) {
+      await recordProposalFailure(supabase, projectId, "proposal_send_failed");
+      return { ok: false };
+    }
     const sentEvent = await supabase.from("events").insert({
       designer_id: studio.studioId,
       project_id: projectId,
       type: "proposal_sent",
     });
-    if (projectUpdate.error || sentEvent.error) await recordProposalFailure(supabase, projectId, "proposal_send_failed");
+    if (sentEvent.error) {
+      await recordProposalFailure(supabase, projectId, "proposal_send_failed");
+      return { ok: false };
+    }
 
     revalidatePath(`/dashboard/projects/${projectId}/proposal`);
     return { ok: true };

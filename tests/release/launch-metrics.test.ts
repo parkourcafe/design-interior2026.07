@@ -3,7 +3,7 @@ import { mkdtemp, writeFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { activationMetrics, launchMetrics, type LaunchEvent } from "../../lib/analytics/launch-metrics";
-import { main } from "../../scripts/ops/launch-metrics";
+import { LAUNCH_METRICS_MAX_WINDOW_MS, main } from "../../scripts/ops/launch-metrics";
 
 const event = (type: string, minutes: number, project_id = "p1"): LaunchEvent => ({ type, project_id, created_at: new Date(Date.UTC(2026, 8, 11, 0, minutes)).toISOString() });
 const events = [event("intake_link_created", 0), event("brief_started", 1), event("brief_completed", 4), event("brief_completed", 9), event("proposal_created", 6), event("proposal_sent", 7), event("proposal_sent", 20)];
@@ -23,11 +23,27 @@ describe("launch metrics", () => {
     expect(report.counts.brief_completed).toBe(0);
     expect(report.errorEvents.intake_submit_failed).toBe(2);
   });
+  it("derives durations from the same ordered stage chain as funnel counts", () => {
+    const report = activationMetrics([
+      event("brief_started", 1),
+      event("brief_completed", 2),
+      event("intake_link_created", 3),
+      event("proposal_created", 4),
+      event("proposal_sent", 5),
+    ]);
+    expect(report.counts.brief_started).toBe(0);
+    expect(report.timeToPassport.samples).toBe(0);
+    expect(report.timeToProposal.samples).toBe(0);
+  });
   it("keeps missing costs unknown and unscoped calls explicit; excludes other modules", () => {
     const result = launchMetrics(events, [{ module: "brief", project_id: "p1", status: "ok", cost_rub: "4" }, { module: "risks", project_id: null, status: "error", cost_rub: null }, { module: "documentation", project_id: "p1", status: "ok", cost_rub: 100 }]);
     expect(result.ai).toMatchObject({ calls: 2, knownCostRub: 4, totalCostRub: null, missingCostCalls: 1, unscopedCalls: 1, status: "INCOMPLETE" });
     expect(launchMetrics([], []).ai.totalCostRub).toBeNull();
     expect(launchMetrics(events, [{ module: "brief", project_id: "p1", status: "ok", cost_rub: 0 }]).ai.totalCostRub).toBe(0);
+    for (const cost_rub of ["   ", "0x10", "+1", "01", "1e3", "1.0"]) {
+      expect(launchMetrics(events, [{ module: "brief", project_id: "p1", status: "ok", cost_rub }]).ai)
+        .toMatchObject({ knownCostRub: 0, totalCostRub: null, missingCostCalls: 1, status: "INCOMPLETE" });
+    }
   });
   it("rejects cost sum overflow", () => {
     expect(() => launchMetrics([], [Number.MAX_SAFE_INTEGER, 1].map((cost_rub) => ({ module: "brief", project_id: "p", status: "ok", cost_rub })))).toThrow("cost_sum_out_of_range");
@@ -47,6 +63,11 @@ describe("launch metrics", () => {
   it("does not infer database execution from environment or accept unbounded queries", async () => {
     await expect(main([])).rejects.toThrow("usage");
     await expect(main(["--database", "2026-09-12T00:00:00Z", "2026-09-11T00:00:00Z"])).rejects.toThrow("invalid_window");
+    await expect(main([
+      "--database",
+      "2026-01-01T00:00:00Z",
+      new Date(Date.parse("2026-01-01T00:00:00Z") + LAUNCH_METRICS_MAX_WINDOW_MS + 1).toISOString(),
+    ])).rejects.toThrow("invalid_window");
   });
 });
 
