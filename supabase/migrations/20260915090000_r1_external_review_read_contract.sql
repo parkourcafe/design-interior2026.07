@@ -45,17 +45,23 @@ begin
     );
   end if;
 
-  select submission, head into v_submission, v_head
+  select submission.* into v_submission
   from projectceo_foundation.external_review_submissions submission
-  join projectceo_foundation.external_review_subject_heads head
-    on head.organization_id = submission.organization_id
-   and head.project_id = submission.project_id
-   and head.package_id = submission.package_id
-   and head.review_thread_id = submission.review_thread_id
   where submission.organization_id = v_org
     and submission.project_id = p_project_id
     and submission.package_id = p_package_id
     and submission.submission_id = p_submission_id;
+  if not found then
+    return jsonb_build_object(
+      'contractVersion', v_base->>'contractVersion', 'requestId', v_base->>'requestId',
+      'data', null, 'error', jsonb_build_object('code','not_found','messageKey','projectceo.read.not_found'),
+      'scope', null, 'stateRevision', null
+    );
+  end if;
+  select head.* into v_head
+  from projectceo_foundation.external_review_subject_heads head
+  where head.organization_id = v_org and head.project_id = p_project_id
+    and head.package_id = p_package_id and head.review_thread_id = v_submission.review_thread_id;
   if not found then
     return jsonb_build_object(
       'contractVersion', v_base->>'contractVersion', 'requestId', v_base->>'requestId',
