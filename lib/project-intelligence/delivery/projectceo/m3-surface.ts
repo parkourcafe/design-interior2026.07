@@ -64,6 +64,12 @@ const PUBLISH_BASELINE_ATOMIC: M3PublicRpc = {
 
 export const M3_SURFACE: readonly M3SurfaceRow[] = [
   {
+    command: "confirm_pdf_dwg_source_pair", surface: "review", offState: "module_disabled",
+    rpcs: [{ schema: "projectceo_api", name: "confirm_pdf_dwg_source_pair",
+      signature: "projectceo_api.confirm_pdf_dwg_source_pair(uuid, uuid, uuid, uuid, text, text)",
+      sharing: "m3_only", closure: "revoked_from_authenticated" }],
+  },
+  {
     command: "register_source",
     surface: "intake",
     offState: "module_disabled",

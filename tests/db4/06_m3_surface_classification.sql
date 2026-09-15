@@ -21,6 +21,7 @@ declare
   v_signature text;
   v_unknown text;
   v_classified text[] := array[
+    'projectceo_api.confirm_pdf_dwg_source_pair(uuid, uuid, uuid, uuid, text, text)',
     -- app_gate_only
     'projectceo_api.register_source_inventory(uuid, jsonb, jsonb, bigint, text)',
     -- revoked_from_authenticated

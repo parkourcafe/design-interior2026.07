@@ -677,6 +677,16 @@ export const projectCeoCommandSchema = z.discriminatedUnion("kind", [
       }
     }),
   }).strict(),
+  projectSelector.extend({
+    contractVersion: z.literal(PROJECTCEO_COMMAND_CONTRACT_VERSION),
+    kind: z.literal("confirm_pdf_dwg_source_pair"),
+    payload: z.object({
+      packageId: uuid,
+      dwgAssetVersionId: uuid,
+      pdfAssetVersionId: uuid,
+      reason: z.string().min(1).max(2000).refine((value) => value === value.trim(), "reason_must_be_trimmed"),
+    }).strict().refine((value) => value.dwgAssetVersionId.toLowerCase() !== value.pdfAssetVersionId.toLowerCase(), "source_versions_must_differ"),
+  }).strict(),
   // M3: регистрация листа. Комната, подпись планировки и утверждённый коммит
   // в команде отсутствуют намеренно — происхождение выводит сервер из
   // опубликованного handoff, и параметров для его подмены у RPC просто нет.

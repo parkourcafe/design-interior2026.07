@@ -1,3 +1,4 @@
+import { z } from "zod";
 import type {
   FoundationEnvelope,
   PostgresBytea,
@@ -83,8 +84,39 @@ export interface ProjectDeliveryProjection {
   readonly extensionStatus?: Readonly<Record<string, string>>;
 }
 
+const sourcePairEnvelope = z.object({
+  operation: z.literal("confirm_pdf_dwg_source_pair"),
+  replay: z.boolean(),
+  result: z.object({
+    confirmationId: z.string().uuid(),
+    schemaVersion: z.literal("r1-source-pair-confirmation/1"),
+    dwgAssetVersionId: z.string().uuid(), pdfAssetVersionId: z.string().uuid(),
+    dwgRevision: z.number().int().positive().safe(), pdfRevision: z.number().int().positive().safe(),
+    dwgSha256: z.string().regex(/^[0-9a-f]{64}$/), pdfSha256: z.string().regex(/^[0-9a-f]{64}$/),
+    confirmedAt: z.string().datetime(),
+    confirmationStatus: z.literal("architect_confirmed"), conversionStatus: z.literal("unconfirmed"),
+    warning: z.literal("PDF предоставлен архитектором; DWG conversion не подтверждён"),
+  }).strict(),
+}).strict();
+
 export class FoundationPostgresAdapter {
   constructor(private readonly client: PostgresRpcClient) {}
+
+  async confirmPdfDwgSourcePair(input: {
+    readonly projectId: string; readonly packageId: string;
+    readonly dwgAssetVersionId: string; readonly pdfAssetVersionId: string;
+    readonly reason: string; readonly idempotencyKey: string;
+  }) {
+    const parsed = sourcePairEnvelope.parse(await callRpc(this.client, "projectceo_api", "confirm_pdf_dwg_source_pair", {
+      project_id: input.projectId.toLowerCase(), package_id: input.packageId.toLowerCase(),
+      dwg_asset_version_id: input.dwgAssetVersionId.toLowerCase(), pdf_asset_version_id: input.pdfAssetVersionId.toLowerCase(),
+      reason: input.reason, idempotency_key: input.idempotencyKey,
+    }));
+    if (parsed.result.dwgAssetVersionId.toLowerCase() !== input.dwgAssetVersionId.toLowerCase() || parsed.result.pdfAssetVersionId.toLowerCase() !== input.pdfAssetVersionId.toLowerCase()) {
+      throw new Error("source_pair_result_selector_mismatch");
+    }
+    return parsed;
+  }
 
   /**
    * Решение по источнику. Идёт через тонкую дверь `projectceo_api.review_source`
