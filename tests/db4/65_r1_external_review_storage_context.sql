@@ -39,13 +39,13 @@ begin
  if not exists(select 1 from projectceo_foundation.external_review_submission_refs where submission_id=s and semantic_content=descriptor->'semanticContent' and semantic_digest=project_intelligence._sha256_jsonb(descriptor->'semanticContent')) then raise exception 'R109_LEAF_CONVENTION_MISSING'; end if;
 end $reference_regressions$;
 
--- Preview uses the authenticated human door, resolves server-side evidence and
--- leaves no head/submission/event residue.
-set local role authenticated;
-do $subject_preview$
+-- Record private facts as the fixture owner, then exercise the API only under
+-- the authenticated role. The authenticated block must not query private
+-- tables directly.
+do $subject_preview_prepare$
 declare
  p uuid:='41111111-1111-4111-8111-111111111111'; asset_version uuid;
- r jsonb; before_counts jsonb; after_counts jsonb;
+ before_counts jsonb;
 begin
  select asset_version_id into strict asset_version
  from projectceo_foundation.external_asset_versions
@@ -57,6 +57,17 @@ begin
    'technicalDecisions',(select count(*) from projectceo_foundation.external_review_technical_decisions),
    'events',(select count(*) from projectceo_foundation.external_review_events),
    'commands',(select count(*) from projectceo_product.command_records)) into before_counts;
+ perform set_config('r109.preview_asset_version_id',asset_version::text,true);
+ perform set_config('r109.preview_before_counts',before_counts::text,true);
+end $subject_preview_prepare$;
+
+set local role authenticated;
+do $subject_preview$
+declare
+ p uuid:='41111111-1111-4111-8111-111111111111'; asset_version uuid;
+ r jsonb;
+begin
+ asset_version:=current_setting('r109.preview_asset_version_id')::uuid;
  r:=projectceo_product_api.preview_external_review_subject(p,p,jsonb_build_array(jsonb_build_object('kind','asset_version','assetVersionId',asset_version)));
  if r->'error' <> 'null'::jsonb
    or r#>>'{data,purpose}' is distinct from 'file_review'
@@ -91,6 +102,12 @@ begin
   perform projectceo_product_api.preview_external_review_subject(p,'49999999-9999-4999-8999-999999999999',jsonb_build_array(jsonb_build_object('kind','asset_version','assetVersionId',asset_version)));
   raise exception 'R109_PREVIEW_CROSS_PACKAGE_ALLOWED';
  exception when sqlstate 'P1104' then null; end;
+end $subject_preview$;
+reset role;
+
+do $subject_preview_no_persistence$
+declare after_counts jsonb;
+begin
  select jsonb_build_object('heads',(select count(*) from projectceo_foundation.external_review_subject_heads),
    'submissions',(select count(*) from projectceo_foundation.external_review_submissions),
    'refs',(select count(*) from projectceo_foundation.external_review_submission_refs),
@@ -98,9 +115,8 @@ begin
    'technicalDecisions',(select count(*) from projectceo_foundation.external_review_technical_decisions),
    'events',(select count(*) from projectceo_foundation.external_review_events),
    'commands',(select count(*) from projectceo_product.command_records)) into after_counts;
- if after_counts is distinct from before_counts then raise exception 'R109_PREVIEW_PERSISTED'; end if;
-end $subject_preview$;
-reset role;
+ if after_counts is distinct from current_setting('r109.preview_before_counts')::jsonb then raise exception 'R109_PREVIEW_PERSISTED'; end if;
+end $subject_preview_no_persistence$;
 
 do $fixture$
 declare
