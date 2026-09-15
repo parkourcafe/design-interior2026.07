@@ -39,6 +39,69 @@ begin
  if not exists(select 1 from projectceo_foundation.external_review_submission_refs where submission_id=s and semantic_content=descriptor->'semanticContent' and semantic_digest=project_intelligence._sha256_jsonb(descriptor->'semanticContent')) then raise exception 'R109_LEAF_CONVENTION_MISSING'; end if;
 end $reference_regressions$;
 
+-- Preview uses the authenticated human door, resolves server-side evidence and
+-- leaves no head/submission/event residue.
+set local role authenticated;
+do $subject_preview$
+declare
+ p uuid:='41111111-1111-4111-8111-111111111111'; asset_version uuid;
+ r jsonb; before_counts jsonb; after_counts jsonb;
+begin
+ select asset_version_id into strict asset_version
+ from projectceo_foundation.external_asset_versions
+ where project_id=p and package_id=p order by created_at limit 1;
+ select jsonb_build_object('heads',(select count(*) from projectceo_foundation.external_review_subject_heads),
+   'submissions',(select count(*) from projectceo_foundation.external_review_submissions),
+   'refs',(select count(*) from projectceo_foundation.external_review_submission_refs),
+   'designDecisions',(select count(*) from projectceo_foundation.external_review_design_decisions),
+   'technicalDecisions',(select count(*) from projectceo_foundation.external_review_technical_decisions),
+   'events',(select count(*) from projectceo_foundation.external_review_events),
+   'commands',(select count(*) from projectceo_product.command_records)) into before_counts;
+ r:=projectceo_product_api.preview_external_review_subject(p,p,jsonb_build_array(jsonb_build_object('kind','asset_version','assetVersionId',asset_version)));
+ if r->'error' <> 'null'::jsonb
+   or r#>>'{data,purpose}' is distinct from 'file_review'
+   or r#>>'{data,releaseEligibility}' is distinct from 'ineligible_file_review'
+   or jsonb_array_length(r#>'{data,safeExactRefs}')<>1
+   or r::text like '%assetVersionId%'
+   or r::text like '%private/synthetic%' then
+   raise exception 'R109_PREVIEW_UNSAFE_OR_INVALID';
+ end if;
+ if exists (
+  select 1 from jsonb_array_elements(r#>'{data,safeExactRefs}') item
+  where (select count(*) from jsonb_object_keys(item))<>3
+    or not (item ?& array['ordinal','kind','digest'])
+    or jsonb_typeof(item->'ordinal') is distinct from 'number'
+    or jsonb_typeof(item->'kind') is distinct from 'string'
+    or jsonb_typeof(item->'digest') is distinct from 'string'
+ ) then raise exception 'R109_PREVIEW_REF_DESCRIPTOR_LEAK'; end if;
+ begin
+  perform projectceo_product_api.preview_external_review_subject(p,p,jsonb_build_array(
+    jsonb_build_object('kind','asset_version','assetVersionId',asset_version),
+    jsonb_build_object('kind','asset_version','assetVersionId',asset_version)
+  ));
+  raise exception 'R109_PREVIEW_DUPLICATE_ACCEPTED';
+ exception when sqlstate 'P1111' then null; end;
+ begin
+  perform set_config('request.jwt.claim.sub','33333333-3333-4333-8333-333333333333',true);
+  perform projectceo_product_api.preview_external_review_subject(p,p,jsonb_build_array(jsonb_build_object('kind','asset_version','assetVersionId',asset_version)));
+  raise exception 'R109_PREVIEW_FOREIGN_TENANT_ALLOWED';
+ exception when sqlstate 'P1103' then null; end;
+ perform set_config('request.jwt.claim.sub','31111111-1111-4111-8111-111111111111',true);
+ begin
+  perform projectceo_product_api.preview_external_review_subject(p,'49999999-9999-4999-8999-999999999999',jsonb_build_array(jsonb_build_object('kind','asset_version','assetVersionId',asset_version)));
+  raise exception 'R109_PREVIEW_CROSS_PACKAGE_ALLOWED';
+ exception when sqlstate 'P1104' then null; end;
+ select jsonb_build_object('heads',(select count(*) from projectceo_foundation.external_review_subject_heads),
+   'submissions',(select count(*) from projectceo_foundation.external_review_submissions),
+   'refs',(select count(*) from projectceo_foundation.external_review_submission_refs),
+   'designDecisions',(select count(*) from projectceo_foundation.external_review_design_decisions),
+   'technicalDecisions',(select count(*) from projectceo_foundation.external_review_technical_decisions),
+   'events',(select count(*) from projectceo_foundation.external_review_events),
+   'commands',(select count(*) from projectceo_product.command_records)) into after_counts;
+ if after_counts is distinct from before_counts then raise exception 'R109_PREVIEW_PERSISTED'; end if;
+end $subject_preview$;
+reset role;
+
 do $fixture$
 declare
  p uuid:='41111111-1111-4111-8111-111111111111'; a uuid:='31111111-1111-4111-8111-111111111111';
