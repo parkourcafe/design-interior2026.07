@@ -40,3 +40,19 @@ out even with one worker outside the sandbox (1,775 passed). An earlier parallel
 run failed one scanner test, and a sandbox single-worker run failed three.
 No timeout, assertion or scanner code was changed to hide these failures.
 This increment remains work in progress pending that diagnostic and CI evidence.
+
+## Subsequent validation
+
+CI run `35005890561` on `659aa472a2d0a9f94a6b96fa7973d5c8a0471470`
+passed lint/typecheck/tests/build, DB4/DB5 on PG16/17 and AP5. The PG17 log
+explicitly contains `R1_PDF_ARCHITECT_AUTHORITY_BEHAVIOR_OK`. This is hosted CI
+evidence, not production. Claude workflow `35005890536` returned `is_error:true`
+without completing a review.
+
+The local scanner failure was independently reproduced as variable first-run
+latency of a newly created shebang executable. The separate test-only correction
+from PR #192 was integrated as `a23c1b4`. It preserves scanner runtime limits and
+the dedicated deadline regression, with bounded real child/PID/exit checks.
+Its independent source review passed. The combined local suite now passes all
+1,777 tests. Earlier failed results above remain historical observations.
+The SQL migration bytes are unchanged; newer-head CI remains a separate gate.
