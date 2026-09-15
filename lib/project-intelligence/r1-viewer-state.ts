@@ -125,7 +125,8 @@ function safeDisplayLabel(value: unknown): string {
     || value.length > 120
     || value !== value.trim()
     || /[\u0000-\u001f\u007f\\/]/.test(value)
-    || /^[A-Za-z][A-Za-z0-9+.-]*:/.test(value)) {
+    || /^[A-Za-z][A-Za-z0-9+.-]*:/.test(value)
+    || /\.(?:csv|dae|dwg|glb|jpe?g|pdf|png|skp|xlsx?)$/i.test(value)) {
     throw new Error("r1_viewer_display_label_invalid");
   }
   return value;

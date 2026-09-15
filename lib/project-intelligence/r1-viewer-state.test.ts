@@ -152,6 +152,7 @@ describe("R1 viewer state contract", () => {
     ["unsafe label path", { ...baseState, representation: { ...baseState.representation, displayLabel: "private/model.glb" } }, "r1_viewer_display_label_invalid"],
     ["unsafe label URL", { ...baseState, representation: { ...baseState.representation, displayLabel: "https://example.invalid" } }, "r1_viewer_display_label_invalid"],
     ["unsafe label URI scheme", { ...baseState, representation: { ...baseState.representation, displayLabel: "javascript:alert(1)" } }, "r1_viewer_display_label_invalid"],
+    ["original filename-shaped label", { ...baseState, representation: { ...baseState.representation, displayLabel: "Ivanov-plan.pdf" } }, "r1_viewer_display_label_invalid"],
     ["extra representation field", { ...baseState, representation: { ...baseState.representation, bucket: "files" } }, "r1_viewer_representation_invalid"],
     ["invalid access", { ...baseState, access: { ...baseState.access, lifecycle: "allowed" } }, "r1_viewer_access_invalid"],
     ["forged access revision", { ...baseState, access: { ...baseState.access, revision: -1 } }, "r1_viewer_access_invalid"],
