@@ -23,13 +23,14 @@ declare
   v_classified text[] := array[
     -- app_gate_only
     'projectceo_api.register_source_inventory(uuid, jsonb, jsonb, bigint, text)',
+    -- revoked_from_authenticated
     'projectceo_api.review_source(uuid, text, text, bigint, text, text)',
     'projectceo_m3_api.register_documentation_sheet(uuid, uuid, text, text, text, text, text, text, text[], text, bigint, text)',
     'projectceo_m3_api.attach_documentation_sheet_specifications(uuid, uuid, text, text, text, text[], text, bigint, text)',
-    -- revoked_from_authenticated
     'projectceo_product_api.publish_baseline_atomic(uuid, text, text, bigint, text, text)',
     'projectceo_product_api.publish_release_request_bound(uuid, text, text, bigint, text, text)',
-    'projectceo_product_api.publish_work_package_release_request_bound(uuid, uuid, text, text, bigint, text, text)'
+    'projectceo_product_api.publish_work_package_release_request_bound(uuid, uuid, text, text, bigint, text, text)',
+    'projectceo_product_api.attach_external_release_refs(uuid, uuid, text, text, jsonb, bigint, text)'
   ];
 begin
   -- 1. Каждая сигнатура матрицы существует. `to_regprocedure` возвращает null

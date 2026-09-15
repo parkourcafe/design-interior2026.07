@@ -74,6 +74,7 @@ const DOCUMENTATION_MODULE = new Set<ProjectCeoCommand["kind"]>([
   "review_source",
   "register_documentation_sheet",
   "attach_documentation_sheet_specifications",
+  "attach_external_release_refs",
   ...DOCUMENTATION_PUBLICATION,
 ]);
 
@@ -341,10 +342,23 @@ export class ProjectCeoCommandService {
         command.kind === "register_source"
         || command.kind === "register_documentation_sheet"
         || command.kind === "attach_documentation_sheet_specifications"
+        || command.kind === "attach_external_release_refs"
       ) {
         // Этим командам delivery-проекция не нужна: полный context() оплачивал
         // бы тяжёлое чтение продуктового мозга на каждом клике intake.
         const scope = await this.scopeOnly(command.projectId);
+      if (command.kind === "attach_external_release_refs") {
+        return completed(requestId, await this.product.attachExternalReleaseRefs({
+          projectId: command.projectId,
+          packageId: command.payload.packageId,
+          handoffId: command.payload.handoffId,
+          handoffRevisionId: command.payload.handoffRevisionId,
+          candidateRefs: command.payload.candidateRefs,
+          // Preserve the caller's observed state, including on idempotent replay.
+          expectedStateRevision: command.payload.expectedStateRevision,
+          idempotencyKey,
+        }));
+      }
       if (command.kind === "register_documentation_sheet") {
         // Происхождение листа в команде отсутствует: сервер выведет его из
         // опубликованного handoff, а подменить его параметрами нельзя — их нет.

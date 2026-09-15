@@ -55,6 +55,7 @@ for sql in \
   "${repo_root}/tests/db4/60_r1_asset_identity_versions.sql" \
   "${repo_root}/tests/db4/61_r1_object_representation_bindings.sql" \
   "${repo_root}/tests/db4/62_r1_external_annotations.sql" \
+  "${repo_root}/tests/db4/63_r1_external_release_attachment_resolver.sql" \
   "${repo_root}/tests/db4/05_m3_publication_guardrail.sql" \
   "${repo_root}/tests/db4/06_m3_surface_classification.sql" \
   "${repo_root}/tests/db4/07_m4_execution_boundary.sql" \
@@ -71,6 +72,7 @@ for sql in \
   "${repo_root}/tests/db4/32_m2_layout_version_operations.sql" \
   "${repo_root}/tests/db4/33_m2_client_review_m3_handoff_operations.sql" \
   "${repo_root}/tests/db4/34_m3_documentation_sheet_operations.sql" \
+  "${repo_root}/tests/db4/64_r1_external_attachment_candidates.sql" \
   "${repo_root}/tests/db4/35_m3_documentation_read_operations.sql" \
   "${repo_root}/tests/db4/36_m2_layout_document_v02_validation.sql" \
   "${repo_root}/tests/db4/37_source_review_door.sql" \
@@ -150,5 +152,34 @@ for attempt in {1..120}; do
   sleep 0.25
 done
 run_file "${repo_root}/tests/db4/30_restart_replay.sql"
+
+# This fixture commits its synthetic seed only for the two-session quota race.
+# Run it once, after legacy/restart assertions, in this already-owned database.
+print -r -- "Running 66_r1_external_upload_control.sql with lock-overlap proof"
+docker exec -e PGPASSWORD="${password}" -i "${container}" \
+  psql -X --set ON_ERROR_STOP=1 --set r1_upload_concurrency=true \
+    --username postgres --dbname "${database}" \
+  < "${repo_root}/tests/db4/66_r1_external_upload_control.sql"
+
+# Upload rows are created after the legacy restart above, so they need their own
+# actual restart before exact session/reservation/outbox/command replay checks.
+print -r -- "Restarting database for R1 upload durable replay proof"
+docker restart "${container}" >/dev/null
+for attempt in {1..120}; do
+  if docker exec -e PGPASSWORD="${password}" "${container}" \
+      psql -X --tuples-only --no-align --username postgres --dbname "${database}" \
+      --command 'select 1' 2>/dev/null | rg -qx '1'; then
+    break
+  fi
+  if (( attempt == 120 )); then
+    print -u2 -r -- "R1 upload database did not return after restart"
+    exit 1
+  fi
+  sleep 0.25
+done
+docker exec -e PGPASSWORD="${password}" -i "${container}" \
+  psql -X --set ON_ERROR_STOP=1 --set r1_upload_restart_check=true \
+    --username postgres --dbname "${database}" \
+  < "${repo_root}/tests/db4/66_r1_external_upload_control.sql"
 
 print -r -- "DB4_PRODUCT_BRAIN_HARNESS_OK image=${image}"
