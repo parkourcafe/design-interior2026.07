@@ -13,6 +13,7 @@ const sha = (value: string | Buffer) => `sha256:${createHash("sha256").update(va
 const uuid = (index: number) => `99000000-0000-4000-8000-${String(index).padStart(12, "0")}`;
 const roles = ["owner_lead", "architect", "client_approver", "builder", "guest"];
 const operations = ["publish_m2_layout_version", "submit_m2_client_review", "review_m2_client_submission", "append_m2_approved_commit_revision", "publish_m2_m3_handoff"];
+const commandRoles = ["owner_lead", "owner_lead", "client_approver", "client_approver", "owner_lead"] as const;
 const PENDING_MANIFEST = JSON.stringify({ status: "pending" });
 
 function outputDir() { const root = mkdtempSync(join(tmpdir(), "cycle7-identity-")); roots.push(root); return root; }
@@ -31,8 +32,9 @@ function receipt(textEntityIds = false) {
   const approvedCommitId = entity("approved", 82); const handoffId = entity("handoff", 83);
   return { status: "MANIFEST_VALIDATED_PENDING_RUN", challengeNonce: "cycle7-challenge-7f0d9c", manifestDigest: sha(PENDING_MANIFEST),
     executor: { path: executorPath, digest: executorDigest, repoOwned: true, verificationReceiptId: uuid(41) }, scope, sessions,
-    commands: operations.map((operation, index) => ({ operation, commandId: uuid(50 + index), requestId: uuid(60 + index), auditEventId: uuid(70 + index),
-      actorUserId: sessions[Math.min(index, 2)]!.userId, actorSessionId: sessions[Math.min(index, 2)]!.sessionId, ...scope,
+    commands: operations.map((operation, index) => ({ role: commandRoles[index]!, operation, commandId: uuid(50 + index), requestId: uuid(60 + index), auditEventId: uuid(70 + index),
+      actorUserId: sessions.find((session) => session.role === commandRoles[index])!.userId,
+      actorSessionId: sessions.find((session) => session.role === commandRoles[index])!.sessionId, ...scope,
       previousStateRevision: 100 + index, resultingStateRevision: 101 + index, resultDigest: sha(`result-${index}`), replayDigest: sha(`result-${index}`), replayEqual: true })),
     lineage: { submissionId, submissionRevisionId: uuid(84), reviewId, reviewRevisionId: uuid(85), approvedCommitId,
       approvedCommitRevisionId: uuid(86), clientSubmissionId: submissionId, clientReviewRevisionId: uuid(85), handoffId,

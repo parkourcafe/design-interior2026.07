@@ -192,14 +192,16 @@ describe("Kora five-session receipt builder", () => {
     const scope = { organizationId: uuid(2), projectId: uuid(3), packageId: uuid(4) };
     const operations = ["publish_m2_layout_version", "submit_m2_client_review", "review_m2_client_submission",
       "append_m2_approved_commit_revision", "publish_m2_m3_handoff"];
+    const commandRoles = ["owner_lead", "owner_lead", "client_approver", "client_approver", "owner_lead"] as const;
     const submissionId = uuid(80); const approvedCommitId = uuid(82);
     finalizeM2PilotEvidence({
       status: "MANIFEST_VALIDATED_PENDING_RUN", challengeNonce: NONCE, manifestDigest, scope,
       executor: { path: executorPath, digest: executorDigest, repoOwned: true, verificationReceiptId },
       sessions: koraReceipt.sessions,
-      commands: operations.map((operation, index) => ({
+      commands: operations.map((operation, index) => ({ role: commandRoles[index],
         operation, commandId: uuid(50 + index), requestId: uuid(60 + index), auditEventId: uuid(70 + index),
-        actorUserId: koraReceipt.sessions[0]!.userId, actorSessionId: koraReceipt.sessions[0]!.sessionId, ...scope,
+        actorUserId: koraReceipt.sessions.find((session) => session.role === commandRoles[index])!.userId,
+        actorSessionId: koraReceipt.sessions.find((session) => session.role === commandRoles[index])!.sessionId, ...scope,
         previousStateRevision: 100 + index, resultingStateRevision: 101 + index,
         resultDigest: sha(`result-${index}`), replayDigest: sha(`result-${index}`), replayEqual: true,
       })),

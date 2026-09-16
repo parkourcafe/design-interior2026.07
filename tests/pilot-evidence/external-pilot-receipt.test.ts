@@ -23,8 +23,15 @@ const uuid = (index: number) => `88000000-0000-4000-8000-${String(index).padStar
 const NONCE = "cycle7-challenge-3d41f7ae90bc";
 const EXECUTOR_PATH = "tests/pilot-evidence/executors/external-package-runner.zsh";
 const ALLOWLISTED = "tests/pilot-evidence/executors/pending-external-system.zsh";
+const commandRoles = ["owner_lead", "owner_lead", "client_approver", "client_approver", "owner_lead"] as const;
 
 function workdir() { const root = mkdtempSync(join(tmpdir(), "cycle7-external-")); roots.push(root); return root; }
+
+it("keeps the runner operation role in the protected harvest", () => {
+  const runner = readFileSync(EXECUTOR_PATH, "utf8");
+  expect(runner).toContain("commands: $commands[0]");
+  expect(runner).not.toContain("commands: [$commands[0][] | del(.role)]");
+});
 
 function manifestFile(dir: string) {
   const path = join(dir, "external-manifest.json");
@@ -37,9 +44,10 @@ function harvest(overrides: Record<string, any> = {}) {
   const sessions = EXTERNAL_RUN_ROLES.map((role, index) => ({
     role, userId: uuid(10 + index), sessionId: uuid(20 + index), requestId: uuid(30 + index),
   }));
-  const commands = EXTERNAL_RUN_OPERATIONS.map((operation, index) => ({
+  const commands = EXTERNAL_RUN_OPERATIONS.map((operation, index) => ({ role: commandRoles[index]!,
     operation, commandId: uuid(40 + index), requestId: uuid(50 + index), auditEventId: uuid(60 + index),
-    actorUserId: sessions[Math.min(index, 2)]!.userId, actorSessionId: sessions[Math.min(index, 2)]!.sessionId,
+    actorUserId: sessions.find((session) => session.role === commandRoles[index])!.userId,
+    actorSessionId: sessions.find((session) => session.role === commandRoles[index])!.sessionId,
     previousStateRevision: 200 + index, resultingStateRevision: 201 + index,
     resultDigest: sha(`result-${index}`), replayDigest: sha(`result-${index}`),
   }));

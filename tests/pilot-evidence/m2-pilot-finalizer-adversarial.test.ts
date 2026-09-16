@@ -16,13 +16,16 @@ const ids = {
 };
 const sha = (character: string) => `sha256:${character.repeat(64)}`;
 const uuid = (index: number) => `88000000-0000-4000-8000-${String(index).padStart(12, "0")}`;
+const commandRoles = ["owner_lead", "owner_lead", "client_approver", "client_approver", "owner_lead"] as const;
 
 function receipt() {
   const roles = ["owner_lead", "architect", "client_approver", "builder", "guest"];
   const sessions = roles.map((role, index) => ({ role, userId: uuid(index + 1), sessionId: uuid(index + 6), requestId: uuid(index + 11) }));
   const commands = ["publish_m2_layout_version", "submit_m2_client_review", "review_m2_client_submission", "append_m2_approved_commit_revision", "publish_m2_m3_handoff"].map((operation, index) => ({
+    role: commandRoles[index]!,
     operation, commandId: uuid(index + 16), requestId: uuid(index + 21), auditEventId: uuid(index + 26),
-    actorUserId: sessions[Math.min(index, 2)]!.userId, actorSessionId: sessions[Math.min(index, 2)]!.sessionId,
+    actorUserId: sessions.find((session) => session.role === commandRoles[index])!.userId,
+    actorSessionId: sessions.find((session) => session.role === commandRoles[index])!.sessionId,
     organizationId: ids.org, projectId: ids.project, packageId: ids.package,
     previousStateRevision: 40 + index, resultingStateRevision: 41 + index,
     resultDigest: sha(String((index + 1) % 10)), replayDigest: sha(String((index + 1) % 10)), replayEqual: true,
@@ -69,7 +72,8 @@ describe("Cycle 7 executable finalizer adversarial gate", () => {
     const { finalizeM2PilotEvidence } = await api();
     for (const mutate of [
       (v: any) => { v.commands[0].commandId = ""; }, (v: any) => { v.commands[0].auditEventId = "not-uuid"; },
-      (v: any) => { v.commands[1].actorSessionId = uuid(49); }, (v: any) => { v.commands[2].packageId = uuid(50); },
+      (v: any) => { v.commands[1].actorSessionId = uuid(49); }, (v: any) => { v.commands[2].role = "owner_lead"; },
+      (v: any) => { v.commands[2].packageId = uuid(50); },
       (v: any) => { v.commands[2].replayDigest = sha("f"); }, (v: any) => { v.commands[2].replayEqual = false; },
       (v: any) => { v.commands[3].previousStateRevision = 999; },
     ]) { const value = receipt(); mutate(value); const out = outputDir(); expect(() => finalizeM2PilotEvidence(value, { outputDir: out })).toThrow(); assertNoArtifacts(out); }

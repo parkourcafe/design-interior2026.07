@@ -289,11 +289,20 @@ send_command() {
     exit 68
   }
 
-  local result_digest replay_digest request_id stateRevision previous_state_revision audit_event_id session_role=${role}
+  local result_digest replay_digest request_id stateRevision previous_state_revision audit_event_id session_role=${role} expected_role expected_user_id
   case ${role} in
     owner) session_role=owner_lead ;;
     client) session_role=client_approver ;;
   esac
+  case ${operation} in
+    publish_m2_layout_version|submit_m2_client_review|publish_m2_m3_handoff) expected_role=owner_lead ;;
+    review_m2_client_submission) expected_role=client_approver ;;
+    *) print -u2 -r -- "EXTERNAL_RUNNER_OPERATION_ROLE_UNKNOWN operation=${operation}"; exit 68 ;;
+  esac
+  [[ ${session_role} == ${expected_role} ]] || {
+    print -u2 -r -- "EXTERNAL_RUNNER_OPERATION_ROLE_MISMATCH operation=${operation} role=${session_role}"
+    exit 68
+  }
   stage="command_${operation}_request_id"
   result_digest=$(jq -cS '.result' "${first}" | shasum -a 256 | awk '{print "sha256:"$1}')
   replay_digest=$(jq -cS '.result' "${second}" | shasum -a 256 | awk '{print "sha256:"$1}')
@@ -326,10 +335,15 @@ send_command() {
     print -u2 -r -- "EXTERNAL_RUNNER_DB_COMMAND_INVALID operation=${operation} field=actorSessionId"
     exit 68
   fi
+  expected_user_id=$(jq -er --arg role "${session_role}" '.[] | select(.role == $role) | .userId' "${sessions_file}")
+  [[ ${actor_user_id} == ${expected_user_id} ]] || {
+    print -u2 -r -- "EXTERNAL_RUNNER_DB_COMMAND_ROLE_MISMATCH operation=${operation}"
+    exit 68
+  }
   stage="command_${operation}_receipt_append"
 
   jq --arg operation "${operation}" --arg commandId "${command_id}" --arg requestId "${request_id}" \
-    --arg auditEventId "${audit_event_id}" --arg actorUserId "${actor_user_id}" --arg actorSessionId "${actor_session_id}" --arg role "${role}" \
+    --arg auditEventId "${audit_event_id}" --arg actorUserId "${actor_user_id}" --arg actorSessionId "${actor_session_id}" --arg role "${expected_role}" \
     --argjson previous "${previous_state_revision}" --argjson resulting "${stateRevision}" \
     --arg resultDigest "${result_digest}" --arg replayDigest "${replay_digest}" \
     '. += [{operation: $operation, commandId: $commandId, requestId: $requestId,
@@ -346,7 +360,7 @@ send_command() {
 # public API or issuing a duplicate approved commit.
 record_approved_commit_side_effect() {
   local operation=append_m2_approved_commit_revision
-  local db_record result_digest stateRevision previous_state_revision command_id audit_event_id actor_user_id actor_session_id
+  local db_record result_digest stateRevision previous_state_revision command_id audit_event_id actor_user_id actor_session_id expected_user_id
   db_record=$(harvest_db_command "${operation}" | tail -1)
   [[ -n ${db_record} ]] || { print -u2 -r -- 'EXTERNAL_RUNNER_APPROVED_COMMIT_SIDE_EFFECT_MISSING'; exit 68; }
   command_id=$(jq -er '.commandId' <<<"${db_record}")
@@ -355,12 +369,14 @@ record_approved_commit_side_effect() {
   stateRevision=$(jq -er '.resultingStateRevision' <<<"${db_record}")
   previous_state_revision=$(( stateRevision - 1 ))
   actor_session_id=$(jq -er '.[] | select(.role == "client_approver") | .sessionId' "${sessions_file}")
+  expected_user_id=$(jq -er '.[] | select(.role == "client_approver") | .userId' "${sessions_file}")
+  [[ ${actor_user_id} == ${expected_user_id} ]] || { print -u2 -r -- 'EXTERNAL_RUNNER_DB_COMMAND_ROLE_MISMATCH operation=append_m2_approved_commit_revision'; exit 68; }
   result_digest=$(jq -cS '.logicalResult' <<<"${db_record}" | shasum -a 256 | awk '{print "sha256:"$1}')
   jq --arg operation "${operation}" --arg commandId "${command_id}" --arg requestId "${audit_event_id}" \
-    --arg auditEventId "${audit_event_id}" --arg actorUserId "${actor_user_id}" --arg actorSessionId "${actor_session_id}" \
+    --arg auditEventId "${audit_event_id}" --arg actorUserId "${actor_user_id}" --arg actorSessionId "${actor_session_id}" --arg role "client_approver" \
     --argjson previous "${previous_state_revision}" --argjson resulting "${stateRevision}" --arg digest "${result_digest}" \
     '. += [{operation: $operation, commandId: $commandId, requestId: $requestId,
-            auditEventId: $auditEventId, actorUserId: $actorUserId, actorSessionId: $actorSessionId,
+            auditEventId: $auditEventId, actorUserId: $actorUserId, actorSessionId: $actorSessionId, role: $role,
             previousStateRevision: $previous, resultingStateRevision: $resulting,
             resultDigest: $digest, replayDigest: $digest}]' \
     "${commands_file}" > "${commands_file}.next"
@@ -708,7 +724,7 @@ jq -n --arg organizationId "${organization_id}" --arg projectId "${project_id}" 
   --argjson lineage "${lineage}" --slurpfile proofs "${proofs}" '
   {scope: {organizationId: $organizationId, projectId: $projectId, packageId: $packageId},
    sessions: $sessions[0],
-   commands: [$commands[0][] | del(.role)],
+   commands: $commands[0],
    lineage: $lineage,
    proofs: $proofs[0]}' > "${harvest_file}"
 

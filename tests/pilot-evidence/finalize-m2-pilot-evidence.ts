@@ -9,6 +9,13 @@ const SHA = /^sha256:[0-9a-f]{64}$/;
 const ENTITY_ID = /^[A-Za-z0-9][A-Za-z0-9._:@-]{0,159}$/;
 const roles = ["owner_lead", "architect", "client_approver", "builder", "guest"] as const;
 const operations = ["publish_m2_layout_version", "submit_m2_client_review", "review_m2_client_submission", "append_m2_approved_commit_revision", "publish_m2_m3_handoff"] as const;
+const operationRoles = {
+  publish_m2_layout_version: "owner_lead",
+  submit_m2_client_review: "owner_lead",
+  review_m2_client_submission: "client_approver",
+  append_m2_approved_commit_revision: "client_approver",
+  publish_m2_m3_handoff: "owner_lead",
+} as const;
 const privateData = /sk-[a-z0-9_-]+|sbp_token|refresh_token|\/Users\/|\/Volumes\/|\/mnt\/|\.\.\/|bearer\s+\S+/i;
 const privateDataGlobal = /sk-[a-z0-9_-]+|sbp_token|refresh_token|\/Users\/|\/Volumes\/|\/mnt\/|\.\.\/|bearer\s+\S+/gi;
 const HEAD_SHA = /^[0-9a-f]{40}$/;
@@ -69,17 +76,25 @@ export function finalizeM2PilotEvidence(receipt: unknown, options: { readonly ou
     const sessions = list(value.sessions); const fiveDistinctUsers = new Set(sessions.map((item) => string(item.userId))).size === 5;
     if (!validFiveSessions(sessions)) throw new Error("RECEIPT_TAMPERED_SESSIONS");
     const sessionBindings = new Set(sessions.map((item) => `${item.userId}:${item.sessionId}`));
+    const sessionByRole = new Map(sessions.map((item) => [string(item.role), item]));
     const commands = list(value.commands); const commandIds = new Set(commands.map((item) => string(item.commandId)));
     const stateRevisions = commands.map((item) => [item.previousStateRevision, item.resultingStateRevision]);
     if (commands.length !== operations.length || commandIds.size !== operations.length
       || operations.some((operation) => !commands.some((item) => item.operation === operation))
-      || commands.some((item, index) => !UUID.test(string(item.commandId)) || !UUID.test(string(item.requestId))
+      || commands.some((item, index) => {
+        const operation = string(item.operation) as keyof typeof operationRoles;
+        const expectedRole = operationRoles[operation];
+        const expectedSession = expectedRole ? sessionByRole.get(expectedRole) : undefined;
+        return !expectedSession || item.role !== expectedRole
+          || item.actorUserId !== expectedSession.userId || item.actorSessionId !== expectedSession.sessionId
+          || !UUID.test(string(item.commandId)) || !UUID.test(string(item.requestId))
         || !UUID.test(string(item.auditEventId)) || !sessionBindings.has(`${item.actorUserId}:${item.actorSessionId}`)
         || item.organizationId !== scope.organizationId || item.projectId !== scope.projectId || item.packageId !== scope.packageId
         || !Number.isSafeInteger(item.previousStateRevision) || !Number.isSafeInteger(item.resultingStateRevision)
         || item.resultingStateRevision !== Number(item.previousStateRevision) + 1
         || (index > 0 && item.previousStateRevision !== commands[index - 1]!.resultingStateRevision)
-        || !SHA.test(string(item.resultDigest)) || item.resultDigest !== item.replayDigest || item.replayEqual !== true)) {
+        || !SHA.test(string(item.resultDigest)) || item.resultDigest !== item.replayDigest || item.replayEqual !== true;
+      })) {
       void stateRevisions; throw new Error("RECEIPT_TAMPERED_COMMAND_REPLAY");
     }
     const lineage = object(value.lineage);

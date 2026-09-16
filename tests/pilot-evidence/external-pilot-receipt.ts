@@ -16,6 +16,10 @@ export const EXTERNAL_RUN_ROLES = [
   "owner_lead", "architect", "client_approver", "builder", "guest",
 ] as const;
 
+export const EXTERNAL_RUN_OPERATION_ROLES = [
+  "owner_lead", "owner_lead", "client_approver", "client_approver", "owner_lead",
+] as const;
+
 const PROOF_KEYS = ["audit", "authenticatedRead", "privacy", "tenancy", "replay"] as const;
 const LINEAGE_ENTITY_KEYS = [
   "submissionId", "reviewId", "approvedCommitId",
@@ -41,6 +45,7 @@ export interface ExternalRunSession {
 }
 
 export interface ExternalRunCommand {
+  readonly role: string;
   readonly operation: string;
   readonly commandId: string;
   readonly requestId: string;
@@ -120,8 +125,12 @@ function harvestCommands(
   const bindings = new Set(sessions.map((session) => `${session.userId}:${session.sessionId}`));
   const commands = raw.map((item, index) => {
     if (item.operation !== EXTERNAL_RUN_OPERATIONS[index]) fail("EXTERNAL_RUN_OPERATION_CHAIN_REQUIRED");
+    const expectedRole = EXTERNAL_RUN_OPERATION_ROLES[index]!;
+    const expectedSession = sessions.find((session) => session.role === expectedRole);
+    if (!expectedSession || item.role !== expectedRole) fail("EXTERNAL_RUN_OPERATION_ROLE_INVALID");
     const number = (value: unknown): number => typeof value === "number" ? value : Number.NaN;
     const command = {
+      role: expectedRole,
       operation: EXTERNAL_RUN_OPERATIONS[index]!,
       commandId: text(item.commandId),
       requestId: text(item.requestId),
@@ -138,7 +147,10 @@ function harvestCommands(
     if (!UUID.test(command.commandId) || !UUID.test(command.requestId) || !UUID.test(command.auditEventId)) {
       fail("EXTERNAL_RUN_COMMAND_IDENTIFIER_INVALID");
     }
-    if (!bindings.has(`${command.actorUserId}:${command.actorSessionId}`)) fail("EXTERNAL_RUN_COMMAND_ACTOR_UNBOUND");
+    if (!bindings.has(`${command.actorUserId}:${command.actorSessionId}`)
+      || command.actorUserId !== expectedSession.userId || command.actorSessionId !== expectedSession.sessionId) {
+      fail("EXTERNAL_RUN_COMMAND_ACTOR_UNBOUND");
+    }
     if (!Number.isSafeInteger(command.previousStateRevision) || !Number.isSafeInteger(command.resultingStateRevision)
       || command.resultingStateRevision !== command.previousStateRevision + 1) {
       fail("EXTERNAL_RUN_STATE_REVISION_INVALID");
