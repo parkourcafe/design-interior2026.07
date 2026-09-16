@@ -303,6 +303,33 @@ describe("External package runner executable", () => {
     expect(statSync(EXECUTOR_PATH).mode & 0o111).not.toBe(0);
   });
 
+  it("executes scope guards with the canonical room slug while rejecting unsafe room and scope ids", () => {
+    const source = shell();
+    const guard = source.slice(source.indexOf("uuid_pattern="), source.indexOf("query_db()"));
+    const manifest = JSON.parse(readFileSync("tests/fixtures/cycle7/external-package.manifest.json", "utf8"));
+    const run = (roomId: string, projectId = manifest.scope.projectId) => spawnSync("zsh", ["-c", guard], {
+      encoding: "utf8", env: { ...process.env, organization_id: manifest.scope.organizationId,
+        project_id: projectId, package_id: manifest.scope.packageId, room_id: roomId },
+    });
+    expect(run(manifest.scope.roomId).status).toBe(0);
+    for (const roomId of ["", "../room", "room' OR true", "x".repeat(161)]) {
+      expect(run(roomId).status).toBe(66);
+    }
+    expect(run(manifest.scope.roomId, "not-a-uuid").status).toBe(66);
+  });
+
+  it("rejects raw roomId controls before command substitution can strip them", () => {
+    const filter = shell().match(/room_id=\$\(manifest_jq -er '([^']+)'\)/)?.[1];
+    expect(filter).toBeTruthy();
+    const run = (roomId: unknown) => spawnSync("jq", ["-er", filter!], {
+      input: JSON.stringify({ scope: { roomId } }), encoding: "utf8",
+    });
+    expect(run("tashkent-ground-floor-living-kitchen").status).toBe(0);
+    for (const roomId of ["tashkent-room\n", "tashkent-room\r", "room\u0000", null, 1]) {
+      expect(run(roomId).status).not.toBe(0);
+    }
+  });
+
   it("sends every command twice and compares, instead of asserting replay", () => {
     const source = shell();
     expect(source).toContain("send_command");

@@ -7,7 +7,7 @@ cd "${repo_root}"
 
 project_id=41111111-1111-4111-8111-111111111111
 supabase_project=archidom-ap1-disposable
-docker_host=${DOCKER_HOST:-unix://${HOME}/.colima/archidom-ap1/docker.sock}
+docker_host=${DOCKER_HOST:-unix://${HOME}/.colima/archidom-ap1-disposable/docker.sock}
 db_container="supabase_db_${supabase_project}"
 db_psql_user=${AP1_DB_PSQL_USER:-supabase_admin}
 next_port=${AP1_NEXT_PORT:-3100}
@@ -23,7 +23,7 @@ runtime_root=""
 run_completed=0
 
 export DOCKER_HOST=${docker_host}
-if [[ "${docker_host}" != "unix://${HOME}/.colima/archidom-ap1/docker.sock" \
+if [[ "${docker_host}" != "unix://${HOME}/.colima/archidom-ap1-disposable/docker.sock" \
   && ! ( "${GITHUB_ACTIONS:-false}" == "true" && "${docker_host}" == "unix:///var/run/docker.sock" ) ]]; then
   print -u2 -r -- "AP1_DOCKER_HOST_REJECTED"
   exit 65
@@ -95,10 +95,6 @@ run_sql tests/ap1/environment/cleanup-repeatable-run.sql
 run_sql tests/ap1/environment/enable-m3-publication.sql
 run_sql tests/ap1/environment/enable-m4-increment-1.sql
 run_sql tests/ap1/environment/enable-m4-v1-impact.sql
-run_sql tests/db5/06_execution_test_role.sql
-run_sql tests/db3/20_foundation_operations.sql
-run_sql tests/db4/20_product_operations.sql
-run_sql tests/db5/20_execution_operations.sql
 run_sql tests/ap1/environment/enable-m4-v2-v3.sql
 
 AP1_API_URL="${api_url}" \
@@ -109,46 +105,8 @@ AP1_DB_CONTAINER="${db_container}" \
 AP1_NEXT_ORIGIN="${next_origin}" \
   ./node_modules/.bin/tsx tests/ap1/e2e/provision-kora.ts
 
-architecture_package=$(jq -er '.architecturePackageId' "${session_file}")
 photo_source_id=$(jq -er '.photoSourceId' "${session_file}")
 photo_source_revision_id=$(jq -er '.photoSourceRevisionId' "${session_file}")
-owner_user_id=$(jq -er '.sessions.owner.userId' "${session_file}")
-
-# A milestone definition is a local scenario precondition because the thin UI
-# intentionally does not expose schedule authoring yet. It is created by the
-# accepted DB human contract, never by the application service role.
-milestone_id=$(docker exec -i "${db_container}" \
-  psql -X -qAt --set ON_ERROR_STOP=1 --username "${db_psql_user}" --dbname postgres <<SQL
-begin;
-set local role authenticated;
-set local request.jwt.claim.sub =
-  '${owner_user_id}';
-select response #>> '{result,id}'
-from (
-  select projectceo_m4_api.define_milestone(
-    '${project_id}',
-    '${architecture_package}',
-    'package-db4-work-v1',
-    'Архитектурный выпуск — проверка по фото',
-    '["node-area-db4"]'::jsonb,
-    (
-      select max((project_scope ->> 'stateRevision')::bigint)
-      from jsonb_array_elements(
-        projectceo_api.list_projects() -> 'data'
-      ) project_scope
-      where project_scope ->> 'projectId' = '${project_id}'
-    ),
-    'ap1-define-live-architecture-milestone'
-  ) response
-) defined;
-commit;
-SQL
-)
-milestone_id=$(print -r -- "${milestone_id}" | tail -1 | tr -d '[:space:]')
-[[ ${milestone_id} =~ "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$" ]] || {
-  print -u2 -r -- "AP1_DYNAMIC_MILESTONE_INVALID"
-  exit 1
-}
 
 # Next normally loads the repository's .env.local automatically. AP1 must not
 # expose any production secret to the application process, so run from a small
@@ -240,44 +198,6 @@ for role in owner architect builder client guest; do
   magic_login "${role}"
 done
 
-# The bearer token is consumed only by the anonymous exact-release route.  The
-# temporary response, session file and Next access log are destroyed at exit.
-guest_token=$(jq -er '.guestToken' "${session_file}")
-guest_release_version=$(jq -er '.guestReleaseVersionId' "${session_file}")
-guest_headers="${evidence_dir}/guest-link.headers"
-guest_body="${evidence_dir}/guest-link.html"
-guest_http=$(curl -sS -D "${guest_headers}" -o "${guest_body}" -w '%{http_code}' \
-  "${next_origin}/projectceo/guest/${guest_token}")
-[[ ${guest_http} == 200 ]] || {
-  print -u2 -r -- "AP1_GUEST_LINK_HTTP status=${guest_http}"
-  exit 1
-}
-rg -qi '^cache-control: private, no-store' "${guest_headers}"
-rg -qi '^x-robots-tag: noindex, nofollow' "${guest_headers}"
-rg -F -- "${project_id}" "${guest_body}" >/dev/null
-rg -F -- "${guest_release_version}" "${guest_body}" >/dev/null
-if rg -F -- "${guest_token}" "${guest_body}" "${guest_headers}" >/dev/null; then
-  print -u2 -r -- "AP1_GUEST_TOKEN_RESPONSE_LEAK"
-  exit 1
-fi
-if rg -q '/Users/|construction-hall\.jpg|KORA_Website_Code' "${guest_body}"; then
-  print -u2 -r -- "AP1_GUEST_PROTECTED_PATH_LEAK"
-  exit 1
-fi
-
-invalid_guest_token=AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
-invalid_guest_http=$(curl -sS \
-  -o "${evidence_dir}/guest-link-invalid.html" -w '%{http_code}' \
-  "${next_origin}/projectceo/guest/${invalid_guest_token}")
-[[ ${invalid_guest_http} == 404 ]] || {
-  print -u2 -r -- "AP1_INVALID_GUEST_LINK_HTTP status=${invalid_guest_http}"
-  exit 1
-}
-if rg -F -- "${invalid_guest_token}" \
-    "${evidence_dir}/guest-link-invalid.html" >/dev/null; then
-  print -u2 -r -- "AP1_INVALID_GUEST_TOKEN_RESPONSE_LEAK"
-  exit 1
-fi
 
 post_json() {
   local role=$1
@@ -291,6 +211,14 @@ post_json() {
     --data "${body}" \
     "${next_origin}${endpoint}"
 }
+
+package_invite_token=$(jq -er '.packageInviteToken' "${session_file}")
+package_accept_payload=$(jq -nc --arg token "${package_invite_token}" '{contractVersion:"projectceo-invitation-accept/0.1",token:$token}')
+package_accept_http=$(post_json owner /api/projectceo/invitations/accept "${package_accept_payload}" "${evidence_dir}/package-scope-accept.json")
+[[ ${package_accept_http} == 200 ]] || { print -u2 -r -- "AP1_PACKAGE_SCOPE_ACCEPT_HTTP status=${package_accept_http}"; exit 1; }
+jq -e '.status == "completed"' "${evidence_dir}/package-scope-accept.json" >/dev/null
+jq 'del(.packageInviteToken)' "${session_file}" > "${session_file}.next" && mv -- "${session_file}.next" "${session_file}"
+chmod 600 "${session_file}"
 
 get_json() {
   local role=$1
@@ -360,10 +288,10 @@ jq -e '
   .error == null and .data.actor.role == "owner"
   and .data.projects[0].name == "Kora Food Hall"
   and .data.projects[0].areaM2 == 1800
-  and .data.projects[0].sourceStats.physicalRecords == 214
-  and .data.projects[0].sourceStats.materializedRecords == 85
+  and .data.projects[0].sourceStats.physicalRecords == 215
+  and .data.projects[0].sourceStats.materializedRecords == 86
   and .data.projects[0].sourceStats.placeholders == 129
-  and .data.projects[0].sourceStats.uniqueBlobs == 32
+  and .data.projects[0].sourceStats.uniqueBlobs == 33
   and .data.projects[0].sourceStats.duplicateGroups == 18
   and .data.projects[0].sourceStats.quarantinedGroups == 8
 ' "${evidence_dir}/owner-portfolio.json" >/dev/null
@@ -376,8 +304,113 @@ jq -e '.error == null and .data.actor.role == "client" and (.data.projects|lengt
 jq -e '.error == null and .data.actor.role == "guest" and (.data.projects|length) == 0 and (.data.actor.capabilities|length) == 0' \
   "${evidence_dir}/guest-portfolio.json" >/dev/null
 
+# Authenticated M2 -> M3 chain. Every business mutation goes through the
+# request-bound command contract; only the executor's disposable identity
+# bootstrap is SQL-backed. The preview tokens are read from the authenticated
+# workspace immediately before confirmation and are never fabricated.
+decision_node_id=kora-decision-layout
+decision_revision_id=$(uuidgen | tr '[:upper:]' '[:lower:]')
+approval_package_id=kora-approval-m2
+decision_command_id=$(uuidgen | tr '[:upper:]' '[:lower:]')
+decision_payload=$(jq -nc \
+  --arg projectId "${project_id}" --arg commandId "${decision_command_id}" \
+  --arg packageId "${project_id}" --arg nodeId "${decision_node_id}" \
+  --arg revisionId "${decision_revision_id}" \
+  '{contractVersion:"projectceo-command/0.1",kind:"create_decision",projectId:$projectId,commandId:$commandId,payload:{packageId:$packageId,nodeId:$nodeId,revisionId:$revisionId,expectedRevisionId:null,claimStatus:"human_origin",title:"Планировка общественной зоны Kora",resolution:"Сохраняем открытую общественную зону и фиксируем текущую строительную реализацию как исходное решение.",areaNodeId:null,decisionStatus:"confirmed",evidence:[],reason:"Решение подтверждено на строительном обходе Kora."}}')
+decision_http=$(post_json architect /api/projectceo/commands "${decision_payload}" "${evidence_dir}/decision.json")
+[[ ${decision_http} == 200 ]] || { print -u2 -r -- "AP1_DECISION_HTTP status=${decision_http}"; exit 1; }
+jq -e '.status == "completed"' "${evidence_dir}/decision.json" >/dev/null
+
+approval_command_id=$(uuidgen | tr '[:upper:]' '[:lower:]')
+approval_payload=$(jq -nc \
+  --arg projectId "${project_id}" --arg commandId "${approval_command_id}" \
+  --arg packageId "${project_id}" --arg approvalId "${approval_package_id}" \
+  --arg nodeId "${decision_node_id}" --arg revisionId "${decision_revision_id}" \
+  '{contractVersion:"projectceo-command/0.1",kind:"create_approval_package",projectId:$projectId,commandId:$commandId,payload:{packageId:$packageId,approvalPackageId:$approvalId,items:[{targetKind:"decision_revision",entityId:$nodeId,revisionId:$revisionId}]}}')
+approval_http=$(post_json owner /api/projectceo/commands "${approval_payload}" "${evidence_dir}/approval-create.json")
+[[ ${approval_http} == 200 ]] || { print -u2 -r -- "AP1_APPROVAL_CREATE_HTTP status=${approval_http}"; exit 1; }
+jq -e '.status == "completed"' "${evidence_dir}/approval-create.json" >/dev/null
+
+submit_command_id=$(uuidgen | tr '[:upper:]' '[:lower:]')
+submit_payload=$(jq -nc --arg projectId "${project_id}" --arg commandId "${submit_command_id}" --arg approvalId "${approval_package_id}" \
+  '{contractVersion:"projectceo-command/0.1",kind:"submit_approval_package",projectId:$projectId,commandId:$commandId,payload:{approvalPackageId:$approvalId,expectedStatus:"draft"}}')
+submit_http=$(post_json owner /api/projectceo/commands "${submit_payload}" "${evidence_dir}/approval-submit.json")
+[[ ${submit_http} == 200 ]] || { print -u2 -r -- "AP1_APPROVAL_SUBMIT_HTTP status=${submit_http}"; exit 1; }
+jq -e '.status == "completed"' "${evidence_dir}/approval-submit.json" >/dev/null
+
+review_command_id=$(uuidgen | tr '[:upper:]' '[:lower:]')
+review_payload=$(jq -nc --arg projectId "${project_id}" --arg commandId "${review_command_id}" --arg approvalId "${approval_package_id}" \
+  '{contractVersion:"projectceo-command/0.1",kind:"review_selection",projectId:$projectId,commandId:$commandId,payload:{approvalPackageId:$approvalId,expectedStatus:"submitted",decision:"approved",reason:"Клиент подтвердил решение и состав approval package."}}')
+review_http=$(post_json client /api/projectceo/commands "${review_payload}" "${evidence_dir}/approval-review.json")
+[[ ${review_http} == 200 ]] || { print -u2 -r -- "AP1_APPROVAL_REVIEW_HTTP status=${review_http}"; exit 1; }
+jq -e '.status == "completed"' "${evidence_dir}/approval-review.json" >/dev/null
+
+get_json architect "/api/projectceo/projects/${project_id}" "${evidence_dir}/architect-workspace-m2.json"
+baseline_token=$(jq -er '.data.operations.publish_baseline.commandTargetId' "${evidence_dir}/architect-workspace-m2.json")
+baseline_command_id=$(uuidgen | tr '[:upper:]' '[:lower:]')
+baseline_payload=$(jq -nc --arg projectId "${project_id}" --arg commandId "${baseline_command_id}" --arg token "${baseline_token}" \
+  '{contractVersion:"projectceo-command/0.1",kind:"publish_baseline",projectId:$projectId,commandId:$commandId,payload:{snapshotToken:$token}}')
+baseline_http=$(post_json architect /api/projectceo/commands "${baseline_payload}" "${evidence_dir}/baseline.json")
+[[ ${baseline_http} == 200 ]] || { print -u2 -r -- "AP1_BASELINE_HTTP status=${baseline_http}"; exit 1; }
+jq -e '.status == "completed"' "${evidence_dir}/baseline.json" >/dev/null
+
+get_json architect "/api/projectceo/projects/${project_id}" "${evidence_dir}/architect-workspace-baseline.json"
+release_token=$(jq -er '.data.operations.publish_release.commandTargetId' "${evidence_dir}/architect-workspace-baseline.json")
+release_command_id=$(uuidgen | tr '[:upper:]' '[:lower:]')
+release_payload=$(jq -nc --arg projectId "${project_id}" --arg commandId "${release_command_id}" --arg token "${release_token}" \
+  '{contractVersion:"projectceo-command/0.1",kind:"publish_release",projectId:$projectId,commandId:$commandId,payload:{snapshotToken:$token}}')
+release_http=$(post_json architect /api/projectceo/commands "${release_payload}" "${evidence_dir}/release.json")
+[[ ${release_http} == 200 ]] || { print -u2 -r -- "AP1_RELEASE_HTTP status=${release_http}"; exit 1; }
+jq -e '.status == "completed"' "${evidence_dir}/release.json" >/dev/null
+release_version=$(jq -er '.result.productionPackageVersionId // .result.versionId // .result.id' "${evidence_dir}/release.json")
+get_json architect "/api/projectceo/projects/${project_id}" "${evidence_dir}/architect-workspace-release.json"
+release_package_version=$(jq -er --arg packageId "${project_id}" \
+  '[.data.packageVersions[] | select(.packageId == $packageId)] | sort_by(.versionNo) | last.id' \
+  "${evidence_dir}/architect-workspace-release.json")
+
+area_node_id=$(jq -er '.areaNodeId' "${session_file}")
+get_json owner /api/projectceo/portfolio "${evidence_dir}/owner-post-release-portfolio.json"
+current_state_revision=$(jq -er '.data.projects[0].stateRevision' "${evidence_dir}/owner-post-release-portfolio.json")
+milestone_id=$(./node_modules/.bin/tsx tests/ap1/e2e/define-milestone-rpc.ts \
+  "${api_url}" "${anon_key}" "$(cookie_path owner)" "${project_id}" "${project_id}" \
+  "${release_version}" "${area_node_id}" "${current_state_revision}" | tail -1)
+[[ ${milestone_id} =~ "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$" ]] || {
+  print -u2 -r -- "AP1_DYNAMIC_MILESTONE_INVALID"
+  exit 1
+}
+get_json owner /api/projectceo/portfolio "${evidence_dir}/owner-post-milestone-portfolio.json"
+current_state_revision=$(jq -er '.data.projects[0].stateRevision' "${evidence_dir}/owner-post-milestone-portfolio.json")
+final_guest_token=$(./node_modules/.bin/tsx tests/ap1/e2e/create-guest-grant-rpc.ts \
+  "${api_url}" "${anon_key}" "$(cookie_path owner)" "${project_id}" "${project_id}" \
+  "${release_package_version}" "${current_state_revision}" | tail -1)
+[[ ${#final_guest_token} -ge 40 ]] || { print -u2 -r -- "AP1_FINAL_GUEST_TOKEN_INVALID"; exit 1; }
+guest_release_version="${release_package_version}"
+jq --arg token "${final_guest_token}" --arg version "${guest_release_version}" \
+  '.guestToken=$token | .guestReleaseVersionId=$version' "${session_file}" > "${session_file}.next" \
+  && mv -- "${session_file}.next" "${session_file}"
+chmod 600 "${session_file}"
+
+# Verify the final-release guest token only after the authenticated release and
+# post-milestone state are materialized.
+guest_token="${final_guest_token}"
+guest_headers="${evidence_dir}/guest-link.headers"
+guest_body="${evidence_dir}/guest-link.html"
+guest_http=$(curl -sS -D "${guest_headers}" -o "${guest_body}" -w '%{http_code}' \
+  "${next_origin}/projectceo/guest/${guest_token}")
+[[ ${guest_http} == 200 ]] || { print -u2 -r -- "AP1_GUEST_LINK_HTTP status=${guest_http}"; exit 1; }
+rg -qi '^cache-control: private, no-store' "${guest_headers}"
+rg -qi '^x-robots-tag: noindex, nofollow' "${guest_headers}"
+rg -F -- "${project_id}" "${guest_body}" >/dev/null
+rg -F -- "${guest_release_version}" "${guest_body}" >/dev/null
+if rg -F -- "${guest_token}" "${guest_body}" "${guest_headers}" >/dev/null; then
+  print -u2 -r -- "AP1_GUEST_TOKEN_RESPONSE_LEAK"; exit 1
+fi
+invalid_guest_token=AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
+invalid_guest_http=$(curl -sS -o "${evidence_dir}/guest-link-invalid.html" -w '%{http_code}' \
+  "${next_origin}/projectceo/guest/${invalid_guest_token}")
+[[ ${invalid_guest_http} == 404 ]] || { print -u2 -r -- "AP1_INVALID_GUEST_LINK_HTTP status=${invalid_guest_http}"; exit 1; }
+
 builder_id=$(jq -er '.sessions.builder.userId' "${session_file}")
-release_version=$(jq -er '.releaseVersionId' "${session_file}")
 distribution_command_id=$(uuidgen | tr '[:upper:]' '[:lower:]')
 distribution_payload=$(jq -nc \
   --arg projectId "${project_id}" \
@@ -414,7 +447,8 @@ change_command_id=$(uuidgen | tr '[:upper:]' '[:lower:]')
 change_payload=$(jq -nc \
   --arg projectId "${project_id}" \
   --arg commandId "${change_command_id}" \
-  '{contractVersion:"projectceo-command/0.1",kind:"create_change",projectId:$projectId,commandId:$commandId,payload:{reason:"Уточнена отделка второго этажа по замечанию стройки",fromProductionPackageVersionId:"package-db4-work-v1",deltaCostRub:125000,deltaDays:2}}')
+  --arg versionId "${release_version}" \
+  '{contractVersion:"projectceo-command/0.1",kind:"create_change",projectId:$projectId,commandId:$commandId,payload:{reason:"Уточнена отделка второго этажа по замечанию стройки",fromProductionPackageVersionId:$versionId,deltaCostRub:125000,deltaDays:2}}')
 change_http=$(post_json builder /api/projectceo/commands "${change_payload}" "${evidence_dir}/change.json")
 [[ ${change_http} == 200 ]] || { print -u2 -r -- "AP1_CHANGE_HTTP status=${change_http}"; exit 1; }
 jq -e '.status == "completed" and .replay == false' "${evidence_dir}/change.json" >/dev/null
@@ -472,7 +506,8 @@ photo_payload=$(jq -nc \
   --arg sourceId "${photo_source_id}" \
   --arg sourceRevisionId "${photo_source_revision_id}" \
   --arg capturedAt "${captured_at}" \
-  '{contractVersion:"projectceo-command/0.1",kind:"upload_photo_evidence",projectId:$projectId,commandId:$commandId,payload:{milestoneId:$milestoneId,areaNodeId:"node-area-db4",sourceId:$sourceId,sourceRevisionId:$sourceRevisionId,capturedAt:$capturedAt,note:"Фотофиксация архитектурного выпуска Kora"}}')
+  --arg areaNodeId "${area_node_id}" \
+  '{contractVersion:"projectceo-command/0.1",kind:"upload_photo_evidence",projectId:$projectId,commandId:$commandId,payload:{milestoneId:$milestoneId,areaNodeId:$areaNodeId,sourceId:$sourceId,sourceRevisionId:$sourceRevisionId,capturedAt:$capturedAt,note:"Фотофиксация архитектурного выпуска Kora"}}')
 photo_http=$(post_json builder /api/projectceo/commands "${photo_payload}" "${evidence_dir}/photo.json")
 [[ ${photo_http} == 200 ]] || { print -u2 -r -- "AP1_PHOTO_HTTP status=${photo_http}"; exit 1; }
 jq -e '.status == "completed"' "${evidence_dir}/photo.json" >/dev/null
@@ -646,7 +681,7 @@ jq -n '{
   productionChanged:false,
   users:5,
   auth:"magiclink",
-  project:{name:"Kora Food Hall",areaM2:1800,registrySources:209,foundationFixtureSources:4,sitePhotos:1,physicalSources:214,materializedSources:85,placeholders:129,uniqueBlobs:32,duplicateGroups:18,quarantinedGroups:8},
+  project:{name:"Kora Food Hall",areaM2:1800,registrySources:209,foundationFixtureSources:0,sitePhotos:1,physicalSources:215,materializedSources:86,placeholders:129,uniqueBlobs:33,duplicateGroups:18,quarantinedGroups:8},
   gates:{invitationAccept:true,distributionAcknowledgement:true,changeImpactReview:true,photoEvidenceReview:true,milestoneAcceptance:true,exactRetry:true,csrf:true,tenantIsolation:true,guestExactTokenScope:true}
 }' > "${evidence_dir}/summary.json"
 

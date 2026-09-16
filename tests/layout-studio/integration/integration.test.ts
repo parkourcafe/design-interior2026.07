@@ -376,6 +376,8 @@ describe("Layout Studio delivery/UI slice", () => {
       // R1 architect-declared historical sidecar read; it does not extend
       // the Layout Studio schema or its public UI contract.
       "20260916025319_r1_sheet_sidecar_read_projection.sql",
+      // Authenticated disposable package enrollment; unrelated to Layout Studio.
+      "20260916132722_projectceo_authenticated_package_enrollment.sql",
     ];
     const actual = readdirSync(join(repoRoot, "supabase/migrations"), { withFileTypes: true })
       // Предмет проверки — миграции, а не всё содержимое папки. Рядом с ними
