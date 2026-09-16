@@ -20,10 +20,11 @@ vi.mock("@/lib/project-intelligence/delivery/projectceo/request-context", () => 
     }
   }
   return {
+    PROJECTCEO_SESSION_PROVENANCE_HEADER: "X-ArchiDom-Auth-Session-Digest",
     ProjectCeoAuthenticationError,
     createProjectCeoRequestContext: vi.fn(async () => {
       if (state.contextError) throw state.contextError;
-      return { client: { requestBound: true }, identity: { userId: "user-1" } };
+      return { client: { requestBound: true }, identity: { userId: "user-1", sessionDigest: `sha256:${"a".repeat(64)}` } };
     }),
   };
 });
@@ -43,16 +44,16 @@ vi.mock("@/lib/project-intelligence/delivery/projectceo/command-service", () => 
 
 vi.mock("@/lib/project-intelligence/delivery/projectceo/server-port", () => ({
   isProjectCeoLocalFixtureMode: () => state.fixture,
-  createProjectCeoServerPort: vi.fn(async () => {
+  createProjectCeoServerRequest: vi.fn(async () => {
     if (state.contextError) throw state.contextError;
-    return {
+    return { identity: { userId: "user-1", sessionDigest: `sha256:${"a".repeat(64)}` }, port: {
       getPortfolio: async () => state.portfolioEnvelope,
       getProjectWorkspace: async ({ projectId }: { readonly projectId: string }) => {
         state.projectId = projectId;
         if (state.serviceError) throw state.serviceError;
         return state.workspaceEnvelope;
       },
-    };
+    } };
   }),
 }));
 
@@ -121,6 +122,7 @@ describe("AP1 ProjectCEO direct route handlers", () => {
     const response = await commandPost(commandRequest());
     expect(response.status).toBe(200);
     expect(response.headers.get("cache-control")).toBe("private, no-store");
+    expect(response.headers.get("x-archidom-auth-session-digest")).toBe(`sha256:${"a".repeat(64)}`);
     expect(await response.json()).toMatchObject({
       status: "completed",
       operation: "submit_change_request",
@@ -202,6 +204,7 @@ describe("AP1 ProjectCEO direct route handlers", () => {
     const success = await portfolioGet();
     expect(success.status).toBe(200);
     expect(success.headers.get("cache-control")).toBe("private, no-store");
+    expect(success.headers.get("x-archidom-auth-session-digest")).toBe(`sha256:${"a".repeat(64)}`);
 
     state.portfolioEnvelope = uiEnvelope(null, {
       code: "forbidden",

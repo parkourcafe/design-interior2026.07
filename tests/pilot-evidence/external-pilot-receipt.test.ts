@@ -14,6 +14,8 @@ import {
 import { buildKoraFiveSessionReceipt, writeKoraFiveSessionReceipt } from "./kora-five-session-receipt";
 import { finalizeM2PilotEvidence } from "./finalize-m2-pilot-evidence";
 import { prepareM2PilotEvidence } from "./run-m2-pilot-evidence";
+import { buildExternalProofFixture } from "./proof-fixture";
+import { canonicalJson } from "../../lib/project-intelligence/application/change-handoff/canonical";
 
 const roots: string[] = [];
 afterEach(() => { for (const root of roots.splice(0)) rmSync(root, { recursive: true, force: true }); });
@@ -23,23 +25,36 @@ const uuid = (index: number) => `88000000-0000-4000-8000-${String(index).padStar
 const NONCE = "cycle7-challenge-3d41f7ae90bc";
 const EXECUTOR_PATH = "tests/pilot-evidence/executors/external-package-runner.zsh";
 const ALLOWLISTED = "tests/pilot-evidence/executors/pending-external-system.zsh";
+const commandRoles = ["owner_lead", "owner_lead", "client_approver", "client_approver", "owner_lead"] as const;
+const MANIFEST_JSON = JSON.stringify({ status: "pending", synthetic: false, project: { name: "External venue" } });
+const MANIFEST_DIGEST = sha(MANIFEST_JSON);
 
 function workdir() { const root = mkdtempSync(join(tmpdir(), "cycle7-external-")); roots.push(root); return root; }
 
+it("keeps the runner operation role in the protected harvest", () => {
+  const runner = readFileSync(EXECUTOR_PATH, "utf8");
+  expect(runner).toContain("commands: $commands[0]");
+  expect(runner).not.toContain("commands: [$commands[0][] | del(.role)]");
+});
+
 function manifestFile(dir: string) {
   const path = join(dir, "external-manifest.json");
-  writeFileSync(path, JSON.stringify({ status: "pending", synthetic: false, project: { name: "External venue" } }));
+  writeFileSync(path, MANIFEST_JSON);
   return path;
 }
 
 function harvest(overrides: Record<string, any> = {}) {
   const scope = { organizationId: uuid(1), projectId: uuid(2), packageId: uuid(3) };
-  const sessions = EXTERNAL_RUN_ROLES.map((role, index) => ({
-    role, userId: uuid(10 + index), sessionId: uuid(20 + index), requestId: uuid(30 + index),
-  }));
-  const commands = EXTERNAL_RUN_OPERATIONS.map((operation, index) => ({
-    operation, commandId: uuid(40 + index), requestId: uuid(50 + index), auditEventId: uuid(60 + index),
-    actorUserId: sessions[Math.min(index, 2)]!.userId, actorSessionId: sessions[Math.min(index, 2)]!.sessionId,
+  const sessions = EXTERNAL_RUN_ROLES.map((role, index) => {
+    const sessionId = uuid(20 + index);
+    return { role, userId: uuid(10 + index), sessionId, requestId: uuid(30 + index), serverSessionDigest: sha(sessionId) };
+  });
+  const commands = EXTERNAL_RUN_OPERATIONS.map((operation, index) => ({ role: commandRoles[index]!,
+    replayMode: index === 3 ? "parent_atomic_side_effect" : "direct",
+    operation, commandId: uuid(40 + index), requestId: uuid(index === 3 ? 52 : 50 + index), auditEventId: uuid(60 + index),
+    actorUserId: sessions.find((session) => session.role === commandRoles[index])!.userId,
+    actorSessionId: sessions.find((session) => session.role === commandRoles[index])!.sessionId,
+    actorSessionDigest: sessions.find((session) => session.role === commandRoles[index])!.serverSessionDigest,
     previousStateRevision: 200 + index, resultingStateRevision: 201 + index,
     resultDigest: sha(`result-${index}`), replayDigest: sha(`result-${index}`),
   }));
@@ -51,28 +66,38 @@ function harvest(overrides: Record<string, any> = {}) {
     handoffId: "handoff-external-room", handoffRevisionId: uuid(73),
     handoffApprovedCommitId: "approved-external-room", handoffApprovedCommitRevisionId: uuid(72),
   };
-  const proofs = Object.fromEntries(
-    ["audit", "authenticatedRead", "privacy", "tenancy", "replay"].map((key, index) => [key,
-      { queryReceiptId: uuid(80 + index), auditReceiptId: uuid(90 + index), digest: sha(`proof-${index}`) }]));
+  const proofs = buildExternalProofFixture({
+    scope, commands, manifestDigest: MANIFEST_DIGEST, challengeNonce: NONCE, uuid, sha: (value) => sha(value),
+  });
   return { scope, sessions, commands, lineage, proofs, ...overrides };
 }
 
 function input(dir: string, overrides: Record<string, any> = {}) {
+  const manifestPath = manifestFile(dir);
+  const run = harvest();
   return {
     challengeNonce: NONCE,
-    manifestPath: manifestFile(dir),
+    manifestPath,
     executor: { path: EXECUTOR_PATH, digest: sha("executor-source"), verificationReceiptId: uuid(5) },
     kora: {
       receiptId: uuid(6), receiptDigest: sha("kora-receipt"),
       producerPath: "tests/pilot-evidence/executors/kora-five-session-producer.zsh",
       producerDigest: sha("producer-source"),
     },
-    harvest: harvest(),
+    harvest: run,
     ...overrides,
   } as any;
 }
 
 describe("External pilot receipt builder", () => {
+  it("keeps jq canonical proof bytes identical to TypeScript canonicalJson", () => {
+    const value = { requestId: uuid(777), forbiddenFieldCount: 0 };
+    const jq = spawnSync("jq", ["-cSj", "."], { input: JSON.stringify(value), encoding: "utf8" });
+    expect(jq.status).toBe(0);
+    expect(jq.stdout).toBe(canonicalJson(value));
+    expect(sha(jq.stdout)).toBe(sha(canonicalJson(value)));
+  });
+
   it("emits the exact shape the finalizer reads, with scope stamped on every command", () => {
     const dir = workdir();
     const receipt = buildExternalPilotReceipt(input(dir)) as any;
@@ -127,13 +152,52 @@ describe("External pilot receipt builder", () => {
       .toThrow("EXTERNAL_RUN_COMMAND_ACTOR_UNBOUND");
   });
 
+  it("requires five distinct typed proof receipts in the exact external scope", () => {
+    const dir = workdir();
+    const wrongKind = harvest();
+    wrongKind.proofs.audit = { ...wrongKind.proofs.audit!, kind: "privacy" };
+    expect(() => buildExternalPilotReceipt(input(dir, { harvest: wrongKind })))
+      .toThrow("EXTERNAL_RUN_PROOF_INVALID");
+
+    const duplicateRequest = harvest();
+    duplicateRequest.proofs.replay = {
+      ...duplicateRequest.proofs.replay!,
+      queryRequestId: (duplicateRequest.proofs.audit as { queryRequestId: string }).queryRequestId,
+    };
+    expect(() => buildExternalPilotReceipt(input(dir, { harvest: duplicateRequest })))
+      .toThrow("EXTERNAL_RUN_PROOF_NOT_DISTINCT");
+
+    const wrongScope = harvest();
+    wrongScope.proofs.tenancy = { ...wrongScope.proofs.tenancy!, packageId: uuid(999) };
+    expect(() => buildExternalPilotReceipt(input(dir, { harvest: wrongScope })))
+      .toThrow("EXTERNAL_RUN_PROOF_INVALID");
+  });
+
+  it("binds audit ids only to proof sources that actually contain those audit rows", () => {
+    const dir = workdir();
+    const swapped = harvest();
+    const audit = swapped.proofs.audit as { auditEventIds: string[] };
+    [audit.auditEventIds[0], audit.auditEventIds[1]] = [audit.auditEventIds[1]!, audit.auditEventIds[0]!];
+    expect(() => buildExternalPilotReceipt(input(dir, { harvest: swapped })))
+      .toThrow("EXTERNAL_RUN_PROOF_INVALID");
+
+    const invented = harvest();
+    (invented.proofs.authenticatedRead as { auditEventIds: string[] }).auditEventIds = [invented.commands[0]!.auditEventId];
+    expect(() => buildExternalPilotReceipt(input(dir, { harvest: invented })))
+      .toThrow("EXTERNAL_RUN_PROOF_INVALID");
+  });
+
   it("refuses sessions that are missing a role, reused or not RFC-4122", () => {
     const dir = workdir();
     const missing = harvest(); missing.sessions = missing.sessions.slice(0, 4);
     expect(() => buildExternalPilotReceipt(input(dir, { harvest: missing })))
       .toThrow("EXTERNAL_RUN_FIVE_SESSIONS_REQUIRED");
     const reused = harvest();
-    reused.sessions[4] = { ...reused.sessions[4]!, sessionId: reused.sessions[0]!.sessionId };
+    reused.sessions[4] = {
+      ...reused.sessions[4]!,
+      sessionId: reused.sessions[0]!.sessionId,
+      serverSessionDigest: reused.sessions[0]!.serverSessionDigest,
+    };
     expect(() => buildExternalPilotReceipt(input(dir, { harvest: reused })))
       .toThrow("EXTERNAL_RUN_SESSION_IDENTIFIER_NOT_DISTINCT");
     const malformed = harvest();
@@ -252,6 +316,45 @@ describe("External package runner executable", () => {
     expect(source).toContain("audit_events");
     expect(source).toContain("stateRevision");
     expect(source).not.toMatch(/uuidgen[^)]*audit_event/i);
+  });
+
+  it("builds each proof from an actual query or HTTP result instead of minted proof ids", () => {
+    const source = shell();
+    const proofSection = source.slice(source.indexOf('proofs="${work_dir}/proofs.json"'));
+    expect(proofSection).toContain("audit_snapshot");
+    expect(proofSection).toContain("owner-external-workspace.json");
+    expect(proofSection).toContain("guest-external-workspace.json");
+    expect(proofSection).toContain("proof-replay.json");
+    expect(proofSection).not.toMatch(/query_receipt=.*uuidgen/);
+    expect(proofSection).not.toMatch(/select audit_event_id[^]*order by occurred_at desc limit 1/);
+  });
+
+  it("takes one manifest byte snapshot and never reopens its path for command decisions", () => {
+    const source = shell();
+    expect(source).toContain('manifest_snapshot_base64=$(openssl base64 -A -in "${manifest_path}")');
+    expect(source).toContain("manifest_jq");
+    expect(source.match(/\$\{manifest_path\}/g)).toHaveLength(3);
+    expect(source.slice(source.indexOf("organization_id="))).not.toContain('jq -er \'.scope.organizationId\' "${manifest_path}"');
+  });
+
+  it("keeps privileged SQL limited to disposable identity/scope bootstrap", () => {
+    const source = shell();
+    const bootstrap = source.slice(source.indexOf("provision_external_scope()"), source.indexOf("harvest_db_command()"));
+    expect(bootstrap).toContain("Disposable identity/scope bootstrap only");
+    expect(bootstrap).not.toContain("graph_nodes");
+    expect(bootstrap).not.toContain("graph_node_revisions");
+    expect(source.indexOf("send_command owner publish_m2_layout_version")).toBeGreaterThan(source.indexOf("provision_external_scope"));
+  });
+
+  it("binds every role to the session_id inside its actual cookie JWT", () => {
+    const source = shell();
+    expect(source).toContain("cookie-session-cli.ts");
+    expect(source).toContain("EXTERNAL_RUNNER_COOKIE_USER_MISMATCH");
+    expect(source).toContain("where id = '${session_id}'::uuid and user_id = '${user_id}'::uuid");
+    expect(source).toContain("x-archidom-auth-session-digest:");
+    expect(source).toContain("serverSessionDigest");
+    expect(source).toContain("EXTERNAL_RUNNER_SERVER_SESSION_MISMATCH");
+    expect(source).not.toMatch(/select id from auth\.sessions where user_id[^]*order by created_at desc limit 1/);
   });
 
   it("refuses to start without its arguments and cleans up on failure", () => {
