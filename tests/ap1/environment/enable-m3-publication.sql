@@ -22,6 +22,7 @@
 begin;
 
 grant execute on function
+  projectceo_read_api.get_pdf_dwg_sheet_sidecar(uuid, uuid, uuid),
   projectceo_api.bind_pdf_dwg_sheet_sidecar(uuid, uuid, uuid, text, text, bigint, jsonb, integer, text, jsonb, text, text),
   projectceo_read_api.get_pdf_dwg_source_pair_confirmation(uuid, uuid, uuid),
   projectceo_api.confirm_pdf_dwg_source_pair(uuid, uuid, uuid, uuid, text, text),

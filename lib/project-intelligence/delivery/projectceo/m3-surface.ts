@@ -160,6 +160,9 @@ export const M3_SURFACE: readonly M3SurfaceRow[] = [
 
 /** Read-only RPCs are separate from the mutation command registry. */
 export const M3_READ_RPCS: readonly M3PublicRpc[] = [{
+  schema: "projectceo_read_api", name: "get_pdf_dwg_sheet_sidecar",
+  signature: "projectceo_read_api.get_pdf_dwg_sheet_sidecar(uuid, uuid, uuid)", sharing: "m3_only", closure: "revoked_from_authenticated",
+}, {
   schema: "projectceo_read_api", name: "get_pdf_dwg_source_pair_confirmation",
   signature: "projectceo_read_api.get_pdf_dwg_source_pair_confirmation(uuid, uuid, uuid)",
   sharing: "m3_only", closure: "revoked_from_authenticated",

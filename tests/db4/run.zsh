@@ -334,5 +334,28 @@ docker exec -e PGPASSWORD="${password}" -i "${container}" \
   psql -X --set ON_ERROR_STOP=1 \
     --username postgres --dbname "${database}" \
   < "${repo_root}/tests/db4/75_r1_sheet_sidecar_request_door.sql"
+docker exec -e PGPASSWORD="${password}" -i "${container}" \
+  psql -X --set ON_ERROR_STOP=1 --set r1_sheet_sidecar_read_keep_fixture=true --set r1_sheet_sidecar_read_overlap=true \
+    --username postgres --dbname "${database}" \
+  < "${repo_root}/tests/db4/76_r1_sheet_sidecar_read_projection.sql"
+print -r -- "Restarting database for R1 PDF/DWG sheet sidecar read replay proof"
+docker restart "${container}" >/dev/null
+for attempt in {1..120}; do
+  if docker exec -e PGPASSWORD="${password}" "${container}" \
+      psql -X --tuples-only --no-align \
+      --username postgres --dbname "${database}" \
+      --command 'select 1' 2>/dev/null | rg -qx '1'; then
+    break
+  fi
+  if (( attempt == 120 )); then
+    print -u2 -r -- "R1 PDF/DWG sidecar read database did not return after restart"
+    exit 1
+  fi
+  sleep 0.25
+done
+docker exec -e PGPASSWORD="${password}" -i "${container}" \
+  psql -X --set ON_ERROR_STOP=1 --set r1_sheet_sidecar_read_restart_check=true \
+    --username postgres --dbname "${database}" \
+  < "${repo_root}/tests/db4/76_r1_sheet_sidecar_read_projection.sql"
 
 print -r -- "DB4_PRODUCT_BRAIN_HARNESS_OK image=${image}"

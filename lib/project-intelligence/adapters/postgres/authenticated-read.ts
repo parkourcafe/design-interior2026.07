@@ -1,3 +1,4 @@
+import { sidecarResultSchema } from "./sheet-sidecar-schema";
 import { z } from "zod";
 import { sourcePairResultSchema } from "./source-pair-schema";
 import { isDocumentationModuleEnabled } from "../../delivery/projectceo/documentation-flag";
@@ -843,6 +844,22 @@ export class ProjectCeoAuthenticatedReadPostgresAdapter {
       }),
     );
     if (response.result.confirmationId.toLowerCase() !== ids.confirmationId.toLowerCase()) throw new Error("source_pair_read_identity_mismatch");
+    return response;
+  }
+
+  async getPdfDwgSheetSidecar(input: {
+    readonly projectId: string; readonly packageId: string; readonly sidecarId: string;
+  }, documentationEnabled?: string) {
+    if (!isDocumentationModuleEnabled(documentationEnabled)) {
+      throw new Error("module_disabled");
+    }
+    const ids = z.object({projectId: z.string().uuid(), packageId: z.string().uuid(), sidecarId: z.string().uuid()}).strict().parse(input);
+    const response = z.object({contractVersion: z.literal("r1-sheet-sidecar-read/1"), result: sidecarResultSchema}).strict().parse(
+      await callRpc(this.client, "projectceo_read_api", "get_pdf_dwg_sheet_sidecar", {
+        project_id: ids.projectId.toLowerCase(), package_id: ids.packageId.toLowerCase(), sidecar_id: ids.sidecarId.toLowerCase(),
+      }),
+    );
+    if (response.result.sidecarId.toLowerCase() !== ids.sidecarId.toLowerCase()) throw new Error("sheet_sidecar_read_identity_mismatch");
     return response;
   }
 
