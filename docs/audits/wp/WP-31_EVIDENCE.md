@@ -1,6 +1,6 @@
 # WP-31 — AP6-инструменты — EVIDENCE
 
-Дата: 2026-09-16, среда. Начало финального локального прохода: 07:44 +05. Ветка: `codex/wp31-ap6-tooling-closure`. База: `origin/main` (`c683f166`). PR: ещё не создан. Режим: repository-only, pre-approval.
+Дата: 2026-09-16, среда. Начало финального локального прохода: 07:44 +05. Ветка: `codex/wp31-ap6-tooling-closure`. База: `origin/main` (`c683f166`). PR: draft создаётся после публикации ветки. Режим: repository-only, allowlist approved.
 
 ## Основание
 
@@ -10,7 +10,7 @@
 
 ## Allowlist по факту
 
-[ВЕРИФИЦИРОВАНО] `tests/pilot-evidence/executors/allowlist.json` на pre-approval дереве байт-в-байт совпадает с `origin/main`. Локальный промежуточный коммит изменял digest runner, но рабочее дерево явно вернуло запись к значению `origin/main`; окончательная запись запрещена до owner approval.
+[ВЕРИФИЦИРОВАНО] Владелец отдельно подтвердил финальные SHA дословной фразой: «Одобряю SHA cdc0cceb… и 495c121f…». `tests/pilot-evidence/executors/allowlist.json` содержит именно эти полные значения; детерминированная проверка подтверждает их совпадение с текущими bytes.
 
 [ИНТЕРПРЕТИРОВАНО] Для закрытия security findings оркестратор расширил исходную карточку WP-31 на минимальные request-context/API файлы, которые формируют server-validated session provenance. Миграций, production-конфигурации и runtime-данных нет.
 
@@ -25,30 +25,28 @@
 
 ## Пины
 
-| пин | pre-approval allowlist | стабильный candidate SHA-256 | статус |
+| пин | прежний allowlist | финальный SHA-256 | статус |
 |---|---|---|---|
-| `tests/pilot-evidence/run-m2-pilot-evidence.zsh` | `sha256:96953048e39f67de16824b53590b24095c54ecf3cb505b0273c4db32001afa8e` | `sha256:a3a58339eb936bd3ad3a2f8d2c2165fe3e5607fd0759a8eac3466f07a77823f8` | HOLD_OWNER_APPROVAL |
-| `tests/pilot-evidence/executors/external-package-runner.zsh` | `sha256:1bf1f3345d9d2f00e75ef962cd6c954141f786fd0eabddaaf56668451660d870` | `sha256:495c121f6a8519eb28110b3abfc7240c6c5fffdfaf416a74e9cf9bf50310f084` | HOLD_OWNER_APPROVAL |
+| `tests/pilot-evidence/run-m2-pilot-evidence.zsh` | `sha256:96953048e39f67de16824b53590b24095c54ecf3cb505b0273c4db32001afa8e` | `sha256:cdc0cceb66b55fc4ca0f0deca1a638597d74bb8f5e36e89d11f791539d587a35` | OWNER_APPROVED / MATCH |
+| `tests/pilot-evidence/executors/external-package-runner.zsh` | `sha256:1bf1f3345d9d2f00e75ef962cd6c954141f786fd0eabddaaf56668451660d870` | `sha256:495c121f6a8519eb28110b3abfc7240c6c5fffdfaf416a74e9cf9bf50310f084` | OWNER_APPROVED / MATCH |
 
 ## Миграция
 
 Нет. Схема и timestamped migrations не изменялись.
 
-## Локальные гейты до allowlist approval
+## Локальные гейты после allowlist approval
 
-- [ВЕРИФИЦИРОВАНО] Targeted security/session/proof suites: 6 files, 61/61 tests passed.
-- [ВЕРИФИЦИРОВАНО] `npm run test`: 214/216 files, 1763/1768 tests passed. Все пять failures происходят только в fail-closed stale-allowlist/executor-identity gates; иных падений нет.
+- [ВЕРИФИЦИРОВАНО] Targeted security/session/proof suites: 6 files, 61/61 tests passed; final byte-exact/teardown check: 21/21.
+- [ВЕРИФИЦИРОВАНО] Первый post-approval `npm run test` выявил только известный ClamAV process timing flake: 215/216 files, 1768/1769 tests. Изолированный retry: 15/15 PASS. Полный retry: 216/216 files, 1769/1769 tests PASS. Scanner source и tests не менялись.
 - [ВЕРИФИЦИРОВАНО] `npm run lint`: 0 errors, 13 существующих warnings.
 - [ВЕРИФИЦИРОВАНО] `npm run typecheck`: PASS.
 - [ВЕРИФИЦИРОВАНО] `zsh -n` обоих executors: PASS.
 - [ВЕРИФИЦИРОВАНО] `git diff --check origin/main`: PASS.
 - [ВЕРИФИЦИРОВАНО] `npm run build` через Turbopack не стартует в этом worktree, потому что `node_modules` — symlink за filesystem root. Эквивалентный `next build --webpack`: PASS, TypeScript PASS, 46 static pages.
 
-Полный зелёный `npm run test` и повторный build фиксируются после owner-approved allowlist update.
-
 ## CI
 
-Не запускался: pre-approval bytes не коммитились и не пушились. Draft PR создаётся только после owner approval, allowlist update и полного локального gate.
+До публикации ветки не запускался. Draft PR создаётся после push; exact-head CI фиксируется отдельно и не заменяет runtime WP-32.
 
 ## Blind review
 
@@ -56,12 +54,14 @@
 |---|---|---|---|
 | independent Codex security review | 2026-09-16 | первоначально FINDINGS | Закрыты fabricated audit bindings, manifest TOCTOU и cookie-only session provenance. |
 | independent Codex security re-review | 2026-09-16 | PASS, no P0-P3 | Подтверждены exact audit/source bindings, memory snapshot, server-side session digest и отсутствие token leak. Publication оставлен HOLD только из-за stale allowlist. |
+| independent Codex final byte review | 2026-09-16 | PASS | Подтверждено, что wrapper `cdc0cceb…` дополнительно блокирует inherited origin/container/cookie/port/Docker overrides и не даёт регрессии. |
 
 ## Не сделано / вынесено
 
 - AP6 Docker/Supabase/runtime execution, реальные данные, receipt и hosted acceptance не запускались; это WP-32.
 - R1-08A coordinate convention не менялась и не блокирует WP-31.
-- Allowlist, commit, push и draft PR находятся за отдельным owner gate.
+- Merge, AP6 runtime, production/shared DB и deployment остаются отдельными gates.
+- Переданный владельцем Drive-пример реального процесса не открывался и не использовался в WP-31; это отдельный вход для последующего продуктового/runtime пакета.
 
 ## Безопасность
 
