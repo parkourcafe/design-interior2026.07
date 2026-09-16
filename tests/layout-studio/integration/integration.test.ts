@@ -372,6 +372,7 @@ describe("Layout Studio delivery/UI slice", () => {
       "20260915191820_r1_pdf_dwg_source_pair_request_door.sql",
       "20260915194544_r1_source_pair_read_projection.sql",
       "20260916014430_r1_pdf_dwg_sheet_sidecar.sql",
+      "20260916023137_r1_pdf_sheet_sidecar_request_door.sql",
     ];
     const actual = readdirSync(join(repoRoot, "supabase/migrations"), { withFileTypes: true })
       // Предмет проверки — миграции, а не всё содержимое папки. Рядом с ними

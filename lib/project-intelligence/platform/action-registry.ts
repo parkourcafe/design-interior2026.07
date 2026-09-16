@@ -55,6 +55,7 @@ const REGISTRY_ENTRIES: readonly RegisteredAction[] = [
   { kind: "publish_baseline", module: "m3", capability: "publish_baseline", status: "active", basis: "live-read-port.ts:1259 (A′-оркестрация, flag-gated)" },
   { kind: "register_documentation_sheet", module: "m3", capability: "prepare_client_handoff", status: "active", basis: "live-read-port.ts:1196" },
   { kind: "attach_documentation_sheet_specifications", module: "m3", capability: "prepare_client_handoff", status: "active", basis: "live-read-port.ts:1202" },
+  {kind:"bind_pdf_dwg_sheet_sidecar",module:"m3",capability:"review_source",status:"active",basis:"R1-08A private declared sheet sidecar"},
   { kind: "confirm_pdf_dwg_source_pair", module: "m3", capability: "review_source", status: "active", basis: "R1-08A architect source-pair confirmation" },
   { kind: "attach_external_release_refs", module: "m3", capability: "prepare_client_handoff", status: "active", basis: "R1-10 / 20260912110000_r1_external_release_attachment_manifest.sql" },
   { kind: "publish_release", module: "m3", capability: "publish_release", status: "active", basis: "live-read-port.ts:1268" },

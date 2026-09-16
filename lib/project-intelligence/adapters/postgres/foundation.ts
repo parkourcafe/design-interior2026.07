@@ -1,3 +1,4 @@
+import { r1PdfDeclaredGeometrySchema, R1_PDF_FALLBACK_WARNING } from "../../delivery/projectceo/r1-pdf-fallback-contract";
 import { z } from "zod";
 import { sourcePairResultSchema } from "./source-pair-schema";
 import type {
@@ -92,8 +93,42 @@ const sourcePairEnvelope = z.object({
 
 }).strict();
 
+const sidecarResultSchema = z.object({
+  sidecarId: z.string().uuid(), schemaVersion: z.literal("r1-pdf-sheet-sidecar/1"),
+  confirmationId: z.string().uuid(), sheetId: z.string().min(1).max(160), sheetRevisionId: z.string().min(1).max(160),
+  pdfAssetVersionId: z.string().uuid(), pdfSha256: z.string().regex(/^[0-9a-f]{64}$/),
+  geometryEvidence: z.literal("architect_declared"), pageMetadataVerification: z.literal("not_verified"),
+  createdAt: z.string().datetime(), conversionStatus: z.literal("unconfirmed"), warning: z.literal(R1_PDF_FALLBACK_WARNING),
+  ...r1PdfDeclaredGeometrySchema.innerType().shape,
+}).strict().superRefine((value, context) => {
+  const checked = r1PdfDeclaredGeometrySchema.safeParse({pdfPageIndex:value.pdfPageIndex,pdfCrop:value.pdfCrop,rotationDegrees:value.rotationDegrees,units:value.units,pageToPreviewTransform:value.pageToPreviewTransform});
+  if (!checked.success) for (const issue of checked.error.issues) context.addIssue(issue);
+});
+
 export class FoundationPostgresAdapter {
   constructor(private readonly client: PostgresRpcClient) {}
+
+  async bindPdfDwgSheetSidecar(input: {
+    readonly projectId: string; readonly packageId: string; readonly confirmationId: string;
+    readonly sheetId: string; readonly sheetRevisionId: string; readonly reason: string; readonly idempotencyKey: string;
+    readonly geometry: z.infer<typeof r1PdfDeclaredGeometrySchema>;
+  }) {
+    const geometry = r1PdfDeclaredGeometrySchema.parse(input.geometry);
+    const response = z.object({operation:z.literal("bind_pdf_dwg_sheet_sidecar"),replay:z.boolean(),result:sidecarResultSchema}).strict().parse(
+      await callRpc(this.client,"projectceo_api","bind_pdf_dwg_sheet_sidecar",{
+        project_id:input.projectId.toLowerCase(),package_id:input.packageId.toLowerCase(),confirmation_id:input.confirmationId.toLowerCase(),
+        sheet_id:input.sheetId,sheet_revision_id:input.sheetRevisionId,pdf_page_index:geometry.pdfPageIndex,pdf_crop:geometry.pdfCrop,
+        rotation_degrees:geometry.rotationDegrees,units:geometry.units,page_to_preview_transform:geometry.pageToPreviewTransform,
+        reason:input.reason,idempotency_key:input.idempotencyKey,
+      }),
+    );
+    const r=response.result;
+    if (r.confirmationId.toLowerCase()!==input.confirmationId.toLowerCase() || r.sheetId!==input.sheetId || r.sheetRevisionId!==input.sheetRevisionId
+      || r.pdfPageIndex!==geometry.pdfPageIndex || r.rotationDegrees!==geometry.rotationDegrees || r.units!==geometry.units
+      || !(["left","top","right","bottom"] as const).every((k)=>r.pdfCrop[k]===geometry.pdfCrop[k])
+      || !r.pageToPreviewTransform.every((v,i)=>v===geometry.pageToPreviewTransform[i])) throw new Error("sidecar_result_mismatch");
+    return response;
+  }
 
   async confirmPdfDwgSourcePair(input: {
     readonly projectId: string; readonly packageId: string;

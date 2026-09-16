@@ -73,6 +73,7 @@ const DOCUMENTATION_MODULE = new Set<ProjectCeoCommand["kind"]>([
   "register_source",
   "review_source",
   "confirm_pdf_dwg_source_pair",
+  "bind_pdf_dwg_sheet_sidecar",
   "register_documentation_sheet",
   "attach_documentation_sheet_specifications",
   "attach_external_release_refs",
@@ -339,6 +340,12 @@ export class ProjectCeoCommandService {
     }
     try {
       const idempotencyKey = this.idempotencyKey(command);
+      if (command.kind === "bind_pdf_dwg_sheet_sidecar") {
+        const scope=await this.scopeOnly(command.projectId.toLowerCase());
+        if (scope.accessScope==="package" && scope.packageId?.toLowerCase()!==command.payload.packageId.toLowerCase()) return failure(requestId,"error","forbidden");
+        const result=await this.foundation.bindPdfDwgSheetSidecar({projectId:command.projectId.toLowerCase(),...command.payload,idempotencyKey:`ui:${command.projectId.toLowerCase()}:${command.kind}:${command.commandId.toLowerCase()}`});
+        return completed(requestId,{...result,stateRevision:scope.stateRevision});
+      }
       if (command.kind === "confirm_pdf_dwg_source_pair") {
         const scope = await this.scopeOnly(command.projectId.toLowerCase());
         if (scope.accessScope === "package" && scope.packageId?.toLowerCase() !== command.payload.packageId.toLowerCase()) {

@@ -330,5 +330,9 @@ docker exec -e PGPASSWORD="${password}" -i "${container}" \
   psql -X --set ON_ERROR_STOP=1 --set r1_sheet_sidecar_restart_check=true \
     --username postgres --dbname "${database}" \
   < "${repo_root}/tests/db4/74_r1_pdf_dwg_sheet_sidecar.sql"
+docker exec -e PGPASSWORD="${password}" -i "${container}" \
+  psql -X --set ON_ERROR_STOP=1 \
+    --username postgres --dbname "${database}" \
+  < "${repo_root}/tests/db4/75_r1_sheet_sidecar_request_door.sql"
 
 print -r -- "DB4_PRODUCT_BRAIN_HARNESS_OK image=${image}"
