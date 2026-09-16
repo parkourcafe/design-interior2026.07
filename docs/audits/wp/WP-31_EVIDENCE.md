@@ -1,6 +1,6 @@
 # WP-31 — AP6-инструменты — EVIDENCE
 
-Дата: 2026-09-16, среда. Начало финального локального прохода: 07:44 +05. Ветка: `codex/wp31-ap6-tooling-closure`. База: `origin/main` (`c683f166`). PR: draft создаётся после публикации ветки. Режим: repository-only, allowlist approved.
+Дата: 2026-09-16, среда. Начало финального локального прохода: 07:44 +05. Ветка: `codex/wp31-ap6-tooling-closure`. База: `origin/main` (`c683f166`). PR: draft #200. Режим: repository-only, allowlist approved.
 
 ## Основание
 
@@ -46,7 +46,7 @@
 
 ## CI
 
-До публикации ветки не запускался. Draft PR создаётся после push; exact-head CI фиксируется отдельно и не заменяет runtime WP-32.
+Draft PR #200 создан на `main`. Exact-head CI фиксируется отдельно после финального evidence commit и не заменяет runtime WP-32.
 
 ## Blind review
 
