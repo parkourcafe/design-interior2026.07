@@ -63,6 +63,8 @@ const PUBLISH_BASELINE_ATOMIC: M3PublicRpc = {
 };
 
 export const M3_SURFACE: readonly M3SurfaceRow[] = [
+  {command:"bind_pdf_dwg_sheet_sidecar",surface:"review",offState:"module_disabled",
+   rpcs:[{schema:"projectceo_api",name:"bind_pdf_dwg_sheet_sidecar",signature:"projectceo_api.bind_pdf_dwg_sheet_sidecar(uuid, uuid, uuid, text, text, bigint, jsonb, integer, text, jsonb, text, text)",sharing:"m3_only",closure:"revoked_from_authenticated"}]},
   {
     command: "confirm_pdf_dwg_source_pair", surface: "review", offState: "module_disabled",
     rpcs: [{ schema: "projectceo_api", name: "confirm_pdf_dwg_source_pair",

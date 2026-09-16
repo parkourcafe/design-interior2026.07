@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { r1PdfDeclaredGeometrySchema } from "./r1-pdf-fallback-contract";
 
 import { canonicalSerialize, validateLayoutDocument } from "../../../layout-studio/domain";
 import type { LayoutDocument } from "../../../layout-studio/domain";
@@ -686,6 +687,17 @@ export const projectCeoCommandSchema = z.discriminatedUnion("kind", [
       pdfAssetVersionId: uuid,
       reason: z.string().min(1).max(2000).refine((value) => value === value.trim(), "reason_must_be_trimmed"),
     }).strict().refine((value) => value.dwgAssetVersionId.toLowerCase() !== value.pdfAssetVersionId.toLowerCase(), "source_versions_must_differ"),
+  }).strict(),
+  projectSelector.extend({
+    contractVersion: z.literal(PROJECTCEO_COMMAND_CONTRACT_VERSION),
+    kind: z.literal("bind_pdf_dwg_sheet_sidecar"),
+    payload: z.object({
+      packageId: uuid, confirmationId: uuid,
+      sheetId: z.string().min(1).max(160).refine((v) => v === v.trim()),
+      sheetRevisionId: z.string().min(1).max(160).refine((v) => v === v.trim()),
+      geometry: r1PdfDeclaredGeometrySchema,
+      reason: z.string().min(1).max(2000).refine((v) => v === v.trim()),
+    }).strict(),
   }).strict(),
   // M3: регистрация листа. Комната, подпись планировки и утверждённый коммит
   // в команде отсутствуют намеренно — происхождение выводит сервер из

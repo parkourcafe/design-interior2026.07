@@ -68,6 +68,7 @@ describe("M3 surface matrix", () => {
    */
   it("matches the guardrail migration signature for signature", () => {
     const migrations = [
+      "supabase/migrations/20260916023137_r1_pdf_sheet_sidecar_request_door.sql",
       "supabase/migrations/20260811010000_projectceo_m3_publication_guardrail.sql",
       "supabase/migrations/20260911160000_projectceo_m3_atomic_publication_flip.sql",
       "supabase/migrations/20260912110000_r1_external_release_attachment_manifest.sql",
