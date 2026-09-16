@@ -11,11 +11,11 @@
     },
     {
       "path": "tests/pilot-evidence/executors/kora-five-session-producer.zsh",
-      "digest": "sha256:fcd508047e0e3379e14ec7978be4aed5352c68414957aebce49b755917c9b190"
+      "digest": "sha256:4ecc11ef1563f3cd61f035147e5b4b2da0295059f06302a42a2c91e09263e500"
     },
     {
       "path": "tests/pilot-evidence/executors/external-package-runner.zsh",
-      "digest": "sha256:495c121f6a8519eb28110b3abfc7240c6c5fffdfaf416a74e9cf9bf50310f084"
+      "digest": "sha256:5c2768a51f258addb251594e57c40a38df630e0965601e59f2fa7541ddeea2e1"
     }
   ]
 }

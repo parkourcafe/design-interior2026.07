@@ -38,3 +38,23 @@ export function extractCookieSession(jar: string): { readonly userId: string; re
   }
   return { userId: userId.toLowerCase(), sessionId: sessionId.toLowerCase() };
 }
+
+export function extractCookieTokens(jar: string): { readonly accessToken: string; readonly refreshToken: string } {
+  const chunks = new Map<number, string>();
+  for (const rawLine of jar.split("\n")) {
+    const line = rawLine.startsWith("#HttpOnly_") ? rawLine.slice("#HttpOnly_".length) : rawLine;
+    if (!line || line.startsWith("#")) continue;
+    const fields = line.split("\t"); const name = fields[5] ?? ""; const value = fields[6] ?? "";
+    const match = /^sb-[A-Za-z0-9_-]+-auth-token(?:\.(\d+))?$/.exec(name);
+    if (!match || !value) continue;
+    const index = match[1] === undefined ? 0 : Number(match[1]);
+    if (!Number.isSafeInteger(index) || index < 0 || chunks.has(index)) throw new Error("COOKIE_SESSION_INVALID");
+    chunks.set(index, value);
+  }
+  if (chunks.size < 1 || [...chunks.keys()].some((_, index) => !chunks.has(index))) throw new Error("COOKIE_SESSION_MISSING");
+  let encoded = [...chunks.entries()].sort(([left], [right]) => left - right).map(([, value]) => value).join("");
+  if (encoded.startsWith("base64-")) encoded = Buffer.from(encoded.slice("base64-".length).replace(/-/g, "+").replace(/_/g, "/"), "base64").toString("utf8");
+  const stored = JSON.parse(encoded) as { readonly access_token?: unknown; readonly refresh_token?: unknown };
+  if (typeof stored.access_token !== "string" || typeof stored.refresh_token !== "string") throw new Error("COOKIE_SESSION_INVALID");
+  return { accessToken: stored.access_token, refreshToken: stored.refresh_token };
+}

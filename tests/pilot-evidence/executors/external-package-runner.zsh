@@ -119,11 +119,14 @@ trap cleanup EXIT INT TERM
 organization_id=$(manifest_jq -er '.scope.organizationId')
 project_id=$(manifest_jq -er '.scope.projectId')
 package_id=$(manifest_jq -er '.scope.packageId')
-room_id=$(manifest_jq -er '.scope.roomId')
+room_id=$(manifest_jq -er '.scope.roomId | select(type == "string") | select(test("\\A[A-Za-z0-9][A-Za-z0-9._:@-]{0,159}\\z"))') \
+  || { print -u2 -r -- 'EXTERNAL_RUNNER_MANIFEST_ROOM_INVALID'; exit 66; }
 uuid_pattern='^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-5][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$'
-for scoped_id in "${organization_id}" "${project_id}" "${package_id}" "${room_id}"; do
+for scoped_id in "${organization_id}" "${project_id}" "${package_id}"; do
   [[ ${scoped_id} =~ ${~uuid_pattern} ]] || { print -u2 -r -- 'EXTERNAL_RUNNER_MANIFEST_SCOPE_INVALID'; exit 66; }
 done
+entity_id_pattern='^[A-Za-z0-9][A-Za-z0-9._:@-]{0,159}$'
+[[ ${room_id} =~ ${~entity_id_pattern} ]] || { print -u2 -r -- 'EXTERNAL_RUNNER_MANIFEST_ROOM_INVALID'; exit 66; }
 
 query_db() {
   docker exec -i "${db_container}" \
