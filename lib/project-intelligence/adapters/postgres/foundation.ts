@@ -1,3 +1,7 @@
+import { sidecarResultSchema } from "./sheet-sidecar-schema";
+import { r1PdfDeclaredGeometrySchema } from "../../delivery/projectceo/r1-pdf-fallback-contract";
+import { z } from "zod";
+import { sourcePairResultSchema } from "./source-pair-schema";
 import type {
   FoundationEnvelope,
   PostgresBytea,
@@ -83,8 +87,53 @@ export interface ProjectDeliveryProjection {
   readonly extensionStatus?: Readonly<Record<string, string>>;
 }
 
+const sourcePairEnvelope = z.object({
+  operation: z.literal("confirm_pdf_dwg_source_pair"),
+  replay: z.boolean(),
+  result: sourcePairResultSchema,
+
+}).strict();
+
 export class FoundationPostgresAdapter {
   constructor(private readonly client: PostgresRpcClient) {}
+
+  async bindPdfDwgSheetSidecar(input: {
+    readonly projectId: string; readonly packageId: string; readonly confirmationId: string;
+    readonly sheetId: string; readonly sheetRevisionId: string; readonly reason: string; readonly idempotencyKey: string;
+    readonly geometry: z.infer<typeof r1PdfDeclaredGeometrySchema>;
+  }) {
+    const geometry = r1PdfDeclaredGeometrySchema.parse(input.geometry);
+    const response = z.object({operation:z.literal("bind_pdf_dwg_sheet_sidecar"),replay:z.boolean(),result:sidecarResultSchema}).strict().parse(
+      await callRpc(this.client,"projectceo_api","bind_pdf_dwg_sheet_sidecar",{
+        project_id:input.projectId.toLowerCase(),package_id:input.packageId.toLowerCase(),confirmation_id:input.confirmationId.toLowerCase(),
+        sheet_id:input.sheetId,sheet_revision_id:input.sheetRevisionId,pdf_page_index:geometry.pdfPageIndex,pdf_crop:geometry.pdfCrop,
+        rotation_degrees:geometry.rotationDegrees,units:geometry.units,page_to_preview_transform:geometry.pageToPreviewTransform,
+        reason:input.reason,idempotency_key:input.idempotencyKey,
+      }),
+    );
+    const r=response.result;
+    if (r.confirmationId.toLowerCase()!==input.confirmationId.toLowerCase() || r.sheetId!==input.sheetId || r.sheetRevisionId!==input.sheetRevisionId
+      || r.pdfPageIndex!==geometry.pdfPageIndex || r.rotationDegrees!==geometry.rotationDegrees || r.units!==geometry.units
+      || !(["left","top","right","bottom"] as const).every((k)=>r.pdfCrop[k]===geometry.pdfCrop[k])
+      || !r.pageToPreviewTransform.every((v,i)=>v===geometry.pageToPreviewTransform[i])) throw new Error("sidecar_result_mismatch");
+    return response;
+  }
+
+  async confirmPdfDwgSourcePair(input: {
+    readonly projectId: string; readonly packageId: string;
+    readonly dwgAssetVersionId: string; readonly pdfAssetVersionId: string;
+    readonly reason: string; readonly idempotencyKey: string;
+  }) {
+    const parsed = sourcePairEnvelope.parse(await callRpc(this.client, "projectceo_api", "confirm_pdf_dwg_source_pair", {
+      project_id: input.projectId.toLowerCase(), package_id: input.packageId.toLowerCase(),
+      dwg_asset_version_id: input.dwgAssetVersionId.toLowerCase(), pdf_asset_version_id: input.pdfAssetVersionId.toLowerCase(),
+      reason: input.reason, idempotency_key: input.idempotencyKey,
+    }));
+    if (parsed.result.dwgAssetVersionId.toLowerCase() !== input.dwgAssetVersionId.toLowerCase() || parsed.result.pdfAssetVersionId.toLowerCase() !== input.pdfAssetVersionId.toLowerCase()) {
+      throw new Error("source_pair_result_selector_mismatch");
+    }
+    return parsed;
+  }
 
   /**
    * Решение по источнику. Идёт через тонкую дверь `projectceo_api.review_source`

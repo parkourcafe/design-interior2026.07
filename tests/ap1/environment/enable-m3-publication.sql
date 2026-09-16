@@ -22,12 +22,17 @@
 begin;
 
 grant execute on function
+  projectceo_read_api.get_pdf_dwg_sheet_sidecar(uuid, uuid, uuid),
+  projectceo_api.bind_pdf_dwg_sheet_sidecar(uuid, uuid, uuid, text, text, bigint, jsonb, integer, text, jsonb, text, text),
+  projectceo_read_api.get_pdf_dwg_source_pair_confirmation(uuid, uuid, uuid),
+  projectceo_api.confirm_pdf_dwg_source_pair(uuid, uuid, uuid, uuid, text, text),
   projectceo_product_api.publish_baseline_atomic(uuid, text, text, bigint, text, text),
   projectceo_product_api.publish_release_request_bound(uuid, text, text, bigint, text, text),
   projectceo_product_api.publish_work_package_release_request_bound(uuid, uuid, text, text, bigint, text, text),
   projectceo_api.review_source(uuid, text, text, bigint, text, text),
   projectceo_m3_api.register_documentation_sheet(uuid, uuid, text, text, text, text, text, text, text[], text, bigint, text),
-  projectceo_m3_api.attach_documentation_sheet_specifications(uuid, uuid, text, text, text, text[], text, bigint, text)
+  projectceo_m3_api.attach_documentation_sheet_specifications(uuid, uuid, text, text, text, text[], text, bigint, text),
+  projectceo_product_api.attach_external_release_refs(uuid, uuid, text, text, jsonb, bigint, text)
   to authenticated;
 
 do $enabled$
@@ -41,7 +46,8 @@ begin
     'projectceo_product_api.publish_work_package_release_request_bound(uuid, uuid, text, text, bigint, text, text)',
     'projectceo_api.review_source(uuid, text, text, bigint, text, text)',
     'projectceo_m3_api.register_documentation_sheet(uuid, uuid, text, text, text, text, text, text, text[], text, bigint, text)',
-    'projectceo_m3_api.attach_documentation_sheet_specifications(uuid, uuid, text, text, text, text[], text, bigint, text)'
+    'projectceo_m3_api.attach_documentation_sheet_specifications(uuid, uuid, text, text, text, text[], text, bigint, text)',
+    'projectceo_product_api.attach_external_release_refs(uuid, uuid, text, text, jsonb, bigint, text)'
   ]) signature
   where not pg_catalog.has_function_privilege('authenticated', signature, 'EXECUTE')
   limit 1;

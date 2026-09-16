@@ -221,7 +221,8 @@ begin
     ('projectceo_product_api.publish_release_request_bound(uuid,text,text,bigint,text,text)'),
     ('projectceo_product_api.publish_work_package_release_request_bound(uuid,uuid,text,text,bigint,text,text)'),
     ('projectceo_product_api.create_external_annotation(uuid,uuid,uuid,uuid,uuid,text,jsonb,jsonb,jsonb,text,bigint,text)'),
-    ('projectceo_product_api.revise_external_annotation(uuid,uuid,uuid,uuid,text,jsonb,jsonb,jsonb,text,bigint,text)')
+    ('projectceo_product_api.revise_external_annotation(uuid,uuid,uuid,uuid,text,jsonb,jsonb,jsonb,text,bigint,text)'),
+    ('projectceo_product_api.attach_external_release_refs(uuid,uuid,text,text,jsonb,bigint,text)')
   ) expected(signature)
   where to_regprocedure(expected.signature) is null
   limit 1;
@@ -242,7 +243,8 @@ begin
   -- (20260911150000) и до 25 с R1 external annotation commands (20260912100000):
   -- перепись существует ровно
   -- затем, чтобы новая RPC в схеме не появлялась молча.
-  if v_count <> 25 then
+  -- R1 adds one candidate composition command, not another publication door.
+  if v_count <> 26 then
     raise exception 'DB4_UNEXPECTED_RPC_COUNT:%', v_count;
   end if;
 

@@ -351,10 +351,31 @@ describe("Layout Studio delivery/UI slice", () => {
       // R1 annotations use the existing client review capability and do not
       // extend the Layout Studio schema.
       "20260912100000_r1_external_annotations.sql",
+      // R1 external attachment candidate and immutable release manifest storage.
+      "20260912110000_r1_external_release_attachment_manifest.sql",
       // R1 private attestation trigger ACL correction; no Layout Studio changes.
       "20260912143217_r1_attestation_pair_private_acl.sql",
       // R1 asset event actor attribution; no Layout Studio changes.
       "20260912152659_r1_asset_event_actor_identity.sql",
+      // R1 private upload sessions and quota accounting; no Layout Studio changes.
+      "20260913033000_r1_external_upload_control.sql",
+      // R1 reservation/session terminal closure correction; no Layout Studio changes.
+      "20260913035000_r1_upload_reservation_closure.sql",
+      // R1 private validation job leases and receipts; no Layout Studio changes.
+      "20260913043000_r1_external_validation_jobs.sql",
+      // R1 materialization and legacy intake isolation; no Layout Studio changes.
+      "20260913053000_r1_external_materialization_isolation.sql",
+      // R1 private human acceptance and source readiness; no Layout Studio changes.
+      "20260913063000_r1_external_human_acceptance_readiness.sql",
+      "20260915174226_r1_pdf_fallback_architect_authority.sql",
+      "20260915184027_r1_pdf_dwg_source_pair.sql",
+      "20260915191820_r1_pdf_dwg_source_pair_request_door.sql",
+      "20260915194544_r1_source_pair_read_projection.sql",
+      "20260916014430_r1_pdf_dwg_sheet_sidecar.sql",
+      "20260916023137_r1_pdf_sheet_sidecar_request_door.sql",
+      // R1 architect-declared historical sidecar read; it does not extend
+      // the Layout Studio schema or its public UI contract.
+      "20260916025319_r1_sheet_sidecar_read_projection.sql",
     ];
     const actual = readdirSync(join(repoRoot, "supabase/migrations"), { withFileTypes: true })
       // Предмет проверки — миграции, а не всё содержимое папки. Рядом с ними
