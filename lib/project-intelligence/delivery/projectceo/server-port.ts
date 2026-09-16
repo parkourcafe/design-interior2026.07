@@ -7,7 +7,7 @@ import {
   type ProjectCeoRole,
 } from "@/components/projectceo/contracts";
 import { ProjectCeoLiveReadPort } from "./live-read-port";
-import { createProjectCeoRequestContext } from "./request-context";
+import { createProjectCeoRequestContext, type ProjectCeoVerifiedIdentity } from "./request-context";
 
 export const PROJECTCEO_LOCAL_FIXTURE_FLAG = "PROJECTCEO_LOCAL_FIXTURE_MODE";
 
@@ -33,12 +33,18 @@ function fixtureRole(environment: NodeJS.ProcessEnv): ProjectCeoRole {
  * human and uses their JWT. The deterministic Kora fixture is opt-in, local
  * only and read-only; no legacy role override is consulted.
  */
+export async function createProjectCeoServerRequest(
+  environment: NodeJS.ProcessEnv = process.env,
+): Promise<{ readonly port: ProjectCeoUiReadPort; readonly identity: ProjectCeoVerifiedIdentity | null }> {
+  if (isProjectCeoLocalFixtureMode(environment)) {
+    return { port: createProjectCeoMockPort(fixtureRole(environment)), identity: null };
+  }
+  const context = await createProjectCeoRequestContext();
+  return { port: new ProjectCeoLiveReadPort(context.client, context.identity), identity: context.identity };
+}
+
 export async function createProjectCeoServerPort(
   environment: NodeJS.ProcessEnv = process.env,
 ): Promise<ProjectCeoUiReadPort> {
-  if (isProjectCeoLocalFixtureMode(environment)) {
-    return createProjectCeoMockPort(fixtureRole(environment));
-  }
-  const context = await createProjectCeoRequestContext();
-  return new ProjectCeoLiveReadPort(context.client, context.identity);
+  return (await createProjectCeoServerRequest(environment)).port;
 }

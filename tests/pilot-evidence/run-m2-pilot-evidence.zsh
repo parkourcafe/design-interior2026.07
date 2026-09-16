@@ -14,14 +14,22 @@ pending_artifact="${evidence_dir}/PENDING.json"
 receipt_artifact="${evidence_dir}/RECEIPT.json"
 kora_five_receipt="${evidence_dir}/KORA_RECEIPT.json"
 ap1_profile=archidom-ap1-disposable
-export DOCKER_HOST=${DOCKER_HOST:-unix://${HOME}/.colima/${ap1_profile}/docker.sock}
+# The canonical evidence path never accepts a caller-selected loopback target,
+# container or cookie directory. Those diagnostic overrides exist only for a
+# direct local executor invocation and must not survive into H15 execution.
+unset EXTERNAL_RUN_ORIGIN EXTERNAL_RUN_DB_CONTAINER EXTERNAL_RUN_COOKIE_DIR AP1_NEXT_PORT DOCKER_HOST
+export DOCKER_HOST=unix://${HOME}/.colima/${ap1_profile}/docker.sock
 kora_window_line=""
+pinned_executor=""
+pinned_manifest=""
+pin_dir=""
 
 cleanup() {
   # `status` is a read-only special parameter in zsh: declaring it local aborts
   # this function on its first line and silently skips the failure cleanup.
   local exit_status=$?
   rm -f -- "${evidence_dir}/PASS.json.tmp"
+  [[ -z ${pin_dir} ]] || rm -rf -- "${pin_dir}"
   if (( exit_status != 0 )); then rm -f -- "${pending_artifact}" "${receipt_artifact}" "${kora_five_receipt}"; fi
   if [[ -n ${kora_window_line} ]]; then
     preserved_evidence=$(print -r -- "${kora_window_line}" | sed -n 's/.*evidence=\([^ ]*\).*/\1/p')
@@ -72,9 +80,26 @@ kora_receipt_producer_digest=${kora_receipt_producer_digest:-${kora_producer_dig
 jq -e --arg path "${kora_producer_relative}" --arg digest "${kora_producer_digest}" \
   'any(.executors[]; .path == $path and .digest == $digest)' tests/pilot-evidence/executors/allowlist.json >/dev/null \
   || { print -u2 -r -- 'CYCLE7_KORA_PRODUCER_NOT_ALLOWLISTED'; exit 67; }
+evidence_absolute=${evidence_dir:A}
+[[ ${evidence_absolute} == /private/tmp/* && ! -L ${evidence_dir} ]] \
+  || { print -u2 -r -- 'CYCLE7_EVIDENCE_DIRECTORY_REJECTED'; exit 67; }
 mkdir -p "${evidence_dir}"
+[[ -d ${evidence_dir} && ! -L ${evidence_dir} ]] \
+  || { print -u2 -r -- 'CYCLE7_EVIDENCE_DIRECTORY_REJECTED'; exit 67; }
 chmod 700 "${evidence_dir}"
 umask 077
+pin_dir=$(mktemp -d "${evidence_dir}/.pinned-inputs.XXXXXX")
+chmod 700 "${pin_dir}"
+pinned_executor="${pin_dir}/external-package-runner.pinned.zsh"
+pinned_manifest="${pin_dir}/external-package-manifest.pinned.json"
+cp -- "${executor_absolute}" "${pinned_executor}"
+cp -- "${external_manifest}" "${pinned_manifest}"
+chmod 500 "${pinned_executor}"
+chmod 400 "${pinned_manifest}"
+pinned_executor_digest=$(shasum -a 256 "${pinned_executor}" | awk '{print "sha256:"$1}')
+pinned_manifest_digest=$(shasum -a 256 "${pinned_manifest}" | awk '{print "sha256:"$1}')
+[[ ${pinned_executor_digest} == ${executor_actual_digest} ]] || { print -u2 -r -- 'CYCLE7_PINNED_EXECUTOR_DIGEST_MISMATCH'; exit 67; }
+[[ ${pinned_manifest_digest} == sha256:* ]] || { print -u2 -r -- 'CYCLE7_PINNED_MANIFEST_DIGEST_INVALID'; exit 67; }
 [[ ! -e ${kora_five_receipt} ]] || { print -u2 -r -- 'CYCLE7_KORA_RECEIPT_ALREADY_EXISTS'; exit 67; }
 challenge_nonce="cycle7-challenge-$(openssl rand -hex 24)"
 executor_verification_receipt_id=$(uuidgen | tr '[:upper:]' '[:lower:]')
@@ -102,7 +127,7 @@ kora_receipt_digest=$(shasum -a 256 "${kora_five_receipt}" | awk '{print "sha256
 kora_receipt_id=$(jq -r '.receiptId' "${kora_five_receipt}")
 
 ./node_modules/.bin/tsx tests/pilot-evidence/run-m2-pilot-evidence.ts prepare \
-  "${kora_manifest}" "${external_manifest}" "${pending_artifact}" "${challenge_nonce}" \
+  "${kora_manifest}" "${pinned_manifest}" "${pending_artifact}" "${challenge_nonce}" \
   "${executor_relative}" "${executor_actual_digest}" "${executor_verification_receipt_id}" \
   "${kora_five_receipt}" "${kora_receipt_digest}" "${kora_producer_relative}" "${kora_producer_digest}"
 
@@ -119,13 +144,17 @@ PI_DB_IMAGE=postgres:17-alpine zsh tests/db4/run.zsh
 # The receipt chain is publish_m2_layout_version -> submit_m2_client_review ->
 # review_m2_client_submission -> append_m2_approved_commit_revision ->
 # publish_m2_m3_handoff; every externally submitted command is replayed.
+export EXTERNAL_RUN_REPO_ROOT="${repo_root}"
+export EXTERNAL_RUN_CANONICAL_EXECUTOR_PATH="${executor_relative}"
+export EXTERNAL_RUN_EXECUTOR_SHA256="${executor_actual_digest}"
+export EXTERNAL_RUN_MANIFEST_SHA256="${pinned_manifest_digest}"
 ./node_modules/.bin/tsx tests/pilot-evidence/run-pilot-executor-cli.ts \
-  "${executor_absolute}" "${challenge_nonce}" "${evidence_dir}" "${external_manifest}" \
+  "${pinned_executor}" "${challenge_nonce}" "${evidence_dir}" "${pinned_manifest}" \
   "${executor_verification_receipt_id}" "${kora_receipt_digest}" "${kora_receipt_id}" \
   "${kora_producer_relative}" "${kora_producer_digest}"
 [[ -s ${receipt_artifact} ]] || { print -u2 -r -- 'CYCLE7_MACHINE_RECEIPT_REQUIRED'; exit 68; }
 
 ./node_modules/.bin/tsx tests/pilot-evidence/finalize-m2-pilot-evidence-cli.ts \
-  "${receipt_artifact}" "${evidence_dir}" "${pending_artifact}" "${kora_five_receipt}" "External real package" "${external_manifest}"
+  "${receipt_artifact}" "${evidence_dir}" "${pending_artifact}" "${kora_five_receipt}" "External real package" "${pinned_manifest}"
 print -r -- "KORA_LOCAL_AUTHENTICATED_PASS evidence=${evidence_dir}/PASS.json"
 print -r -- "EXTERNAL_REAL_PACKAGE_PASS evidence=${evidence_dir}/PASS.json"

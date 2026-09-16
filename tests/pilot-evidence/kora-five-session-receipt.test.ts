@@ -13,6 +13,7 @@ import {
 } from "./kora-five-session-receipt";
 import { finalizeM2PilotEvidence } from "./finalize-m2-pilot-evidence";
 import { prepareM2PilotEvidence } from "./run-m2-pilot-evidence";
+import { buildExternalProofFixture } from "./proof-fixture";
 
 const roots: string[] = [];
 afterEach(() => { for (const root of roots.splice(0)) rmSync(root, { recursive: true, force: true }); });
@@ -194,23 +195,29 @@ describe("Kora five-session receipt builder", () => {
       "append_m2_approved_commit_revision", "publish_m2_m3_handoff"];
     const commandRoles = ["owner_lead", "owner_lead", "client_approver", "client_approver", "owner_lead"] as const;
     const submissionId = uuid(80); const approvedCommitId = uuid(82);
+    const externalSessions = koraReceipt.sessions.map((session) => ({
+      ...session, serverSessionDigest: sha(session.sessionId),
+    }));
+    const externalCommands = operations.map((operation, index) => ({ role: commandRoles[index], replayMode: index === 3 ? "parent_atomic_side_effect" : "direct",
+      operation, commandId: uuid(50 + index), requestId: uuid(index === 3 ? 62 : 60 + index), auditEventId: uuid(70 + index),
+      actorUserId: externalSessions.find((session) => session.role === commandRoles[index])!.userId,
+      actorSessionId: externalSessions.find((session) => session.role === commandRoles[index])!.sessionId,
+      actorSessionDigest: externalSessions.find((session) => session.role === commandRoles[index])!.serverSessionDigest, ...scope,
+      previousStateRevision: 100 + index, resultingStateRevision: 101 + index,
+      resultDigest: sha(`result-${index}`), replayDigest: sha(`result-${index}`), replayEqual: true,
+    }));
     finalizeM2PilotEvidence({
       status: "MANIFEST_VALIDATED_PENDING_RUN", challengeNonce: NONCE, manifestDigest, scope,
       executor: { path: executorPath, digest: executorDigest, repoOwned: true, verificationReceiptId },
-      sessions: koraReceipt.sessions,
-      commands: operations.map((operation, index) => ({ role: commandRoles[index],
-        operation, commandId: uuid(50 + index), requestId: uuid(60 + index), auditEventId: uuid(70 + index),
-        actorUserId: koraReceipt.sessions.find((session) => session.role === commandRoles[index])!.userId,
-        actorSessionId: koraReceipt.sessions.find((session) => session.role === commandRoles[index])!.sessionId, ...scope,
-        previousStateRevision: 100 + index, resultingStateRevision: 101 + index,
-        resultDigest: sha(`result-${index}`), replayDigest: sha(`result-${index}`), replayEqual: true,
-      })),
+      sessions: externalSessions,
+      commands: externalCommands,
       lineage: { submissionId, submissionRevisionId: uuid(84), reviewId: uuid(81), reviewRevisionId: uuid(85),
         approvedCommitId, approvedCommitRevisionId: uuid(86), clientSubmissionId: submissionId,
         clientReviewRevisionId: uuid(85), handoffId: uuid(83), handoffRevisionId: uuid(87),
         handoffApprovedCommitId: approvedCommitId, handoffApprovedCommitRevisionId: uuid(86) },
-      proofs: Object.fromEntries(["audit", "authenticatedRead", "privacy", "tenancy", "replay"].map((name, index) => [name,
-        { queryReceiptId: uuid(90 + index), auditReceiptId: uuid(100 + index), digest: sha(`proof-${index}`) }])),
+      proofs: buildExternalProofFixture({
+        scope, commands: externalCommands, manifestDigest, challengeNonce: NONCE, uuid, sha: (value) => sha(value),
+      }),
       runFiveSessions: koraReceipt,
       pendingBinding: (pending as any).pendingBinding,
     }, { outputDir: dir, pending, pendingPath, koraReceiptPath, manifestPath, label: "External real package" });

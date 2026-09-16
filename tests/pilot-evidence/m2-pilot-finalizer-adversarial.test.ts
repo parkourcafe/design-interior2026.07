@@ -4,6 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { createHash } from "node:crypto";
 import { afterEach, describe, expect, it } from "vitest";
+import { buildExternalProofFixture } from "./proof-fixture";
 
 const temporary: string[] = [];
 afterEach(() => { for (const path of temporary.splice(0)) rmSync(path, { recursive: true, force: true }); });
@@ -20,12 +21,20 @@ const commandRoles = ["owner_lead", "owner_lead", "client_approver", "client_app
 
 function receipt() {
   const roles = ["owner_lead", "architect", "client_approver", "builder", "guest"];
-  const sessions = roles.map((role, index) => ({ role, userId: uuid(index + 1), sessionId: uuid(index + 6), requestId: uuid(index + 11) }));
+  const sessions = roles.map((role, index) => {
+    const sessionId = uuid(index + 6);
+    return {
+      role, userId: uuid(index + 1), sessionId, requestId: uuid(index + 11),
+      serverSessionDigest: `sha256:${createHash("sha256").update(sessionId).digest("hex")}`,
+    };
+  });
   const commands = ["publish_m2_layout_version", "submit_m2_client_review", "review_m2_client_submission", "append_m2_approved_commit_revision", "publish_m2_m3_handoff"].map((operation, index) => ({
     role: commandRoles[index]!,
-    operation, commandId: uuid(index + 16), requestId: uuid(index + 21), auditEventId: uuid(index + 26),
+    replayMode: index === 3 ? "parent_atomic_side_effect" : "direct",
+    operation, commandId: uuid(index + 16), requestId: uuid(index === 3 ? 23 : index + 21), auditEventId: uuid(index + 26),
     actorUserId: sessions.find((session) => session.role === commandRoles[index])!.userId,
     actorSessionId: sessions.find((session) => session.role === commandRoles[index])!.sessionId,
+    actorSessionDigest: sessions.find((session) => session.role === commandRoles[index])!.serverSessionDigest,
     organizationId: ids.org, projectId: ids.project, packageId: ids.package,
     previousStateRevision: 40 + index, resultingStateRevision: 41 + index,
     resultDigest: sha(String((index + 1) % 10)), replayDigest: sha(String((index + 1) % 10)), replayEqual: true,
@@ -39,7 +48,11 @@ function receipt() {
       approvedCommitId: ids.commit, approvedCommitRevisionId: uuid(33), clientSubmissionId: ids.submission,
       clientReviewRevisionId: uuid(32), handoffId: ids.handoff, handoffRevisionId: uuid(34),
       handoffApprovedCommitId: ids.commit, handoffApprovedCommitRevisionId: uuid(33) },
-    proofs: Object.fromEntries(["audit", "authenticatedRead", "privacy", "tenancy", "replay"].map((name, index) => [name, { queryReceiptId: uuid(35 + index), auditReceiptId: uuid(40 + index), digest: sha(String(index + 4)) }])),
+    proofs: buildExternalProofFixture({
+      scope: { organizationId: ids.org, projectId: ids.project, packageId: ids.package }, commands,
+      manifestDigest: sha("a"), challengeNonce: "cycle7-challenge-7f0d9c", uuid,
+      sha: (value) => `sha256:${createHash("sha256").update(value).digest("hex")}`,
+    }),
     runFiveSessions: { marker: "RUN_FIVE_REQUEST_BOUND_SESSIONS", receiptId: uuid(45) },
   };
 }
@@ -84,7 +97,7 @@ describe("Cycle 7 executable finalizer adversarial gate", () => {
     for (const mutate of [
       (v: any) => { v.lineage.clientSubmissionId = uuid(51); },
       (v: any) => { v.lineage.handoffApprovedCommitRevisionId = uuid(52); },
-      (v: any) => { v.proofs.audit = true; }, (v: any) => { delete v.proofs.tenancy.queryReceiptId; },
+      (v: any) => { v.proofs.audit = true; }, (v: any) => { delete v.proofs.tenancy.queryRequestId; },
     ]) { const value = receipt(); mutate(value); const out = outputDir(); expect(() => finalizeM2PilotEvidence(value, { outputDir: out })).toThrow(); assertNoArtifacts(out); }
   });
 

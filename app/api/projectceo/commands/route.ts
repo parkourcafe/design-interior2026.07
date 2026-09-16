@@ -7,6 +7,7 @@ import { ProjectCeoCommandService } from "@/lib/project-intelligence/delivery/pr
 import { isSameOriginMutation } from "@/lib/project-intelligence/delivery/projectceo/csrf";
 import {
   createProjectCeoRequestContext,
+  PROJECTCEO_SESSION_PROVENANCE_HEADER,
   ProjectCeoAuthenticationError,
 } from "@/lib/project-intelligence/delivery/projectceo/request-context";
 import { isProjectCeoLocalFixtureMode } from "@/lib/project-intelligence/delivery/projectceo/server-port";
@@ -113,7 +114,15 @@ export async function POST(request: Request) {
     const status = response.status === "completed"
       ? 200
       : projectCeoHttpStatus(response.error.code);
-    return NextResponse.json(response, { status, headers });
+    return NextResponse.json(response, {
+      status,
+      headers: {
+        ...headers,
+        ...(context.identity.sessionDigest
+          ? { [PROJECTCEO_SESSION_PROVENANCE_HEADER]: context.identity.sessionDigest }
+          : {}),
+      },
+    });
   } catch (error) {
     const code = error instanceof ProjectCeoAuthenticationError
       ? error.code

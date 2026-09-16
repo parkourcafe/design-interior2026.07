@@ -4,10 +4,10 @@ import { buildExternalPilotReceipt, writeExternalPilotReceipt } from "./external
 
 async function main(): Promise<void> {
   const [
-    receiptPath, challengeNonce, manifestPath, executorPath, executorDigest, executorVerificationReceiptId,
+    receiptPath, challengeNonce, manifestDigest, executorPath, executorDigest, executorVerificationReceiptId,
     koraReceiptId, koraReceiptDigest, koraProducerPath, koraProducerDigest, harvestPath,
   ] = process.argv.slice(2);
-  if (!receiptPath || !challengeNonce || !manifestPath || !executorPath || !executorDigest
+  if (!receiptPath || !challengeNonce || !manifestDigest || !executorPath || !executorDigest
     || !executorVerificationReceiptId || !koraReceiptId || !koraReceiptDigest || !koraProducerPath
     || !koraProducerDigest || !harvestPath) {
     throw new Error("EXTERNAL_RECEIPT_CLI_ARGUMENTS_REQUIRED");
@@ -15,7 +15,7 @@ async function main(): Promise<void> {
   const harvest = JSON.parse(readFileSync(harvestPath, "utf8")) as never;
   const receipt = buildExternalPilotReceipt({
     challengeNonce,
-    manifestPath,
+    manifestDigest,
     executor: { path: executorPath, digest: executorDigest, verificationReceiptId: executorVerificationReceiptId },
     kora: { receiptId: koraReceiptId, receiptDigest: koraReceiptDigest, producerPath: koraProducerPath, producerDigest: koraProducerDigest },
     harvest,

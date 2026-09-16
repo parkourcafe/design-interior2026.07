@@ -1,5 +1,6 @@
 import { createHash } from "node:crypto";
 import { readFileSync, writeFileSync } from "node:fs";
+import { canonicalJson } from "../../lib/project-intelligence/application/change-handoff/canonical";
 
 // The exact operation chain the external package must be driven through, in the
 // order the workflow performs them. The finalizer requires all five and rejects
@@ -42,16 +43,19 @@ export interface ExternalRunSession {
   readonly userId: string;
   readonly sessionId: string;
   readonly requestId: string;
+  readonly serverSessionDigest: string;
 }
 
 export interface ExternalRunCommand {
   readonly role: string;
+  readonly replayMode: "direct" | "parent_atomic_side_effect";
   readonly operation: string;
   readonly commandId: string;
   readonly requestId: string;
   readonly auditEventId: string;
   readonly actorUserId: string;
   readonly actorSessionId: string;
+  readonly actorSessionDigest: string;
   readonly previousStateRevision: number;
   readonly resultingStateRevision: number;
   readonly resultDigest: string;
@@ -60,7 +64,8 @@ export interface ExternalRunCommand {
 
 export interface BuildExternalPilotReceiptInput {
   readonly challengeNonce: string;
-  readonly manifestPath: string;
+  readonly manifestPath?: string;
+  readonly manifestDigest?: string;
   readonly executor: { readonly path: string; readonly digest: string; readonly verificationReceiptId: string };
   readonly kora: {
     readonly receiptId: string; readonly receiptDigest: string;
@@ -81,6 +86,7 @@ const record = (value: unknown): Record<string, unknown> =>
 const list = (value: unknown): Record<string, unknown>[] => Array.isArray(value) ? value.map(record) : [];
 
 function fail(code: string): never { throw new Error(code); }
+const digestSource = (value: unknown): string => `sha256:${createHash("sha256").update(canonicalJson(value)).digest("hex")}`;
 
 function harvestScope(raw: Record<string, unknown>): { organizationId: string; projectId: string; packageId: string } {
   const scope = {
@@ -102,10 +108,13 @@ function harvestSessions(raw: readonly Record<string, unknown>[]): ExternalRunSe
       userId: text(found[0]!.userId),
       sessionId: text(found[0]!.sessionId),
       requestId: text(found[0]!.requestId),
+      serverSessionDigest: text(found[0]!.serverSessionDigest),
     };
     if (!UUID.test(session.userId) || !UUID.test(session.sessionId) || !UUID.test(session.requestId)) {
       fail("EXTERNAL_RUN_SESSION_IDENTIFIER_INVALID");
     }
+    const expectedSessionDigest = `sha256:${createHash("sha256").update(session.sessionId.toLowerCase()).digest("hex")}`;
+    if (session.serverSessionDigest !== expectedSessionDigest) fail("EXTERNAL_RUN_SESSION_PROVENANCE_INVALID");
     return session;
   });
   for (const field of ["userId", "sessionId", "requestId"] as const) {
@@ -131,12 +140,14 @@ function harvestCommands(
     const number = (value: unknown): number => typeof value === "number" ? value : Number.NaN;
     const command = {
       role: expectedRole,
+      replayMode: text(item.replayMode) as ExternalRunCommand["replayMode"],
       operation: EXTERNAL_RUN_OPERATIONS[index]!,
       commandId: text(item.commandId),
       requestId: text(item.requestId),
       auditEventId: text(item.auditEventId),
       actorUserId: text(item.actorUserId),
       actorSessionId: text(item.actorSessionId),
+      actorSessionDigest: text(item.actorSessionDigest),
       ...scope,
       previousStateRevision: number(item.previousStateRevision),
       resultingStateRevision: number(item.resultingStateRevision),
@@ -147,8 +158,12 @@ function harvestCommands(
     if (!UUID.test(command.commandId) || !UUID.test(command.requestId) || !UUID.test(command.auditEventId)) {
       fail("EXTERNAL_RUN_COMMAND_IDENTIFIER_INVALID");
     }
+    if (command.replayMode !== (index === 3 ? "parent_atomic_side_effect" : "direct")) {
+      fail("EXTERNAL_RUN_REPLAY_MODE_INVALID");
+    }
     if (!bindings.has(`${command.actorUserId}:${command.actorSessionId}`)
-      || command.actorUserId !== expectedSession.userId || command.actorSessionId !== expectedSession.sessionId) {
+      || command.actorUserId !== expectedSession.userId || command.actorSessionId !== expectedSession.sessionId
+      || command.actorSessionDigest !== expectedSession.serverSessionDigest) {
       fail("EXTERNAL_RUN_COMMAND_ACTOR_UNBOUND");
     }
     if (!Number.isSafeInteger(command.previousStateRevision) || !Number.isSafeInteger(command.resultingStateRevision)
@@ -167,6 +182,7 @@ function harvestCommands(
       fail("EXTERNAL_RUN_STATE_REVISION_NOT_CHAINED");
     }
   }
+  if (commands[3]!.requestId !== commands[2]!.requestId) fail("EXTERNAL_RUN_SIDE_EFFECT_NOT_BOUND");
   if (new Set(commands.map((command) => command.commandId)).size !== commands.length) {
     fail("EXTERNAL_RUN_COMMAND_IDENTIFIER_NOT_DISTINCT");
   }
@@ -194,19 +210,68 @@ function harvestLineage(raw: Record<string, unknown>): Record<string, string> {
   return lineage;
 }
 
-function harvestProofs(raw: Record<string, unknown>): Record<string, unknown> {
+function harvestProofs(
+  raw: Record<string, unknown>,
+  scope: { organizationId: string; projectId: string; packageId: string },
+  manifestDigest: string,
+  challengeNonce: string,
+  commands: readonly (ExternalRunCommand & { readonly commandId: string; readonly auditEventId: string; readonly requestId: string })[],
+): Record<string, unknown> {
   const proofs: Record<string, unknown> = {};
   for (const key of PROOF_KEYS) {
     const proof = record(raw[key]);
     const value = {
-      queryReceiptId: text(proof.queryReceiptId),
-      auditReceiptId: text(proof.auditReceiptId),
-      digest: text(proof.digest),
+      kind: text(proof.kind),
+      queryRequestId: text(proof.queryRequestId),
+      auditEventIds: Array.isArray(proof.auditEventIds) ? proof.auditEventIds.map(text) : [],
+      resultDigest: text(proof.resultDigest),
+      organizationId: text(proof.organizationId),
+      projectId: text(proof.projectId),
+      packageId: text(proof.packageId),
+      manifestDigest: text(proof.manifestDigest),
+      challengeNonce: text(proof.challengeNonce),
+      commandIds: Array.isArray(proof.commandIds) ? proof.commandIds.map(text) : [],
+      source: proof.source,
     };
-    if (!UUID.test(value.queryReceiptId) || !UUID.test(value.auditReceiptId) || !SHA256.test(value.digest)) {
+    const expectedAuditEventIds = key === "audit" || key === "replay"
+      ? commands.map((command) => command.auditEventId)
+      : [];
+    if (value.kind !== key || !UUID.test(value.queryRequestId)
+      || value.auditEventIds.some((auditEventId) => !UUID.test(auditEventId))
+      || JSON.stringify(value.auditEventIds) !== JSON.stringify(expectedAuditEventIds)
+      || !SHA256.test(value.resultDigest) || value.organizationId !== scope.organizationId
+      || value.projectId !== scope.projectId || value.packageId !== scope.packageId) {
       fail("EXTERNAL_RUN_PROOF_INVALID");
     }
+    if (value.manifestDigest !== manifestDigest || value.challengeNonce !== challengeNonce
+      || JSON.stringify(value.commandIds) !== JSON.stringify(commands.map((command) => command.commandId))
+      || value.resultDigest !== digestSource(value.source)) fail("EXTERNAL_RUN_PROOF_BINDING_INVALID");
+    const sourceRecord = record(value.source); const sourceList = list(value.source);
+    if (key === "audit") {
+      if (sourceList.length !== commands.length || sourceList.some((item, index) => (
+        item.commandId !== commands[index]!.commandId || item.auditEventId !== commands[index]!.auditEventId
+        || item.requestId !== commands[index]!.requestId || item.actorUserId !== commands[index]!.actorUserId
+      ))) fail("EXTERNAL_RUN_PROOF_SOURCE_INVALID");
+    } else if (key === "authenticatedRead") {
+      if (sourceRecord.requestId !== value.queryRequestId || sourceRecord.projectId !== scope.projectId
+        || sourceRecord.status !== true) fail("EXTERNAL_RUN_PROOF_SOURCE_INVALID");
+    } else if (key === "privacy") {
+      const requestIds = Array.isArray(sourceRecord.requestIds) ? sourceRecord.requestIds.map(text) : [];
+      if (requestIds.length !== 5 || new Set(requestIds).size !== 5 || requestIds.some((requestId) => !UUID.test(requestId))
+        || !requestIds.includes(value.queryRequestId) || sourceRecord.forbiddenFieldCount !== 0) fail("EXTERNAL_RUN_PROOF_SOURCE_INVALID");
+    } else if (key === "tenancy") {
+      if (sourceRecord.requestId !== value.queryRequestId || sourceRecord.externalProjectAbsent !== true
+        || sourceRecord.guestContract !== "empty_portfolio" || sourceRecord.projectCount !== 0) fail("EXTERNAL_RUN_PROOF_SOURCE_INVALID");
+    } else if (sourceList.length !== commands.length || sourceList.some((item, index) => (
+      item.commandId !== commands[index]!.commandId || item.requestId !== commands[index]!.requestId
+      || item.auditEventId !== commands[index]!.auditEventId
+      || item.replayMode !== commands[index]!.replayMode
+      || (commands[index]!.replayMode === "direct" ? item.replayEqual !== true : item.sideEffectCount !== 1)
+    ))) fail("EXTERNAL_RUN_PROOF_SOURCE_INVALID");
     proofs[key] = value;
+  }
+  if (new Set(PROOF_KEYS.map((key) => (proofs[key] as { queryRequestId: string }).queryRequestId)).size !== PROOF_KEYS.length) {
+    fail("EXTERNAL_RUN_PROOF_NOT_DISTINCT");
   }
   return proofs;
 }
@@ -230,12 +295,19 @@ export function buildExternalPilotReceipt(input: BuildExternalPilotReceiptInput)
   const sessions = harvestSessions(list(input.harvest.sessions));
   const commands = harvestCommands(list(input.harvest.commands), sessions, scope);
   const lineage = harvestLineage(record(input.harvest.lineage));
-  const proofs = harvestProofs(record(input.harvest.proofs));
+  const pathDigest = input.manifestPath
+    ? `sha256:${createHash("sha256").update(readFileSync(input.manifestPath)).digest("hex")}`
+    : undefined;
+  const manifestDigest = input.manifestDigest ?? pathDigest ?? "";
+  if (!SHA256.test(manifestDigest) || (pathDigest !== undefined && pathDigest !== manifestDigest)) {
+    fail("EXTERNAL_RUN_MANIFEST_DIGEST_INVALID");
+  }
+  const proofs = harvestProofs(record(input.harvest.proofs), scope, manifestDigest, challengeNonce, commands);
 
   const receipt = {
     status: "MANIFEST_VALIDATED_PENDING_RUN" as const,
     challengeNonce,
-    manifestDigest: `sha256:${createHash("sha256").update(readFileSync(input.manifestPath)).digest("hex")}`,
+    manifestDigest,
     executor: {
       path: executorPath,
       digest: input.executor.digest,

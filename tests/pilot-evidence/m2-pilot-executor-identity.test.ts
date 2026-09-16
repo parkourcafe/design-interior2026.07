@@ -6,6 +6,7 @@ import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import { finalizeM2PilotEvidence } from "./finalize-m2-pilot-evidence";
 import { prepareM2PilotEvidence } from "./run-m2-pilot-evidence";
+import { buildExternalProofFixture } from "./proof-fixture";
 
 const roots: string[] = [];
 afterEach(() => { for (const root of roots.splice(0)) rmSync(root, { recursive: true, force: true }); });
@@ -26,27 +27,61 @@ function receipt(textEntityIds = false) {
   const scope = { organizationId: uuid(1), projectId: uuid(2), packageId: uuid(3) };
   const executorPath = "tests/pilot-evidence/run-m2-pilot-evidence.zsh";
   const executorDigest = sha(readFileSync(executorPath));
-  const sessions = roles.map((role, index) => ({ role, userId: uuid(10 + index), sessionId: uuid(20 + index), requestId: uuid(30 + index) }));
+  const sessions = roles.map((role, index) => {
+    const sessionId = uuid(20 + index);
+    return { role, userId: uuid(10 + index), sessionId, requestId: uuid(30 + index), serverSessionDigest: sha(sessionId) };
+  });
   const entity = (prefix: string, index: number) => textEntityIds ? `${prefix}-external-room` : uuid(index);
   const submissionId = entity("submission", 80); const reviewId = entity("submission", 81);
   const approvedCommitId = entity("approved", 82); const handoffId = entity("handoff", 83);
   return { status: "MANIFEST_VALIDATED_PENDING_RUN", challengeNonce: "cycle7-challenge-7f0d9c", manifestDigest: sha(PENDING_MANIFEST),
     executor: { path: executorPath, digest: executorDigest, repoOwned: true, verificationReceiptId: uuid(41) }, scope, sessions,
-    commands: operations.map((operation, index) => ({ role: commandRoles[index]!, operation, commandId: uuid(50 + index), requestId: uuid(60 + index), auditEventId: uuid(70 + index),
+    commands: operations.map((operation, index) => ({ role: commandRoles[index]!, replayMode: index === 3 ? "parent_atomic_side_effect" : "direct",
+      operation, commandId: uuid(50 + index), requestId: uuid(index === 3 ? 62 : 60 + index), auditEventId: uuid(70 + index),
       actorUserId: sessions.find((session) => session.role === commandRoles[index])!.userId,
       actorSessionId: sessions.find((session) => session.role === commandRoles[index])!.sessionId, ...scope,
+      actorSessionDigest: sessions.find((session) => session.role === commandRoles[index])!.serverSessionDigest,
       previousStateRevision: 100 + index, resultingStateRevision: 101 + index, resultDigest: sha(`result-${index}`), replayDigest: sha(`result-${index}`), replayEqual: true })),
     lineage: { submissionId, submissionRevisionId: uuid(84), reviewId, reviewRevisionId: uuid(85), approvedCommitId,
       approvedCommitRevisionId: uuid(86), clientSubmissionId: submissionId, clientReviewRevisionId: uuid(85), handoffId,
       handoffRevisionId: uuid(87), handoffApprovedCommitId: approvedCommitId, handoffApprovedCommitRevisionId: uuid(86) },
-    proofs: Object.fromEntries(["audit", "authenticatedRead", "privacy", "tenancy", "replay"].map((name, index) => [name,
-      { queryReceiptId: uuid(90 + index), auditReceiptId: uuid(100 + index), digest: sha(`proof-${index}`) }])),
+    proofs: buildExternalProofFixture({
+      scope, commands: operations.map((operation, index) => ({
+        replayMode: index === 3 ? "parent_atomic_side_effect" : "direct", operation,
+        commandId: uuid(50 + index), requestId: uuid(index === 3 ? 62 : 60 + index), auditEventId: uuid(70 + index),
+        actorUserId: sessions.find((session) => session.role === commandRoles[index])!.userId,
+        resultDigest: sha(`result-${index}`), replayDigest: sha(`result-${index}`),
+      })),
+      manifestDigest: sha(PENDING_MANIFEST), challengeNonce: "cycle7-challenge-7f0d9c", uuid, sha: (value) => sha(value),
+    }),
     runFiveSessions: { marker: "RUN_FIVE_REQUEST_BOUND_SESSIONS", receiptId: uuid(110), digest: sha("kora-machine-receipt"), sessions },
     pendingBinding: { executorPath, executorDigest, executorVerificationReceiptId: uuid(41), koraReceiptDigest: sha("kora-machine-receipt") },
   };
 }
 
 describe("Cycle 7 executor and Kora receipt identity binding", () => {
+  it("pins executor and manifest in an exclusive private tmp directory before long gates", () => {
+    const shell = readFileSync("tests/pilot-evidence/run-m2-pilot-evidence.zsh", "utf8");
+    const pin = shell.indexOf('pin_dir=$(mktemp -d "${evidence_dir}/.pinned-inputs.XXXXXX")');
+    const kora = shell.indexOf("tests/ap1/environment/run-local.zsh start");
+    const execute = shell.indexOf('"${pinned_executor}" "${challenge_nonce}"');
+    expect(shell).toContain('[[ ${evidence_absolute} == /private/tmp/* && ! -L ${evidence_dir} ]]');
+    expect(shell).toContain('export EXTERNAL_RUN_MANIFEST_SHA256="${pinned_manifest_digest}"');
+    expect(pin).toBeGreaterThan(-1);
+    expect(kora).toBeGreaterThan(pin);
+    expect(execute).toBeGreaterThan(kora);
+    expect(shell).toContain('rm -rf -- "${pin_dir}"');
+  });
+
+  it("clears diagnostic target overrides before canonical executor invocation", () => {
+    const shell = readFileSync("tests/pilot-evidence/run-m2-pilot-evidence.zsh", "utf8");
+    const clear = shell.indexOf("unset EXTERNAL_RUN_ORIGIN EXTERNAL_RUN_DB_CONTAINER EXTERNAL_RUN_COOKIE_DIR AP1_NEXT_PORT DOCKER_HOST");
+    const invoke = shell.indexOf("run-pilot-executor-cli.ts");
+    expect(clear).toBeGreaterThan(-1);
+    expect(invoke).toBeGreaterThan(clear);
+    expect(shell).toContain("export DOCKER_HOST=unix://\${HOME}/.colima/\${ap1_profile}/docker.sock");
+  });
+
   it("orders the executable shell flow as nonce -> official producer -> receipt digest -> prepare", () => {
     const shell = readFileSync("tests/pilot-evidence/run-m2-pilot-evidence.zsh", "utf8");
     const nonce = shell.indexOf("challenge_nonce=");
