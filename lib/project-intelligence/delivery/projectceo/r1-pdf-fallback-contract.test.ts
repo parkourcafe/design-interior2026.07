@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   parseR1PdfFallbackCandidate,
+  r1PdfDeclaredGeometrySchema,
   R1_PDF_FALLBACK_CONTRACT_VERSION,
   R1_PDF_FALLBACK_WARNING,
 } from "./r1-pdf-fallback-contract";
@@ -73,5 +74,14 @@ describe("R1 architect-provided PDF fallback contract", () => {
       documentationSheetId: "M3-SHEET-01",
       documentationSheetRevisionId: "M3-SHEET-01-R1",
     });
+  });
+});
+
+describe("reusable architect-declared page geometry", () => {
+  it("reuses the same bounds without requiring fake representation identifiers", () => {
+    const geometry = {pdfPageIndex:0,pdfCrop:{left:0,top:0,right:1,bottom:1},rotationDegrees:90,units:"mm",pageToPreviewTransform:[1,0,0,1,0,0]};
+    expect(r1PdfDeclaredGeometrySchema.parse(geometry)).toEqual(geometry);
+    expect(r1PdfDeclaredGeometrySchema.safeParse({...geometry,pageToPreviewTransform:[1e-308,0,0,1,1e308,0]}).success).toBe(false);
+    expect(r1PdfDeclaredGeometrySchema.safeParse({...geometry,representationVersionId:identifiers[0]}).success).toBe(false);
   });
 });

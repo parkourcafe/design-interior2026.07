@@ -22,29 +22,14 @@ const crop = z.object({
   }
 });
 
-/**
- * Candidate metadata only. The server must resolve every ID inside the current
- * request scope, derive hashes/actor/package authority, and create the durable
- * pair attestation. This schema cannot assert an architect decision or DWG
- * conversion fidelity by itself.
- */
-export const r1PdfFallbackCandidateSchema = z.object({
-  contractVersion: z.literal(R1_PDF_FALLBACK_CONTRACT_VERSION),
-  sourceDwgAssetVersionId: uuid,
-  pdfAssetVersionId: uuid,
-  representationVersionId: uuid,
-  pairAttestationId: uuid,
-  documentationSheetId: boundedIdentifier,
-  documentationSheetRevisionId: boundedIdentifier,
-  producer: z.literal("architect_provided"),
-  conversionStatus: z.literal("unconfirmed"),
+const geometryShape = {
   pdfPageIndex: z.number().int().safe().nonnegative(),
   pdfCrop: crop,
   rotationDegrees: z.union([z.literal(0), z.literal(90), z.literal(180), z.literal(270)]),
   units: z.enum(["mm", "cm", "m"]),
-  axes: z.enum(["z-up", "y-up"]),
   pageToPreviewTransform: affineTransform,
-}).strict().superRefine((value, context) => {
+};
+function validateGeometry(value: z.infer<z.ZodObject<typeof geometryShape>>, context: z.RefinementCtx) {
   const [a, b, c, d, e, f] = value.pageToPreviewTransform;
   const determinant = a * d - b * c;
   const inverse = [
@@ -66,7 +51,30 @@ export const r1PdfFallbackCandidateSchema = z.object({
     || !transformedCorners.every(Number.isFinite)) {
     context.addIssue({ code: z.ZodIssueCode.custom, message: "page_to_preview_transform_must_be_finite_and_invertible" });
   }
-});
+}
+/** Declared geometry values only; validation does not apply a rendering convention,
+ * extract PDF metadata or establish visual alignment. */
+export const r1PdfDeclaredGeometrySchema = z.object(geometryShape).strict().superRefine(validateGeometry);
+
+/**
+ * Candidate metadata only. The server must resolve every ID inside the current
+ * request scope, derive hashes/actor/package authority, and create the durable
+ * pair attestation. This schema cannot assert an architect decision or DWG
+ * conversion fidelity by itself.
+ */
+export const r1PdfFallbackCandidateSchema = z.object({
+  contractVersion: z.literal(R1_PDF_FALLBACK_CONTRACT_VERSION),
+  sourceDwgAssetVersionId: uuid,
+  pdfAssetVersionId: uuid,
+  representationVersionId: uuid,
+  pairAttestationId: uuid,
+  documentationSheetId: boundedIdentifier,
+  documentationSheetRevisionId: boundedIdentifier,
+  producer: z.literal("architect_provided"),
+  conversionStatus: z.literal("unconfirmed"),
+  ...geometryShape,
+  axes: z.enum(["z-up", "y-up"]),
+}).strict().superRefine(validateGeometry);
 
 export type R1PdfFallbackCandidate = z.infer<typeof r1PdfFallbackCandidateSchema>;
 
