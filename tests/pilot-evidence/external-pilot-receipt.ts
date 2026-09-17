@@ -52,6 +52,7 @@ export interface ExternalRunCommand {
   readonly operation: string;
   readonly commandId: string;
   readonly requestId: string;
+  readonly auditRequestId?: string;
   readonly auditEventId: string;
   readonly actorUserId: string;
   readonly actorSessionId: string;
@@ -81,6 +82,13 @@ export interface BuildExternalPilotReceiptInput {
 }
 
 const text = (value: unknown): string => typeof value === "string" ? value : "";
+// Database command audit rows use the explicit server namespace `db:<uuid>`;
+// the portable receipt contract stores the UUID while retaining the same
+// server-derived identity. Client/request UUIDs are left unchanged.
+const portableServerIdentifier = (value: unknown): string => {
+  const raw = text(value);
+  return raw.startsWith("db:") ? raw.slice(3) : raw;
+};
 const record = (value: unknown): Record<string, unknown> =>
   value !== null && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : {};
 const list = (value: unknown): Record<string, unknown>[] => Array.isArray(value) ? value.map(record) : [];
@@ -107,7 +115,7 @@ function harvestSessions(raw: readonly Record<string, unknown>[]): ExternalRunSe
       role,
       userId: text(found[0]!.userId),
       sessionId: text(found[0]!.sessionId),
-      requestId: text(found[0]!.requestId),
+      requestId: portableServerIdentifier(found[0]!.requestId),
       serverSessionDigest: text(found[0]!.serverSessionDigest),
     };
     if (!UUID.test(session.userId) || !UUID.test(session.sessionId) || !UUID.test(session.requestId)) {
@@ -144,6 +152,7 @@ function harvestCommands(
       operation: EXTERNAL_RUN_OPERATIONS[index]!,
       commandId: text(item.commandId),
       requestId: text(item.requestId),
+      auditRequestId: text(item.auditRequestId ?? item.requestId),
       auditEventId: text(item.auditEventId),
       actorUserId: text(item.actorUserId),
       actorSessionId: text(item.actorSessionId),
@@ -158,6 +167,7 @@ function harvestCommands(
     if (!UUID.test(command.commandId) || !UUID.test(command.requestId) || !UUID.test(command.auditEventId)) {
       fail("EXTERNAL_RUN_COMMAND_IDENTIFIER_INVALID");
     }
+    if (!UUID.test(portableServerIdentifier(command.auditRequestId))) fail("EXTERNAL_RUN_AUDIT_REQUEST_INVALID");
     if (command.replayMode !== (index === 3 ? "parent_atomic_side_effect" : "direct")) {
       fail("EXTERNAL_RUN_REPLAY_MODE_INVALID");
     }
@@ -236,7 +246,7 @@ function harvestProofs(
     const expectedAuditEventIds = key === "audit" || key === "replay"
       ? commands.map((command) => command.auditEventId)
       : [];
-    if (value.kind !== key || !UUID.test(value.queryRequestId)
+    if (value.kind !== key || !UUID.test(key === "audit" ? portableServerIdentifier(value.queryRequestId) : value.queryRequestId)
       || value.auditEventIds.some((auditEventId) => !UUID.test(auditEventId))
       || JSON.stringify(value.auditEventIds) !== JSON.stringify(expectedAuditEventIds)
       || !SHA256.test(value.resultDigest) || value.organizationId !== scope.organizationId
@@ -249,22 +259,22 @@ function harvestProofs(
     const sourceRecord = record(value.source); const sourceList = list(value.source);
     if (key === "audit") {
       if (sourceList.length !== commands.length || sourceList.some((item, index) => (
-        item.commandId !== commands[index]!.commandId || item.auditEventId !== commands[index]!.auditEventId
-        || item.requestId !== commands[index]!.requestId || item.actorUserId !== commands[index]!.actorUserId
+          item.commandId !== commands[index]!.commandId || item.auditEventId !== commands[index]!.auditEventId
+          || item.requestId !== commands[index]!.auditRequestId || item.actorUserId !== commands[index]!.actorUserId
       ))) fail("EXTERNAL_RUN_PROOF_SOURCE_INVALID");
     } else if (key === "authenticatedRead") {
-      if (sourceRecord.requestId !== value.queryRequestId || sourceRecord.projectId !== scope.projectId
+      if (portableServerIdentifier(sourceRecord.requestId) !== value.queryRequestId || sourceRecord.projectId !== scope.projectId
         || sourceRecord.status !== true) fail("EXTERNAL_RUN_PROOF_SOURCE_INVALID");
     } else if (key === "privacy") {
-      const requestIds = Array.isArray(sourceRecord.requestIds) ? sourceRecord.requestIds.map(text) : [];
+      const requestIds = Array.isArray(sourceRecord.requestIds) ? sourceRecord.requestIds.map(portableServerIdentifier) : [];
       if (requestIds.length !== 5 || new Set(requestIds).size !== 5 || requestIds.some((requestId) => !UUID.test(requestId))
         || !requestIds.includes(value.queryRequestId) || sourceRecord.forbiddenFieldCount !== 0) fail("EXTERNAL_RUN_PROOF_SOURCE_INVALID");
     } else if (key === "tenancy") {
-      if (sourceRecord.requestId !== value.queryRequestId || sourceRecord.externalProjectAbsent !== true
+      if (portableServerIdentifier(sourceRecord.requestId) !== value.queryRequestId || sourceRecord.externalProjectAbsent !== true
         || sourceRecord.guestContract !== "empty_portfolio" || sourceRecord.projectCount !== 0) fail("EXTERNAL_RUN_PROOF_SOURCE_INVALID");
     } else if (sourceList.length !== commands.length || sourceList.some((item, index) => (
-      item.commandId !== commands[index]!.commandId || item.requestId !== commands[index]!.requestId
-      || item.auditEventId !== commands[index]!.auditEventId
+      portableServerIdentifier(item.commandId) !== commands[index]!.commandId || portableServerIdentifier(item.requestId) !== commands[index]!.requestId
+      || portableServerIdentifier(item.auditEventId) !== commands[index]!.auditEventId
       || item.replayMode !== commands[index]!.replayMode
       || (commands[index]!.replayMode === "direct" ? item.replayEqual !== true : item.sideEffectCount !== 1)
     ))) fail("EXTERNAL_RUN_PROOF_SOURCE_INVALID");

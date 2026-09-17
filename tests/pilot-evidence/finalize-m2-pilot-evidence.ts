@@ -94,6 +94,7 @@ export function finalizeM2PilotEvidence(receipt: unknown, options: { readonly ou
           || item.actorUserId !== expectedSession.userId || item.actorSessionId !== expectedSession.sessionId
           || item.actorSessionDigest !== expectedSession.serverSessionDigest
           || !UUID.test(string(item.commandId)) || !UUID.test(string(item.requestId))
+          || !UUID.test(string(item.auditRequestId ?? item.requestId).replace(/^db:/, ""))
         || !UUID.test(string(item.auditEventId)) || !sessionBindings.has(`${item.actorUserId}:${item.actorSessionId}`)
         || item.organizationId !== scope.organizationId || item.projectId !== scope.projectId || item.packageId !== scope.packageId
         || !Number.isSafeInteger(item.previousStateRevision) || !Number.isSafeInteger(item.resultingStateRevision)
@@ -121,7 +122,7 @@ export function finalizeM2PilotEvidence(receipt: unknown, options: { readonly ou
       const expectedAuditEventIds = key === "audit" || key === "replay"
         ? commands.map((command) => string(command.auditEventId))
         : [];
-      if (proof.kind !== key || !UUID.test(string(proof.queryRequestId))
+      if (proof.kind !== key || !UUID.test(key === "audit" ? string(proof.queryRequestId).replace(/^db:/, "") : string(proof.queryRequestId))
         || proofAuditEventIds.some((auditEventId) => !UUID.test(auditEventId))
         || JSON.stringify(proofAuditEventIds) !== JSON.stringify(expectedAuditEventIds)
         || !SHA.test(string(proof.resultDigest)) || proof.organizationId !== scope.organizationId
@@ -135,7 +136,7 @@ export function finalizeM2PilotEvidence(receipt: unknown, options: { readonly ou
       if (key === "audit") {
         if (sourceList.length !== commands.length || sourceList.some((item, index) => (
           item.commandId !== commands[index]!.commandId || item.auditEventId !== commands[index]!.auditEventId
-          || item.requestId !== commands[index]!.requestId || item.actorUserId !== commands[index]!.actorUserId
+          || item.requestId !== (commands[index]!.auditRequestId ?? commands[index]!.requestId) || item.actorUserId !== commands[index]!.actorUserId
         ))) throw new Error("RECEIPT_TAMPERED_PROOF");
       } else if (key === "authenticatedRead") {
         if (sourceRecord.requestId !== proof.queryRequestId || sourceRecord.projectId !== scope.projectId

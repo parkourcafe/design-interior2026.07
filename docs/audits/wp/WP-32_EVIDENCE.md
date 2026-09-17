@@ -2,7 +2,18 @@
 
 Base: `e992255d9e8419843b174926bedf85d93c9a9bd6`.
 Branch: `codex/wp32-ap6-run-cycle7`.
-Status: `BLOCKED_HOTSPOT`, runtime acceptance UNKNOWN.
+Status: canonical wrapper PASS for its existing scope; full WP-32 acceptance remains pending review and external M4 coverage.
+
+## Verified update — 2026-09-17
+
+- ИЗВЛЕЧЕНО: canonical wrapper exited 0 and emitted `KORA_LOCAL_AUTHENTICATED_PASS` and `EXTERNAL_REAL_PACKAGE_PASS` at `2026-09-17T09:52:17.341Z`. The PASS artifact SHA-256 is `b270a385188690257c446d416b2bd34d52befb978290046706eb84a2823f114a`.
+- ИЗВЛЕЧЕНО: receipt commands now preserve separate HTTP `requestId` and database `auditRequestId`. Audit proof retains the original database marker and digest. The validator no longer overwrites a child request ID to satisfy parent equality. Audit rows are ordered by resulting state revision; privacy uses a distinct, already performed architect request.
+- ИЗВЛЕЧЕНО: final executor SHA-256 is `42a7fd934bf2b25148c1d5db171121fdd4df5646edb9731ddd8f5205b59b3f0f`.
+- ИЗВЛЕЧЕНО: lint completed with 0 errors and 13 warnings; typecheck, 224 test files / 1885 tests, build and diff-check passed after the runtime run. Adversarial tests reject forged audit request IDs even when the proof digest is recomputed, and reject an unbound parent request.
+- ИЗВЛЕЧЕНО: both PostgreSQL 16 and PostgreSQL 17 DB4 harnesses passed in the canonical run.
+- НЕ ПОДТВЕРЖДЕНО: this wrapper does not prove Tashkent baseline → release → M4 → milestone acceptance; its external receipt covers the five M2-to-M3 operations. Independent security review and GitHub publication have not been completed by this update.
+
+The earlier blocker notes below are historical and are superseded by this update where contradicted.
 
 Owner approved: local disposable WP-32 run on the existing Tashkent manifest with subsequent dispose. Google Drive is excluded. No production/shared DB or workflow_dispatch authorization.
 
@@ -70,3 +81,4 @@ Read-only workspace inventory found no Kora site photo. Existing images are prod
 - Added migration `20260916132722_projectceo_authenticated_package_enrollment.sql` with authenticated owner authorization, idempotency, organization/project/package enrollment, scoped project/package memberships, and role capabilities. Tashkent now retains only disposable public identity bootstrap SQL; organization/package/business rows are created through the authenticated RPC.
 - Latest static gates remain green: 223 test files / 1877 tests, typecheck, lint (0 errors / 13 existing warnings), and production build. Clean disposable runtime is still pending because the Colima profile is repeatedly reporting stale `already running` then `not running` state before the stack can start.
 - Independent static review caught and the implementation now fixes three migration hazards before runtime: PL/pgSQL exception block closure, command-record operation vocabulary, and unsafe member role replacement/capability accumulation. Targeted auth/environment/layout tests (30/30) and typecheck pass after the fixes.
+- Latest clean-profile retry did not reach migrations: `supabase start` failed while pulling `supabase/postgrest:v14.14`, `supabase/storage-api:v1.62.5` and `supabase/postgres:17.6.1.143` because `unix:///Users/msnigmatullaeva/.colima/archidom-ap1-disposable/docker.sock` disappeared (`Cannot connect to the Docker daemon`). The profile is now stopped and no receipt was generated.

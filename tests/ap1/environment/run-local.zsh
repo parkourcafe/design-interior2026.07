@@ -88,7 +88,7 @@ apply_local_auth_compat() {
 start_stack() {
   # AP1 requires real DB/Auth/Kong/PostgREST/Storage. Image derivatives and the
   # local mailbox UI are deliberately outside this authenticated pilot gate.
-  supabase_cli start --yes --exclude imgproxy,mailpit 2>&1 | redact_credentials
+  supabase_cli start --yes --exclude edge-runtime,imgproxy,mailpit 2>&1 | redact_credentials
   apply_local_auth_compat
   verify_runtime
 }

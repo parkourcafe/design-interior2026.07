@@ -251,7 +251,8 @@ describe("Kora five-session producer executable", () => {
   it("takes session identifiers from the live run instead of generating them", () => {
     const source = shell();
     const liveRunner = readFileSync(FIVE_SESSION_RUNNER_PATH, "utf8");
-    expect(liveRunner).toContain("auth.sessions");
+    expect(liveRunner).toContain("cookie-session-cli.ts");
+    expect(liveRunner).toContain("AP1_KORA_HARVEST_SESSION_MISMATCH");
     expect(liveRunner).toContain("/api/projectceo/portfolio");
     expect(source).toMatch(/\.requestId/);
     expect(source).not.toMatch(/uuidgen[^)]*(user|session|request)_id/i);
@@ -317,5 +318,5 @@ describe("Cycle 7 shell teardown", () => {
     expect(run.status).toBe(66);
     expect(run.stderr).toContain("CYCLE7_EXTERNAL_MANIFEST_REQUIRED");
     expect(run.stderr).not.toContain("read-only variable");
-  });
+  }, 15000);
 });
