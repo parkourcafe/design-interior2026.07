@@ -378,6 +378,9 @@ describe("Layout Studio delivery/UI slice", () => {
       "20260916025319_r1_sheet_sidecar_read_projection.sql",
       // Authenticated disposable package enrollment; unrelated to Layout Studio.
       "20260916132722_projectceo_authenticated_package_enrollment.sql",
+      "20260916174719_projectceo_authenticated_package_enrollment_audit_event.sql",
+      "20260916190033_projectceo_authenticated_enrollment_upsert_repair.sql",
+      "20260916193000_projectceo_authenticated_source_snapshot.sql",
     ];
     const actual = readdirSync(join(repoRoot, "supabase/migrations"), { withFileTypes: true })
       // Предмет проверки — миграции, а не всё содержимое папки. Рядом с ними

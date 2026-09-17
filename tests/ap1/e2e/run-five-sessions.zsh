@@ -288,10 +288,10 @@ jq -e '
   .error == null and .data.actor.role == "owner"
   and .data.projects[0].name == "Kora Food Hall"
   and .data.projects[0].areaM2 == 1800
-  and .data.projects[0].sourceStats.physicalRecords == 215
-  and .data.projects[0].sourceStats.materializedRecords == 86
-  and .data.projects[0].sourceStats.placeholders == 129
-  and .data.projects[0].sourceStats.uniqueBlobs == 33
+  and .data.projects[0].sourceStats.physicalRecords == 210
+  and .data.projects[0].sourceStats.materializedRecords == 82
+  and .data.projects[0].sourceStats.placeholders == 128
+  and .data.projects[0].sourceStats.uniqueBlobs == 29
   and .data.projects[0].sourceStats.duplicateGroups == 18
   and .data.projects[0].sourceStats.quarantinedGroups == 8
 ' "${evidence_dir}/owner-portfolio.json" >/dev/null
@@ -320,6 +320,13 @@ decision_payload=$(jq -nc \
 decision_http=$(post_json architect /api/projectceo/commands "${decision_payload}" "${evidence_dir}/decision.json")
 [[ ${decision_http} == 200 ]] || { print -u2 -r -- "AP1_DECISION_HTTP status=${decision_http}"; exit 1; }
 jq -e '.status == "completed"' "${evidence_dir}/decision.json" >/dev/null
+photo_checksum=$(jq -er '.photoChecksum' "${session_file}")
+impact_dependency_ingestion=$(./node_modules/.bin/tsx tests/ap1/e2e/ingest-impact-dependency.ts \
+  "${api_url}" "${anon_key}" "$(cookie_path architect)" "${project_id}" "${project_id}" \
+  "${decision_node_id}" "${photo_checksum}" | tail -1)
+[[ ${impact_dependency_ingestion} =~ "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$" ]] || {
+  print -u2 -r -- "AP1_IMPACT_DEPENDENCY_INGEST_INVALID"; exit 1
+}
 
 approval_command_id=$(uuidgen | tr '[:upper:]' '[:lower:]')
 approval_payload=$(jq -nc \
@@ -364,27 +371,31 @@ release_http=$(post_json architect /api/projectceo/commands "${release_payload}"
 jq -e '.status == "completed"' "${evidence_dir}/release.json" >/dev/null
 release_version=$(jq -er '.result.productionPackageVersionId // .result.versionId // .result.id' "${evidence_dir}/release.json")
 get_json architect "/api/projectceo/projects/${project_id}" "${evidence_dir}/architect-workspace-release.json"
-release_package_version=$(jq -er --arg packageId "${project_id}" \
-  '[.data.packageVersions[] | select(.packageId == $packageId)] | sort_by(.versionNo) | last.id' \
-  "${evidence_dir}/architect-workspace-release.json")
+
+# Release artifact materialization is deliberately a system worker door. The
+# human release command never impersonates this worker; distribution is only
+# offered after the worker has consumed the server-derived backlog.
+artifact_worker_report=$(NEXT_PUBLIC_SUPABASE_URL="${api_url}" \
+  SUPABASE_SERVICE_ROLE_KEY="${service_role_key}" \
+  npm run --silent worker:release-artifacts)
+print -r -- "${artifact_worker_report}" | tail -1 > "${evidence_dir}/release-artifact-worker.json"
+jq -e '.scanned >= 1 and (.created + .alreadyPresent) >= 1' \
+  "${evidence_dir}/release-artifact-worker.json" >/dev/null
 
 area_node_id=$(jq -er '.areaNodeId' "${session_file}")
-get_json owner /api/projectceo/portfolio "${evidence_dir}/owner-post-release-portfolio.json"
-current_state_revision=$(jq -er '.data.projects[0].stateRevision' "${evidence_dir}/owner-post-release-portfolio.json")
 milestone_id=$(./node_modules/.bin/tsx tests/ap1/e2e/define-milestone-rpc.ts \
   "${api_url}" "${anon_key}" "$(cookie_path owner)" "${project_id}" "${project_id}" \
-  "${release_version}" "${area_node_id}" "${current_state_revision}" | tail -1)
+  "${release_version}" "${area_node_id}" | tail -1)
 [[ ${milestone_id} =~ "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$" ]] || {
   print -u2 -r -- "AP1_DYNAMIC_MILESTONE_INVALID"
   exit 1
 }
-get_json owner /api/projectceo/portfolio "${evidence_dir}/owner-post-milestone-portfolio.json"
-current_state_revision=$(jq -er '.data.projects[0].stateRevision' "${evidence_dir}/owner-post-milestone-portfolio.json")
-final_guest_token=$(./node_modules/.bin/tsx tests/ap1/e2e/create-guest-grant-rpc.ts \
+final_guest_binding=$(./node_modules/.bin/tsx tests/ap1/e2e/create-guest-grant-rpc.ts \
   "${api_url}" "${anon_key}" "$(cookie_path owner)" "${project_id}" "${project_id}" \
-  "${release_package_version}" "${current_state_revision}" | tail -1)
+  "${release_version}")
+final_guest_token=$(print -r -- "${final_guest_binding}" | jq -er '.token')
 [[ ${#final_guest_token} -ge 40 ]] || { print -u2 -r -- "AP1_FINAL_GUEST_TOKEN_INVALID"; exit 1; }
-guest_release_version="${release_package_version}"
+guest_release_version=$(print -r -- "${final_guest_binding}" | jq -er '.graphVersionId')
 jq --arg token "${final_guest_token}" --arg version "${guest_release_version}" \
   '.guestToken=$token | .guestReleaseVersionId=$version' "${session_file}" > "${session_file}.next" \
   && mv -- "${session_file}.next" "${session_file}"
@@ -441,6 +452,59 @@ ack_replay_http=$(post_json builder /api/projectceo/commands "${ack_payload}" "$
 [[ ${ack_replay_http} == 200 ]] || { print -u2 -r -- "AP1_ACK_REPLAY_HTTP status=${ack_replay_http}"; exit 1; }
 assert_exact_replay "${evidence_dir}/ack.json" "${evidence_dir}/ack-replay.json"
 
+# A change must point from the released B1 to a separately approved proposed
+# baseline. Create B2 through the same authenticated decision/approval door;
+# the builder never manufactures a target baseline.
+change_decision_node_id=${decision_node_id}
+change_decision_revision_id=$(uuidgen | tr '[:upper:]' '[:lower:]')
+change_approval_package_id=kora-approval-site-adjustment
+change_decision_command_id=$(uuidgen | tr '[:upper:]' '[:lower:]')
+change_decision_payload=$(jq -nc \
+  --arg projectId "${project_id}" --arg commandId "${change_decision_command_id}" \
+  --arg packageId "${project_id}" --arg nodeId "${change_decision_node_id}" --arg revisionId "${change_decision_revision_id}" \
+  --arg expectedRevisionId "${decision_revision_id}" \
+  '{contractVersion:"projectceo-command/0.1",kind:"create_decision",projectId:$projectId,commandId:$commandId,payload:{packageId:$packageId,nodeId:$nodeId,revisionId:$revisionId,expectedRevisionId:$expectedRevisionId,claimStatus:"human_origin",title:"Уточнение отделки по фотофиксации",resolution:"Зафиксировать изменение отделки второго этажа для последующей оценки влияния.",areaNodeId:null,decisionStatus:"confirmed",evidence:[],reason:"Решение зафиксировано после осмотра строительной площадки."}}')
+change_decision_http=$(post_json architect /api/projectceo/commands "${change_decision_payload}" "${evidence_dir}/change-decision.json")
+[[ ${change_decision_http} == 200 ]] || { print -u2 -r -- "AP1_CHANGE_DECISION_HTTP status=${change_decision_http}"; exit 1; }
+jq -e '.status == "completed"' "${evidence_dir}/change-decision.json" >/dev/null
+
+# Baseline composition resolves a re-approved node by the approval package's
+# server creation time. Let the local VM clock advance past B1 before minting
+# B2; the later assertion keeps a non-monotonic local clock from producing a
+# false clean evidence run.
+sleep 2
+change_approval_create_id=$(uuidgen | tr '[:upper:]' '[:lower:]')
+change_approval_create_payload=$(jq -nc \
+  --arg projectId "${project_id}" --arg commandId "${change_approval_create_id}" --arg packageId "${project_id}" \
+  --arg approvalId "${change_approval_package_id}" --arg nodeId "${change_decision_node_id}" --arg revisionId "${change_decision_revision_id}" \
+  '{contractVersion:"projectceo-command/0.1",kind:"create_approval_package",projectId:$projectId,commandId:$commandId,payload:{packageId:$packageId,approvalPackageId:$approvalId,items:[{targetKind:"decision_revision",entityId:$nodeId,revisionId:$revisionId}]}}')
+change_approval_create_http=$(post_json owner /api/projectceo/commands "${change_approval_create_payload}" "${evidence_dir}/change-approval-create.json")
+[[ ${change_approval_create_http} == 200 ]] || { print -u2 -r -- "AP1_CHANGE_APPROVAL_CREATE_HTTP status=${change_approval_create_http}"; exit 1; }
+jq -e '.status == "completed"' "${evidence_dir}/change-approval-create.json" >/dev/null
+
+change_approval_submit_id=$(uuidgen | tr '[:upper:]' '[:lower:]')
+change_approval_submit_payload=$(jq -nc --arg projectId "${project_id}" --arg commandId "${change_approval_submit_id}" --arg approvalId "${change_approval_package_id}" \
+  '{contractVersion:"projectceo-command/0.1",kind:"submit_approval_package",projectId:$projectId,commandId:$commandId,payload:{approvalPackageId:$approvalId,expectedStatus:"draft"}}')
+change_approval_submit_http=$(post_json owner /api/projectceo/commands "${change_approval_submit_payload}" "${evidence_dir}/change-approval-submit.json")
+[[ ${change_approval_submit_http} == 200 ]] || { print -u2 -r -- "AP1_CHANGE_APPROVAL_SUBMIT_HTTP status=${change_approval_submit_http}"; exit 1; }
+jq -e '.status == "completed"' "${evidence_dir}/change-approval-submit.json" >/dev/null
+
+change_approval_review_id=$(uuidgen | tr '[:upper:]' '[:lower:]')
+change_approval_review_payload=$(jq -nc --arg projectId "${project_id}" --arg commandId "${change_approval_review_id}" --arg approvalId "${change_approval_package_id}" \
+  '{contractVersion:"projectceo-command/0.1",kind:"review_selection",projectId:$projectId,commandId:$commandId,payload:{approvalPackageId:$approvalId,expectedStatus:"submitted",decision:"approved",reason:"Клиент подтвердил уточнение после получения выпуска."}}')
+change_approval_review_http=$(post_json client /api/projectceo/commands "${change_approval_review_payload}" "${evidence_dir}/change-approval-review.json")
+[[ ${change_approval_review_http} == 200 ]] || { print -u2 -r -- "AP1_CHANGE_APPROVAL_REVIEW_HTTP status=${change_approval_review_http}"; exit 1; }
+jq -e '.status == "completed"' "${evidence_dir}/change-approval-review.json" >/dev/null
+
+get_json architect "/api/projectceo/projects/${project_id}" "${evidence_dir}/architect-workspace-change-baseline.json"
+change_baseline_token=$(jq -er '.data.operations.publish_baseline.commandTargetId' "${evidence_dir}/architect-workspace-change-baseline.json")
+change_baseline_command_id=$(uuidgen | tr '[:upper:]' '[:lower:]')
+change_baseline_payload=$(jq -nc --arg projectId "${project_id}" --arg commandId "${change_baseline_command_id}" --arg token "${change_baseline_token}" \
+  '{contractVersion:"projectceo-command/0.1",kind:"publish_baseline",projectId:$projectId,commandId:$commandId,payload:{snapshotToken:$token}}')
+change_baseline_http=$(post_json architect /api/projectceo/commands "${change_baseline_payload}" "${evidence_dir}/change-baseline.json")
+[[ ${change_baseline_http} == 200 ]] || { print -u2 -r -- "AP1_CHANGE_BASELINE_HTTP status=${change_baseline_http}"; exit 1; }
+jq -e '.status == "completed"' "${evidence_dir}/change-baseline.json" >/dev/null
+
 # Change request -> worker impact -> human review, all through the authenticated
 # request-bound HTTP contract. The exact client retry reuses the same command id.
 change_command_id=$(uuidgen | tr '[:upper:]' '[:lower:]')
@@ -450,7 +514,9 @@ change_payload=$(jq -nc \
   --arg versionId "${release_version}" \
   '{contractVersion:"projectceo-command/0.1",kind:"create_change",projectId:$projectId,commandId:$commandId,payload:{reason:"Уточнена отделка второго этажа по замечанию стройки",fromProductionPackageVersionId:$versionId,deltaCostRub:125000,deltaDays:2}}')
 change_http=$(post_json builder /api/projectceo/commands "${change_payload}" "${evidence_dir}/change.json")
-[[ ${change_http} == 200 ]] || { print -u2 -r -- "AP1_CHANGE_HTTP status=${change_http}"; exit 1; }
+[[ ${change_http} == 200 ]] || {
+  print -u2 -r -- "AP1_CHANGE_HTTP status=${change_http}"; exit 1;
+}
 jq -e '.status == "completed" and .replay == false' "${evidence_dir}/change.json" >/dev/null
 change_replay_http=$(post_json builder /api/projectceo/commands "${change_payload}" "${evidence_dir}/change-replay.json")
 [[ ${change_replay_http} == 200 ]] || { print -u2 -r -- "AP1_CHANGE_REPLAY_HTTP status=${change_replay_http}"; exit 1; }
@@ -639,20 +705,27 @@ kora_harvest_file="${evidence_dir}/kora-session-harvest.json"
 print -r -- '{}' > "${kora_harvest_file}"
 for role in owner architect client builder guest; do
   user_id=$(jq -er --arg role "${role}" '.sessions[$role].userId' "${session_file}")
-  session_id=$(docker exec -i "${db_container}" \
-    psql -X -qAt --set ON_ERROR_STOP=1 --username "${db_psql_user}" --dbname postgres <<SQL
-select id from auth.sessions where user_id = '${user_id}'::uuid order by created_at desc limit 1;
-SQL
-  )
-  session_id=$(print -r -- "${session_id}" | tail -1 | tr -d '[:space:]')
+  cookie_binding=$(./node_modules/.bin/tsx tests/pilot-evidence/cookie-session-cli.ts "$(cookie_path "${role}")")
+  [[ $(print -r -- "${cookie_binding}" | jq -er '.userId') == "${user_id}" ]] || {
+    print -u2 -r -- "AP1_KORA_HARVEST_USER_MISMATCH role=${role}"; exit 1
+  }
+  session_id=$(print -r -- "${cookie_binding}" | jq -er '.sessionId')
+  expected_session_digest="sha256:$(print -rn -- "${session_id}" | shasum -a 256 | awk '{print $1}')"
   portfolio_response="${evidence_dir}/${role}-portfolio-harvest.json"
+  portfolio_headers="${evidence_dir}/${role}-portfolio-harvest.headers"
   portfolio_http=$(curl -sS -c "$(cookie_path "${role}")" -b "$(cookie_path "${role}")" \
+    -D "${portfolio_headers}" \
     -w '%{http_code}' -o "${portfolio_response}" "${next_origin}/api/projectceo/portfolio")
+  actual_session_digest=$(awk 'tolower($1) == "x-archidom-auth-session-digest:" { gsub("\r", "", $2); print $2 }' "${portfolio_headers}")
+  rm -f -- "${portfolio_headers}"
   if [[ ${portfolio_http} != 2* ]]; then
     error_code=$(jq -r '.error.code // "unknown"' "${portfolio_response}" 2>/dev/null || print -r -- unknown)
     print -u2 -r -- "AP1_KORA_HARVEST_HTTP role=${role} status=${portfolio_http} code=${error_code}"
     exit 1
   fi
+  [[ ${actual_session_digest} == "${expected_session_digest}" ]] || {
+    print -u2 -r -- "AP1_KORA_HARVEST_SESSION_MISMATCH role=${role}"; exit 1
+  }
   if ! request_id=$(jq -er '.requestId' "${portfolio_response}"); then
     print -u2 -r -- "AP1_KORA_HARVEST_REQUEST_ID_MISSING role=${role}"
     exit 1
@@ -681,7 +754,7 @@ jq -n '{
   productionChanged:false,
   users:5,
   auth:"magiclink",
-  project:{name:"Kora Food Hall",areaM2:1800,registrySources:209,foundationFixtureSources:0,sitePhotos:1,physicalSources:215,materializedSources:86,placeholders:129,uniqueBlobs:33,duplicateGroups:18,quarantinedGroups:8},
+  project:{name:"Kora Food Hall",areaM2:1800,registrySources:209,foundationFixtureSources:0,sitePhotos:1,physicalSources:210,materializedSources:82,placeholders:128,uniqueBlobs:29,duplicateGroups:18,quarantinedGroups:8},
   gates:{invitationAccept:true,distributionAcknowledgement:true,changeImpactReview:true,photoEvidenceReview:true,milestoneAcceptance:true,exactRetry:true,csrf:true,tenantIsolation:true,guestExactTokenScope:true}
 }' > "${evidence_dir}/summary.json"
 

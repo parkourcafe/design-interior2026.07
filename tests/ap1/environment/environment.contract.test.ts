@@ -81,7 +81,7 @@ describe("AP1 disposable Supabase environment contract", () => {
     const runner = readFileSync(runnerPath, "utf8");
     expect(runner).toContain("AP1_DOCKER_HOST_REJECTED");
     expect(runner).toContain("AP1_LINKED_PROJECT_REJECTED");
-    expect(runner).toContain("--exclude imgproxy,mailpit");
+    expect(runner).toContain("--exclude edge-runtime,imgproxy,mailpit");
     expect(runner).not.toMatch(/--exclude[^\n]*(?:rest|storage|kong|db)/);
   });
 
@@ -130,10 +130,10 @@ describe("AP1 disposable Supabase environment contract", () => {
   it("keeps Kora authenticated-read counts aligned with the registered site photo", () => {
     const provision = readFileSync(resolve(repoRoot, "tests/ap1/e2e/provision-kora.ts"), "utf8");
     const fiveSession = readFileSync(resolve(repoRoot, "tests/ap1/e2e/run-five-sessions.zsh"), "utf8");
-    for (const marker of ["physicalRecords !== 215", "materializedRecords !== 86", "uniqueBlobs !== 33"]) {
+    for (const marker of ["physicalRecords !== 210", "materializedRecords !== 82", "uniqueBlobs !== 29"]) {
       expect(provision).toContain(marker);
     }
-    for (const marker of ["physicalRecords == 215", "materializedRecords == 86", "uniqueBlobs == 33"]) {
+    for (const marker of ["physicalRecords == 210", "materializedRecords == 82", "uniqueBlobs == 29"]) {
       expect(fiveSession).toContain(marker);
     }
   });
@@ -143,6 +143,7 @@ describe("AP1 disposable Supabase environment contract", () => {
     expect(fiveSession).toContain("release_version=$(jq -er '.result.productionPackageVersionId // .result.versionId // .result.id'");
     expect(fiveSession).toContain('kind:"publish_baseline"');
     expect(fiveSession).toContain('kind:"publish_release"');
+    expect(fiveSession).toContain("worker:release-artifacts");
     expect(fiveSession).toContain("define-milestone-rpc.ts");
     expect(fiveSession).not.toContain("'package-db4-work-v1',");
   });

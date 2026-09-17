@@ -20,7 +20,7 @@ do $readiness_profile_matrix$
 declare
  c r1_validation_fixture.context%rowtype; b remhaos_integration.external_upload_policy_bindings%rowtype;
  binding uuid:=extensions.gen_random_uuid(); f record; upload jsonb; claim_result jsonb; materialized jsonb; proof jsonb; checked_formats text[]:=array[]::text[];
- session_id uuid; intake_id uuid; claim_id uuid; seal_id uuid; generation_id uuid; job_id uuid; receipt_id uuid; canonical_id uuid;
+ session_id uuid; intake_id uuid; session_revision bigint; claim_id uuid; seal_id uuid; generation_id uuid; job_id uuid; receipt_id uuid; canonical_id uuid;
  lease_secret text; payload text; digest bytea; started_at timestamptz;
 begin
  select * into strict c from r1_validation_fixture.context;
@@ -42,8 +42,9 @@ begin
    session_id:=(upload#>>'{result,sessionId}')::uuid; intake_id:=(upload#>>'{result,intakeId}')::uuid;
    claim_id:=extensions.gen_random_uuid(); seal_id:=extensions.gen_random_uuid(); generation_id:=extensions.gen_random_uuid(); receipt_id:=extensions.gen_random_uuid(); canonical_id:=extensions.gen_random_uuid(); lease_secret:=encode(extensions.gen_random_bytes(32),'hex');
    update remhaos_integration.external_upload_sessions x set state='finalizing',revision=revision+1 where x.session_id=matrix_vars.session_id;
+   select x.revision into strict session_revision from remhaos_integration.external_upload_sessions x where x.session_id=matrix_vars.session_id;
    insert into remhaos_integration.external_upload_finalize_claims(organization_id,project_id,package_id,claim_id,session_id,session_revision,part_manifest_digest,attempt,fence,principal_binding_reference,token_digest,expires_at,recovery_deadline)
-   values(c.organization_id,c.project_id,c.project_id,claim_id,session_id,1,project_intelligence._sha256_text('synthetic parts '||f.format),1,1,'synthetic:format-broker',project_intelligence._sha256_text('synthetic finalize token '||f.format),clock_timestamp()+interval '30 seconds',clock_timestamp()+interval '60 seconds');
+   values(c.organization_id,c.project_id,c.project_id,claim_id,session_id,session_revision,project_intelligence._sha256_text('synthetic parts '||f.format),1,1,'synthetic:format-broker',project_intelligence._sha256_text('synthetic finalize token '||f.format),clock_timestamp()+interval '30 seconds',clock_timestamp()+interval '60 seconds');
    insert into remhaos_integration.external_upload_seal_receipts(organization_id,project_id,package_id,receipt_id,session_id,claim_id,fence,policy_binding_id,adapter_id,storage_policy_version,pin_mode,private_locator,immutable_provider_version,observed_byte_length,object_identity_digest,sealing_evidence_digest,source_claim_digest,closure_evidence_digest)
    values(c.organization_id,c.project_id,c.project_id,seal_id,session_id,claim_id,1,binding,b.adapter_id,b.storage_policy_version,'provider_version','private/format-source-'||generation_id,'synthetic-immutable-version',octet_length(payload),project_intelligence._sha256_text('synthetic object '||generation_id),project_intelligence._sha256_text('synthetic seal '||f.format),project_intelligence._sha256_text('synthetic source claim '||f.format),project_intelligence._sha256_text('synthetic closure '||f.format));
    insert into remhaos_integration.external_upload_generations values(c.organization_id,c.project_id,c.project_id,generation_id,session_id,intake_id,seal_id,octet_length(payload),f.format,'31111111-1111-4111-8111-111111111111',clock_timestamp());

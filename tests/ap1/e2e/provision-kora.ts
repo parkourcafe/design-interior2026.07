@@ -160,11 +160,12 @@ function externalManifest(): ExternalManifest {
 async function provisionExternalPackage(
   ownerClient: SupabaseClient,
   clientClient: SupabaseClient,
+  architectClient: SupabaseClient,
   dbContainer: string,
   users: readonly ExternalUser[],
+  projectOwner: ProvisionedUser,
 ): Promise<void> {
   const manifest = externalManifest();
-  const owner = users.find((user) => user.role === "owner")!;
   const architect = users.find((user) => user.role === "architect")!;
   const builder = users.find((user) => user.role === "builder")!;
   const client = users.find((user) => user.role === "client")!;
@@ -176,10 +177,10 @@ async function provisionExternalPackage(
 
   psql(dbContainer, `
 insert into public.designers (id, name, studio_name)
-values ('${owner.id}'::uuid, 'AP6 Owner', 'ArchiDom AP6')
+values ('${projectOwner.id}'::uuid, 'AP6 Tashkent Owner', 'ArchiDom AP6')
 on conflict (id) do nothing;
 insert into public.projects (id, designer_id, client_name, status, intake_token, passport)
-values ('${EXTERNAL_PROJECT_ID}'::uuid, '${owner.id}'::uuid,
+values ('${EXTERNAL_PROJECT_ID}'::uuid, '${projectOwner.id}'::uuid,
   'Tashkent Courtyard House', 'active_project', 'ap6-tashkent-external',
   '{"project_name":"Tashkent Courtyard House","object":{"area_m2":340,"city":"Ташкент","type":"house"}}'::jsonb)
 on conflict (id) do update set client_name = excluded.client_name, passport = excluded.passport;
@@ -241,10 +242,10 @@ on conflict (id) do update set client_name = excluded.client_name, passport = ex
 
   const afterIngestion = await scope();
   const published = await rpc<{ readonly result: { readonly version: { readonly id: string } } }>(
-    ownerClient, "projectceo_api", "publish_version", {
+    architectClient, "projectceo_api", "publish_source_snapshot", {
       project_id: EXTERNAL_PROJECT_ID, expected_latest_version_id: null,
       expected_state_revision: afterIngestion, label: "Tashkent external source set",
-      selected_revisions: [], idempotency_key: "ap6:tashkent:publish-source-set",
+      idempotency_key: "ap6:tashkent:publish-source-set",
     },
   );
   const versionId = published.result.version.id;
@@ -257,7 +258,7 @@ on conflict (id) do update set client_name = excluded.client_name, passport = ex
     fragmentId: `tashkent-fragment-${suffix}`,
   });
   const decision = await rpc<{ readonly result: { readonly revisionId: string } }>(
-    ownerClient, "projectceo_product_api", "append_decision_revision", {
+    architectClient, "projectceo_product_api", "append_decision_revision", {
       project_id: EXTERNAL_PROJECT_ID, package_id: EXTERNAL_PACKAGE_ID,
       node_id: EXTERNAL_DESIGN_INTENT_NODE_ID, revision_id: EXTERNAL_DESIGN_INTENT_REVISION_ID,
       expected_revision_id: null, claim_status: "interpreted", title: "Кухня и гостиная первого этажа",
@@ -273,7 +274,7 @@ on conflict (id) do update set client_name = excluded.client_name, passport = ex
     ["tashkent-selection-kitchen", "Кухонный комплект", { item: "Kitchen fronts and carcass", unit: "set", amountRub: 125800 }],
   ] as const;
   for (const [nodeId, title, specification] of selectionSpecs) {
-    await rpc(ownerClient, "projectceo_product_api", "append_selection_revision", {
+    await rpc(architectClient, "projectceo_product_api", "append_selection_revision", {
       project_id: EXTERNAL_PROJECT_ID, package_id: EXTERNAL_PACKAGE_ID, node_id: nodeId,
       revision_id: `${nodeId}-r1`, expected_revision_id: null, claim_status: "interpreted", title,
       area_node_id: EXTERNAL_AREA_NODE_ID, decision_revision_id: decision.result.revisionId,
@@ -282,7 +283,7 @@ on conflict (id) do update set client_name = excluded.client_name, passport = ex
     });
   }
   for (const [nodeId, , specification] of selectionSpecs) {
-    await rpc(ownerClient, "projectceo_product_api", "append_price_observation", {
+    await rpc(architectClient, "projectceo_product_api", "append_price_observation", {
       project_id: EXTERNAL_PROJECT_ID, selection_revision_id: `${nodeId}-r1`,
       observation_id: `${nodeId}-price-uzs-rub`, amount_rub: specification.amountRub,
       evidence: evidenceFor("plan-ground"), supplier_ref: "operator-tashkent-worksheet",
@@ -337,6 +338,18 @@ async function provisionExternalOnly(): Promise<void> {
   const admin = createClient(apiUrl, serviceRoleKey, {
     auth: { autoRefreshToken: false, persistSession: false },
   });
+  const externalOwnerPassword = `Ap1!${randomBytes(24).toString("base64url")}9a`;
+  const externalOwnerEmail = `ap1-external-owner-${randomBytes(5).toString("hex")}@archidom.invalid`;
+  const { data: externalOwnerData, error: externalOwnerError } = await admin.auth.admin.createUser({
+    email: externalOwnerEmail,
+    password: externalOwnerPassword,
+    email_confirm: true,
+    user_metadata: { display_name: "AP6 Tashkent Owner" },
+  });
+  if (externalOwnerError || !externalOwnerData.user) throw new Error("AP1_EXTERNAL_OWNER_CREATE_FAILED");
+  const externalOwner: ProvisionedUser = {
+    role: "owner", email: externalOwnerEmail, id: externalOwnerData.user.id, password: externalOwnerPassword,
+  };
 
   const authenticate = async (role: Ap1Role): Promise<SupabaseClient> => {
     const user = session.sessions[role];
@@ -359,12 +372,36 @@ async function provisionExternalOnly(): Promise<void> {
     return client;
   };
 
+  const externalOwnerClient = createClient(apiUrl, anonKey, {
+    auth: { autoRefreshToken: false, persistSession: false },
+  });
+  const { error: externalOwnerSignInError } = await externalOwnerClient.auth.signInWithPassword({
+    email: externalOwner.email,
+    password: externalOwner.password,
+  });
+  if (externalOwnerSignInError) throw new Error("AP1_EXTERNAL_OWNER_SESSION_FAILED");
   await provisionExternalPackage(
-    await authenticate("owner"),
+    externalOwnerClient,
     await authenticate("client"),
+    await authenticate("architect"),
     dbContainer,
     users,
+    externalOwner,
   );
+  const { data: externalOwnerLink, error: externalOwnerLinkError } = await admin.auth.admin.generateLink({
+    type: "magiclink",
+    email: externalOwner.email,
+    options: { redirectTo: `${nextOrigin}/auth/callback` },
+  });
+  if (externalOwnerLinkError || !externalOwnerLink.properties.hashed_token) {
+    throw new Error("AP1_EXTERNAL_OWNER_MAGICLINK_FAILED");
+  }
+  const externalOwnerSessionPath = "/private/tmp/projectceo-ap1-external-owner.json";
+  writeFileSync(externalOwnerSessionPath, JSON.stringify({
+    userId: externalOwner.id,
+    tokenHash: externalOwnerLink.properties.hashed_token,
+  }));
+  chmodSync(externalOwnerSessionPath, 0o600);
   process.stdout.write("AP1_EXTERNAL_PACKAGE_PROVISIONED environment=disposable production_changed=false\n");
 }
 
@@ -716,10 +753,10 @@ commit;
   if (
     read.data.projectMetadata.name !== "Kora Food Hall"
     || read.data.projectMetadata.areaM2 !== 1800
-    || read.data.sourceStats.physicalRecords !== 215
-    || read.data.sourceStats.materializedRecords !== 86
-    || read.data.sourceStats.placeholders !== 129
-    || read.data.sourceStats.uniqueBlobs !== 33
+    || read.data.sourceStats.physicalRecords !== 210
+    || read.data.sourceStats.materializedRecords !== 82
+    || read.data.sourceStats.placeholders !== 128
+    || read.data.sourceStats.uniqueBlobs !== 29
     || read.data.sourceStats.duplicateGroups !== 18
     || read.data.sourceStats.quarantinedGroups !== 8
   ) {
@@ -782,6 +819,7 @@ commit;
     packageInviteToken: packageInviteRawToken.toString("base64url"),
     photoSourceId,
     photoSourceRevisionId: photoRecord.sourceRevisionId,
+    photoChecksum: sitePhotoChecksum,
     guestToken: null,
     guestReleaseVersionId: null,
     areaNodeId: KORA_AREA_NODE_ID,
@@ -790,7 +828,7 @@ commit;
   }));
   chmodSync(sessionPath, 0o600);
   process.stdout.write(
-    "AP1_KORA_PROVISIONED users=5 registry=209 foundation_fixtures=4 site_photos=1 physical=215 materialized=86 placeholders=129 area_m2=1800 production_changed=false\n",
+    "AP1_KORA_PROVISIONED users=5 registry=209 foundation_fixtures=4 site_photos=1 physical=210 materialized=82 placeholders=128 area_m2=1800 production_changed=false\n",
   );
 }
 

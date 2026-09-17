@@ -90,6 +90,27 @@ function input(dir: string, overrides: Record<string, any> = {}) {
 }
 
 describe("External pilot receipt builder", () => {
+  it("preserves distinct database audit and HTTP request identities", () => {
+    const run = harvest() as any;
+    for (const [index, command] of run.commands.entries()) {
+      command.auditRequestId = `db:${uuid(900 + index)}`;
+      run.proofs.audit.source[index].requestId = command.auditRequestId;
+    }
+    run.proofs.audit.queryRequestId = run.commands[0].auditRequestId;
+    run.proofs.audit.resultDigest = sha(canonicalJson(run.proofs.audit.source));
+    const receipt = buildExternalPilotReceipt(input(workdir(), { harvest: run })) as any;
+    expect(receipt.commands[3].requestId).toBe(run.commands[2].requestId);
+    expect(receipt.commands[3].auditRequestId).toBe(run.commands[3].auditRequestId);
+    expect(receipt.proofs.audit.source).toEqual(run.proofs.audit.source);
+    const tampered = structuredClone(run);
+    tampered.proofs.audit.source[3].requestId = `db:${uuid(998)}`;
+    tampered.proofs.audit.resultDigest = sha(canonicalJson(tampered.proofs.audit.source));
+    expect(() => buildExternalPilotReceipt(input(workdir(), { harvest: tampered })))
+      .toThrow("EXTERNAL_RUN_PROOF_SOURCE_INVALID");
+    run.commands[3].requestId = uuid(999);
+    expect(() => buildExternalPilotReceipt(input(workdir(), { harvest: run })))
+      .toThrow("EXTERNAL_RUN_SIDE_EFFECT_NOT_BOUND");
+  });
   it("keeps jq canonical proof bytes identical to TypeScript canonicalJson", () => {
     const value = { requestId: uuid(777), forbiddenFieldCount: 0 };
     const jq = spawnSync("jq", ["-cSj", "."], { input: JSON.stringify(value), encoding: "utf8" });
@@ -252,11 +273,18 @@ describe("External pilot receipt builder", () => {
     writeKoraFiveSessionReceipt(koraReceipt, koraReceiptPath);
     const koraReceiptDigest = sha(readFileSync(koraReceiptPath));
 
+    const actualAuditRun = harvest() as any;
+    actualAuditRun.commands.forEach((command: any, index: number) => {
+      command.auditRequestId = `db:${uuid(800 + index)}`;
+      actualAuditRun.proofs.audit.source[index].requestId = command.auditRequestId;
+    });
+    actualAuditRun.proofs.audit.queryRequestId = actualAuditRun.commands[0].auditRequestId;
+    actualAuditRun.proofs.audit.resultDigest = sha(canonicalJson(actualAuditRun.proofs.audit.source));
     const receipt = buildExternalPilotReceipt({
       challengeNonce: NONCE, manifestPath,
       executor: { path: ALLOWLISTED, digest: executorDigest, verificationReceiptId },
       kora: { receiptId: koraReceipt.receiptId, receiptDigest: koraReceiptDigest, producerPath: ALLOWLISTED, producerDigest: executorDigest },
-      harvest: harvest(),
+      harvest: actualAuditRun,
     });
 
     const pendingPath = join(dir, "PENDING.json");
@@ -308,7 +336,7 @@ describe("External package runner executable", () => {
     const guard = source.slice(source.indexOf("uuid_pattern="), source.indexOf("query_db()"));
     const manifest = JSON.parse(readFileSync("tests/fixtures/cycle7/external-package.manifest.json", "utf8"));
     const run = (roomId: string, projectId = manifest.scope.projectId) => spawnSync("zsh", ["-c", guard], {
-      encoding: "utf8", env: { ...process.env, organization_id: manifest.scope.organizationId,
+      encoding: "utf8", env: { ...process.env, requested_organization_id: manifest.scope.organizationId,
         project_id: projectId, package_id: manifest.scope.packageId, room_id: roomId },
     });
     expect(run(manifest.scope.roomId).status).toBe(0);
@@ -364,13 +392,15 @@ describe("External package runner executable", () => {
     expect(source.slice(source.indexOf("organization_id="))).not.toContain('jq -er \'.scope.organizationId\' "${manifest_path}"');
   });
 
-  it("keeps privileged SQL limited to disposable identity/scope bootstrap", () => {
+  it("requires existing authenticated enrollment without privileged scope writes", () => {
     const source = shell();
-    const bootstrap = source.slice(source.indexOf("provision_external_scope()"), source.indexOf("harvest_db_command()"));
-    expect(bootstrap).toContain("Disposable identity/scope bootstrap only");
+    const bootstrap = source.slice(source.indexOf("verify_external_scope()"), source.indexOf("harvest_db_command()"));
+    expect(bootstrap).toContain("enroll_organization_project_scope");
     expect(bootstrap).not.toContain("graph_nodes");
     expect(bootstrap).not.toContain("graph_node_revisions");
-    expect(source.indexOf("send_command owner publish_m2_layout_version")).toBeGreaterThan(source.indexOf("provision_external_scope"));
+    expect(source.indexOf("send_command owner publish_m2_layout_version")).toBeGreaterThan(source.indexOf("verify_external_scope"));
+    expect(bootstrap).not.toMatch(/\b(?:insert\s+into|update\s+project|delete\s+from)\b/i);
+    expect(bootstrap).toContain("EXTERNAL_RUNNER_AUTHENTICATED_SCOPE_REQUIRED");
   });
 
   it("binds every role to the session_id inside its actual cookie JWT", () => {
