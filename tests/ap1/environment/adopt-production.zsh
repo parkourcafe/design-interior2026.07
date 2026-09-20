@@ -146,9 +146,10 @@ if [[ ${dry_run} == true ]]; then
   done
   psql_run=(docker exec -e PGPASSWORD="${AP1_DRY_RUN_PASSWORD}" -i "${dry_container}" \
     psql -X --set ON_ERROR_STOP=1 --username postgres --dbname pi_adoption)
-else
-  psql_run=(psql -X --set ON_ERROR_STOP=1 "${AP1_DB_URL}")
 fi
+# No shared-target branch exists: AP1_ADOPTION_SHARED_TARGET_DISABLED already
+# exited above. Under `set -u` an unset psql_run would abort, so the only
+# reachable client is the disposable container created here.
 
 run_sql_file() {
   local file=$1

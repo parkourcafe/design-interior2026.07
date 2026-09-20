@@ -1,9 +1,15 @@
 # WP-13 — Production-adoption operator script — EVIDENCE
 
-Дата: 2026-09-11. Ветка: `wp/wp-13-adopt-production-script`. PR HEAD:
-`0e8924ebfe17ca074cd7b7f952a472a081574b1c`. PR: #151.
+Дата: 2026-09-20 (исходная фиксация — 2026-09-11). Ветка:
+`wp/wp-13-safe-control`. PR: #157, заменяет #151.
 
-Статус: `BLOCKED_SECURITY_DESIGN`.
+Статус: `SCOPE_REDUCED_TO_DISPOSABLE`.
+
+[ИНТЕРПРЕТИРОВАНО] Блокер снят не исправлением трёх находок по отдельности, а
+вторым вариантом самого блокера — `scope reduction to clone-only`. Способности
+выполнить adoption против shared DB в репозитории больше нет, поэтому находки
+1–3 относятся к удалённому режиму. Ниже история блокера сохранена как есть, а
+раздел «Снятие блокера» описывает, что именно изменилось и как это проверялось.
 
 ## Основание
 
@@ -47,7 +53,11 @@ production configuration не менялись. Скрипт запускает 
 fresh snapshot assertion он в отдельной транзакции добавляет только
 `20260716071024` в существующий ledger Approval A.
 
-## Локальные гейты
+## Локальные гейты (история, HEAD `0e8924e` — заменён)
+
+Всё ниже до раздела «Снятие блокера» описывает исходный пакет #151 на коммите
+`0e8924ebfe17ca074cd7b7f952a472a081574b1c` и сохранено как история. Текущее
+состояние кода — в разделе «Снятие блокера».
 
 [ИЗВЛЕЧЕНО] `zsh -n tests/ap1/environment/adopt-production.zsh`: exit 0.
 
@@ -89,18 +99,54 @@ design ниже и не являются разрешением merge или к�
 [ИНТЕРПРЕТИРОВАНО] Это security-design проблема. Её нельзя устранять заменой
 локальных проверок, дополнительным тестом или ослаблением refusal paths.
 
+## Exact blocker (исходная формулировка)
+
+`Owner-approved, verifiable approval artifact bound to target endpoint fingerprint, immutable git SHA/ledger hash, fresh snapshot hash/time and drift classification, or scope reduction to clone-only.`
+
+## Снятие блокера
+
+[ИЗВЛЕЧЕНО] Выбран второй вариант — `scope reduction to clone-only`. Изменения
+в `tests/ap1/environment/adopt-production.zsh`:
+
+1. Любой запуск без `--dry-run` завершается `AP1_ADOPTION_SHARED_TARGET_DISABLED`
+   с кодом 69 — до чтения каких-либо реквизитов подключения.
+2. `AP1_DB_URL` удалён из скрипта полностью: ни интерфейса, ни ветки исполнения
+   против внешней БД не осталось. Единственный достижимый клиент — psql внутри
+   одноразового Docker-контейнера с `--network none`.
+3. `run_sql_file`, `run_sql` и `psql_value` больше не игнорируют ошибку psql:
+   каждая падает с `AP1_ADOPTION_SQL_*_FAILED` (70) вместо продолжения.
+
+[ИЗВЛЕЧЕНО] Проверено запуском на `main` + этой ветке (2026-09-20):
+
+```
+zsh -n tests/ap1/environment/adopt-production.zsh                 → exit 0
+AP1_APPROVAL_RECORD='Approval B: test' zsh …/adopt-production.zsh \
+  --target-ref some-shared-target --allowlist-ref <файл>
+  → AP1_ADOPTION_SHARED_TARGET_DISABLED, exit 69
+vitest run tests/ap1/environment/adopt-production.contract.test.ts
+  → 7 passed | 1 skipped
+```
+
+[ИЗВЛЕЧЕНО] Контрактный тест «refuses every non-disposable target before
+reading its connection details» передаёт фиктивный `AP1_DB_URL` и проверяет,
+что в stderr нет подстроки `fixture` — то есть отказ происходит до чтения URL.
+
+[ИЗВЛЕЧЕНО] Пропущенный тест — `describe.skipIf(!zshAvailable || !dockerAvailable)`
+(«disposable execution failures»). Docker в среде проверки не стартует, поэтому
+этот блок **не запускался**. Формулировка «должен работать» к нему не применима.
+
+[ИНТЕРПРЕТИРОВАНО] Эти проверки подтверждают отказ от shared-target режима и
+локальную исполнимость. Они не подтверждают корректность самого rehearsal на
+восстановленном backup — этот путь требует Docker и прогоняется отдельно.
+
 ## Не сделано / owner gate
 
 [ИЗВЛЕЧЕНО] Fresh production snapshot, классификация drift, Approval A,
-Approval B, target allowlist file, clone rehearsal на восстановленном backup,
-shared DB, deployment и merge не выполнялись.
+Approval B, clone rehearsal на восстановленном backup, shared DB и deployment
+не выполнялись. DB4/DB5 и AP5 на этой ветке не запускались.
 
-[ИЗВЛЕЧЕНО] Текущий пакет не должен быть merged, пока владелец не выберет
-одно из условий, сформулированных в блокере ниже.
-
-## Exact blocker
-
-`Owner-approved, verifiable approval artifact bound to target endpoint fingerprint, immutable git SHA/ledger hash, fresh snapshot hash/time and drift classification, or scope reduction to clone-only.`
+[ИЗВЛЕЧЕНО] Скрипт в текущем виде не способен изменить shared DB или
+production: соответствующий режим удалён, а не отключён флагом.
 
 ## Безопасность
 
