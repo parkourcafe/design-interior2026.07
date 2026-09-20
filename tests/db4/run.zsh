@@ -74,6 +74,7 @@ for sql in \
   "${repo_root}/tests/db4/33_m2_client_review_m3_handoff_operations.sql" \
   "${repo_root}/tests/db4/34_m3_documentation_sheet_operations.sql" \
   "${repo_root}/tests/db4/64_r1_external_attachment_candidates.sql" \
+  "${repo_root}/tests/db4/65_r1_external_review_storage_context.sql" \
   "${repo_root}/tests/db4/35_m3_documentation_read_operations.sql" \
   "${repo_root}/tests/db4/36_m2_layout_document_v02_validation.sql" \
   "${repo_root}/tests/db4/37_source_review_door.sql" \
