@@ -8,6 +8,7 @@ import {
   M3_APP_GATE_ONLY_SIGNATURES,
   M3_REVOKED_SIGNATURES,
   M3_SURFACE,
+  M3_READ_RPCS,
   M3_SURFACE_COMMANDS,
 } from "../../lib/project-intelligence/delivery/projectceo/m3-surface";
 import { DOCUMENTATION_PUBLICATION } from "../../lib/project-intelligence/delivery/projectceo/documentation-flag";
@@ -67,8 +68,13 @@ describe("M3 surface matrix", () => {
    */
   it("matches the guardrail migration signature for signature", () => {
     const migrations = [
+      "supabase/migrations/20260916025319_r1_sheet_sidecar_read_projection.sql",
+      "supabase/migrations/20260916023137_r1_pdf_sheet_sidecar_request_door.sql",
       "supabase/migrations/20260811010000_projectceo_m3_publication_guardrail.sql",
       "supabase/migrations/20260911160000_projectceo_m3_atomic_publication_flip.sql",
+      "supabase/migrations/20260912110000_r1_external_release_attachment_manifest.sql",
+      "supabase/migrations/20260915191820_r1_pdf_dwg_source_pair_request_door.sql",
+      "supabase/migrations/20260915194544_r1_source_pair_read_projection.sql",
     ];
     const revokeBlock = migrations.map((path) => {
       const migration = read(path);
@@ -93,8 +99,7 @@ describe("M3 surface matrix", () => {
 
   it("keeps the enable script to module-gated M3 doors only", () => {
     const enable = read("tests/ap1/environment/enable-m3-publication.sql").replace(/\s+/g, "");
-    const moduleGated = M3_SURFACE
-      .flatMap((row) => row.rpcs)
+    const moduleGated = [...M3_SURFACE.flatMap((row) => row.rpcs), ...M3_READ_RPCS]
       .filter((rpc) => rpc.closure === "revoked_from_authenticated")
       .map((rpc) => rpc.signature);
     for (const signature of moduleGated) {
@@ -128,7 +133,7 @@ describe("M3 surface matrix", () => {
    */
   it("keeps the DB4 classification scenario mirroring the matrix", () => {
     const scenario = read("tests/db4/06_m3_surface_classification.sql");
-    for (const rpc of M3_SURFACE.flatMap((row) => row.rpcs)) {
+    for (const rpc of [...M3_SURFACE.flatMap((row) => row.rpcs), ...M3_READ_RPCS]) {
       expect(scenario, rpc.signature).toContain(`'${rpc.signature}'`);
     }
     // Схема модуля содержит цифру (`projectceo_m3_api`) — класс без цифр
@@ -136,7 +141,7 @@ describe("M3 surface matrix", () => {
     const listed = [...scenario.matchAll(/'([a-z0-9_]+\.[a-z0-9_]+\([^']*\))'/g)]
       .map((match) => match[1]!);
     expect([...new Set(listed)].sort()).toEqual(
-      [...new Set(M3_SURFACE.flatMap((row) => row.rpcs).map((rpc) => rpc.signature))].sort(),
+      [...new Set([...M3_SURFACE.flatMap((row) => row.rpcs), ...M3_READ_RPCS].map((rpc) => rpc.signature))].sort(),
     );
   });
 

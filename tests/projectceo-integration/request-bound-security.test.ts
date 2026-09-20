@@ -13,6 +13,7 @@ import { projectCeoHttpStatus } from "../../lib/project-intelligence/delivery/pr
 function authClient(input: {
   readonly subject?: string;
   readonly userId?: string;
+  readonly sessionId?: string | null;
   readonly nullClaimsData?: boolean;
   readonly nullUserData?: boolean;
 }): RequestBoundProjectCeoClient {
@@ -22,7 +23,10 @@ function authClient(input: {
         return {
           data: input.nullClaimsData
             ? null
-            : { claims: input.subject ? { sub: input.subject } : undefined },
+            : { claims: input.subject ? {
+              sub: input.subject,
+              session_id: input.sessionId === null ? undefined : input.sessionId ?? "33333333-3333-4333-8333-333333333333",
+            } : undefined },
           error: null,
         };
       },
@@ -50,11 +54,14 @@ describe("ProjectCEO request-bound security", () => {
     }));
     expect(context.identity).toMatchObject({ userId });
     expect(context.identity.displayName).not.toContain("@");
+    expect(context.identity.sessionDigest).toMatch(/^sha256:[0-9a-f]{64}$/);
   });
 
   it("fails closed for missing claims and claims/user mismatch", async () => {
     await expect(verifyProjectCeoRequestClient(authClient({ userId })))
       .rejects.toMatchObject({ code: "unauthenticated" });
+    await expect(verifyProjectCeoRequestClient(authClient({ subject: userId, userId, sessionId: null })))
+      .rejects.toMatchObject({ code: "identity_unverified" });
     await expect(verifyProjectCeoRequestClient(authClient({
       subject: userId,
       userId: "22222222-2222-4222-8222-222222222222",

@@ -12,7 +12,7 @@ import type { KoraProjectBrainGolden } from "@/lib/project-intelligence/modules/
 const PROJECT_ID = "41111111-1111-4111-8111-111111111111";
 const ROOT_PACKAGE_ID = PROJECT_ID;
 const PACKAGE_IDS = {
-  architecture: "49999999-9999-4999-8999-999999999999",
+  architecture: PROJECT_ID,
   engineering: "49999999-9999-4999-8999-999999999998",
   controls: "49999999-9999-4999-8999-999999999997",
   site: "49999999-9999-4999-8999-999999999996",
@@ -24,6 +24,8 @@ const EXTERNAL_PACKAGE_ID = "a3333333-3333-4333-8333-333333333333";
 const EXTERNAL_AREA_NODE_ID = "tashkent-area";
 const EXTERNAL_DESIGN_INTENT_NODE_ID = "tashkent-design-intent";
 const EXTERNAL_DESIGN_INTENT_REVISION_ID = "tashkent-design-intent-r1";
+const KORA_AREA_NODE_ID = "kora-site-progress-area";
+const KORA_AREA_REVISION_ID = "kora-site-progress-area-r1";
 
 type ExternalManifest = {
   readonly scope: { readonly organizationId: string; readonly projectId: string; readonly packageId: string };
@@ -54,10 +56,10 @@ type ExternalManifest = {
 
 const GOLDEN_PACKAGE_MAP = new Map<string, string>([
   ["33333333-3333-4333-8333-333333333333", ROOT_PACKAGE_ID],
-  ["44444444-4444-4444-8444-444444444441", PACKAGE_IDS.architecture],
-  ["44444444-4444-4444-8444-444444444442", PACKAGE_IDS.engineering],
-  ["44444444-4444-4444-8444-444444444443", PACKAGE_IDS.controls],
-  ["44444444-4444-4444-8444-444444444444", PACKAGE_IDS.site],
+  ["44444444-4444-4444-8444-444444444441", ROOT_PACKAGE_ID],
+  ["44444444-4444-4444-8444-444444444442", ROOT_PACKAGE_ID],
+  ["44444444-4444-4444-8444-444444444443", ROOT_PACKAGE_ID],
+  ["44444444-4444-4444-8444-444444444444", ROOT_PACKAGE_ID],
 ]);
 
 type Ap1Role = "owner" | "architect" | "builder" | "client" | "guest";
@@ -158,11 +160,12 @@ function externalManifest(): ExternalManifest {
 async function provisionExternalPackage(
   ownerClient: SupabaseClient,
   clientClient: SupabaseClient,
+  architectClient: SupabaseClient,
   dbContainer: string,
   users: readonly ExternalUser[],
+  projectOwner: ProvisionedUser,
 ): Promise<void> {
   const manifest = externalManifest();
-  const owner = users.find((user) => user.role === "owner")!;
   const architect = users.find((user) => user.role === "architect")!;
   const builder = users.find((user) => user.role === "builder")!;
   const client = users.find((user) => user.role === "client")!;
@@ -173,79 +176,14 @@ async function provisionExternalPackage(
   }
 
   psql(dbContainer, `
-begin;
 insert into public.designers (id, name, studio_name)
-values ('${owner.id}'::uuid, 'AP6 Owner', 'ArchiDom AP6')
+values ('${projectOwner.id}'::uuid, 'AP6 Tashkent Owner', 'ArchiDom AP6')
 on conflict (id) do nothing;
 insert into public.projects (id, designer_id, client_name, status, intake_token, passport)
-values ('${EXTERNAL_PROJECT_ID}'::uuid, '${owner.id}'::uuid,
+values ('${EXTERNAL_PROJECT_ID}'::uuid, '${projectOwner.id}'::uuid,
   'Tashkent Courtyard House', 'active_project', 'ap6-tashkent-external',
   '{"project_name":"Tashkent Courtyard House","object":{"area_m2":340,"city":"Ташкент","type":"house"}}'::jsonb)
 on conflict (id) do update set client_name = excluded.client_name, passport = excluded.passport;
-
-insert into project_intelligence.organizations (id, cell_code, edition, legacy_designer_id, status)
-values ('${EXTERNAL_ORGANIZATION_ID}'::uuid, 'ru', 'renovation', null, 'active')
-on conflict (id) do nothing;
-insert into project_intelligence.organization_members (organization_id, user_id, role, status)
-values
-  ('${EXTERNAL_ORGANIZATION_ID}'::uuid, '${owner.id}'::uuid, 'owner', 'active'),
-  ('${EXTERNAL_ORGANIZATION_ID}'::uuid, '${architect.id}'::uuid, 'member', 'active'),
-  ('${EXTERNAL_ORGANIZATION_ID}'::uuid, '${builder.id}'::uuid, 'member', 'active'),
-  ('${EXTERNAL_ORGANIZATION_ID}'::uuid, '${client.id}'::uuid, 'member', 'active')
-on conflict (organization_id, user_id) do nothing;
-insert into project_intelligence.member_capabilities (organization_id, user_id, capability)
-select '${EXTERNAL_ORGANIZATION_ID}'::uuid, '${owner.id}'::uuid, capability
-from unnest(array['review_claim','publish_version','revise_decision','calculate_change_impact','review_change_impact','build_logical_handoff']::text[]) capability
-on conflict do nothing;
-insert into project_intelligence.project_workflows (organization_id, project_id, state_revision)
-values ('${EXTERNAL_ORGANIZATION_ID}'::uuid, '${EXTERNAL_PROJECT_ID}'::uuid, 0)
-on conflict (organization_id, project_id) do nothing;
-insert into projectceo_foundation.project_packages
-  (organization_id, project_id, id, stable_key, kind, parent_package_id, name)
-values ('${EXTERNAL_ORGANIZATION_ID}'::uuid, '${EXTERNAL_PROJECT_ID}'::uuid,
-  '${EXTERNAL_PACKAGE_ID}'::uuid, 'tashkent-external-package', 'work_package',
-  '${EXTERNAL_PROJECT_ID}'::uuid, 'Ташкентский внешний пакет AP6')
-on conflict (organization_id, project_id, id) do nothing;
-insert into projectceo_foundation.project_memberships
-  (organization_id, project_id, user_id, role, status)
-values
-  ('${EXTERNAL_ORGANIZATION_ID}'::uuid, '${EXTERNAL_PROJECT_ID}'::uuid, '${owner.id}'::uuid, 'owner_lead', 'active'),
-  ('${EXTERNAL_ORGANIZATION_ID}'::uuid, '${EXTERNAL_PROJECT_ID}'::uuid, '${architect.id}'::uuid, 'architect', 'active'),
-  ('${EXTERNAL_ORGANIZATION_ID}'::uuid, '${EXTERNAL_PROJECT_ID}'::uuid, '${builder.id}'::uuid, 'builder', 'active'),
-  ('${EXTERNAL_ORGANIZATION_ID}'::uuid, '${EXTERNAL_PROJECT_ID}'::uuid, '${client.id}'::uuid, 'client_approver', 'active')
-on conflict (organization_id, project_id, user_id) do nothing;
-insert into projectceo_foundation.project_member_capabilities
-  (organization_id, project_id, user_id, capability)
-select membership.organization_id, membership.project_id, membership.user_id, preset.capability
-from projectceo_foundation.project_memberships membership
-cross join lateral projectceo_foundation._role_capabilities(membership.role) preset
-where membership.organization_id = '${EXTERNAL_ORGANIZATION_ID}'::uuid
-  and membership.project_id = '${EXTERNAL_PROJECT_ID}'::uuid
-on conflict do nothing;
-insert into projectceo_foundation.package_memberships
-  (organization_id, project_id, package_id, user_id, role)
-values
-  ('${EXTERNAL_ORGANIZATION_ID}'::uuid, '${EXTERNAL_PROJECT_ID}'::uuid, '${EXTERNAL_PACKAGE_ID}'::uuid, '${architect.id}'::uuid, 'architect'),
-  ('${EXTERNAL_ORGANIZATION_ID}'::uuid, '${EXTERNAL_PROJECT_ID}'::uuid, '${EXTERNAL_PACKAGE_ID}'::uuid, '${builder.id}'::uuid, 'builder'),
-  ('${EXTERNAL_ORGANIZATION_ID}'::uuid, '${EXTERNAL_PROJECT_ID}'::uuid, '${EXTERNAL_PACKAGE_ID}'::uuid, '${client.id}'::uuid, 'client_approver')
-on conflict (organization_id, project_id, package_id, user_id) do nothing;
-insert into project_intelligence.graph_nodes
-  (organization_id, project_id, node_id, kind, stable_key, current_revision_id)
-values ('${EXTERNAL_ORGANIZATION_ID}'::uuid, '${EXTERNAL_PROJECT_ID}'::uuid,
-  '${EXTERNAL_AREA_NODE_ID}', 'area', 'area:tashkent-ground-floor', 'tashkent-area-r1')
-on conflict (organization_id, project_id, node_id) do nothing;
-insert into project_intelligence.graph_node_revisions
-  (organization_id, project_id, revision_id, node_id, revision_no, title, payload,
-   origin, claim_status, unknown_reason, replaces_revision_id, content_digest,
-   created_by_type, created_by_id)
-values ('${EXTERNAL_ORGANIZATION_ID}'::uuid, '${EXTERNAL_PROJECT_ID}'::uuid,
-  'tashkent-area-r1', '${EXTERNAL_AREA_NODE_ID}', 1, 'Ташкентский первый этаж',
-  '{"schemaVersion":"project-ceo/area/0.1","name":"Кухня и гостиная первого этажа"}'::jsonb,
-  'human', 'human_origin', null, null,
-  project_intelligence._sha256_jsonb('{"schemaVersion":"project-ceo/area/0.1","name":"Кухня и гостиная первого этажа"}'::jsonb),
-  'human', '${owner.id}')
-on conflict (organization_id, project_id, node_id, revision_id) do nothing;
-commit;
 `);
 
   const scope = async (): Promise<number> => {
@@ -256,6 +194,19 @@ commit;
     if (!current) throw new Error("AP6_EXTERNAL_SCOPE_MISSING");
     return current.stateRevision;
   };
+  await rpc(ownerClient, "projectceo_api", "enroll_organization_project_scope", {
+    project_id: EXTERNAL_PROJECT_ID,
+    package_id: EXTERNAL_PACKAGE_ID,
+    package_stable_key: "tashkent-external-package",
+    package_name: "Ташкентский внешний пакет AP6",
+    members: [
+      { userId: architect.id, role: "architect" },
+      { userId: builder.id, role: "builder" },
+      { userId: client.id, role: "client_approver" },
+    ],
+    idempotency_key: "ap6:tashkent:authenticated-scope-enrollment",
+  });
+
   for (const source of manifest.sources) {
     const suffix = source.fragment.replace("tashkent-fragment-", "");
     const sourceId = `tashkent-source-${suffix}`;
@@ -263,6 +214,17 @@ commit;
     const nodeId = `tashkent-node-${suffix}`;
     const payload = { sourceId, sourceRevisionId, checksum: source.checksum, sheet: source.sheet };
     const current = await scope();
+    const nodes = [{ nodeId, kind: "source", stableKey: `source:${sourceId}`, currentRevisionId: sourceRevisionId }];
+    const revisions: Array<Record<string, unknown>> = [{ revisionId: sourceRevisionId, nodeId, revisionNo: 1, title: source.sheet, payload,
+      origin: "import", claimStatus: "extracted", unknownReason: null, replacesRevisionId: null,
+      contentDigestHex: createHash("sha256").update(JSON.stringify(payload)).digest("hex") }];
+    if (source === manifest.sources[0]) {
+      nodes.push({ nodeId: EXTERNAL_AREA_NODE_ID, kind: "area", stableKey: "area:tashkent-ground-floor", currentRevisionId: "tashkent-area-r1" });
+      const areaPayload = { schemaVersion: "project-ceo/area/0.1", name: "Кухня и гостиная первого этажа" };
+      revisions.push({ revisionId: "tashkent-area-r1", nodeId: EXTERNAL_AREA_NODE_ID, revisionNo: 1, title: "Ташкентский первый этаж",
+        payload: areaPayload, origin: "human", claimStatus: "human_origin", unknownReason: null, replacesRevisionId: null,
+        contentDigestHex: createHash("sha256").update(JSON.stringify(areaPayload)).digest("hex") });
+    }
     await rpc(ownerClient, "projectceo_api", "ingest_source_graph", {
       project_id: EXTERNAL_PROJECT_ID,
       source: {
@@ -272,10 +234,7 @@ commit;
           extension: "pdf", sourceRole: "document", declaredRevision: null, documentStatus: "current" },
       },
       fragments: [{ fragmentId: source.fragment, sourceId, locatorKind: "pdf", locator: { kind: "pdf", page: source.page ?? 1 } }],
-      nodes: [{ nodeId, kind: "source", stableKey: `source:${sourceId}`, currentRevisionId: sourceRevisionId }],
-      revisions: [{ revisionId: sourceRevisionId, nodeId, revisionNo: 1, title: source.sheet, payload,
-        origin: "import", claimStatus: "extracted", unknownReason: null, replacesRevisionId: null,
-        contentDigestHex: createHash("sha256").update(JSON.stringify(payload)).digest("hex") }],
+      nodes, revisions,
       evidence_links: [{ evidenceLinkId: `tashkent-evidence-${suffix}`, nodeRevisionId: sourceRevisionId, sourceFragmentId: source.fragment }],
       edges: [], expected_state_revision: current, idempotency_key: `ap6:tashkent:ingest:${suffix}`,
     });
@@ -283,10 +242,10 @@ commit;
 
   const afterIngestion = await scope();
   const published = await rpc<{ readonly result: { readonly version: { readonly id: string } } }>(
-    ownerClient, "projectceo_api", "publish_version", {
+    architectClient, "projectceo_api", "publish_source_snapshot", {
       project_id: EXTERNAL_PROJECT_ID, expected_latest_version_id: null,
       expected_state_revision: afterIngestion, label: "Tashkent external source set",
-      selected_revisions: [], idempotency_key: "ap6:tashkent:publish-source-set",
+      idempotency_key: "ap6:tashkent:publish-source-set",
     },
   );
   const versionId = published.result.version.id;
@@ -299,7 +258,7 @@ commit;
     fragmentId: `tashkent-fragment-${suffix}`,
   });
   const decision = await rpc<{ readonly result: { readonly revisionId: string } }>(
-    ownerClient, "projectceo_product_api", "append_decision_revision", {
+    architectClient, "projectceo_product_api", "append_decision_revision", {
       project_id: EXTERNAL_PROJECT_ID, package_id: EXTERNAL_PACKAGE_ID,
       node_id: EXTERNAL_DESIGN_INTENT_NODE_ID, revision_id: EXTERNAL_DESIGN_INTENT_REVISION_ID,
       expected_revision_id: null, claim_status: "interpreted", title: "Кухня и гостиная первого этажа",
@@ -315,7 +274,7 @@ commit;
     ["tashkent-selection-kitchen", "Кухонный комплект", { item: "Kitchen fronts and carcass", unit: "set", amountRub: 125800 }],
   ] as const;
   for (const [nodeId, title, specification] of selectionSpecs) {
-    await rpc(ownerClient, "projectceo_product_api", "append_selection_revision", {
+    await rpc(architectClient, "projectceo_product_api", "append_selection_revision", {
       project_id: EXTERNAL_PROJECT_ID, package_id: EXTERNAL_PACKAGE_ID, node_id: nodeId,
       revision_id: `${nodeId}-r1`, expected_revision_id: null, claim_status: "interpreted", title,
       area_node_id: EXTERNAL_AREA_NODE_ID, decision_revision_id: decision.result.revisionId,
@@ -324,7 +283,7 @@ commit;
     });
   }
   for (const [nodeId, , specification] of selectionSpecs) {
-    await rpc(ownerClient, "projectceo_product_api", "append_price_observation", {
+    await rpc(architectClient, "projectceo_product_api", "append_price_observation", {
       project_id: EXTERNAL_PROJECT_ID, selection_revision_id: `${nodeId}-r1`,
       observation_id: `${nodeId}-price-uzs-rub`, amount_rub: specification.amountRub,
       evidence: evidenceFor("plan-ground"), supplier_ref: "operator-tashkent-worksheet",
@@ -379,6 +338,18 @@ async function provisionExternalOnly(): Promise<void> {
   const admin = createClient(apiUrl, serviceRoleKey, {
     auth: { autoRefreshToken: false, persistSession: false },
   });
+  const externalOwnerPassword = `Ap1!${randomBytes(24).toString("base64url")}9a`;
+  const externalOwnerEmail = `ap1-external-owner-${randomBytes(5).toString("hex")}@archidom.invalid`;
+  const { data: externalOwnerData, error: externalOwnerError } = await admin.auth.admin.createUser({
+    email: externalOwnerEmail,
+    password: externalOwnerPassword,
+    email_confirm: true,
+    user_metadata: { display_name: "AP6 Tashkent Owner" },
+  });
+  if (externalOwnerError || !externalOwnerData.user) throw new Error("AP1_EXTERNAL_OWNER_CREATE_FAILED");
+  const externalOwner: ProvisionedUser = {
+    role: "owner", email: externalOwnerEmail, id: externalOwnerData.user.id, password: externalOwnerPassword,
+  };
 
   const authenticate = async (role: Ap1Role): Promise<SupabaseClient> => {
     const user = session.sessions[role];
@@ -401,12 +372,36 @@ async function provisionExternalOnly(): Promise<void> {
     return client;
   };
 
+  const externalOwnerClient = createClient(apiUrl, anonKey, {
+    auth: { autoRefreshToken: false, persistSession: false },
+  });
+  const { error: externalOwnerSignInError } = await externalOwnerClient.auth.signInWithPassword({
+    email: externalOwner.email,
+    password: externalOwner.password,
+  });
+  if (externalOwnerSignInError) throw new Error("AP1_EXTERNAL_OWNER_SESSION_FAILED");
   await provisionExternalPackage(
-    await authenticate("owner"),
+    externalOwnerClient,
     await authenticate("client"),
+    await authenticate("architect"),
     dbContainer,
     users,
+    externalOwner,
   );
+  const { data: externalOwnerLink, error: externalOwnerLinkError } = await admin.auth.admin.generateLink({
+    type: "magiclink",
+    email: externalOwner.email,
+    options: { redirectTo: `${nextOrigin}/auth/callback` },
+  });
+  if (externalOwnerLinkError || !externalOwnerLink.properties.hashed_token) {
+    throw new Error("AP1_EXTERNAL_OWNER_MAGICLINK_FAILED");
+  }
+  const externalOwnerSessionPath = "/private/tmp/projectceo-ap1-external-owner.json";
+  writeFileSync(externalOwnerSessionPath, JSON.stringify({
+    userId: externalOwner.id,
+    tokenHash: externalOwnerLink.properties.hashed_token,
+  }));
+  chmodSync(externalOwnerSessionPath, 0o600);
   process.stdout.write("AP1_EXTERNAL_PACKAGE_PROVISIONED environment=disposable production_changed=false\n");
 }
 
@@ -470,6 +465,11 @@ begin;
 
 insert into public.designers (id, name, studio_name)
 values ('${owner.id}'::uuid, 'Kora Owner', 'ArchiDom Kora')
+on conflict (id) do nothing;
+
+insert into public.projects (id, designer_id, client_name, status, intake_token, passport)
+values ('${PROJECT_ID}'::uuid, '${owner.id}'::uuid, 'Kora Food Hall', 'active_project', 'ap1-kora-identity',
+  '{"project_name":"Kora Food Hall","object":{"area_m2":1800,"city":"Убуд, Бали","type":"commercial"}}'::jsonb)
 on conflict (id) do nothing;
 
 update public.projects
@@ -537,12 +537,41 @@ commit;
     password: owner.password,
   });
   if (signInError) throw new Error("AP1_OWNER_PASSWORD_SESSION_FAILED");
+  await rpc(ownerClient, "projectceo_api", "enroll_organization_project", {
+    project_id: PROJECT_ID,
+    idempotency_key: "ap1:kora:enroll-authenticated-project",
+  });
 
   const portfolio = await rpc<{
     readonly data: readonly { readonly projectId: string; readonly stateRevision: number }[];
   }>(ownerClient, "projectceo_api", "list_projects");
-  const scope = portfolio.data.find((entry) => entry.projectId === PROJECT_ID);
+  let scope = portfolio.data.find((entry) => entry.projectId === PROJECT_ID);
   if (!scope) throw new Error("AP1_OWNER_PROJECT_SCOPE_MISSING");
+  const packageInviteRawToken = randomBytes(32);
+  const packageInviteDigest = `\\x${createHash("sha256").update(packageInviteRawToken).digest("hex")}`;
+  await rpc(ownerClient, "projectceo_api", "create_invitation", {
+    project_id: PROJECT_ID,
+    package_id: ROOT_PACKAGE_ID,
+    recipient_email: owner.email,
+    role: "architect",
+    expires_at: new Date(Date.now() + 86_400_000).toISOString(),
+    token_digest: packageInviteDigest,
+    expected_state_revision: scope.stateRevision,
+    idempotency_key: "ap1:kora:package-owner-scope-invitation",
+  });
+  await rpc(ownerClient, "projectceo_api", "accept_invitation", {
+    token_digest: packageInviteDigest,
+    idempotency_key: "ap1:kora:package-owner-scope-accept",
+  }).catch((error: unknown) => {
+    // Password sessions cannot satisfy the invitation AMR contract. Acceptance
+    // is retried by the owner magic-link session in run-five-sessions.zsh.
+    if (!(error instanceof Error) || !error.message.includes("identity_unverified")) throw error;
+  });
+  const refreshedPackageScope = await rpc<{
+    readonly data: readonly { readonly projectId: string; readonly stateRevision: number }[];
+  }>(ownerClient, "projectceo_api", "list_projects");
+  scope = refreshedPackageScope.data.find((entry) => entry.projectId === PROJECT_ID);
+  if (!scope) throw new Error("AP1_OWNER_PACKAGE_SCOPE_REFRESH_MISSING");
 
   const inventory = koraInventory();
   const importPlan = planSourceImport(inventory);
@@ -666,6 +695,11 @@ commit;
       kind: "source",
       stableKey: `source:${photoSourceId}`,
       currentRevisionId: photoRecord.sourceRevisionId,
+    }, {
+      nodeId: KORA_AREA_NODE_ID,
+      kind: "area",
+      stableKey: "area:kora-site-progress",
+      currentRevisionId: KORA_AREA_REVISION_ID,
     }],
     revisions: [{
       revisionId: photoRecord.sourceRevisionId,
@@ -679,6 +713,19 @@ commit;
       replacesRevisionId: null,
       contentDigestHex: createHash("sha256")
         .update(JSON.stringify(photoPayload))
+        .digest("hex"),
+    }, {
+      revisionId: KORA_AREA_REVISION_ID,
+      nodeId: KORA_AREA_NODE_ID,
+      revisionNo: 1,
+      title: "Kora construction site progress area",
+      payload: { schemaVersion: "project-ceo/area/0.1", name: "Kora Food Hall construction area" },
+      origin: "import",
+      claimStatus: "extracted",
+      unknownReason: null,
+      replacesRevisionId: null,
+      contentDigestHex: createHash("sha256")
+        .update(JSON.stringify({ schemaVersion: "project-ceo/area/0.1", name: "Kora Food Hall construction area" }))
         .digest("hex"),
     }],
     evidence_links: [],
@@ -706,10 +753,10 @@ commit;
   if (
     read.data.projectMetadata.name !== "Kora Food Hall"
     || read.data.projectMetadata.areaM2 !== 1800
-    || read.data.sourceStats.physicalRecords !== 214
-    || read.data.sourceStats.materializedRecords !== 85
-    || read.data.sourceStats.placeholders !== 129
-    || read.data.sourceStats.uniqueBlobs !== 32
+    || read.data.sourceStats.physicalRecords !== 210
+    || read.data.sourceStats.materializedRecords !== 82
+    || read.data.sourceStats.placeholders !== 128
+    || read.data.sourceStats.uniqueBlobs !== 29
     || read.data.sourceStats.duplicateGroups !== 18
     || read.data.sourceStats.quarantinedGroups !== 8
   ) {
@@ -721,43 +768,6 @@ commit;
   }>(ownerClient, "projectceo_api", "list_projects");
   const refreshedScope = refreshedPortfolio.data.find((entry) => entry.projectId === PROJECT_ID);
   if (!refreshedScope) throw new Error("AP1_OWNER_REFRESHED_SCOPE_MISSING");
-  const projectSummary = await rpc<{
-    readonly data: { readonly latestVersionId: string };
-  }>(ownerClient, "projectceo_api", "get_project_summary", { project_id: PROJECT_ID });
-  if (!projectSummary.data.latestVersionId) throw new Error("AP1_GUEST_GRAPH_VERSION_MISSING");
-  const guestRawToken = randomBytes(32);
-  const guestToken = guestRawToken.toString("base64url");
-  const guestDigest = `\\x${createHash("sha256").update(guestRawToken).digest("hex")}`;
-  await rpc(ownerClient, "projectceo_api", "create_guest_access_grant", {
-    project_id: PROJECT_ID,
-    package_id: ROOT_PACKAGE_ID,
-    version_id: projectSummary.data.latestVersionId,
-    allow_acknowledgement: false,
-    expires_at: new Date(Date.now() + 86_400_000).toISOString(),
-    token_digest: guestDigest,
-    expected_state_revision: refreshedScope.stateRevision,
-    idempotency_key: "ap1:kora:create-scoped-guest",
-  });
-  const anonClient = createClient(apiUrl, anonKey, {
-    auth: { autoRefreshToken: false, persistSession: false },
-  });
-  const guestRelease = await rpc<{
-    readonly data: {
-      readonly package: { readonly id: string };
-      readonly projectId: string;
-      readonly release: { readonly versionId: string };
-    };
-  }>(anonClient, "projectceo_api", "read_guest_release", {
-    token_digest: guestDigest,
-  });
-  if (
-    guestRelease.data.projectId !== PROJECT_ID
-    || guestRelease.data.package.id !== ROOT_PACKAGE_ID
-    || guestRelease.data.release.versionId !== projectSummary.data.latestVersionId
-  ) {
-    throw new Error("AP1_GUEST_EXACT_SCOPE_MISMATCH");
-  }
-
   const guest = users.find((user) => user.role === "guest")!;
   const guestClient = createClient(apiUrl, anonKey, {
     auth: { autoRefreshToken: false, persistSession: false },
@@ -804,17 +814,21 @@ commit;
     projectId: PROJECT_ID,
     rootPackageId: ROOT_PACKAGE_ID,
     architecturePackageId: PACKAGE_IDS.architecture,
-    releaseVersionId: "package-db4-root-v1",
+    architectureReleaseVersionId: null,
+    releaseVersionId: null,
+    packageInviteToken: packageInviteRawToken.toString("base64url"),
     photoSourceId,
     photoSourceRevisionId: photoRecord.sourceRevisionId,
-    guestToken,
-    guestReleaseVersionId: projectSummary.data.latestVersionId,
-    guestTokenScopeVerified: true,
+    photoChecksum: sitePhotoChecksum,
+    guestToken: null,
+    guestReleaseVersionId: null,
+    areaNodeId: KORA_AREA_NODE_ID,
+    guestTokenScopeVerified: false,
     sessions: browserSessions,
   }));
   chmodSync(sessionPath, 0o600);
   process.stdout.write(
-    "AP1_KORA_PROVISIONED users=5 registry=209 foundation_fixtures=4 site_photos=1 physical=214 materialized=85 placeholders=129 area_m2=1800 production_changed=false\n",
+    "AP1_KORA_PROVISIONED users=5 registry=209 foundation_fixtures=4 site_photos=1 physical=210 materialized=82 placeholders=128 area_m2=1800 production_changed=false\n",
   );
 }
 

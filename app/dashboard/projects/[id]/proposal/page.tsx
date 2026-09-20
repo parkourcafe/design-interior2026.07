@@ -9,6 +9,7 @@ import type { AnswersMap, Passport, PricingConfig, ProposalDefaults, ProposalSec
 import { calcPrice, type PriceResult } from "@/lib/pricing/calc";
 import { buildProposalSections } from "@/lib/proposal/build";
 import { getLatestProposal, nextProposalVersion } from "@/lib/proposal/latest";
+import { canAdvanceProposalProjectStatus } from "@/lib/proposal/status";
 import { derivePackageRecommendation } from "@/lib/proposal/package";
 import { RESPONSE_TYPES } from "@/lib/proposal/respond";
 import type { RiskCardRow } from "@/lib/review";
@@ -39,6 +40,31 @@ export default async function ProposalPage({ params }: { params: Promise<{ id: s
   const passport = p.passport;
 
   const studio = await getStudio();
+  async function recordCreationFailure() {
+    if (!studio) return;
+    try {
+      await supabase.from("events").insert({ designer_id: studio.studioId, project_id: p.id, type: "proposal_create_failed" });
+    } catch { /* Best-effort; keep the original rendering behavior. */ }
+  }
+  async function ensureProposalCreatedState(desiredProjectStatus: "proposal_draft" | "proposal_sent" | "proposal_accepted") {
+    if (canAdvanceProposalProjectStatus(p.status, desiredProjectStatus)) {
+      const updated = await supabase.from("projects").update({ status: desiredProjectStatus })
+        .eq("id", p.id).eq("status", p.status);
+      if (updated.error) throw new Error("proposal_project_reconciliation_failed");
+    }
+    const { data: createdEvents, error: readError } = await supabase.from("events")
+      .select("id").eq("project_id", p.id).eq("type", "proposal_created").limit(1);
+    if (readError) throw new Error("proposal_event_reconciliation_read_failed");
+    if (!createdEvents?.length) {
+      const event = await supabase.from("events").insert({
+        designer_id: studio!.studioId,
+        project_id: p.id,
+        type: "proposal_created",
+      });
+      if (event.error) throw new Error("proposal_event_reconciliation_failed");
+    }
+  }
+
   const pricing = (studio?.designer.pricing ?? null) as PricingConfig | null;
   const defaults = (studio?.designer.proposal_defaults ?? {
     exclusions: [],
@@ -86,33 +112,44 @@ export default async function ProposalPage({ params }: { params: Promise<{ id: s
     sections = existing.sections as ProposalSection[];
     publicToken = existing.public_token as string;
     sent = existing.status === "sent" || existing.status === "accepted";
+    try {
+      await ensureProposalCreatedState(existing.status === "accepted"
+        ? "proposal_accepted"
+        : existing.status === "sent" ? "proposal_sent" : "proposal_draft");
+    } catch (error) {
+      await recordCreationFailure();
+      throw error;
+    }
   } else {
-    sections = buildProposalSections({
-      passport,
-      acceptedCards,
-      defaults,
-      price,
-      packageChoice,
-      packageRecommendation,
-    });
-    if (existing) {
-      publicToken = existing.public_token as string;
-      await supabase.from("proposals").update({ sections }).eq("id", existing.id);
-    } else {
-      publicToken = makeToken();
-      await supabase.from("proposals").insert({
-        project_id: p.id,
-        version: await nextProposalVersion(supabase, p.id),
-        sections,
-        status: "draft",
-        public_token: publicToken,
+    try {
+      sections = buildProposalSections({
+        passport,
+        acceptedCards,
+        defaults,
+        price,
+        packageChoice,
+        packageRecommendation,
       });
-      await supabase.from("projects").update({ status: "proposal_draft" }).eq("id", p.id);
-      await supabase.from("events").insert({
-        designer_id: studio!.studioId,
-        project_id: p.id,
-        type: "proposal_created",
-      });
+      if (existing) {
+        publicToken = existing.public_token as string;
+        const updated = await supabase.from("proposals").update({ sections }).eq("id", existing.id);
+        if (updated.error) throw new Error("proposal_update_failed");
+        await ensureProposalCreatedState("proposal_draft");
+      } else {
+        publicToken = makeToken();
+        const created = await supabase.from("proposals").insert({
+          project_id: p.id,
+          version: await nextProposalVersion(supabase, p.id),
+          sections,
+          status: "draft",
+          public_token: publicToken,
+        });
+        if (created.error) throw new Error("proposal_create_failed");
+        await ensureProposalCreatedState("proposal_draft");
+      }
+    } catch (error) {
+      await recordCreationFailure();
+      throw error;
     }
   }
 

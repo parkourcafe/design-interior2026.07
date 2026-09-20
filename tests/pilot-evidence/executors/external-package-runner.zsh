@@ -25,7 +25,7 @@ set -euo pipefail
 # run receipt: treat the first successful disposable execution as part of the
 # review, not as a regression claim.
 
-repo_root=${0:a:h:h:h:h}
+repo_root=${EXTERNAL_RUN_REPO_ROOT:-${0:a:h:h:h:h}}
 cd "${repo_root}"
 
 challenge_nonce=${1:-}
@@ -51,6 +51,22 @@ if [[ ! -r ${manifest_path} ]]; then
   print -u2 -r -- 'EXTERNAL_RUNNER_MANIFEST_UNREADABLE'
   exit 66
 fi
+expected_executor_digest=${EXTERNAL_RUN_EXECUTOR_SHA256:-}
+expected_manifest_digest=${EXTERNAL_RUN_MANIFEST_SHA256:-}
+canonical_executor_path=${EXTERNAL_RUN_CANONICAL_EXECUTOR_PATH:-}
+if [[ -z ${expected_executor_digest} || -z ${expected_manifest_digest} || -z ${canonical_executor_path} ]]; then
+  print -u2 -r -- 'EXTERNAL_RUNNER_PINNED_IDENTITY_REQUIRED'
+  exit 66
+fi
+manifest_snapshot_base64=$(openssl base64 -A -in "${manifest_path}")
+manifest_bytes() {
+  print -rn -- "${manifest_snapshot_base64}" | openssl base64 -d -A
+}
+manifest_jq() {
+  manifest_bytes | jq "$@"
+}
+actual_manifest_digest=$(manifest_bytes | shasum -a 256 | awk '{print "sha256:"$1}')
+[[ ${actual_manifest_digest} == ${expected_manifest_digest} ]] || { print -u2 -r -- 'EXTERNAL_RUNNER_MANIFEST_DIGEST_MISMATCH'; exit 66; }
 
 next_port=${AP1_NEXT_PORT:-3100}
 origin=${EXTERNAL_RUN_ORIGIN:-http://127.0.0.1:${next_port}}
@@ -76,9 +92,13 @@ db_label=$(docker inspect --format '{{index .Config.Labels "com.supabase.cli.pro
 }
 
 executor_absolute=${0:a}
-executor_relative=${executor_absolute#${repo_root}/}
 executor_digest=$(shasum -a 256 "${executor_absolute}" | awk '{print "sha256:"$1}')
+[[ ${executor_digest} == ${expected_executor_digest} ]] || { print -u2 -r -- 'EXTERNAL_RUNNER_EXECUTOR_DIGEST_MISMATCH'; exit 67; }
+executor_relative=${canonical_executor_path}
+[[ ${executor_relative} == tests/pilot-evidence/executors/* && ${executor_relative} != *../* ]] \
+  || { print -u2 -r -- 'EXTERNAL_RUNNER_CANONICAL_PATH_INVALID'; exit 67; }
 
+external_owner_session_file=/private/tmp/projectceo-ap1-external-owner.json
 work_dir=$(mktemp -d)
 chmod 700 "${work_dir}"
 umask 077
@@ -92,103 +112,67 @@ cleanup() {
   local exit_status=$?
   if (( exit_status != 0 )); then print -u2 -r -- "EXTERNAL_RUNNER_EXIT stage=${stage} status=${exit_status}"; fi
   rm -rf -- "${work_dir}"
+  rm -f -- "${external_owner_session_file}"
   if (( exit_status != 0 )); then rm -f -- "${receipt_path}"; fi
   return ${exit_status}
 }
 trap cleanup EXIT INT TERM
 
-organization_id=$(jq -er '.scope.organizationId' "${manifest_path}")
-project_id=$(jq -er '.scope.projectId' "${manifest_path}")
-package_id=$(jq -er '.scope.packageId' "${manifest_path}")
-room_id=$(jq -er '.scope.roomId' "${manifest_path}")
+requested_organization_id=$(manifest_jq -er '.scope.organizationId')
+organization_id=${requested_organization_id}
+project_id=$(manifest_jq -er '.scope.projectId')
+package_id=$(manifest_jq -er '.scope.packageId')
+room_id=$(manifest_jq -er '.scope.roomId | select(type == "string") | select(test("\\A[A-Za-z0-9][A-Za-z0-9._:@-]{0,159}\\z"))') \
+  || { print -u2 -r -- 'EXTERNAL_RUNNER_MANIFEST_ROOM_INVALID'; exit 66; }
+uuid_pattern='^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-5][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$'
+for scoped_id in "${requested_organization_id}" "${project_id}" "${package_id}"; do
+  [[ ${scoped_id} =~ ${~uuid_pattern} ]] || { print -u2 -r -- 'EXTERNAL_RUNNER_MANIFEST_SCOPE_INVALID'; exit 66; }
+done
+entity_id_pattern='^[A-Za-z0-9][A-Za-z0-9._:@-]{0,159}$'
+[[ ${room_id} =~ ${~entity_id_pattern} ]] || { print -u2 -r -- 'EXTERNAL_RUNNER_MANIFEST_ROOM_INVALID'; exit 66; }
 
 query_db() {
   docker exec -i "${db_container}" \
     psql -X -qAt --set ON_ERROR_STOP=1 --username postgres --dbname postgres
 }
 
-provision_external_scope() {
-  local owner_user_id architect_user_id builder_user_id client_user_id
-  owner_user_id=$(jq -er '.[] | select(.role == "owner_lead") | .userId' "${sessions_file}")
-  architect_user_id=$(jq -er '.[] | select(.role == "architect") | .userId' "${sessions_file}")
-  builder_user_id=$(jq -er '.[] | select(.role == "builder") | .userId' "${sessions_file}")
-  client_user_id=$(jq -er '.[] | select(.role == "client_approver") | .userId' "${sessions_file}")
+session_digest() {
+  print -rn -- "$1" | shasum -a 256 | awk '{print "sha256:"$1}'
+}
 
-  query_db <<SQL
-begin;
-insert into public.designers (id, name, studio_name)
-values ('${owner_user_id}'::uuid, 'AP6 Owner', 'ArchiDom AP6')
-on conflict (id) do nothing;
-insert into public.projects (id, designer_id, client_name, status, intake_token, passport)
-values ('${project_id}'::uuid, '${owner_user_id}'::uuid,
-  'Tashkent Courtyard House', 'active_project', 'ap6-tashkent-external',
-  '{"project_name":"Tashkent Courtyard House","object":{"area_m2":340,"city":"Ташкент","type":"house"}}'::jsonb)
-on conflict (id) do update set client_name = excluded.client_name, passport = excluded.passport;
+session_digest_from_headers() {
+  awk 'tolower($1) == "x-archidom-auth-session-digest:" { gsub("\\r", "", $2); value=$2 } END { print value }' "$1"
+}
 
-insert into project_intelligence.organizations (id, cell_code, edition, legacy_designer_id, status)
-values ('${organization_id}'::uuid, 'ru', 'renovation', null, 'active')
-on conflict (id) do nothing;
-insert into project_intelligence.organization_members (organization_id, user_id, role, status)
-values
-  ('${organization_id}'::uuid, '${owner_user_id}'::uuid, 'owner', 'active'),
-  ('${organization_id}'::uuid, '${architect_user_id}'::uuid, 'member', 'active'),
-  ('${organization_id}'::uuid, '${builder_user_id}'::uuid, 'member', 'active'),
-  ('${organization_id}'::uuid, '${client_user_id}'::uuid, 'member', 'active')
-on conflict (organization_id, user_id) do nothing;
-insert into project_intelligence.member_capabilities (organization_id, user_id, capability)
-select '${organization_id}'::uuid, '${owner_user_id}'::uuid, capability
-from unnest(array['review_claim','publish_version','revise_decision','calculate_change_impact','review_change_impact','build_logical_handoff']::text[]) capability
-on conflict do nothing;
-insert into project_intelligence.project_workflows (organization_id, project_id, state_revision)
-values ('${organization_id}'::uuid, '${project_id}'::uuid, 0)
-on conflict (organization_id, project_id) do nothing;
-insert into projectceo_foundation.project_packages
-  (organization_id, project_id, id, stable_key, kind, parent_package_id, name)
-values ('${organization_id}'::uuid, '${project_id}'::uuid,
-  '${package_id}'::uuid, 'tashkent-external-package', 'work_package',
-  '${project_id}'::uuid, 'Ташкентский внешний пакет AP6')
-on conflict (organization_id, project_id, id) do nothing;
-insert into projectceo_foundation.project_memberships
-  (organization_id, project_id, user_id, role, status)
-values
-  ('${organization_id}'::uuid, '${project_id}'::uuid, '${owner_user_id}'::uuid, 'owner_lead', 'active'),
-  ('${organization_id}'::uuid, '${project_id}'::uuid, '${architect_user_id}'::uuid, 'architect', 'active'),
-  ('${organization_id}'::uuid, '${project_id}'::uuid, '${builder_user_id}'::uuid, 'builder', 'active'),
-  ('${organization_id}'::uuid, '${project_id}'::uuid, '${client_user_id}'::uuid, 'client_approver', 'active')
-on conflict (organization_id, project_id, user_id) do nothing;
-insert into projectceo_foundation.project_member_capabilities
-  (organization_id, project_id, user_id, capability)
-select membership.organization_id, membership.project_id, membership.user_id, preset.capability
-from projectceo_foundation.project_memberships membership
-cross join lateral projectceo_foundation._role_capabilities(membership.role) preset
-where membership.organization_id = '${organization_id}'::uuid
-  and membership.project_id = '${project_id}'::uuid
-on conflict do nothing;
-insert into projectceo_foundation.package_memberships
-  (organization_id, project_id, package_id, user_id, role)
-values
-  ('${organization_id}'::uuid, '${project_id}'::uuid, '${package_id}'::uuid, '${architect_user_id}'::uuid, 'architect'),
-  ('${organization_id}'::uuid, '${project_id}'::uuid, '${package_id}'::uuid, '${builder_user_id}'::uuid, 'builder'),
-  ('${organization_id}'::uuid, '${project_id}'::uuid, '${package_id}'::uuid, '${client_user_id}'::uuid, 'client_approver')
-on conflict (organization_id, project_id, package_id, user_id) do nothing;
-insert into project_intelligence.graph_nodes
-  (organization_id, project_id, node_id, kind, stable_key, current_revision_id)
-values ('${organization_id}'::uuid, '${project_id}'::uuid,
-  'tashkent-area', 'area', 'area:tashkent-ground-floor', 'tashkent-area-r1')
-on conflict (organization_id, project_id, node_id) do nothing;
-insert into project_intelligence.graph_node_revisions
-  (organization_id, project_id, revision_id, node_id, revision_no, title, payload,
-   origin, claim_status, unknown_reason, replaces_revision_id, content_digest,
-   created_by_type, created_by_id)
-values ('${organization_id}'::uuid, '${project_id}'::uuid,
-  'tashkent-area-r1', 'tashkent-area', 1, 'Ташкентский первый этаж',
-  '{"schemaVersion":"project-ceo/area/0.1","name":"Кухня и гостиная первого этажа"}'::jsonb,
-  'human', 'human_origin', null, null,
-  project_intelligence._sha256_jsonb('{"schemaVersion":"project-ceo/area/0.1","name":"Кухня и гостиная первого этажа"}'::jsonb),
-  'human', '${owner_user_id}')
-on conflict (organization_id, project_id, node_id, revision_id) do nothing;
-commit;
+verify_external_scope() {
+  # Scope must already exist from the authenticated enrollment preceding this
+  # executor. A missing binding is an error, never a reason to seed tables.
+  local scope_receipt kora_organization_id
+  scope_receipt=$(query_db <<SQL
+select json_build_object(
+  'organizationId', (select p.organization_id from projectceo_foundation.project_packages p
+    where p.project_id = '${project_id}'::uuid and p.id = '${package_id}'::uuid and p.status = 'active'),
+  'packageExists', exists (select 1 from projectceo_foundation.project_packages p
+    where p.project_id = '${project_id}'::uuid and p.id = '${package_id}'::uuid and p.status = 'active'),
+  'authenticatedEnrollment', exists (
+    select 1 from projectceo_foundation.command_records c
+    where c.project_id = '${project_id}'::uuid
+      and c.operation = 'enroll_organization_project_scope'
+      and c.actor_type = 'human'
+      and c.logical_result->>'packageId' = '${package_id}'
+  ),
+  'distinctFromKora', (select external.organization_id is distinct from kora.organization_id
+    from project_intelligence.project_workflows external
+    cross join project_intelligence.project_workflows kora
+    where external.project_id = '${project_id}'::uuid
+      and kora.project_id = '41111111-1111-4111-8111-111111111111'::uuid)
+);
 SQL
+  )
+  organization_id=$(print -r -- "${scope_receipt}" | jq -er '.organizationId') \
+    || { print -u2 -r -- 'EXTERNAL_RUNNER_AUTHENTICATED_SCOPE_REQUIRED'; exit 68; }
+  print -r -- "${scope_receipt}" | jq -e '.packageExists == true and .authenticatedEnrollment == true and .distinctFromKora == true' >/dev/null \
+    || { print -u2 -r -- 'EXTERNAL_RUNNER_AUTHENTICATED_SCOPE_REQUIRED'; exit 68; }
 }
 
 harvest_db_command() {
@@ -203,6 +187,7 @@ harvest_db_command() {
 select json_build_object(
   'commandId', command.command_id,
   'actorUserId', command.actor_user_id,
+  'requestId', audit.request_id,
   'resultingStateRevision', command.resulting_state_revision,
   'logicalResult', command.logical_result,
   'auditEventId', audit.audit_event_id
@@ -227,8 +212,9 @@ post_command() {
     print -u2 -r -- "EXTERNAL_RUNNER_COOKIE_JAR_MISSING role=${role}"
     exit 68
   fi
-  local http
+  local http headers="${output}.headers"
   if ! http=$(curl -sS -o "${output}" -w '%{http_code}' \
+    -D "${headers}" \
     -c "${jar}" -b "${jar}" \
     -H "Origin: ${origin}" -H 'Content-Type: application/json' \
     --data "${payload}" "${origin}/api/projectceo/commands"); then
@@ -241,6 +227,17 @@ post_command() {
     error_reason=$(jq -r '.error.details.reason // .error.reason // "unknown" | if type == "string" and test("^[A-Z0-9_]{1,80}$") then . else "unknown" end' "${output}" 2>/dev/null || print -r -- unknown)
     command_id=$(jq -r '.commandId // "unknown"' <<<"${payload}" 2>/dev/null || print -r -- unknown)
     print -u2 -r -- "EXTERNAL_RUNNER_COMMAND_HTTP operation=${operation} status=${http} code=${error_code} reason=${error_reason} command_id=${command_id}"
+    exit 68
+  }
+  local session_role=${role} expected_session_digest actual_session_digest
+  case ${role} in
+    owner) session_role=owner_lead ;;
+    client) session_role=client_approver ;;
+  esac
+  expected_session_digest=$(jq -er --arg role "${session_role}" '.[] | select(.role == $role) | .serverSessionDigest' "${sessions_file}")
+  actual_session_digest=$(session_digest_from_headers "${headers}")
+  [[ ${actual_session_digest} == ${expected_session_digest} ]] || {
+    print -u2 -r -- "EXTERNAL_RUNNER_SERVER_SESSION_MISMATCH role=${session_role} operation=${operation}"
     exit 68
   }
 }
@@ -289,11 +286,20 @@ send_command() {
     exit 68
   }
 
-  local result_digest replay_digest request_id stateRevision previous_state_revision audit_event_id session_role=${role}
+  local result_digest replay_digest request_id stateRevision previous_state_revision audit_event_id session_role=${role} expected_role expected_user_id actor_session_digest
   case ${role} in
     owner) session_role=owner_lead ;;
     client) session_role=client_approver ;;
   esac
+  case ${operation} in
+    publish_m2_layout_version|submit_m2_client_review|publish_m2_m3_handoff) expected_role=owner_lead ;;
+    review_m2_client_submission) expected_role=client_approver ;;
+    *) print -u2 -r -- "EXTERNAL_RUNNER_OPERATION_ROLE_UNKNOWN operation=${operation}"; exit 68 ;;
+  esac
+  [[ ${session_role} == ${expected_role} ]] || {
+    print -u2 -r -- "EXTERNAL_RUNNER_OPERATION_ROLE_MISMATCH operation=${operation} role=${session_role}"
+    exit 68
+  }
   stage="command_${operation}_request_id"
   result_digest=$(jq -cS '.result' "${first}" | shasum -a 256 | awk '{print "sha256:"$1}')
   replay_digest=$(jq -cS '.result' "${second}" | shasum -a 256 | awk '{print "sha256:"$1}')
@@ -326,14 +332,21 @@ send_command() {
     print -u2 -r -- "EXTERNAL_RUNNER_DB_COMMAND_INVALID operation=${operation} field=actorSessionId"
     exit 68
   fi
+  expected_user_id=$(jq -er --arg role "${session_role}" '.[] | select(.role == $role) | .userId' "${sessions_file}")
+  actor_session_digest=$(jq -er --arg role "${session_role}" '.[] | select(.role == $role) | .serverSessionDigest' "${sessions_file}")
+  [[ ${actor_user_id} == ${expected_user_id} ]] || {
+    print -u2 -r -- "EXTERNAL_RUNNER_DB_COMMAND_ROLE_MISMATCH operation=${operation}"
+    exit 68
+  }
   stage="command_${operation}_receipt_append"
 
   jq --arg operation "${operation}" --arg commandId "${command_id}" --arg requestId "${request_id}" \
-    --arg auditEventId "${audit_event_id}" --arg actorUserId "${actor_user_id}" --arg actorSessionId "${actor_session_id}" --arg role "${role}" \
+    --arg auditRequestId "$(jq -er '.requestId' <<<"${db_record}")" \
+    --arg auditEventId "${audit_event_id}" --arg actorUserId "${actor_user_id}" --arg actorSessionId "${actor_session_id}" --arg actorSessionDigest "${actor_session_digest}" --arg role "${expected_role}" \
     --argjson previous "${previous_state_revision}" --argjson resulting "${stateRevision}" \
     --arg resultDigest "${result_digest}" --arg replayDigest "${replay_digest}" \
-    '. += [{operation: $operation, commandId: $commandId, requestId: $requestId,
-            auditEventId: $auditEventId, actorUserId: $actorUserId, actorSessionId: $actorSessionId, role: $role,
+    '. += [{operation: $operation, role: $role, replayMode: "direct", commandId: $commandId, requestId: $requestId,
+            auditRequestId: $auditRequestId, auditEventId: $auditEventId, actorUserId: $actorUserId, actorSessionId: $actorSessionId, actorSessionDigest: $actorSessionDigest,
             previousStateRevision: $previous, resultingStateRevision: $resulting,
             resultDigest: $resultDigest, replayDigest: $replayDigest}]' \
     "${commands_file}" > "${commands_file}.next"
@@ -346,21 +359,26 @@ send_command() {
 # public API or issuing a duplicate approved commit.
 record_approved_commit_side_effect() {
   local operation=append_m2_approved_commit_revision
-  local db_record result_digest stateRevision previous_state_revision command_id audit_event_id actor_user_id actor_session_id
+  local db_record result_digest stateRevision previous_state_revision command_id audit_event_id actor_user_id actor_session_id actor_session_digest expected_user_id request_id
   db_record=$(harvest_db_command "${operation}" | tail -1)
   [[ -n ${db_record} ]] || { print -u2 -r -- 'EXTERNAL_RUNNER_APPROVED_COMMIT_SIDE_EFFECT_MISSING'; exit 68; }
   command_id=$(jq -er '.commandId' <<<"${db_record}")
   audit_event_id=$(jq -er '.auditEventId' <<<"${db_record}")
+  request_id=$(jq -er '.[] | select(.operation == "review_m2_client_submission") | .requestId' "${commands_file}")
   actor_user_id=$(jq -er '.actorUserId' <<<"${db_record}")
   stateRevision=$(jq -er '.resultingStateRevision' <<<"${db_record}")
   previous_state_revision=$(( stateRevision - 1 ))
   actor_session_id=$(jq -er '.[] | select(.role == "client_approver") | .sessionId' "${sessions_file}")
+  actor_session_digest=$(jq -er '.[] | select(.role == "client_approver") | .serverSessionDigest' "${sessions_file}")
+  expected_user_id=$(jq -er '.[] | select(.role == "client_approver") | .userId' "${sessions_file}")
+  [[ ${actor_user_id} == ${expected_user_id} ]] || { print -u2 -r -- 'EXTERNAL_RUNNER_DB_COMMAND_ROLE_MISMATCH operation=append_m2_approved_commit_revision'; exit 68; }
   result_digest=$(jq -cS '.logicalResult' <<<"${db_record}" | shasum -a 256 | awk '{print "sha256:"$1}')
-  jq --arg operation "${operation}" --arg commandId "${command_id}" --arg requestId "${audit_event_id}" \
-    --arg auditEventId "${audit_event_id}" --arg actorUserId "${actor_user_id}" --arg actorSessionId "${actor_session_id}" \
+  jq --arg operation "${operation}" --arg commandId "${command_id}" --arg requestId "${request_id}" \
+    --arg auditRequestId "$(jq -er '.requestId' <<<"${db_record}")" \
+    --arg auditEventId "${audit_event_id}" --arg actorUserId "${actor_user_id}" --arg actorSessionId "${actor_session_id}" --arg actorSessionDigest "${actor_session_digest}" --arg role "client_approver" \
     --argjson previous "${previous_state_revision}" --argjson resulting "${stateRevision}" --arg digest "${result_digest}" \
-    '. += [{operation: $operation, commandId: $commandId, requestId: $requestId,
-            auditEventId: $auditEventId, actorUserId: $actorUserId, actorSessionId: $actorSessionId,
+    '. += [{operation: $operation, role: $role, replayMode: "parent_atomic_side_effect", commandId: $commandId, requestId: $requestId,
+            auditRequestId: $auditRequestId, auditEventId: $auditEventId, actorUserId: $actorUserId, actorSessionId: $actorSessionId, actorSessionDigest: $actorSessionDigest,
             previousStateRevision: $previous, resultingStateRevision: $resulting,
             resultDigest: $digest, replayDigest: $digest}]' \
     "${commands_file}" > "${commands_file}.next"
@@ -382,20 +400,33 @@ for pair in owner_lead:owner architect:architect client_approver:client builder:
   role=${pair%%:*}
   jar_name=${pair##*:}
   jar="${cookie_dir}/${jar_name}.cookies"
-  if [[ ! -r ${jar} ]]; then
-    print -u2 -r -- "EXTERNAL_RUNNER_COOKIE_JAR_MISSING role=${jar_name}"
-    exit 68
+  if [[ ${role} == owner_lead ]]; then
+    [[ -r ${external_owner_session_file} ]] || { print -u2 -r -- 'EXTERNAL_RUNNER_OWNER_SESSION_MISSING'; exit 68; }
+    user_id=$(jq -er '.userId' "${external_owner_session_file}")
+    token_hash=$(jq -er '.tokenHash' "${external_owner_session_file}")
+    encoded_token_hash=$(jq -rn --arg value "${token_hash}" '$value|@uri')
+    : > "${jar}"; chmod 600 "${jar}"
+    owner_login_http=$(curl -sS -L -c "${jar}" -b "${jar}" -w '%{http_code}' -o "${work_dir}/external-owner-login.html" \
+      "${origin}/auth/callback?token_hash=${encoded_token_hash}&type=magiclink&next=%2Fdashboard%2Fprojectceo")
+    [[ ${owner_login_http} == 2* ]] || { print -u2 -r -- "EXTERNAL_RUNNER_OWNER_LOGIN_HTTP status=${owner_login_http}"; exit 68; }
+    request_id=00000000-0000-4000-8000-000000000001
+  else
+    [[ -r ${jar} ]] || { print -u2 -r -- "EXTERNAL_RUNNER_COOKIE_JAR_MISSING role=${jar_name}"; exit 68; }
+    kora_role=${jar_name}
+    if [[ ${jar_name} == client ]]; then kora_role=client; fi
+    request_id=$(jq -er --arg role "${kora_role}" '.[$role].requestId' "${kora_harvest_file}")
+    user_id=$(jq -er --arg role "${kora_role}" '.[$role].userId' "${kora_harvest_file}")
   fi
-  kora_role=${jar_name}
-  if [[ ${jar_name} == owner ]]; then kora_role=owner; fi
-  if [[ ${jar_name} == client ]]; then kora_role=client; fi
-  request_id=$(jq -er --arg role "${kora_role}" '.[$role].requestId' "${kora_harvest_file}")
-  user_id=$(jq -er --arg role "${kora_role}" '.[$role].userId' "${kora_harvest_file}")
-  session_id=$(query_db <<SQL
-select id from auth.sessions where user_id = '${user_id}'::uuid order by created_at desc limit 1;
+  cookie_binding=$(./node_modules/.bin/tsx tests/pilot-evidence/cookie-session-cli.ts "${jar}")
+  cookie_user_id=$(jq -er '.userId' <<<"${cookie_binding}")
+  session_id=$(jq -er '.sessionId' <<<"${cookie_binding}")
+  [[ ${cookie_user_id} == ${user_id} ]] || { print -u2 -r -- "EXTERNAL_RUNNER_COOKIE_USER_MISMATCH role=${role}"; exit 68; }
+  session_count=$(query_db <<SQL
+select count(*) from auth.sessions where id = '${session_id}'::uuid and user_id = '${user_id}'::uuid;
 SQL
   )
-  session_id=$(print -r -- "${session_id}" | tail -1 | tr -d '[:space:]')
+  session_count=$(print -r -- "${session_count}" | tail -1 | tr -d '[:space:]')
+  [[ ${session_count} == 1 ]] || { print -u2 -r -- "EXTERNAL_RUNNER_COOKIE_SESSION_NOT_FOUND role=${role}"; exit 68; }
   jq --arg role "${role}" --arg userId "${user_id}" --arg sessionId "${session_id}" \
     --arg requestId "${request_id}" \
     '. += [{role: $role, userId: $userId, sessionId: $sessionId, requestId: $requestId}]' \
@@ -409,7 +440,7 @@ stage=external_scope_seeded
 # the Kora portfolio reads above have completed: the UI portfolio is a
 # single-organization surface, while the project-scoped command boundary can
 # safely address either project by its server-owned scope.
-provision_external_scope
+verify_external_scope
 
 review_prerequisites=$(query_db <<SQL
 select json_build_object(
@@ -484,13 +515,14 @@ for pair in owner_lead:owner architect:architect client_approver:client builder:
   jar_name=${pair##*:}
   jar="${cookie_dir}/${jar_name}.cookies"
   response="${work_dir}/${jar_name}-external-workspace.json"
+  response_headers="${response}.headers"
   if [[ ${jar_name} == guest ]]; then
-    if ! http=$(curl -sS -o "${response}" -w '%{http_code}' -c "${jar}" -b "${jar}" "${origin}/api/projectceo/portfolio"); then
+    if ! http=$(curl -sS -o "${response}" -D "${response_headers}" -w '%{http_code}' -c "${jar}" -b "${jar}" "${origin}/api/projectceo/portfolio"); then
       print -u2 -r -- "EXTERNAL_RUNNER_PROJECT_READ_HTTP role=${jar_name} status=transport_failure code=curl_failed"
       exit 68
     fi
   else
-    if ! http=$(curl -sS -o "${response}" -w '%{http_code}' -c "${jar}" -b "${jar}" \
+    if ! http=$(curl -sS -o "${response}" -D "${response_headers}" -w '%{http_code}' -c "${jar}" -b "${jar}" \
       "${origin}/api/projectceo/projects/${project_id}"); then
       print -u2 -r -- "EXTERNAL_RUNNER_PROJECT_READ_HTTP role=${jar_name} status=transport_failure code=curl_failed"
       exit 68
@@ -502,14 +534,26 @@ for pair in owner_lead:owner architect:architect client_approver:client builder:
     exit 68
   fi
   if [[ ${jar_name} != guest ]]; then
-    jq -e '.error == null and (.data.project.id | type == "string")' "${response}" >/dev/null || {
+    jq -e --arg projectId "${project_id}" '.error == null and .data.project.id == $projectId' "${response}" >/dev/null || {
+      print -u2 -r -- "EXTERNAL_RUNNER_PROJECT_READ_INVALID role=${role} summary=$(response_summary "${response}")"
+      exit 68
+    }
+  else
+    jq -e '.error == null and (.data.projects | type == "array") and (.data.projects | length) == 0' "${response}" >/dev/null || {
       print -u2 -r -- "EXTERNAL_RUNNER_PROJECT_READ_INVALID role=${role} summary=$(response_summary "${response}")"
       exit 68
     }
   fi
   request_id=$(jq -er '.requestId' "${response}")
-  jq --arg role "${role}" --arg requestId "${request_id}" \
-    'map(if .role == $role then .requestId = $requestId else . end)' \
+  session_id=$(jq -er --arg role "${role}" '.[] | select(.role == $role) | .sessionId' "${sessions_file}")
+  expected_server_session_digest=$(session_digest "${session_id}")
+  actual_server_session_digest=$(session_digest_from_headers "${response_headers}")
+  [[ ${actual_server_session_digest} == ${expected_server_session_digest} ]] || {
+    print -u2 -r -- "EXTERNAL_RUNNER_SERVER_SESSION_MISMATCH role=${role} operation=workspace_read"
+    exit 68
+  }
+  jq --arg role "${role}" --arg requestId "${request_id}" --arg serverSessionDigest "${actual_server_session_digest}" \
+    'map(if .role == $role then .requestId = $requestId | .serverSessionDigest = $serverSessionDigest else . end)' \
     "${sessions_file}" > "${sessions_file}.next"
   mv -- "${sessions_file}.next" "${sessions_file}"
 done
@@ -530,44 +574,41 @@ command_payload() {
 while IFS= read -r preflight_payload; do
   preflight_variant_id=$(jq -er '.variantId' <<<"${preflight_payload}")
   publish_layout_preflight "${preflight_payload}" "${preflight_variant_id}"
-done < <(jq -c --arg packageId "${package_id}" --arg roomId "${room_id}" \
+done < <(manifest_jq -c --arg packageId "${package_id}" --arg roomId "${room_id}" \
   '.m2.variants[] | select(.role != "preferred") |
    {packageId: $packageId, documentId: .layoutDocumentId, versionId: .layoutVersionId,
     revisionId: .layoutRevisionId, expectedRevisionId: null, roomId: $roomId,
     variantId, role, semanticHash, schemaVersion: "project-ceo-m2-layout/0.1",
-    layoutContent, reason: "Операторская публикация внешнего варианта AP6."}' \
-  "${manifest_path}")
+    layoutContent, reason: "Операторская публикация внешнего варианта AP6."}')
 stage=nonpreferred_layouts_complete
 
 layout_command_id=$(uuidgen | tr '[:upper:]' '[:lower:]')
-layout_payload=$(jq -c --arg packageId "${package_id}" --arg roomId "${room_id}" \
+layout_payload=$(manifest_jq -c --arg packageId "${package_id}" --arg roomId "${room_id}" \
   '.m2.variants[] | select(.role == "preferred") |
    {packageId: $packageId, documentId: .layoutDocumentId, versionId: .layoutVersionId,
     revisionId: .layoutRevisionId, expectedRevisionId: null, roomId: $roomId,
     variantId, role, semanticHash, schemaVersion: "project-ceo-m2-layout/0.1",
-    layoutContent, reason: "Операторская публикация внешнего варианта AP6."}' \
-  "${manifest_path}")
+    layoutContent, reason: "Операторская публикация внешнего варианта AP6."}')
 send_command owner publish_m2_layout_version \
   "$(command_payload publish_m2_layout_version "${layout_command_id}" "${layout_payload}")" \
   "${layout_command_id}"
 stage=preferred_layout_complete
 
 submit_command_id=$(uuidgen | tr '[:upper:]' '[:lower:]')
-submit_payload=$(jq -c --arg packageId "${package_id}" \
+submit_payload=$(manifest_jq -c --arg packageId "${package_id}" \
   '.m2 | {packageId: $packageId, submissionId, revisionId: .submissionRevisionId,
     expectedRevisionId: null, approvalPackageId, roomId, designIntentRevisionId,
     variants: [.variants[] | {variantId, role, layoutDocumentId, layoutVersionId,
       layoutRevisionId, semanticHash, selectionRevisionIds, budget}],
-    budgetAsOf, staleAfterDays, reason: "Внешний пакет передан на согласование оператором AP6."}' \
-  "${manifest_path}")
+    budgetAsOf, staleAfterDays, reason: "Внешний пакет передан на согласование оператором AP6."}')
 send_command owner submit_m2_client_review \
   "$(command_payload submit_m2_client_review "${submit_command_id}" "${submit_payload}")" \
   "${submit_command_id}"
 stage=submitted_review_complete
 
-submission_id=$(jq -er '.m2.submissionId' "${manifest_path}")
-submission_revision_id=$(jq -er '.m2.submissionRevisionId' "${manifest_path}")
-chosen_variant_id=$(jq -er '.m2.variants[0].variantId' "${manifest_path}")
+submission_id=$(manifest_jq -er '.m2.submissionId')
+submission_revision_id=$(manifest_jq -er '.m2.submissionRevisionId')
+chosen_variant_id=$(manifest_jq -er '.m2.variants[0].variantId')
 review_prerequisites_after_submit=$(query_db <<SQL
 select json_build_object(
   'submissionPresent', exists (
@@ -641,10 +682,10 @@ review_command_id=$(uuidgen | tr '[:upper:]' '[:lower:]')
 # доказательство не должно выглядеть как настоящее клиентское согласование.
 # Осмысленную причину можно передать через EXTERNAL_RUN_REVIEW_REASON.
 review_reason=${EXTERNAL_RUN_REVIEW_REASON:-"Проверочный прогон цикла 7: решение принято оператором проверки, не заказчиком"}
-review_payload=$(jq -c --arg packageId "${package_id}" --arg reason "${review_reason}" \
+review_payload=$(manifest_jq -c --arg packageId "${package_id}" --arg reason "${review_reason}" \
   '.m2 | {packageId: $packageId, submissionId, revisionId: .reviewRevisionId,
     expectedRevisionId: .submissionRevisionId, chosenVariantId: .variants[0].variantId,
-    decision: "approved", reason: $reason}' "${manifest_path}")
+    decision: "approved", reason: $reason}')
 send_command client review_m2_client_submission \
   "$(command_payload review_m2_client_submission "${review_command_id}" "${review_payload}")" \
   "${review_command_id}"
@@ -654,10 +695,10 @@ record_approved_commit_side_effect
 stage=approved_commit_harvested
 
 handoff_command_id=$(uuidgen | tr '[:upper:]' '[:lower:]')
-handoff_payload=$(jq -c --arg packageId "${package_id}" \
+handoff_payload=$(manifest_jq -c --arg packageId "${package_id}" \
   '.m2 | {packageId: $packageId, handoffId, revisionId: .handoffRevisionId,
     expectedRevisionId: null, approvedCommitId, approvedCommitRevisionId,
-    reason: "Передача согласованного внешнего пакета в контур M3."}' "${manifest_path}")
+    reason: "Передача согласованного внешнего пакета в контур M3."}')
 send_command owner publish_m2_m3_handoff \
   "$(command_payload publish_m2_m3_handoff "${handoff_command_id}" "${handoff_payload}")" \
   "${handoff_command_id}"
@@ -665,14 +706,14 @@ stage=handoff_complete
 
 # Lineage and proof receipts come out of the operations that just ran.
 lineage=$(jq -n \
-  --arg submissionId "$(jq -er '.m2.submissionId' "${manifest_path}")" \
-  --arg submissionRevisionId "$(jq -er '.m2.submissionRevisionId' "${manifest_path}")" \
-  --arg reviewId "$(jq -er '.m2.submissionId' "${manifest_path}")" \
-  --arg reviewRevisionId "$(jq -er '.m2.reviewRevisionId' "${manifest_path}")" \
-  --arg approvedCommitId "$(jq -er '.m2.approvedCommitId' "${manifest_path}")" \
-  --arg approvedCommitRevisionId "$(jq -er '.m2.approvedCommitRevisionId' "${manifest_path}")" \
-  --arg handoffId "$(jq -er '.m2.handoffId' "${manifest_path}")" \
-  --arg handoffRevisionId "$(jq -er '.m2.handoffRevisionId' "${manifest_path}")" \
+  --arg submissionId "$(manifest_jq -er '.m2.submissionId')" \
+  --arg submissionRevisionId "$(manifest_jq -er '.m2.submissionRevisionId')" \
+  --arg reviewId "$(manifest_jq -er '.m2.submissionId')" \
+  --arg reviewRevisionId "$(manifest_jq -er '.m2.reviewRevisionId')" \
+  --arg approvedCommitId "$(manifest_jq -er '.m2.approvedCommitId')" \
+  --arg approvedCommitRevisionId "$(manifest_jq -er '.m2.approvedCommitRevisionId')" \
+  --arg handoffId "$(manifest_jq -er '.m2.handoffId')" \
+  --arg handoffRevisionId "$(manifest_jq -er '.m2.handoffRevisionId')" \
   --slurpfile submit "${work_dir}/submit_m2_client_review.json" \
   --slurpfile handoff "${work_dir}/publish_m2_m3_handoff.json" '
   {submissionId: $submissionId, submissionRevisionId: $submissionRevisionId,
@@ -684,20 +725,86 @@ lineage=$(jq -n \
    handoffApprovedCommitRevisionId: $approvedCommitRevisionId}')
 
 proofs="${work_dir}/proofs.json"
-print -r -- '{}' > "${proofs}"
-for proof in audit authenticatedRead privacy tenancy replay; do
-  query_receipt=$(uuidgen | tr '[:upper:]' '[:lower:]')
-  audit_receipt=$(query_db <<SQL
-select audit_event_id from projectceo_product.audit_events
-where project_id = '${project_id}'::uuid order by occurred_at desc limit 1;
+audit_ids_sql=$(jq -r '[.[].auditEventId | "\u0027" + . + "\u0027::uuid"] | join(",")' "${commands_file}")
+audit_source="${work_dir}/proof-audit.json"
+query_db > "${audit_source}" <<SQL
+select coalesce(json_agg(json_build_object('auditEventId', audit.audit_event_id,
+  'requestId', audit.request_id, 'commandId', audit.command_id,
+  'actorUserId', command.actor_user_id) order by command.resulting_state_revision), '[]'::json)::text
+from projectceo_product.audit_events audit
+join projectceo_product.command_records command using (organization_id, project_id, command_id)
+where audit.project_id = '${project_id}'::uuid and audit.audit_event_id in (${audit_ids_sql});
 SQL
+audit_snapshot=$(tail -1 "${audit_source}" | jq -cS .)
+print -r -- "${audit_snapshot}" > "${audit_source}"
+[[ $(jq 'length' "${audit_source}") == 5 ]] || { print -u2 -r -- 'EXTERNAL_RUNNER_AUDIT_PROOF_INCOMPLETE'; exit 68; }
+
+owner_read="${work_dir}/owner-external-workspace.json"
+architect_read="${work_dir}/architect-external-workspace.json"
+guest_read="${work_dir}/guest-external-workspace.json"
+jq -e --arg projectId "${project_id}" '.error == null and .data.project.id == $projectId' "${owner_read}" >/dev/null \
+  || { print -u2 -r -- 'EXTERNAL_RUNNER_AUTHENTICATED_READ_PROOF_INVALID'; exit 68; }
+jq -e --arg projectId "${project_id}" '.error == null and (.data.projects | type == "array") and (.data.projects | length) == 0 and ([.. | objects | .id? // empty] | index($projectId) == null)' "${guest_read}" >/dev/null \
+  || { print -u2 -r -- 'EXTERNAL_RUNNER_TENANCY_PROOF_INVALID'; exit 68; }
+for response_file in "${work_dir}"/*-external-workspace.json; do
+  jq -e '[.. | objects | keys[]] | all(. != "signedUrl" and . != "storagePath" and . != "originalFilename" and . != "token")' "${response_file}" >/dev/null \
+    || { print -u2 -r -- 'EXTERNAL_RUNNER_PRIVACY_PROOF_INVALID'; exit 68; }
+done
+
+authenticated_source="${work_dir}/proof-authenticated.json"
+privacy_source="${work_dir}/proof-privacy.json"
+tenancy_source="${work_dir}/proof-tenancy.json"
+replay_source="${work_dir}/proof-replay.json"
+jq -cS '{requestId, projectId: .data.project.id, status: (.error == null)}' "${owner_read}" > "${authenticated_source}"
+jq -c '{requestIds: [.[].requestId], forbiddenFieldCount: 0}' "${sessions_file}" > "${privacy_source}"
+jq -cS --arg projectId "${project_id}" '{requestId, guestContract: "empty_portfolio", projectCount: (.data.projects | length), externalProjectAbsent: ([.. | objects | .id? // empty] | index($projectId) == null)}' "${guest_read}" > "${tenancy_source}"
+review_command_id=$(jq -er '.[2].commandId' "${commands_file}")
+side_effect_count=$(query_db <<SQL
+select count(*) from projectceo_product.command_records command
+where command.project_id = '${project_id}'::uuid
+  and command.operation = 'append_m2_approved_commit_revision'
+  and command.actor_user_id = (
+    select review.actor_user_id
+    from projectceo_product.command_records review
+    where review.project_id = '${project_id}'::uuid
+      and review.command_id = '${review_command_id}'::uuid
+      and review.operation = 'review_m2_client_submission'
   )
-  audit_receipt=$(print -r -- "${audit_receipt}" | tail -1 | tr -d '[:space:]')
-  proof_digest=$(jq -cS --arg proof "${proof}" '{proof: $proof, commands: .}' "${commands_file}" \
-    | shasum -a 256 | awk '{print "sha256:"$1}')
-  jq --arg proof "${proof}" --arg queryReceiptId "${query_receipt}" \
-    --arg auditReceiptId "${audit_receipt}" --arg digest "${proof_digest}" \
-    '.[$proof] = {queryReceiptId: $queryReceiptId, auditReceiptId: $auditReceiptId, digest: $digest}' \
+  and command.resulting_state_revision = (
+    select review.resulting_state_revision + 1
+    from projectceo_product.command_records review
+    where review.project_id = '${project_id}'::uuid
+      and review.command_id = '${review_command_id}'::uuid
+      and review.operation = 'review_m2_client_submission'
+  );
+SQL
+)
+side_effect_count=$(print -r -- "${side_effect_count}" | tail -1 | tr -d '[:space:]')
+[[ ${side_effect_count} == 1 ]] || { print -u2 -r -- 'EXTERNAL_RUNNER_SIDE_EFFECT_REPLAY_INVALID'; exit 68; }
+jq -cS --argjson sideEffectCount "${side_effect_count}" '[.[] | {
+  commandId, requestId, auditEventId, replayMode, resultDigest, replayDigest,
+  replayEqual: (if .replayMode == "direct" then (.resultDigest == .replayDigest) else null end),
+  sideEffectCount: (if .replayMode == "parent_atomic_side_effect" then $sideEffectCount else null end)
+}]' "${commands_file}" > "${replay_source}"
+
+print -r -- '{}' > "${proofs}"
+proof_kinds=(audit authenticatedRead privacy tenancy replay)
+proof_sources=("${audit_source}" "${authenticated_source}" "${privacy_source}" "${tenancy_source}" "${replay_source}")
+proof_request_ids=("$(jq -er '.[0].requestId' "${audit_source}")" "$(jq -er '.requestId' "${authenticated_source}")" "$(jq -er '.requestIds[1]' "${privacy_source}")" "$(jq -er '.requestId' "${tenancy_source}")" "$(jq -er '.[1].requestId' "${replay_source}")")
+for index in {1..5}; do
+  proof=${proof_kinds[index]}; proof_source=${proof_sources[index]}; query_request_id=${proof_request_ids[index]}
+  audit_event_ids='[]'
+  if [[ ${proof} == audit || ${proof} == replay ]]; then
+    audit_event_ids=$(jq -c '[.[].auditEventId]' "${commands_file}")
+  fi
+  proof_digest=$(jq -cSj . "${proof_source}" | shasum -a 256 | awk '{print "sha256:"$1}')
+  command_ids=$(jq -c '[.[].commandId]' "${commands_file}")
+  jq --arg proof "${proof}" --arg queryRequestId "${query_request_id}" --argjson auditEventIds "${audit_event_ids}" \
+    --arg resultDigest "${proof_digest}" --arg organizationId "${organization_id}" --arg projectId "${project_id}" --arg packageId "${package_id}" \
+    --arg manifestDigest "${expected_manifest_digest}" --arg challengeNonce "${challenge_nonce}" --argjson commandIds "${command_ids}" --slurpfile source "${proof_source}" \
+    '.[$proof] = {kind: $proof, queryRequestId: $queryRequestId, auditEventIds: $auditEventIds,
+      resultDigest: $resultDigest, organizationId: $organizationId, projectId: $projectId, packageId: $packageId,
+      manifestDigest: $manifestDigest, challengeNonce: $challengeNonce, commandIds: $commandIds, source: $source[0]}' \
     "${proofs}" > "${proofs}.next"
   mv -- "${proofs}.next" "${proofs}"
 done
@@ -708,14 +815,14 @@ jq -n --arg organizationId "${organization_id}" --arg projectId "${project_id}" 
   --argjson lineage "${lineage}" --slurpfile proofs "${proofs}" '
   {scope: {organizationId: $organizationId, projectId: $projectId, packageId: $packageId},
    sessions: $sessions[0],
-   commands: [$commands[0][] | del(.role)],
+   commands: $commands[0],
    lineage: $lineage,
    proofs: $proofs[0]}' > "${harvest_file}"
 
 # The builder revalidates every identifier, the operation chain, the state
 # revision chain and the replay digests before anything is written.
 ./node_modules/.bin/tsx tests/pilot-evidence/external-pilot-receipt-cli.ts \
-  "${receipt_path}" "${challenge_nonce}" "${manifest_path}" \
+  "${receipt_path}" "${challenge_nonce}" "${expected_manifest_digest}" \
   "${executor_relative}" "${executor_digest}" "${executor_verification_receipt_id}" \
   "${kora_receipt_id}" "${kora_receipt_digest}" "${kora_producer_path}" "${kora_producer_digest}" \
   "${harvest_file}"

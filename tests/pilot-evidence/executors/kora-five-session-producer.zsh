@@ -38,7 +38,7 @@ session_file=/private/tmp/projectceo-ap1-sessions.json
 # Next's own log records the magic-link callback URLs, so it carries token
 # hashes. AP1 destroys it on its normal path but keeps it under KEEP_EVIDENCE.
 next_log=/private/tmp/projectceo-ap1-next.log
-export DOCKER_HOST=${DOCKER_HOST:-unix://${HOME}/.colima/archidom-ap1/docker.sock}
+export DOCKER_HOST=${DOCKER_HOST:-unix://${HOME}/.colima/archidom-ap1-disposable/docker.sock}
 
 work_dir=$(mktemp -d)
 chmod 700 "${work_dir}"

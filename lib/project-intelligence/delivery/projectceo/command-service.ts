@@ -72,8 +72,11 @@ const UNAVAILABLE = new Set<ProjectCeoCommand["kind"]>([
 const DOCUMENTATION_MODULE = new Set<ProjectCeoCommand["kind"]>([
   "register_source",
   "review_source",
+  "confirm_pdf_dwg_source_pair",
+  "bind_pdf_dwg_sheet_sidecar",
   "register_documentation_sheet",
   "attach_documentation_sheet_specifications",
+  "attach_external_release_refs",
   ...DOCUMENTATION_PUBLICATION,
 ]);
 
@@ -337,14 +340,46 @@ export class ProjectCeoCommandService {
     }
     try {
       const idempotencyKey = this.idempotencyKey(command);
+      if (command.kind === "bind_pdf_dwg_sheet_sidecar") {
+        const scope=await this.scopeOnly(command.projectId.toLowerCase());
+        if (scope.accessScope==="package" && scope.packageId?.toLowerCase()!==command.payload.packageId.toLowerCase()) return failure(requestId,"error","forbidden");
+        const result=await this.foundation.bindPdfDwgSheetSidecar({projectId:command.projectId.toLowerCase(),...command.payload,idempotencyKey:`ui:${command.projectId.toLowerCase()}:${command.kind}:${command.commandId.toLowerCase()}`});
+        return completed(requestId,{...result,stateRevision:scope.stateRevision});
+      }
+      if (command.kind === "confirm_pdf_dwg_source_pair") {
+        const scope = await this.scopeOnly(command.projectId.toLowerCase());
+        if (scope.accessScope === "package" && scope.packageId?.toLowerCase() !== command.payload.packageId.toLowerCase()) {
+          return failure(requestId, "error", "forbidden");
+        }
+        const result = await this.foundation.confirmPdfDwgSourcePair({
+          projectId: command.projectId.toLowerCase(), ...command.payload,
+          idempotencyKey: `ui:${command.projectId.toLowerCase()}:${command.kind}:${command.commandId.toLowerCase()}`,
+        });
+        // Observed project revision only: pair confirmation does not increment
+        // workflow state or manufacture a revision inside the immutable receipt.
+        return completed(requestId, { ...result, stateRevision: scope.stateRevision });
+      }
       if (
         command.kind === "register_source"
         || command.kind === "register_documentation_sheet"
         || command.kind === "attach_documentation_sheet_specifications"
+        || command.kind === "attach_external_release_refs"
       ) {
         // Этим командам delivery-проекция не нужна: полный context() оплачивал
         // бы тяжёлое чтение продуктового мозга на каждом клике intake.
         const scope = await this.scopeOnly(command.projectId);
+      if (command.kind === "attach_external_release_refs") {
+        return completed(requestId, await this.product.attachExternalReleaseRefs({
+          projectId: command.projectId,
+          packageId: command.payload.packageId,
+          handoffId: command.payload.handoffId,
+          handoffRevisionId: command.payload.handoffRevisionId,
+          candidateRefs: command.payload.candidateRefs,
+          // Preserve the caller's observed state, including on idempotent replay.
+          expectedStateRevision: command.payload.expectedStateRevision,
+          idempotencyKey,
+        }));
+      }
       if (command.kind === "register_documentation_sheet") {
         // Происхождение листа в команде отсутствует: сервер выведет его из
         // опубликованного handoff, а подменить его параметрами нельзя — их нет.

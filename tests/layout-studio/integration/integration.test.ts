@@ -339,6 +339,50 @@ describe("Layout Studio delivery/UI slice", () => {
       // WP-33 changes the ProjectCEO M3 publication ACL only.
       "20260911160000_projectceo_m3_atomic_publication_flip.sql",
       "20260911170000_projectceo_m4_drop_legacy_release_doors.sql",
+      // R1 foundation: immutable external asset and representation identities.
+      // This belongs to the ArchiDom R1 chain, not Layout Studio itself.
+      "20260912090630_r1_asset_identity_versions.sql",
+      // R1 object/revision/representation bindings are a private Foundation
+      // contract and intentionally do not change Layout Studio's schema.
+      "20260912094000_r1_object_representation_bindings.sql",
+      // R1 technical references bind a DWG source to its exact preview
+      // representation; Layout Studio remains unchanged.
+      "20260912094500_r1_technical_reference_preview_binding.sql",
+      // R1 annotations use the existing client review capability and do not
+      // extend the Layout Studio schema.
+      "20260912100000_r1_external_annotations.sql",
+      // R1 external attachment candidate and immutable release manifest storage.
+      "20260912110000_r1_external_release_attachment_manifest.sql",
+      // R1 private attestation trigger ACL correction; no Layout Studio changes.
+      "20260912143217_r1_attestation_pair_private_acl.sql",
+      // R1 asset event actor attribution; no Layout Studio changes.
+      "20260912152659_r1_asset_event_actor_identity.sql",
+      // R1 private upload sessions and quota accounting; no Layout Studio changes.
+      "20260913033000_r1_external_upload_control.sql",
+      // R1 reservation/session terminal closure correction; no Layout Studio changes.
+      "20260913035000_r1_upload_reservation_closure.sql",
+      // R1 private validation job leases and receipts; no Layout Studio changes.
+      "20260913043000_r1_external_validation_jobs.sql",
+      // R1 materialization and legacy intake isolation; no Layout Studio changes.
+      "20260913053000_r1_external_materialization_isolation.sql",
+      // R1 private human acceptance and source readiness; no Layout Studio changes.
+      "20260913063000_r1_external_human_acceptance_readiness.sql",
+      "20260915174226_r1_pdf_fallback_architect_authority.sql",
+      "20260915184027_r1_pdf_dwg_source_pair.sql",
+      "20260915191820_r1_pdf_dwg_source_pair_request_door.sql",
+      "20260915194544_r1_source_pair_read_projection.sql",
+      "20260916014430_r1_pdf_dwg_sheet_sidecar.sql",
+      "20260916023137_r1_pdf_sheet_sidecar_request_door.sql",
+      // R1 architect-declared historical sidecar read; it does not extend
+      // the Layout Studio schema or its public UI contract.
+      "20260916025319_r1_sheet_sidecar_read_projection.sql",
+      // Authenticated disposable package enrollment; unrelated to Layout Studio.
+      "20260916132722_projectceo_authenticated_package_enrollment.sql",
+      "20260916174719_projectceo_authenticated_package_enrollment_audit_event.sql",
+      "20260916190033_projectceo_authenticated_enrollment_upsert_repair.sql",
+      "20260916193000_projectceo_authenticated_source_snapshot.sql",
+      // Private external-review evidence/context; no Layout Studio changes.
+      "20260920140000_r1_external_review_storage_context.sql",
     ];
     const actual = readdirSync(join(repoRoot, "supabase/migrations"), { withFileTypes: true })
       // Предмет проверки — миграции, а не всё содержимое папки. Рядом с ними

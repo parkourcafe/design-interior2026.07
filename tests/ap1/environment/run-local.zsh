@@ -6,9 +6,9 @@ project_id=archidom-ap1-disposable
 cli_version=2.109.1
 cli_home=${AP1_CLI_HOME:-/private/tmp/archidom-ap1-home}
 cli_cache=${AP1_NPM_CACHE:-/private/tmp/projectceo-ap1-npm-cache}
-docker_host=${DOCKER_HOST:-unix://${HOME}/.colima/archidom-ap1/docker.sock}
+docker_host=${DOCKER_HOST:-unix://${HOME}/.colima/archidom-ap1-disposable/docker.sock}
 
-if [[ "${docker_host}" != unix://*/.colima/archidom-ap1/docker.sock \
+if [[ "${docker_host}" != unix://*/.colima/archidom-ap1-disposable/docker.sock \
   && ! ( "${GITHUB_ACTIONS:-false}" == "true" && "${docker_host}" == "unix:///var/run/docker.sock" ) ]]; then
   print -u2 -r -- "AP1_DOCKER_HOST_REJECTED"
   exit 65
@@ -46,7 +46,7 @@ redact_credentials() {
     s{\bBearer\s+[A-Za-z0-9._~+/-]+=*}{Bearer [redacted]}gi;
     s{\beyJ[A-Za-z0-9_=-]{10,}\.[A-Za-z0-9_=-]{10,}\.[A-Za-z0-9_=-]{10,}\b}{[jwt-redacted]}g;
     s{\bsb(?:p|_secret|_publishable)_[A-Za-z0-9]{10,}\b}{[supabase-key-redacted]}g;
-    if (/(?:authorization|cookie|session storage|magic[-_ ]?link|token_hash|access_token|refresh_token|key|secret|token|password|jwt|dsn)\s*[:=]\s*\S/i) {
+    if (/(?:authorization|cookie|session storage|magic[-_ ]?link|token_hash|access_token|refresh_token|key|secret|token|password|jwt|dsn)\s*[:=]\s*\S/i || /(?:PUBLISHABLE_KEY|ANON_KEY|SERVICE_ROLE_KEY|SECRET_KEY|JWT_SECRET)\s*"\s*:/i) {
       $_ = "[credential line redacted]\n"
     }
   '
@@ -88,7 +88,7 @@ apply_local_auth_compat() {
 start_stack() {
   # AP1 requires real DB/Auth/Kong/PostgREST/Storage. Image derivatives and the
   # local mailbox UI are deliberately outside this authenticated pilot gate.
-  supabase_cli start --yes --exclude imgproxy,mailpit 2>&1 | redact_credentials
+  supabase_cli start --yes --exclude edge-runtime,imgproxy,mailpit 2>&1 | redact_credentials
   apply_local_auth_compat
   verify_runtime
 }

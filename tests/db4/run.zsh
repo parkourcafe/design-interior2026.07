@@ -52,6 +52,11 @@ done
 
 for sql in \
   "${repo_root}/tests/db3/20_foundation_operations.sql" \
+  "${repo_root}/tests/db4/70_r1_pdf_fallback_architect_authority.sql" \
+  "${repo_root}/tests/db4/60_r1_asset_identity_versions.sql" \
+  "${repo_root}/tests/db4/61_r1_object_representation_bindings.sql" \
+  "${repo_root}/tests/db4/62_r1_external_annotations.sql" \
+  "${repo_root}/tests/db4/63_r1_external_release_attachment_resolver.sql" \
   "${repo_root}/tests/db4/05_m3_publication_guardrail.sql" \
   "${repo_root}/tests/db4/06_m3_surface_classification.sql" \
   "${repo_root}/tests/db4/07_m4_execution_boundary.sql" \
@@ -68,6 +73,8 @@ for sql in \
   "${repo_root}/tests/db4/32_m2_layout_version_operations.sql" \
   "${repo_root}/tests/db4/33_m2_client_review_m3_handoff_operations.sql" \
   "${repo_root}/tests/db4/34_m3_documentation_sheet_operations.sql" \
+  "${repo_root}/tests/db4/64_r1_external_attachment_candidates.sql" \
+  "${repo_root}/tests/db4/65_r1_external_review_storage_context.sql" \
   "${repo_root}/tests/db4/35_m3_documentation_read_operations.sql" \
   "${repo_root}/tests/db4/36_m2_layout_document_v02_validation.sql" \
   "${repo_root}/tests/db4/37_source_review_door.sql" \
@@ -147,5 +154,209 @@ for attempt in {1..120}; do
   sleep 0.25
 done
 run_file "${repo_root}/tests/db4/30_restart_replay.sql"
+
+# This fixture commits its synthetic seed only for the two-session quota race.
+# Run it once, after legacy/restart assertions, in this already-owned database.
+print -r -- "Running 66_r1_external_upload_control.sql with lock-overlap proof"
+docker exec -e PGPASSWORD="${password}" -i "${container}" \
+  psql -X --set ON_ERROR_STOP=1 --set r1_upload_concurrency=true \
+    --username postgres --dbname "${database}" \
+  < "${repo_root}/tests/db4/66_r1_external_upload_control.sql"
+
+# Upload rows are created after the legacy restart above, so they need their own
+# actual restart before exact session/reservation/outbox/command replay checks.
+print -r -- "Restarting database for R1 upload durable replay proof"
+docker restart "${container}" >/dev/null
+for attempt in {1..120}; do
+  if docker exec -e PGPASSWORD="${password}" "${container}" \
+      psql -X --tuples-only --no-align --username postgres --dbname "${database}" \
+      --command 'select 1' 2>/dev/null | rg -qx '1'; then
+    break
+  fi
+  if (( attempt == 120 )); then
+    print -u2 -r -- "R1 upload database did not return after restart"
+    exit 1
+  fi
+  sleep 0.25
+done
+docker exec -e PGPASSWORD="${password}" -i "${container}" \
+  psql -X --set ON_ERROR_STOP=1 --set r1_upload_restart_check=true \
+    --username postgres --dbname "${database}" \
+  < "${repo_root}/tests/db4/66_r1_external_upload_control.sql"
+
+# B proves live expiry and overlapping revoke/complete, then retains its exact
+# synthetic broker context for terminal replay after a real database restart.
+docker exec -e PGPASSWORD="${password}" -i "${container}" \
+  psql -X --set ON_ERROR_STOP=1 --set r1_validation_overlap=true \
+    --username postgres --dbname "${database}" \
+  < "${repo_root}/tests/db4/67_r1_external_validation_jobs.sql"
+print -r -- "Restarting database for R1 validation durable replay proof"
+docker restart "${container}" >/dev/null
+for attempt in {1..120}; do
+  if docker exec -e PGPASSWORD="${password}" "${container}" \
+      psql -X --tuples-only --no-align --username postgres --dbname "${database}" \
+      --command 'select 1' 2>/dev/null | rg -qx '1'; then
+    break
+  fi
+  if (( attempt == 120 )); then
+    print -u2 -r -- "R1 validation database did not return after restart"
+    exit 1
+  fi
+  sleep 0.25
+done
+docker exec -e PGPASSWORD="${password}" -i "${container}" \
+  psql -X --set ON_ERROR_STOP=1 --set r1_validation_restart_check=true \
+    --username postgres --dbname "${database}" \
+  < "${repo_root}/tests/db4/67_r1_external_validation_jobs.sql"
+
+docker exec -e PGPASSWORD="${password}" -i "${container}" \
+  psql -X --set ON_ERROR_STOP=1 --set r1_materialization_concurrency=true \
+    --username postgres --dbname "${database}" \
+  < "${repo_root}/tests/db4/68_r1_external_materialization_isolation.sql"
+print -r -- "Restarting database for R1 materialization durable replay proof"
+docker restart "${container}" >/dev/null
+for attempt in {1..120}; do
+  if docker exec -e PGPASSWORD="${password}" "${container}" \
+      psql -X --tuples-only --no-align --username postgres --dbname "${database}" \
+      --command 'select 1' 2>/dev/null | rg -qx '1'; then
+    break
+  fi
+  if (( attempt == 120 )); then
+    print -u2 -r -- "R1 materialization database did not return after restart"
+    exit 1
+  fi
+  sleep 0.25
+done
+docker exec -e PGPASSWORD="${password}" -i "${container}" \
+  psql -X --set ON_ERROR_STOP=1 --set r1_materialization_restart_check=true \
+    --username postgres --dbname "${database}" \
+  < "${repo_root}/tests/db4/68_r1_external_materialization_isolation.sql"
+
+docker exec -e PGPASSWORD="${password}" -i "${container}" \
+  psql -X --set ON_ERROR_STOP=1 --set r1_human_readiness_overlap=true \
+    --username postgres --dbname "${database}" \
+  < "${repo_root}/tests/db4/69_r1_external_human_acceptance_readiness.sql"
+print -r -- "Restarting database for R1 human acceptance durable replay proof"
+docker restart "${container}" >/dev/null
+for attempt in {1..120}; do
+  if docker exec -e PGPASSWORD="${password}" "${container}" \
+      psql -X --tuples-only --no-align --username postgres --dbname "${database}" \
+      --command 'select 1' 2>/dev/null | rg -qx '1'; then
+    break
+  fi
+  if (( attempt == 120 )); then
+    print -u2 -r -- "R1 human acceptance database did not return after restart"
+    exit 1
+  fi
+  sleep 0.25
+done
+docker exec -e PGPASSWORD="${password}" -i "${container}" \
+  psql -X --set ON_ERROR_STOP=1 --set r1_human_readiness_restart_check=true \
+    --username postgres --dbname "${database}" \
+  < "${repo_root}/tests/db4/69_r1_external_human_acceptance_readiness.sql"
+
+docker exec -e PGPASSWORD="${password}" -i "${container}" \
+  psql -X --set ON_ERROR_STOP=1 --set r1_source_pair_keep_fixture=true \
+    --username postgres --dbname "${database}" \
+  < "${repo_root}/tests/db4/71_r1_pdf_dwg_source_pair.sql"
+docker restart "${container}" >/dev/null
+for attempt in {1..120}; do
+  if docker exec -e PGPASSWORD="${password}" "${container}" \
+      psql -X --tuples-only --no-align \
+      --username postgres --dbname "${database}" \
+      --command 'select 1' 2>/dev/null | rg -qx '1'; then
+    break
+  fi
+  if (( attempt == 120 )); then
+    print -u2 -r -- "R1 source pair database did not return after restart"
+    exit 1
+  fi
+  sleep 0.25
+done
+docker exec -e PGPASSWORD="${password}" -i "${container}" \
+  psql -X --set ON_ERROR_STOP=1 --set r1_source_pair_restart_check=true \
+    --username postgres --dbname "${database}" \
+  < "${repo_root}/tests/db4/71_r1_pdf_dwg_source_pair.sql"
+docker exec -e PGPASSWORD="${password}" -i "${container}" \
+  psql -X --set ON_ERROR_STOP=1 \
+    --username postgres --dbname "${database}" \
+  < "${repo_root}/tests/db4/72_r1_pdf_dwg_source_pair_request_door.sql"
+docker exec -e PGPASSWORD="${password}" -i "${container}" \
+  psql -X --set ON_ERROR_STOP=1 \
+    --set r1_source_pair_read_keep_fixture=true \
+    --set r1_source_pair_read_overlap=true \
+    --username postgres --dbname "${database}" \
+  < "${repo_root}/tests/db4/73_r1_source_pair_read_projection.sql"
+print -r -- "Restarting database for R1 source-pair read replay proof"
+docker restart "${container}" >/dev/null
+for attempt in {1..120}; do
+  if docker exec -e PGPASSWORD="${password}" "${container}" \
+      psql -X --tuples-only --no-align \
+      --username postgres --dbname "${database}" \
+      --command 'select 1' 2>/dev/null | rg -qx '1'; then
+    break
+  fi
+  if (( attempt == 120 )); then
+    print -u2 -r -- "R1 source-pair read database did not return after restart"
+    exit 1
+  fi
+  sleep 0.25
+done
+docker exec -e PGPASSWORD="${password}" -i "${container}" \
+  psql -X --set ON_ERROR_STOP=1 --set r1_source_pair_read_restart_check=true \
+    --username postgres --dbname "${database}" \
+  < "${repo_root}/tests/db4/73_r1_source_pair_read_projection.sql"
+docker exec -e PGPASSWORD="${password}" -i "${container}" \
+  psql -X --set ON_ERROR_STOP=1 \
+    --set r1_sheet_sidecar_keep_fixture=true \
+    --set r1_sheet_sidecar_overlap=true \
+    --username postgres --dbname "${database}" \
+  < "${repo_root}/tests/db4/74_r1_pdf_dwg_sheet_sidecar.sql"
+print -r -- "Restarting database for R1 PDF/DWG sheet sidecar replay proof"
+docker restart "${container}" >/dev/null
+for attempt in {1..120}; do
+  if docker exec -e PGPASSWORD="${password}" "${container}" \
+      psql -X --tuples-only --no-align \
+      --username postgres --dbname "${database}" \
+      --command 'select 1' 2>/dev/null | rg -qx '1'; then
+    break
+  fi
+  if (( attempt == 120 )); then
+    print -u2 -r -- "R1 PDF/DWG sidecar database did not return after restart"
+    exit 1
+  fi
+  sleep 0.25
+done
+docker exec -e PGPASSWORD="${password}" -i "${container}" \
+  psql -X --set ON_ERROR_STOP=1 --set r1_sheet_sidecar_restart_check=true \
+    --username postgres --dbname "${database}" \
+  < "${repo_root}/tests/db4/74_r1_pdf_dwg_sheet_sidecar.sql"
+docker exec -e PGPASSWORD="${password}" -i "${container}" \
+  psql -X --set ON_ERROR_STOP=1 \
+    --username postgres --dbname "${database}" \
+  < "${repo_root}/tests/db4/75_r1_sheet_sidecar_request_door.sql"
+docker exec -e PGPASSWORD="${password}" -i "${container}" \
+  psql -X --set ON_ERROR_STOP=1 --set r1_sheet_sidecar_read_keep_fixture=true --set r1_sheet_sidecar_read_overlap=true \
+    --username postgres --dbname "${database}" \
+  < "${repo_root}/tests/db4/76_r1_sheet_sidecar_read_projection.sql"
+print -r -- "Restarting database for R1 PDF/DWG sheet sidecar read replay proof"
+docker restart "${container}" >/dev/null
+for attempt in {1..120}; do
+  if docker exec -e PGPASSWORD="${password}" "${container}" \
+      psql -X --tuples-only --no-align \
+      --username postgres --dbname "${database}" \
+      --command 'select 1' 2>/dev/null | rg -qx '1'; then
+    break
+  fi
+  if (( attempt == 120 )); then
+    print -u2 -r -- "R1 PDF/DWG sidecar read database did not return after restart"
+    exit 1
+  fi
+  sleep 0.25
+done
+docker exec -e PGPASSWORD="${password}" -i "${container}" \
+  psql -X --set ON_ERROR_STOP=1 --set r1_sheet_sidecar_read_restart_check=true \
+    --username postgres --dbname "${database}" \
+  < "${repo_root}/tests/db4/76_r1_sheet_sidecar_read_projection.sql"
 
 print -r -- "DB4_PRODUCT_BRAIN_HARNESS_OK image=${image}"
