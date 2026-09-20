@@ -101,3 +101,13 @@ or the product review UI. Those prerequisites must be implemented and verified;
 ordinary native M2 approvals must not be treated as approval of external attachments.
 The hash graph remains snapshot -> design/technical decisions -> release candidate
 -> separate release authorization. No shared DB, production, deploy or flags were used.
+
+## Explicit capability regression — 2026-09-13
+
+Independent Claude review identified a difference from the stricter role predicates in two documentation-sheet RPCs. Canonical review resolved the intended boundary: MASTER §9 defines this operation as candidate composition; §10 separately preserves release-author checks. ADR-0004 §3 models workspaces as capability compositions, and Charter v0.5 §13 assigns contextual permissions. Existing project/package capability constraints permit explicit `prepare_client_handoff`; role presets are defaults rather than a veto on these rows. AP5's `designer` alias maps to the database `architect` role.
+
+The original timestamped migration remains unchanged. Its comment comparing authority with sheet authoring means the shared capability, not identical additional role predicates. No new role restriction or new runtime grant was added. Candidate composition still grants no approval or publication authority.
+
+Fixture64 now independently proves both project-wide and exact-package explicit capability access for the existing active client_approver identity, correct actor/scope, exact replay, tenant/sibling-package denial, and refusal of replay/new commands after revocation. Only two candidates are created, with zero approval/release effects. A savepoint rolls all setup and effects back before canonical role scenarios.
+
+Independent fixture review PASS at SHA2564459b2b4ef90850dddd7371c76983086ef88bd130554278307b5da93047b3f49. Local PG16 and PG17 passed all47 ordered DB4 fixture files including this regression and subsequent workflows. Both exact owned containers were removed and absence verified. These tmpfs checks do not prove database restart; current-head CI/review must be recorded separately.

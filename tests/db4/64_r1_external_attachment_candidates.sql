@@ -103,6 +103,135 @@ $open_module_does_not_grant_authoring_capability$;
 reset role;
 rollback to savepoint r1_without_authoring_capability;
 release savepoint r1_without_authoring_capability;
+-- MASTER §9 composes a candidate; §10 separately authorizes release. Exercise
+-- existing capability composition with the real client_approver fixture identity,
+-- not an owner/architect alias. All capability grants and candidate writes below
+-- roll back before the canonical owner and five-role scenarios continue.
+savepoint r1_explicit_candidate_capabilities;
+do $explicit_candidate_capabilities$
+declare
+  v_project constant uuid := '41111111-1111-4111-8111-111111111111';
+  v_user constant uuid := '32222222-2222-4222-8222-222222222222';
+  v_org uuid;
+  v_other_package uuid;
+  v_mode text;
+  v_state bigint;
+  v_refs jsonb;
+  v_result jsonb;
+  v_replay jsonb;
+  v_detail text;
+  v_key text;
+  v_submissions bigint;
+  v_versions bigint;
+  v_approvals bigint;
+begin
+  select organization_id into strict v_org
+  from project_intelligence.project_workflows where project_id = v_project;
+  if not exists (
+    select 1 from project_intelligence.organization_members
+    where organization_id = v_org and user_id = v_user and status = 'active'
+  ) or not exists (
+    select 1 from projectceo_foundation.project_memberships
+    where organization_id = v_org and project_id = v_project and user_id = v_user
+      and status = 'active' and role = 'client_approver'
+  ) or not exists (
+    select 1 from projectceo_foundation.package_memberships
+    where organization_id = v_org and project_id = v_project and package_id = v_project
+      and user_id = v_user and status = 'active' and role = 'client_approver'
+  ) then raise exception 'R1_REAL_ACTIVE_CLIENT_CAPABILITY_FIXTURE_REQUIRED'; end if;
+  select id into v_other_package from projectceo_foundation.project_packages
+  where organization_id = v_org and project_id = v_project and id <> v_project
+    and status = 'active' order by id limit 1;
+  if v_other_package is null then raise exception 'R1_OTHER_ACTIVE_PACKAGE_REQUIRED'; end if;
+  select refs into strict v_refs from r1_candidate_test;
+  select count(*) into v_versions from projectceo_product.production_package_versions;
+  select count(*) into v_approvals from projectceo_platform.approval_requests;
+  select count(*) into v_submissions from projectceo_foundation.external_release_attachment_submissions;
+
+  -- Eliminate inherited authoring grants so each positive proves its own route.
+  delete from projectceo_foundation.project_member_capabilities
+  where project_id = v_project and user_id = v_user and capability = 'prepare_client_handoff';
+  delete from projectceo_foundation.package_member_capabilities
+  where project_id = v_project and user_id = v_user and capability = 'prepare_client_handoff';
+  foreach v_mode in array array['project','package'] loop
+    if v_mode = 'project' then
+      insert into projectceo_foundation.project_member_capabilities
+        (organization_id, project_id, user_id, capability)
+      values (v_org, v_project, v_user, 'prepare_client_handoff');
+    else
+      insert into projectceo_foundation.package_member_capabilities
+        (organization_id, project_id, package_id, user_id, capability)
+      values (v_org, v_project, v_project, v_user, 'prepare_client_handoff');
+    end if;
+    select state_revision into strict v_state
+    from project_intelligence.project_workflows where project_id = v_project;
+    v_key := 'r1-explicit-' || v_mode || '-candidate';
+    set local role authenticated;
+    perform set_config('request.jwt.claim.sub', v_user::text, true);
+    v_result := projectceo_product_api.attach_external_release_refs(
+      v_project, v_project, 'cycle6-handoff', '74000000-0000-4000-8000-000000000021',
+      v_refs, v_state, v_key
+    );
+    v_replay := projectceo_product_api.attach_external_release_refs(
+      v_project, v_project, 'cycle6-handoff', '74000000-0000-4000-8000-000000000021',
+      v_refs, v_state, v_key
+    );
+    if v_result#>>'{result,status}' is distinct from 'candidate'
+      or v_replay->>'replay' is distinct from 'true'
+      or v_replay->'result' is distinct from v_result->'result' then
+      raise exception 'R1_EXPLICIT_CAPABILITY_CANDIDATE_OR_REPLAY_INVALID: %', v_mode;
+    end if;
+    -- Identical selectors/key cannot disclose another tenant, or a sibling
+    -- package when the only authority is the root package grant.
+    begin
+      perform projectceo_product_api.attach_external_release_refs(
+        case when v_mode = 'project' then '42222222-2222-4222-8222-222222222222'::uuid else v_project end,
+        case when v_mode = 'project' then '42222222-2222-4222-8222-222222222222'::uuid else v_other_package end,
+        'cycle6-handoff', '74000000-0000-4000-8000-000000000021', v_refs, v_state, v_key
+      );
+      raise exception 'R1_EXPLICIT_CAPABILITY_SCOPE_LEAK: %', v_mode;
+    exception when sqlstate 'P1103' then
+      get stacked diagnostics v_detail = pg_exception_detail;
+      if sqlerrm is distinct from 'forbidden'
+        or v_detail::jsonb is distinct from '{"reason":"PACKAGE_CAPABILITY_REQUIRED"}'::jsonb then raise; end if;
+    end;
+    reset role;
+    if not exists (
+      select 1 from projectceo_foundation.external_release_attachment_submissions
+      where external_attachment_submission_id = (v_result#>>'{result,submissionId}')::uuid
+        and organization_id = v_org and project_id = v_project and package_id = v_project
+        and created_by_user_id = v_user
+    ) then raise exception 'R1_EXPLICIT_CAPABILITY_WRONG_ACTOR_OR_SCOPE'; end if;
+    delete from projectceo_foundation.project_member_capabilities
+    where project_id = v_project and user_id = v_user and capability = 'prepare_client_handoff';
+    delete from projectceo_foundation.package_member_capabilities
+    where project_id = v_project and user_id = v_user and capability = 'prepare_client_handoff';
+    set local role authenticated;
+    -- Fresh authorization precedes both replay and new candidate composition.
+    foreach v_key in array array[v_key, v_key || '-after-revocation'] loop
+      begin
+        perform projectceo_product_api.attach_external_release_refs(
+          v_project, v_project, 'cycle6-handoff', '74000000-0000-4000-8000-000000000021',
+          v_refs, v_state, v_key
+        );
+        raise exception 'R1_REVOKED_CAPABILITY_CANDIDATE_ALLOWED: %', v_mode;
+      exception when sqlstate 'P1103' then
+        get stacked diagnostics v_detail = pg_exception_detail;
+        if sqlerrm is distinct from 'forbidden'
+          or v_detail::jsonb is distinct from '{"reason":"PACKAGE_CAPABILITY_REQUIRED"}'::jsonb then raise; end if;
+      end;
+    end loop;
+    reset role;
+  end loop;
+  if (select count(*) from projectceo_foundation.external_release_attachment_submissions) <> v_submissions + 2
+    or (select count(*) from projectceo_product.production_package_versions) <> v_versions
+    or (select count(*) from projectceo_platform.approval_requests) <> v_approvals then
+    raise exception 'R1_EXPLICIT_CAPABILITY_REPLAY_OR_APPROVAL_RELEASE_EFFECTS';
+  end if;
+end
+$explicit_candidate_capabilities$;
+rollback to savepoint r1_explicit_candidate_capabilities;
+release savepoint r1_explicit_candidate_capabilities;
 set local role authenticated;
 set local request.jwt.claim.sub = '31111111-1111-4111-8111-111111111111';
 update r1_candidate_test set result = projectceo_product_api.attach_external_release_refs(
