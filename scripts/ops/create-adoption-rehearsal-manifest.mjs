@@ -1,11 +1,12 @@
 import { createHash } from "node:crypto";
 import { execFileSync } from "node:child_process";
-import { mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
+import { mkdirSync, readdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 
 const CONTRACT = "remhaos-adoption-rehearsal-manifest/1.0";
 const SNAPSHOT_CONTRACT = "remhaos-production-catalog/2.0";
 const LEDGER = "tests/ap1/environment/migration-ledger.sha256";
+const MIGRATIONS = "supabase/migrations";
 const AUXILIARY_INPUTS = [
   "supabase/roles.sql",
   "tests/ap1/environment/verify-db.sql",
@@ -21,10 +22,26 @@ export function parseLedger(text) {
     if (!match) fail("ADOPTION_MANIFEST_LEDGER_INVALID");
     return { sha256: match[1], path: match[2], version: match[3] };
   });
-  if (entries.length !== 98 || new Set(entries.map((entry) => entry.version)).size !== entries.length) {
+  if (entries.length === 0 || new Set(entries.map((entry) => entry.version)).size !== entries.length) {
     fail("ADOPTION_MANIFEST_LEDGER_NOT_CURRENT");
   }
   return entries;
+}
+
+/**
+ * "Current" is the repository's own migration set, not a pinned count: a
+ * hardcoded number goes stale on the next migration and never catches a
+ * migration added without a ledger entry. The exact set is what the manifest
+ * binds, and every entry's digest is verified separately.
+ */
+export function assertLedgerCoversRepository(repository, entries) {
+  const declared = new Set(entries.map((entry) => entry.path));
+  const present = readdirSync(resolve(repository, MIGRATIONS))
+    .filter((name) => name.endsWith(".sql"))
+    .map((name) => `${MIGRATIONS}/${name}`);
+  if (present.length !== declared.size || !present.every((path) => declared.has(path))) {
+    fail("ADOPTION_MANIFEST_LEDGER_NOT_CURRENT");
+  }
 }
 
 export function buildManifest({ repository, targetRef, snapshotBytes, now = new Date().toISOString() }) {
@@ -37,6 +54,7 @@ export function buildManifest({ repository, targetRef, snapshotBytes, now = new 
   if (snapshot.migration_ledger.length !== 23) fail("ADOPTION_MANIFEST_SNAPSHOT_HISTORY_INVALID");
   const ledgerBytes = readFileSync(resolve(repository, LEDGER));
   const ledger = parseLedger(ledgerBytes.toString("utf8"));
+  assertLedgerCoversRepository(repository, ledger);
   for (const entry of ledger) {
     const bytes = readFileSync(resolve(repository, entry.path));
     if (sha256(bytes) !== entry.sha256) fail("ADOPTION_MANIFEST_MIGRATION_DIGEST_MISMATCH");
