@@ -39,10 +39,94 @@ begin
  if not exists(select 1 from projectceo_foundation.external_review_submission_refs where submission_id=s and semantic_content=descriptor->'semanticContent' and semantic_digest=project_intelligence._sha256_jsonb(descriptor->'semanticContent')) then raise exception 'R109_LEAF_CONVENTION_MISSING'; end if;
 end $reference_regressions$;
 
+-- Record private facts as the fixture owner, then exercise only the public
+-- SECURITY DEFINER door with request-bound JWT identities. Private-table
+-- assertions remain outside that call path.
+do $subject_preview_prepare$
+declare
+ p uuid:='41111111-1111-4111-8111-111111111111'; asset_version uuid;
+ before_counts jsonb;
+begin
+ select asset_version_id into strict asset_version
+ from projectceo_foundation.external_asset_versions
+ where project_id=p and package_id=p order by created_at limit 1;
+ select jsonb_build_object('heads',(select count(*) from projectceo_foundation.external_review_subject_heads),
+   'submissions',(select count(*) from projectceo_foundation.external_review_submissions),
+   'refs',(select count(*) from projectceo_foundation.external_review_submission_refs),
+   'designDecisions',(select count(*) from projectceo_foundation.external_review_design_decisions),
+   'technicalDecisions',(select count(*) from projectceo_foundation.external_review_technical_decisions),
+   'events',(select count(*) from projectceo_foundation.external_review_events),
+   'commands',(select count(*) from projectceo_product.command_records)) into before_counts;
+ perform set_config('r109.preview_asset_version_id',asset_version::text,true);
+ perform set_config('r109.preview_before_counts',before_counts::text,true);
+end $subject_preview_prepare$;
+
+do $subject_preview$
+declare
+ p uuid:='41111111-1111-4111-8111-111111111111'; asset_version uuid;
+ r jsonb;
+begin
+ asset_version:=current_setting('r109.preview_asset_version_id')::uuid;
+ r:=projectceo_product_api.preview_external_review_subject(p,p,jsonb_build_array(jsonb_build_object('kind','asset_version','assetVersionId',asset_version)));
+ if r->'error' <> 'null'::jsonb
+   or r#>>'{data,purpose}' is distinct from 'file_review'
+   or r#>>'{data,releaseEligibility}' is distinct from 'ineligible_file_review'
+   or jsonb_array_length(r#>'{data,safeExactRefs}')<>1
+   or r::text like '%assetVersionId%'
+   or r::text like '%private/synthetic%' then
+   raise exception 'R109_PREVIEW_UNSAFE_OR_INVALID';
+ end if;
+ if exists (
+  select 1 from jsonb_array_elements(r#>'{data,safeExactRefs}') item
+  where (select count(*) from jsonb_object_keys(item))<>3
+    or not (item ?& array['ordinal','kind','digest'])
+    or jsonb_typeof(item->'ordinal') is distinct from 'number'
+    or jsonb_typeof(item->'kind') is distinct from 'string'
+    or jsonb_typeof(item->'digest') is distinct from 'string'
+ ) then raise exception 'R109_PREVIEW_REF_DESCRIPTOR_LEAK'; end if;
+ begin
+  perform projectceo_product_api.preview_external_review_subject(p,p,jsonb_build_array(
+    jsonb_build_object('kind','asset_version','assetVersionId',asset_version),
+    jsonb_build_object('kind','asset_version','assetVersionId',asset_version)
+  ));
+  raise exception 'R109_PREVIEW_DUPLICATE_ACCEPTED';
+ exception when sqlstate 'P1111' then null; end;
+ begin
+  perform set_config('request.jwt.claim.sub','33333333-3333-4333-8333-333333333333',true);
+  perform projectceo_product_api.preview_external_review_subject(p,p,jsonb_build_array(jsonb_build_object('kind','asset_version','assetVersionId',asset_version)));
+  raise exception 'R109_PREVIEW_FOREIGN_TENANT_ALLOWED';
+ exception when sqlstate 'P1103' then null; end;
+ perform set_config('request.jwt.claim.sub','31111111-1111-4111-8111-111111111111',true);
+ begin
+  perform projectceo_product_api.preview_external_review_subject(p,'49999999-9999-4999-8999-999999999999',jsonb_build_array(jsonb_build_object('kind','asset_version','assetVersionId',asset_version)));
+  raise exception 'R109_PREVIEW_CROSS_PACKAGE_ALLOWED';
+ exception when sqlstate 'P1104' then null; end;
+end $subject_preview$;
+
+do $subject_preview_no_persistence$
+declare after_counts jsonb;
+begin
+ select jsonb_build_object('heads',(select count(*) from projectceo_foundation.external_review_subject_heads),
+   'submissions',(select count(*) from projectceo_foundation.external_review_submissions),
+   'refs',(select count(*) from projectceo_foundation.external_review_submission_refs),
+   'designDecisions',(select count(*) from projectceo_foundation.external_review_design_decisions),
+   'technicalDecisions',(select count(*) from projectceo_foundation.external_review_technical_decisions),
+   'events',(select count(*) from projectceo_foundation.external_review_events),
+   'commands',(select count(*) from projectceo_product.command_records)) into after_counts;
+ if after_counts is distinct from current_setting('r109.preview_before_counts')::jsonb then raise exception 'R109_PREVIEW_PERSISTED'; end if;
+ if not has_function_privilege('authenticated','projectceo_product_api.preview_external_review_subject(uuid,uuid,jsonb)','EXECUTE')
+   or has_function_privilege('anon','projectceo_product_api.preview_external_review_subject(uuid,uuid,jsonb)','EXECUTE')
+   or has_function_privilege('service_role','projectceo_product_api.preview_external_review_subject(uuid,uuid,jsonb)','EXECUTE')
+   or has_function_privilege('pi_human_executor','projectceo_product_api.preview_external_review_subject(uuid,uuid,jsonb)','EXECUTE')
+   or has_function_privilege('pi_worker_executor','projectceo_product_api.preview_external_review_subject(uuid,uuid,jsonb)','EXECUTE') then
+   raise exception 'R109_PREVIEW_EXECUTE_ACL';
+ end if;
+end $subject_preview_no_persistence$;
+
 do $fixture$
 declare
  p uuid:='41111111-1111-4111-8111-111111111111'; a uuid:='31111111-1111-4111-8111-111111111111';
- o uuid; t uuid:=extensions.gen_random_uuid(); s uuid:=extensions.gen_random_uuid(); c record; c2 record; snap jsonb; dig bytea; r jsonb; before_state bigint; decision_json jsonb; dt timestamptz:=statement_timestamp(); bad_disclosure jsonb; bad_json jsonb; typ text; null_accepted integer:=0;
+ o uuid; t uuid:=extensions.gen_random_uuid(); s uuid:=extensions.gen_random_uuid(); t_unassigned uuid:=extensions.gen_random_uuid(); s_unassigned uuid:=extensions.gen_random_uuid(); c record; c2 record; snap jsonb; dig bytea; r jsonb; before_state bigint; decision_json jsonb; dt timestamptz:=statement_timestamp(); bad_disclosure jsonb; bad_json jsonb; typ text; null_accepted integer:=0;
 begin
  select organization_id,state_revision into o,before_state from project_intelligence.project_workflows where project_id=p;
  snap:=jsonb_build_object('schemaVersion','archidom.external-file-review-subject/0.1','purpose','file_review','organizationId',o,'projectId',p,'packageId',p,'refs','[]'::jsonb);
@@ -137,5 +221,61 @@ begin
   raise exception 'revoked replay accepted';
  exception when sqlstate 'P1103' then null; end;
  if has_table_privilege('service_role','projectceo_foundation.external_review_submissions','INSERT') or has_function_privilege('authenticated','projectceo_foundation._external_review_command_context(uuid,uuid,text,text,text,jsonb)','EXECUTE') then raise exception 'private foundation exposed'; end if;
+ -- The read door is scoped to this exact submission and returns opaque ref
+ -- summaries only. It does not turn storage evidence into a release result.
+ r := projectceo_read_api.get_external_review(p,p,s);
+ if r->'error' <> 'null'::jsonb
+   or r#>>'{data,submissionId}' is distinct from s::text
+   or r#>>'{data,purpose}' is distinct from 'file_review'
+   or r#>>'{data,releaseEligibility}' is distinct from 'ineligible_file_review'
+   or r#>>'{data,reviewReadiness}' is distinct from 'not_evaluated'
+   or r::text like '%private/synthetic%'
+   or r::text like '%32222222-2222-4222-8222-222222222222%'
+   or r::text like '%assignedClientUserId%' then
+   raise exception 'R109_READ_SCOPE_OR_SANITIZATION';
+ end if;
+ insert into projectceo_foundation.external_review_subject_heads(organization_id,project_id,package_id,review_thread_id)
+ values(o,p,p,t_unassigned);
+ insert into projectceo_foundation.external_review_submissions(organization_id,project_id,package_id,submission_id,review_thread_id,purpose,submission_revision,subject_digest,snapshot_schema_version,semantic_snapshot,assigned_client_user_id,submitted_by_user_id,reason)
+ values(o,p,p,s_unassigned,t_unassigned,'file_review',1,dig,'archidom.external-file-review-subject/0.1',snap,a,a,'synthetic unassigned-client read fixture');
+ update projectceo_foundation.external_review_subject_heads
+ set current_submission_id=s_unassigned,lifecycle_revision=1 where review_thread_id=t_unassigned;
+ perform set_config('r109.assigned_submission_id',s::text,true);
+ perform set_config('r109.unassigned_submission_id',s_unassigned::text,true);
 end $fixture$;
+
+-- These are actual authenticated identities, not an owner-shaped call under
+-- the test superuser. Builder and unassigned-client reads must be denied.
+update projectceo_foundation.project_memberships
+set role='builder' where project_id='41111111-1111-4111-8111-111111111111'
+  and user_id='32222222-2222-4222-8222-222222222222';
+update projectceo_foundation.package_memberships
+set role='builder' where project_id='41111111-1111-4111-8111-111111111111'
+  and package_id='41111111-1111-4111-8111-111111111111'
+  and user_id='32222222-2222-4222-8222-222222222222';
+set local role authenticated;
+set local request.jwt.claim.sub='32222222-2222-4222-8222-222222222222';
+do $builder_read_denied$
+declare r jsonb;
+begin
+ r:=projectceo_read_api.get_external_review('41111111-1111-4111-8111-111111111111','41111111-1111-4111-8111-111111111111',current_setting('r109.assigned_submission_id')::uuid);
+ if r#>>'{error,code}' is distinct from 'forbidden' or r->'data' is distinct from 'null'::jsonb then raise exception 'R109_BUILDER_READ_ALLOWED'; end if;
+end $builder_read_denied$;
+reset role;
+update projectceo_foundation.project_memberships
+set role='client_approver' where project_id='41111111-1111-4111-8111-111111111111'
+  and user_id='32222222-2222-4222-8222-222222222222';
+insert into projectceo_foundation.package_memberships(organization_id,project_id,package_id,user_id,role)
+select organization_id,project_id,project_id,'32222222-2222-4222-8222-222222222222','client_approver'
+from project_intelligence.project_workflows where project_id='41111111-1111-4111-8111-111111111111'
+on conflict (organization_id,project_id,package_id,user_id) do update set role=excluded.role,status='active';
+set local role authenticated;
+set local request.jwt.claim.sub='32222222-2222-4222-8222-222222222222';
+do $unassigned_client_read_denied$
+declare r jsonb;
+begin
+ r:=projectceo_read_api.get_external_review('41111111-1111-4111-8111-111111111111','41111111-1111-4111-8111-111111111111',current_setting('r109.unassigned_submission_id')::uuid);
+ if r#>>'{error,code}' is distinct from 'forbidden' or r->'data' is distinct from 'null'::jsonb then raise exception 'R109_UNASSIGNED_CLIENT_READ_ALLOWED'; end if;
+end $unassigned_client_read_denied$;
+reset role;
 rollback;
