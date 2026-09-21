@@ -240,11 +240,15 @@ begin
   -- чтением очереди артефактов выпуска (20260811030000) и до 23 с атомарной
   -- дверью публикации baseline (20260825030000) и до 24 с request-bound
   -- выпуском work package (20260911140000), root request-bound выпуском
-  -- (20260911150000) и до 25 с R1 external annotation commands (20260912100000):
-  -- перепись существует ровно
-  -- затем, чтобы новая RPC в схеме не появлялась молча.
+  -- (20260911150000), до 25 с R1 external annotation commands (20260912100000)
+  -- и, судя по коду до этой ветки (было <> 26), ещё на одну между 0912 и 0920
+  -- без обновления этой прозы. С этой ветки — до 27, за счёт двух read-only
+  -- R1 review-контрактов: authenticated read (20260920150000, схема
+  -- projectceo_read_api, этого счётчика не касается) и
+  -- preview_external_review_subject (20260920160000, эта схема, +1). Перепись
+  -- существует ровно затем, чтобы новая RPC в схеме не появлялась молча.
   -- R1 adds one candidate composition command, not another publication door.
-  if v_count <> 26 then
+  if v_count <> 27 then
     raise exception 'DB4_UNEXPECTED_RPC_COUNT:%', v_count;
   end if;
 
