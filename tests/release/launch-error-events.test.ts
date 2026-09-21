@@ -3,13 +3,20 @@ const state = vi.hoisted(() => ({
   failure: "", rows: [] as Record<string, unknown>[], known: true, llmOk: true,
   projectStatus: "created", existingResponse: null as string | null,
 }));
-vi.mock("@/lib/intake", () => ({ getProjectByIntakeToken: async () => state.known ? { id: "project", designer_id: "designer", status: state.projectStatus } : null }));
+// WP-42B перевёл intake-роуты на региональный клиент, а он объявляет
+// `import "server-only"`. В тестах этот модуль не резолвится (его даёт сборщик
+// Next, не Node), поэтому заглушка обязательна — ровно так же, как в
+// command-service.test.ts и остальных тестах, тянущих серверные модули.
+vi.mock("server-only", () => ({}));
+vi.mock("@/lib/intake", () => ({ getProjectByIntakeToken: async () => state.known ? { id: "project", designer_id: "designer", status: state.projectStatus, cellCode: "ru" } : null }));
 vi.mock("@/lib/rate-limit", () => ({ checkRateLimit: async () => true, clientIp: () => "test" }));
 vi.mock("@/lib/brief/pipeline", () => ({ runRiskPipeline: async () => {
   if (state.failure === "pipeline") throw new Error("private submitted content");
   return { passport: {}, cards: [], llmOk: state.llmOk };
 } }));
-vi.mock("@/lib/supabase/token-scoped", () => ({ createScopedServiceClient: () => ({
+// Один и тот же поддельный клиент нужен двум модулям: intake-роуты ходят через
+// региональный клиент (WP-42B), а proposal/respond остался на token-scoped.
+const fakeClient = vi.hoisted(() => () => ({
   schema: () => ({ rpc: async () => ({ data: { requests: [{ subjectKind: "project_passport", subjectId: "project", status: "approved" }] }, error: null }) }),
   storage: { from: () => ({ upload: async () => ({ error: { message: "private filename" } }) }) },
   from: (table: string) => {
@@ -25,7 +32,9 @@ vi.mock("@/lib/supabase/token-scoped", () => ({ createScopedServiceClient: () =>
     };
     return query;
   },
-}) }));
+}));
+vi.mock("@/lib/supabase/token-scoped", () => ({ createScopedServiceClient: fakeClient }));
+vi.mock("@/lib/supabase/regional-admin", () => ({ createRegionalPublicTokenClient: fakeClient }));
 import { POST as start } from "../../app/api/intake/start/route";
 import { POST as submit } from "../../app/api/intake/submit/route";
 import { POST as upload } from "../../app/api/intake/upload/route";

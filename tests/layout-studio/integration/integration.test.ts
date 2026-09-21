@@ -330,6 +330,9 @@ describe("Layout Studio delivery/UI slice", () => {
       // отношения не имеет.
       "20260910090000_projectceo_m1_legacy_read_contract.sql",
       "20260910100000_projectceo_wp26_storage_rls.sql",
+      // WP-42B: immutable, PII-free market-routing receipt binding. К Layout
+      // Studio отношения не имеет.
+      "20260911100000_remhaos_market_routing_receipts.sql",
       // WP-14 hardens observed legacy-adopted objects only. К Layout Studio
       // отношения не имеет.
       "20260911110000_legacy_adopted_hardening.sql",
