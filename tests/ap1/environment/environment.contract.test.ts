@@ -1,5 +1,7 @@
 import { createHash } from "node:crypto";
-import { readFileSync, readdirSync } from "node:fs";
+import { spawnSync } from "node:child_process";
+import { readFileSync, readdirSync, mkdtempSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
 import { resolve } from "node:path";
 
 import { describe, expect, it } from "vitest";
@@ -79,8 +81,78 @@ describe("AP1 disposable Supabase environment contract", () => {
     const runner = readFileSync(runnerPath, "utf8");
     expect(runner).toContain("AP1_DOCKER_HOST_REJECTED");
     expect(runner).toContain("AP1_LINKED_PROJECT_REJECTED");
-    expect(runner).toContain("--exclude imgproxy,mailpit");
+    expect(runner).toContain("--exclude edge-runtime,imgproxy,mailpit");
     expect(runner).not.toMatch(/--exclude[^\n]*(?:rest|storage|kong|db)/);
+  });
+
+  it("redacts quoted Supabase status keys before they reach runtime logs", () => {
+    const runner = readFileSync(runnerPath, "utf8");
+    expect(runner).toContain("PUBLISHABLE_KEY");
+    expect(runner).toContain("PUBLISHABLE_KEY|ANON_KEY|SERVICE_ROLE_KEY");
+  });
+
+  it("accepts the wrapper disposable socket and rejects the legacy socket before runtime", () => {
+    const root = mkdtempSync(resolve(tmpdir(), "wp32-socket-"));
+    const env = { ...process.env, AP1_SUPABASE_BIN: "/usr/bin/true", AP1_CLI_HOME: resolve(root, "home"), AP1_NPM_CACHE: resolve(root, "cache") };
+    try {
+      const accepted = spawnSync("zsh", [runnerPath, "version"], {
+        env: { ...env, DOCKER_HOST: "unix:///Users/test/.colima/archidom-ap1-disposable/docker.sock" }, encoding: "utf8",
+      });
+      expect(accepted.status).toBe(0);
+      const rejected = spawnSync("zsh", [runnerPath, "version"], {
+        env: { ...env, DOCKER_HOST: "unix:///Users/test/.colima/archidom-ap1/docker.sock" }, encoding: "utf8",
+      });
+      expect(rejected.status).toBe(65);
+      expect(rejected.stderr).toContain("AP1_DOCKER_HOST_REJECTED");
+    } finally { rmSync(root, { recursive: true, force: true }); }
+  });
+
+  it("uses the same disposable profile through the Kora producer and five-session guard", () => {
+    const producer = readFileSync(resolve(repoRoot, "tests/pilot-evidence/executors/kora-five-session-producer.zsh"), "utf8");
+    const fiveSessionPath = resolve(repoRoot, "tests/ap1/e2e/run-five-sessions.zsh");
+    expect(producer).toContain(".colima/archidom-ap1-disposable/docker.sock");
+    const root = mkdtempSync(resolve(tmpdir(), "wp32-five-session-guard-"));
+    const env = { ...process.env, AP1_KORA_SITE_PHOTO: resolve(root, "absent-photo.jpg") };
+    try {
+      const accepted = spawnSync("zsh", [fiveSessionPath], {
+        env: { ...env, DOCKER_HOST: `unix://${process.env.HOME}/.colima/archidom-ap1-disposable/docker.sock` }, encoding: "utf8",
+      });
+      expect(accepted.status).toBe(66);
+      expect(accepted.stderr).toContain("AP1_KORA_SITE_PHOTO_REQUIRED");
+      const rejected = spawnSync("zsh", [fiveSessionPath], {
+        env: { ...env, DOCKER_HOST: `unix://${process.env.HOME}/.colima/archidom-ap1/docker.sock` }, encoding: "utf8",
+      });
+      expect(rejected.status).toBe(65);
+      expect(rejected.stderr).toContain("AP1_DOCKER_HOST_REJECTED");
+    } finally { rmSync(root, { recursive: true, force: true }); }
+  });
+
+  it("keeps Kora authenticated-read counts aligned with the registered site photo", () => {
+    const provision = readFileSync(resolve(repoRoot, "tests/ap1/e2e/provision-kora.ts"), "utf8");
+    const fiveSession = readFileSync(resolve(repoRoot, "tests/ap1/e2e/run-five-sessions.zsh"), "utf8");
+    for (const marker of ["physicalRecords !== 210", "materializedRecords !== 82", "uniqueBlobs !== 29"]) {
+      expect(provision).toContain(marker);
+    }
+    for (const marker of ["physicalRecords == 210", "materializedRecords == 82", "uniqueBlobs == 29"]) {
+      expect(fiveSession).toContain(marker);
+    }
+  });
+
+  it("defines the photo milestone against the provisioned release version", () => {
+    const fiveSession = readFileSync(resolve(repoRoot, "tests/ap1/e2e/run-five-sessions.zsh"), "utf8");
+    expect(fiveSession).toContain("release_version=$(jq -er '.result.productionPackageVersionId // .result.versionId // .result.id'");
+    expect(fiveSession).toContain('kind:"publish_baseline"');
+    expect(fiveSession).toContain('kind:"publish_release"');
+    expect(fiveSession).toContain("worker:release-artifacts");
+    expect(fiveSession).toContain("define-milestone-rpc.ts");
+    expect(fiveSession).not.toContain("'package-db4-work-v1',");
+  });
+
+  it("persists the server-derived latest version instead of a fixture release ID", () => {
+    const provision = readFileSync(resolve(repoRoot, "tests/ap1/e2e/provision-kora.ts"), "utf8");
+    expect(provision).toContain("releaseVersionId: null");
+    expect(provision).toContain("guestReleaseVersionId: null");
+    expect(provision).not.toContain('releaseVersionId: "package-db4-root-v1"');
   });
 
   it("bootstraps only guarded NOLOGIN Project Intelligence roles", () => {

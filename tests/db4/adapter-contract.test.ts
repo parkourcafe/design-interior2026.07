@@ -111,6 +111,38 @@ describe("ProjectCEO Product Brain postgres adapter", () => {
     expect("acknowledgeRelease" in worker).toBe(false);
   });
 
+  it("calls the root release door without caller-owned package, refs, or hash", async () => {
+    const calls: RpcCall[] = [];
+    const adapter = new ProjectBrainHumanPostgresAdapter(clientReturning({
+      operation: "publish_release_request_bound",
+      replay: false,
+      stateRevision: 18,
+      result: { id: "release:root-v1", packageId: "project" },
+    }, calls));
+
+    await adapter.publishReleaseRequestBound({
+      projectId: "project",
+      expectedBaselineId: "baseline-v1",
+      expectedPreviousVersionId: null,
+      expectedStateRevision: 17,
+      commandRef: "root-v1",
+      idempotencyKey: "root-v1",
+    });
+
+    expect(calls).toEqual([{
+      schema: "projectceo_product_api",
+      functionName: "publish_release_request_bound",
+      args: {
+        project_id: "project",
+        expected_baseline_id: "baseline-v1",
+        expected_previous_version_id: null,
+        expected_state_revision: 17,
+        command_ref: "root-v1",
+        idempotency_key: "root-v1",
+      },
+    }]);
+  });
+
   it("builds only the P0 logical-json artifact through the worker schema", async () => {
     const calls: RpcCall[] = [];
     const worker = new ProjectBrainWorkerPostgresAdapter(

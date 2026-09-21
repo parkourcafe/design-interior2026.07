@@ -196,12 +196,30 @@ function fakeClient(calls: Call[], options: FakeClientOptions = {}): PostgresRpc
       status: "published",
       semanticHash,
     },
+    "projectceo_product_api.publish_release_request_bound": {
+      id: "release:cccccccc-cccc-4ccc-8ccc-cccccccccccc",
+      projectId,
+      packageId,
+      versionNo: 1,
+      status: "published",
+      semanticHash,
+    },
     "projectceo_product_api.publish_project_baseline": {
       id: "baseline-v3",
       projectId,
       versionNo: 3,
       status: "published",
       semanticHash,
+    },
+    "projectceo_product_api.publish_baseline_atomic": {
+      baseline: {
+        id: "baseline-v3",
+        projectId,
+        versionNo: 3,
+        status: "published",
+        semanticHash,
+      },
+      version: { id: "graph-v3" },
     },
     "projectceo_api.register_source_inventory": { registeredPhysicalRecords: 1 },
     "projectceo_api.publish_version": { version: { id: "graph-v3" } },
@@ -884,18 +902,18 @@ describe("AP1 supported human commands", () => {
     expect(result).toMatchObject({ status: "completed", replay: false });
 
     const published = calls.find((call) => (
-      call.name === "projectceo_product_api.publish_production_package_version"
-    ))?.args as { descriptor: Record<string, unknown> } | undefined;
-    expect(published?.descriptor).toMatchObject({
-      packageId,
-      baselineId: "baseline-v2",
-      previousVersionId: null,
-      organizationId,
-      projectId,
-      schemaVersion: "project-ceo-production-package/0.1",
-      exactRevisionRefs: baselineRefs,
+      call.name === "projectceo_product_api.publish_release_request_bound"
+    ));
+    expect(published?.args).toMatchObject({
+      project_id: projectId,
+      expected_baseline_id: "baseline-v2",
+      expected_previous_version_id: null,
+      expected_state_revision: 9,
+      command_ref: "release:cccccccc-cccc-4ccc-8ccc-cccccccccccc",
     });
-    expect(String(published?.descriptor.semanticHash)).toMatch(/^sha256:[0-9a-f]{64}$/);
+    expect(calls.some((call) => (
+      call.name === "projectceo_product_api.publish_production_package_version"
+    ))).toBe(false);
   });
 
   it("refuses the release with stale_state when a version was published after the preview", async () => {
@@ -979,26 +997,20 @@ describe("AP1 supported human commands", () => {
     );
     expect(result).toMatchObject({ status: "completed", replay: false });
 
-    // Версия графа создаётся раньше baseline и именно через дверь: без неё RPC
-    // ответила бы not_found graphVersion.
-    const version = calls.find((call) => call.name === "projectceo_api.publish_version");
-    expect(version?.args).toMatchObject({
+    const published = calls.find((call) => (
+      call.name === "projectceo_product_api.publish_baseline_atomic"
+    ));
+    expect(published?.args).toMatchObject({
       project_id: projectId,
       expected_latest_version_id: "graph-v2",
+      previous_baseline_id: "baseline-v2",
+      expected_state_revision: 9,
+      command_ref: "cccccccc-cccc-4ccc-8ccc-cccccccccccc",
     });
-
-    const published = calls.find((call) => (
+    expect(calls.some((call) => call.name === "projectceo_api.publish_version")).toBe(false);
+    expect(calls.some((call) => (
       call.name === "projectceo_product_api.publish_project_baseline"
-    ))?.args as { descriptor: Record<string, unknown> } | undefined;
-    expect(published?.descriptor).toMatchObject({
-      graphVersionId: "graph-v3",
-      previousBaselineId: "baseline-v2",
-      decisionRevisionIds: ["decision-r1"],
-      selectionRevisionIds: ["selection-r1"],
-      approvalPackageIds: ["approval-1"],
-      packageIds: [packageId],
-    });
-    expect(String(published?.descriptor.semanticHash)).toMatch(/^sha256:[0-9a-f]{64}$/);
+    ))).toBe(false);
   });
 
   it("refuses with stale_state when the state moved after the preview", async () => {
@@ -1041,7 +1053,9 @@ describe("AP1 supported human commands", () => {
     );
 
     expect(result).toMatchObject({ status: "error", error: { code: "stale_state" } });
-    expect(calls.some((call) => call.name === "projectceo_api.publish_version")).toBe(false);
+    expect(calls.some((call) => (
+      call.name === "projectceo_product_api.publish_baseline_atomic"
+    ))).toBe(false);
     expect(calls.some((call) => (
       call.name === "projectceo_product_api.publish_project_baseline"
     ))).toBe(false);
@@ -1389,10 +1403,10 @@ describe("AP1 supported human commands", () => {
       "baseline-idempotency-2",
     );
 
-    const label = (calls: Call[]) => calls
-      .find((call) => call.name === "projectceo_api.publish_version")?.args.label;
-    expect(label(first)).toBe(label(second));
-    expect(String(label(first))).not.toMatch(/\d{4}-\d{2}-\d{2}T/);
+    const commandRef = (calls: Call[]) => calls
+      .find((call) => call.name === "projectceo_product_api.publish_baseline_atomic")?.args.command_ref;
+    expect(commandRef(first)).toBe(commandRef(second));
+    expect(commandRef(first)).toBe("cccccccc-cccc-4ccc-8ccc-cccccccccccc");
   });
 
   /**

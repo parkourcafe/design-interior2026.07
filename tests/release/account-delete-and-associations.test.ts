@@ -1,6 +1,9 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const state = vi.hoisted(() => ({
+  adminCalls: 0,
+  sequence: [] as string[],
+  listCalls: [] as Array<{ prefix: string; offset: number }>,
   user: { id: "user-1" } as { id: string } | null,
   projects: [{ id: "project-1" }],
   operations: [] as Array<{ table: string; action: string; column?: string; value?: unknown; values?: unknown }>,
@@ -20,10 +23,13 @@ vi.mock("@/lib/supabase/server", () => ({
 }));
 
 vi.mock("@/lib/supabase/admin", () => ({
-  createAdminClient: () => ({
+  createAdminClient: () => {
+    state.adminCalls += 1;
+    return ({
     auth: {
       admin: {
         deleteUser: async (id: string, soft?: boolean) => {
+          state.sequence.push("auth-delete");
           state.authDeleteCalls.push({ id, soft });
           return { error: null };
         },
@@ -31,16 +37,18 @@ vi.mock("@/lib/supabase/admin", () => ({
     },
     storage: {
       from: () => ({
-        list: async (prefix: string) => {
+        list: async (prefix: string, options: { offset: number; limit: number }) => {
           state.listedPrefixes.push(prefix);
+          state.listCalls.push({ prefix, offset: options.offset });
           return {
-            data: state.storageEntries[prefix] ?? [{ id: "file-1", name: "file.pdf" }],
-            error: null,
+            data: (state.storageEntries[prefix] ?? [{ id: "file-1", name: "file.pdf" }]).slice(options.offset, options.offset + options.limit),
+            error: state.failAction === "list" ? new Error("controlled") : null,
           };
         },
         remove: async (paths: string[]) => {
+          state.sequence.push("storage-remove");
           state.removedFiles.push(...paths);
-          return { error: null };
+          return { error: state.failAction === "remove" ? new Error("controlled") : null };
         },
       }),
     },
@@ -48,7 +56,7 @@ vi.mock("@/lib/supabase/admin", () => ({
       select: () => ({
         eq: async (column: string, value: unknown) => {
           state.operations.push({ table, action: "select", column, value });
-          return { data: state.projects, error: null };
+          return { data: state.projects, error: state.failAction === "select" ? new Error("controlled") : null };
         },
       }),
       delete: () => ({
@@ -66,12 +74,14 @@ vi.mock("@/lib/supabase/admin", () => ({
       update: (values: unknown) => ({
         eq: async (column: string, value: unknown) => {
           const action = `update:${table}`;
+          state.sequence.push(action);
           state.operations.push({ table, action, column, value, values });
           return { error: state.failAction === action ? new Error("controlled") : null };
         },
       }),
     }),
-  }),
+  });
+  },
 }));
 
 import { DELETE as deleteAccount } from "../../app/api/account/delete/route";
@@ -88,6 +98,9 @@ function deleteRequest(confirmation: string) {
 
 describe("release account deletion", () => {
   beforeEach(() => {
+    state.adminCalls = 0;
+    state.sequence = [];
+    state.listCalls = [];
     state.user = { id: "user-1" };
     state.projects = [{ id: "project-1" }];
     state.operations = [];
@@ -102,7 +115,54 @@ describe("release account deletion", () => {
     const response = await deleteAccount(deleteRequest("delete"));
 
     expect(response.status).toBe(400);
+    expect(state.adminCalls).toBe(0);
     expect(state.operations).toEqual([]);
+    expect(state.authDeleteCalls).toEqual([]);
+  });
+
+  it("rejects unauthenticated deletion before creating an admin client", async () => {
+    state.user = null;
+    const response = await deleteAccount(deleteRequest("УДАЛИТЬ"));
+    expect(response.status).toBe(401);
+    expect(state.adminCalls).toBe(0);
+    expect(state.operations).toEqual([]);
+    expect(state.authDeleteCalls).toEqual([]);
+  });
+
+  it("scopes cleanup to owned projects and completes it before closing Auth", async () => {
+    state.projects = [{ id: "owned-a" }, { id: "owned-b" }];
+    const response = await deleteAccount(deleteRequest("УДАЛИТЬ"));
+    expect(response.status).toBe(200);
+    expect(state.operations[0]).toEqual({ table: "projects", action: "select", column: "designer_id", value: "user-1" });
+    expect(state.listedPrefixes).toEqual(["owned-a", "designer-plans/owned-a", "owned-b", "designer-plans/owned-b"]);
+    for (const table of ["project_rooms", "answers", "risk_cards", "proposals"]) {
+      expect(state.operations).toContainEqual({ table, action: `delete:${table}`, column: "project_id", value: ["owned-a", "owned-b"] });
+    }
+    expect(state.operations.filter((op) => op.action === "update:projects").map((op) => op.value)).toEqual(["owned-a", "owned-b"]);
+    expect(state.operations).toContainEqual({ table: "project_participants", action: "update:project_participants", column: "auth_user_id", value: "user-1", values: { display_name: "", access_token: null, auth_user_id: null } });
+    expect(state.sequence[0]).toBe("storage-remove");
+    expect(state.sequence.slice(-2)).toEqual(["update:designers", "auth-delete"]);
+  });
+
+  it("paginates full listings and traverses nested folders without deleting folder names", async () => {
+    state.storageEntries = {
+      "project-1": [...Array.from({ length: 100 }, (_, i) => ({ id: `file-${i}`, name: `${i}.pdf` })), { id: null, name: "nested" }],
+      "project-1/nested": [{ id: "nested-file", name: "last.pdf" }],
+      "designer-plans/project-1": [],
+    };
+    const response = await deleteAccount(deleteRequest("УДАЛИТЬ"));
+    expect(response.status).toBe(200);
+    expect(state.listCalls).toContainEqual({ prefix: "project-1", offset: 100 });
+    expect(state.removedFiles).toHaveLength(101);
+    expect(new Set(state.removedFiles).size).toBe(101);
+    expect(state.removedFiles).toContain("project-1/nested/last.pdf");
+    expect(state.removedFiles).not.toContain("project-1/nested");
+  });
+
+  it.each(["select", "list", "remove", "delete:answers", "update:designers"])("does not close Auth after %s failure", async (failure) => {
+    state.failAction = failure;
+    const response = await deleteAccount(deleteRequest("УДАЛИТЬ"));
+    expect(response.status).toBe(500);
     expect(state.authDeleteCalls).toEqual([]);
   });
 

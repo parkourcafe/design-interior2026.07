@@ -2,6 +2,7 @@ import { createHash } from "node:crypto";
 import { execFile, execFileSync } from "node:child_process";
 import { existsSync, readFileSync, renameSync, rmSync, writeFileSync } from "node:fs";
 import { resolve, relative, join } from "node:path";
+import { canonicalJson } from "../../lib/project-intelligence/application/change-handoff/canonical";
 
 type UnknownObject = Record<string, unknown>;
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -9,6 +10,13 @@ const SHA = /^sha256:[0-9a-f]{64}$/;
 const ENTITY_ID = /^[A-Za-z0-9][A-Za-z0-9._:@-]{0,159}$/;
 const roles = ["owner_lead", "architect", "client_approver", "builder", "guest"] as const;
 const operations = ["publish_m2_layout_version", "submit_m2_client_review", "review_m2_client_submission", "append_m2_approved_commit_revision", "publish_m2_m3_handoff"] as const;
+const operationRoles = {
+  publish_m2_layout_version: "owner_lead",
+  submit_m2_client_review: "owner_lead",
+  review_m2_client_submission: "client_approver",
+  append_m2_approved_commit_revision: "client_approver",
+  publish_m2_m3_handoff: "owner_lead",
+} as const;
 const privateData = /sk-[a-z0-9_-]+|sbp_token|refresh_token|\/Users\/|\/Volumes\/|\/mnt\/|\.\.\/|bearer\s+\S+/i;
 const privateDataGlobal = /sk-[a-z0-9_-]+|sbp_token|refresh_token|\/Users\/|\/Volumes\/|\/mnt\/|\.\.\/|bearer\s+\S+/gi;
 const HEAD_SHA = /^[0-9a-f]{40}$/;
@@ -16,18 +24,21 @@ const object = (value: unknown): UnknownObject => value !== null && typeof value
 const list = (value: unknown): UnknownObject[] => Array.isArray(value) ? value.map(object) : [];
 const string = (value: unknown): string => typeof value === "string" ? value : "";
 const fileDigest = (path: string) => `sha256:${createHash("sha256").update(readFileSync(path)).digest("hex")}`;
+const valueDigest = (value: unknown) => `sha256:${createHash("sha256").update(canonicalJson(value)).digest("hex")}`;
+const sessionDigest = (sessionId: string) => `sha256:${createHash("sha256").update(sessionId.toLowerCase()).digest("hex")}`;
 const redact = (value: string) => value.replace(privateDataGlobal, "[REDACTED]");
 const currentHeadSha = (): string => {
   const value = execFileSync("git", ["rev-parse", "HEAD"], { encoding: "utf8" }).trim();
   if (!HEAD_SHA.test(value)) throw new Error("RUNTIME_RECEIPT_HEAD_SHA_INVALID");
   return value;
 };
-const validFiveSessions = (sessions: UnknownObject[]): boolean => sessions.length === 5
+const validFiveSessions = (sessions: UnknownObject[], requireServerProvenance = false): boolean => sessions.length === 5
   && new Set(sessions.map((item) => string(item.userId))).size === 5
   && new Set(sessions.map((item) => string(item.sessionId))).size === 5
   && new Set(sessions.map((item) => string(item.requestId))).size === 5
   && roles.every((role) => sessions.filter((item) => item.role === role).length === 1)
-  && sessions.every((item) => UUID.test(string(item.userId)) && UUID.test(string(item.sessionId)) && UUID.test(string(item.requestId)));
+  && sessions.every((item) => UUID.test(string(item.userId)) && UUID.test(string(item.sessionId)) && UUID.test(string(item.requestId))
+    && (!requireServerProvenance || string(item.serverSessionDigest) === sessionDigest(string(item.sessionId))));
 
 export function finalizeM2PilotEvidence(receipt: unknown, options: { readonly outputDir: string; readonly label?: string; readonly pending?: unknown; readonly pendingPath?: string; readonly koraReceiptPath?: string; readonly manifestPath?: string }): void {
   const value = object(receipt); const output = join(options.outputDir, "PASS.json"); const temporary = `${output}.tmp`;
@@ -67,21 +78,33 @@ export function finalizeM2PilotEvidence(receipt: unknown, options: { readonly ou
     const scope = object(value.scope);
     for (const key of ["organizationId", "projectId", "packageId"] as const) if (!UUID.test(string(scope[key]))) throw new Error("RECEIPT_TAMPERED_SCOPE");
     const sessions = list(value.sessions); const fiveDistinctUsers = new Set(sessions.map((item) => string(item.userId))).size === 5;
-    if (!validFiveSessions(sessions)) throw new Error("RECEIPT_TAMPERED_SESSIONS");
+    if (!validFiveSessions(sessions, true)) throw new Error("RECEIPT_TAMPERED_SESSIONS");
     const sessionBindings = new Set(sessions.map((item) => `${item.userId}:${item.sessionId}`));
+    const sessionByRole = new Map(sessions.map((item) => [string(item.role), item]));
     const commands = list(value.commands); const commandIds = new Set(commands.map((item) => string(item.commandId)));
     const stateRevisions = commands.map((item) => [item.previousStateRevision, item.resultingStateRevision]);
     if (commands.length !== operations.length || commandIds.size !== operations.length
       || operations.some((operation) => !commands.some((item) => item.operation === operation))
-      || commands.some((item, index) => !UUID.test(string(item.commandId)) || !UUID.test(string(item.requestId))
+      || commands.some((item, index) => {
+        const operation = string(item.operation) as keyof typeof operationRoles;
+        const expectedRole = operationRoles[operation];
+        const expectedSession = expectedRole ? sessionByRole.get(expectedRole) : undefined;
+        return !expectedSession || item.role !== expectedRole
+          || item.replayMode !== (index === 3 ? "parent_atomic_side_effect" : "direct")
+          || item.actorUserId !== expectedSession.userId || item.actorSessionId !== expectedSession.sessionId
+          || item.actorSessionDigest !== expectedSession.serverSessionDigest
+          || !UUID.test(string(item.commandId)) || !UUID.test(string(item.requestId))
+          || !UUID.test(string(item.auditRequestId ?? item.requestId).replace(/^db:/, ""))
         || !UUID.test(string(item.auditEventId)) || !sessionBindings.has(`${item.actorUserId}:${item.actorSessionId}`)
         || item.organizationId !== scope.organizationId || item.projectId !== scope.projectId || item.packageId !== scope.packageId
         || !Number.isSafeInteger(item.previousStateRevision) || !Number.isSafeInteger(item.resultingStateRevision)
         || item.resultingStateRevision !== Number(item.previousStateRevision) + 1
         || (index > 0 && item.previousStateRevision !== commands[index - 1]!.resultingStateRevision)
-        || !SHA.test(string(item.resultDigest)) || item.resultDigest !== item.replayDigest || item.replayEqual !== true)) {
+        || !SHA.test(string(item.resultDigest)) || item.resultDigest !== item.replayDigest || item.replayEqual !== true;
+      })) {
       void stateRevisions; throw new Error("RECEIPT_TAMPERED_COMMAND_REPLAY");
     }
+    if (commands[3]!.requestId !== commands[2]!.requestId) throw new Error("RECEIPT_TAMPERED_COMMAND_REPLAY");
     const lineage = object(value.lineage);
     for (const key of ["submissionId", "reviewId", "approvedCommitId", "clientSubmissionId", "handoffId", "handoffApprovedCommitId"] as const) {
       if (!ENTITY_ID.test(string(lineage[key]))) throw new Error("RECEIPT_TAMPERED_LINEAGE");
@@ -92,10 +115,48 @@ export function finalizeM2PilotEvidence(receipt: unknown, options: { readonly ou
     if (lineage.clientSubmissionId !== lineage.submissionId || lineage.clientReviewRevisionId !== lineage.reviewRevisionId
       || lineage.handoffApprovedCommitId !== lineage.approvedCommitId || lineage.handoffApprovedCommitRevisionId !== lineage.approvedCommitRevisionId) throw new Error("RECEIPT_TAMPERED_LINEAGE");
     const proofs = object(value.proofs);
+    const proofRequestIds = new Set<string>();
     for (const key of ["audit", "authenticatedRead", "privacy", "tenancy", "replay"] as const) {
       const proof = object(proofs[key]);
-      if (!UUID.test(string(proof.queryReceiptId)) || !UUID.test(string(proof.auditReceiptId)) || !SHA.test(string(proof.digest))) throw new Error("RECEIPT_TAMPERED_PROOF");
+      const proofAuditEventIds = Array.isArray(proof.auditEventIds) ? proof.auditEventIds.map(string) : [];
+      const expectedAuditEventIds = key === "audit" || key === "replay"
+        ? commands.map((command) => string(command.auditEventId))
+        : [];
+      if (proof.kind !== key || !UUID.test(key === "audit" ? string(proof.queryRequestId).replace(/^db:/, "") : string(proof.queryRequestId))
+        || proofAuditEventIds.some((auditEventId) => !UUID.test(auditEventId))
+        || JSON.stringify(proofAuditEventIds) !== JSON.stringify(expectedAuditEventIds)
+        || !SHA.test(string(proof.resultDigest)) || proof.organizationId !== scope.organizationId
+        || proof.projectId !== scope.projectId || proof.packageId !== scope.packageId
+        || proof.manifestDigest !== value.manifestDigest || proof.challengeNonce !== value.challengeNonce
+        || JSON.stringify(proof.commandIds) !== JSON.stringify(commands.map((command) => command.commandId))
+        || proof.resultDigest !== valueDigest(proof.source)) {
+        throw new Error("RECEIPT_TAMPERED_PROOF");
+      }
+      const sourceRecord = object(proof.source); const sourceList = list(proof.source);
+      if (key === "audit") {
+        if (sourceList.length !== commands.length || sourceList.some((item, index) => (
+          item.commandId !== commands[index]!.commandId || item.auditEventId !== commands[index]!.auditEventId
+          || item.requestId !== (commands[index]!.auditRequestId ?? commands[index]!.requestId) || item.actorUserId !== commands[index]!.actorUserId
+        ))) throw new Error("RECEIPT_TAMPERED_PROOF");
+      } else if (key === "authenticatedRead") {
+        if (sourceRecord.requestId !== proof.queryRequestId || sourceRecord.projectId !== scope.projectId
+          || sourceRecord.status !== true) throw new Error("RECEIPT_TAMPERED_PROOF");
+      } else if (key === "privacy") {
+        const requestIds = Array.isArray(sourceRecord.requestIds) ? sourceRecord.requestIds.map(string) : [];
+        if (requestIds.length !== 5 || new Set(requestIds).size !== 5 || requestIds.some((requestId) => !UUID.test(requestId))
+          || !requestIds.includes(string(proof.queryRequestId)) || sourceRecord.forbiddenFieldCount !== 0) throw new Error("RECEIPT_TAMPERED_PROOF");
+      } else if (key === "tenancy") {
+        if (sourceRecord.requestId !== proof.queryRequestId || sourceRecord.externalProjectAbsent !== true
+          || sourceRecord.guestContract !== "empty_portfolio" || sourceRecord.projectCount !== 0) throw new Error("RECEIPT_TAMPERED_PROOF");
+      } else if (sourceList.length !== commands.length || sourceList.some((item, index) => (
+        item.commandId !== commands[index]!.commandId || item.requestId !== commands[index]!.requestId
+        || item.auditEventId !== commands[index]!.auditEventId
+        || item.replayMode !== commands[index]!.replayMode
+        || (commands[index]!.replayMode === "direct" ? item.replayEqual !== true : item.sideEffectCount !== 1)
+      ))) throw new Error("RECEIPT_TAMPERED_PROOF");
+      proofRequestIds.add(string(proof.queryRequestId));
     }
+    if (proofRequestIds.size !== 5) throw new Error("RECEIPT_TAMPERED_PROOF");
     const runFiveSessions = object(value.runFiveSessions);
     let protectedKoraReceipt = runFiveSessions;
     const boundKoraPath = string(pendingBinding.koraReceiptPath);

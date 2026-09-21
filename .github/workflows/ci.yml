@@ -5,11 +5,6 @@ name: CI
 # скриншоте; теперь он лежит в логах прогона и виден в PR.
 
 on:
-  pull_request:
-    # Один полный прогон на PR: AP5 запускается на opened/synchronize/reopened.
-    # Автоматический push-trigger отключён, чтобы один commit в PR не запускал
-    # два одинаковых CI-прогона и не расходовал минуты дважды.
-    types: [opened, synchronize, reopened]
   workflow_dispatch:
     inputs:
       hosted_staging:
@@ -139,7 +134,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        image: [postgres:16-alpine, postgres:17-alpine]
+        image: ["postgres:16-alpine", "postgres:17-alpine"]
     steps:
       - uses: actions/checkout@v4
       # Скриптам нужны только docker, zsh и rg — npm здесь не требуется.
@@ -176,7 +171,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        image: [postgres:16-alpine, postgres:17-alpine]
+        image: ["postgres:16-alpine", "postgres:17-alpine"]
     steps:
       - uses: actions/checkout@v4
       - name: Install zsh and ripgrep

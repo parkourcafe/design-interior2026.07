@@ -38,13 +38,7 @@ grant execute on function
   projectceo_product_api.distribute_release_request_bound(uuid, text, uuid, bigint, text),
   projectceo_product_api.acknowledge_release_request_bound(uuid, uuid, text, bigint, text),
   projectceo_m4_api.submit_change_request(uuid, uuid, text, text, text, text, bigint, integer, bigint, text),
-  projectceo_m4_api.replay_submit_change_request(uuid, uuid, text, text, text, text, bigint, integer, text),
-  -- Прежние двери тех же двух операций. Приложение их не зовёт, но их
-  -- семантику проверяет `tests/db4/20_product_operations.sql`, и харнесс — это
-  -- ровно та среда, где модуль открыт намеренно. Сведение двух дверей к одной
-  -- записано в backlog `M4 Production Hardening`.
-  projectceo_product_api.distribute_release(uuid, text, uuid, bigint, text),
-  projectceo_product_api.acknowledge_release(uuid, uuid, text, bigint, text)
+  projectceo_m4_api.replay_submit_change_request(uuid, uuid, text, text, text, text, bigint, integer, text)
   to authenticated;
 
 do $enabled$
@@ -57,9 +51,7 @@ begin
     'projectceo_product_api.distribute_release_request_bound(uuid, text, uuid, bigint, text)',
     'projectceo_product_api.acknowledge_release_request_bound(uuid, uuid, text, bigint, text)',
     'projectceo_m4_api.submit_change_request(uuid, uuid, text, text, text, text, bigint, integer, bigint, text)',
-    'projectceo_m4_api.replay_submit_change_request(uuid, uuid, text, text, text, text, bigint, integer, text)',
-    'projectceo_product_api.distribute_release(uuid, text, uuid, bigint, text)',
-    'projectceo_product_api.acknowledge_release(uuid, uuid, text, bigint, text)'
+    'projectceo_m4_api.replay_submit_change_request(uuid, uuid, text, text, text, text, bigint, integer, text)'
   ]) signature
   where not pg_catalog.has_function_privilege('authenticated', signature, 'EXECUTE')
   limit 1;

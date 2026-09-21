@@ -82,20 +82,6 @@ export const M4_SURFACE: readonly M4SurfaceRow[] = [
         sharing: "shared_schema",
         closure: "enabled_by_environment_script",
       },
-      {
-        // Дверь до request-bound версии. Приложение её не зовёт, но делает она
-        // ровно то же самое, и оставить её открытой значило бы закрыть команду
-        // на одной двери из двух. Её семантику (чужой получатель, чужой хеш)
-        // проверяет `tests/db4/20_product_operations.sql`, поэтому дверь не
-        // отзывается насмерть, а живёт по тому же правилу, что и остальной
-        // инкремент 1: закрыта по умолчанию, открыта там, где модуль открыт.
-        // Свести две двери к одной — пункт backlog `M4 Production Hardening`.
-        schema: "projectceo_product_api",
-        name: "distribute_release",
-        signature: "projectceo_product_api.distribute_release(uuid, text, uuid, bigint, text)",
-        sharing: "shared_schema",
-        closure: "enabled_by_environment_script",
-      },
     ],
   },
   {
@@ -108,14 +94,6 @@ export const M4_SURFACE: readonly M4SurfaceRow[] = [
         schema: "projectceo_product_api",
         name: "acknowledge_release_request_bound",
         signature: "projectceo_product_api.acknowledge_release_request_bound(uuid, uuid, text, bigint, text)",
-        sharing: "shared_schema",
-        closure: "enabled_by_environment_script",
-      },
-      {
-        // См. комментарий у `distribute_release`: вторая дверь той же команды.
-        schema: "projectceo_product_api",
-        name: "acknowledge_release",
-        signature: "projectceo_product_api.acknowledge_release(uuid, uuid, text, bigint, text)",
         sharing: "shared_schema",
         closure: "enabled_by_environment_script",
       },

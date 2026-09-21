@@ -54,15 +54,23 @@ export interface M3SurfaceRow {
   readonly rpcs: readonly M3PublicRpc[];
 }
 
-const PUBLISH_VERSION: M3PublicRpc = {
-  schema: "projectceo_api",
-  name: "publish_version",
-  signature: "projectceo_api.publish_version(uuid, text, bigint, text, jsonb, text)",
+const PUBLISH_BASELINE_ATOMIC: M3PublicRpc = {
+  schema: "projectceo_product_api",
+  name: "publish_baseline_atomic",
+  signature: "projectceo_product_api.publish_baseline_atomic(uuid, text, text, bigint, text, text)",
   sharing: "shared_schema",
   closure: "revoked_from_authenticated",
 };
 
 export const M3_SURFACE: readonly M3SurfaceRow[] = [
+  {command:"bind_pdf_dwg_sheet_sidecar",surface:"review",offState:"module_disabled",
+   rpcs:[{schema:"projectceo_api",name:"bind_pdf_dwg_sheet_sidecar",signature:"projectceo_api.bind_pdf_dwg_sheet_sidecar(uuid, uuid, uuid, text, text, bigint, jsonb, integer, text, jsonb, text, text)",sharing:"m3_only",closure:"revoked_from_authenticated"}]},
+  {
+    command: "confirm_pdf_dwg_source_pair", surface: "review", offState: "module_disabled",
+    rpcs: [{ schema: "projectceo_api", name: "confirm_pdf_dwg_source_pair",
+      signature: "projectceo_api.confirm_pdf_dwg_source_pair(uuid, uuid, uuid, uuid, text, text)",
+      sharing: "m3_only", closure: "revoked_from_authenticated" }],
+  },
   {
     command: "register_source",
     surface: "intake",
@@ -117,18 +125,23 @@ export const M3_SURFACE: readonly M3SurfaceRow[] = [
     }],
   },
   {
+    command: "attach_external_release_refs",
+    surface: "documentation_sheets",
+    offState: "module_disabled",
+    rpcs: [{
+      schema: "projectceo_product_api",
+      name: "attach_external_release_refs",
+      signature: "projectceo_product_api.attach_external_release_refs(uuid, uuid, text, text, jsonb, bigint, text)",
+      sharing: "shared_schema",
+      closure: "revoked_from_authenticated",
+    }],
+  },
+  {
     command: "publish_baseline",
     surface: "baseline",
     offState: "module_disabled",
     rpcs: [
-      PUBLISH_VERSION,
-      {
-        schema: "projectceo_product_api",
-        name: "publish_project_baseline",
-        signature: "projectceo_product_api.publish_project_baseline(uuid, jsonb, bigint, text)",
-        sharing: "shared_schema",
-        closure: "revoked_from_authenticated",
-      },
+      PUBLISH_BASELINE_ATOMIC,
     ],
   },
   {
@@ -137,13 +150,23 @@ export const M3_SURFACE: readonly M3SurfaceRow[] = [
     offState: "module_disabled",
     rpcs: [{
       schema: "projectceo_product_api",
-      name: "publish_production_package_version",
-      signature: "projectceo_product_api.publish_production_package_version(uuid, jsonb, bigint, text)",
+      name: "publish_release_request_bound",
+      signature: "projectceo_product_api.publish_release_request_bound(uuid, text, text, bigint, text, text)",
       sharing: "shared_schema",
       closure: "revoked_from_authenticated",
-    }],
+    }, { schema: "projectceo_product_api", name: "publish_work_package_release_request_bound", signature: "projectceo_product_api.publish_work_package_release_request_bound(uuid, uuid, text, text, bigint, text, text)", sharing: "shared_schema", closure: "revoked_from_authenticated" }],
   },
 ];
+
+/** Read-only RPCs are separate from the mutation command registry. */
+export const M3_READ_RPCS: readonly M3PublicRpc[] = [{
+  schema: "projectceo_read_api", name: "get_pdf_dwg_sheet_sidecar",
+  signature: "projectceo_read_api.get_pdf_dwg_sheet_sidecar(uuid, uuid, uuid)", sharing: "m3_only", closure: "revoked_from_authenticated",
+}, {
+  schema: "projectceo_read_api", name: "get_pdf_dwg_source_pair_confirmation",
+  signature: "projectceo_read_api.get_pdf_dwg_source_pair_confirmation(uuid, uuid, uuid)",
+  sharing: "m3_only", closure: "revoked_from_authenticated",
+}];
 
 /** Команды модуля — производная от матрицы, а не второй список рядом с ней. */
 export const M3_SURFACE_COMMANDS: ReadonlySet<ProjectCeoCommand["kind"]> = new Set(
@@ -151,10 +174,17 @@ export const M3_SURFACE_COMMANDS: ReadonlySet<ProjectCeoCommand["kind"]> = new S
 );
 
 /** Сигнатуры, которые обязаны быть отозваны у `authenticated`. */
-export const M3_REVOKED_SIGNATURES: readonly string[] = M3_SURFACE
+const M3_RAW_PUBLICATION_SIGNATURES = [
+  "projectceo_api.publish_version(uuid, text, bigint, text, jsonb, text)",
+  "projectceo_product_api.publish_project_baseline(uuid, jsonb, bigint, text)",
+  "projectceo_product_api.publish_production_package_version(uuid, jsonb, bigint, text)",
+] as const;
+
+export const M3_REVOKED_SIGNATURES: readonly string[] = [...M3_SURFACE
   .flatMap((row) => row.rpcs)
   .filter((rpc) => rpc.closure === "revoked_from_authenticated")
   .map((rpc) => rpc.signature)
+  .filter((signature, index, all) => all.indexOf(signature) === index), ...M3_RAW_PUBLICATION_SIGNATURES, ...M3_READ_RPCS.map((rpc) => rpc.signature)]
   .filter((signature, index, all) => all.indexOf(signature) === index);
 
 /**

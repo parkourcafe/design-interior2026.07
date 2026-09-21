@@ -1,8 +1,9 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 import { ru } from "@/lib/i18n/ru";
-import { legalOperator } from "@/lib/env";
 import LandingNav from "@/components/landing/nav";
 import LandingFooter from "@/components/landing/footer";
+import OperatorDetails from "@/app/legal/operator-details";
 
 const l = ru.landing.legal;
 
@@ -10,12 +11,11 @@ export const metadata: Metadata = {
   alternates: { canonical: "/legal/privacy" },
   openGraph: { url: "/legal/privacy" },
   title: `${l.privacyTitle} — ${ru.app.name}`,
-  description: l.pilotBanner,
+  description: l.draftBanner,
+  robots: { index: false, follow: false },
 };
 
 export default function PrivacyPage() {
-  const operator = legalOperator();
-
   return (
     <div className="landing min-h-screen">
       <LandingNav />
@@ -23,37 +23,23 @@ export default function PrivacyPage() {
         <h1 className="font-display text-[clamp(30px,4.6vw,46px)] font-semibold leading-[1.08] text-ivory">
           {l.privacyTitle}
         </h1>
-        <p className="mt-2 text-[13px] text-ivorymuted">
-          {l.updated}: 18.07.2026
-        </p>
-        <p className="mt-6 rounded-xl border border-bronze/40 bg-bronze/10 px-5 py-4 text-[13.5px] leading-relaxed text-ivory/85">
-          {l.pilotBanner}
-        </p>
+        <p className="mt-2 text-ivorymuted">{l.updated}: {l.revisionDate}</p>
+        <p className="mt-6 border-y border-linedark py-4 leading-relaxed text-ivory">{l.draftBanner}</p>
         <div className="mt-10 space-y-8">
-          {l.privacy.map(([t, c]) => (
-            <section key={t}>
-              <h2 className="mb-2 text-[17px] font-semibold text-ivory">{t}</h2>
-              <p className="text-[14.5px] leading-[1.75] text-ivory/70">{c}</p>
+          {l.privacy.map(([title, content]) => (
+            <section key={title}>
+              <h2 className="mb-2 text-xl font-semibold text-ivory">{title}</h2>
+              <p className="leading-relaxed text-ivorymuted">{content}</p>
             </section>
           ))}
-          <section>
-            <h2 className="mb-2 text-[17px] font-semibold text-ivory">Оператор и контакт</h2>
-            <div className="space-y-1 text-[14.5px] leading-[1.75] text-ivory/70">
-              <p>{operator.name}</p>
-              {operator.address ? <p>{operator.address}</p> : null}
-              <p>
-                <a className="underline hover:text-ivory" href={`mailto:${operator.email}`}>
-                  {operator.email}
-                </a>
-              </p>
-              <p>
-                <a className="underline hover:text-ivory" href={`tel:${operator.phone}`}>
-                  {operator.phone}
-                </a>
-              </p>
-            </div>
-          </section>
         </div>
+        <OperatorDetails />
+        <nav className="mt-10 flex flex-wrap gap-x-6 gap-y-2" aria-label={l.operatorTitle}>
+          <Link className="inline-flex min-h-11 items-center underline" href="/legal/privacy">{l.privacyTitle}</Link>
+          <Link className="inline-flex min-h-11 items-center underline" href="/legal/terms">{l.termsTitle}</Link>
+          <Link className="inline-flex min-h-11 items-center underline" href="/legal/consent">{l.consentTitle}</Link>
+          <Link className="inline-flex min-h-11 items-center underline" href="/support">{l.supportTitle}</Link>
+        </nav>
       </main>
       <LandingFooter />
     </div>

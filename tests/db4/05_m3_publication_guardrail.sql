@@ -29,7 +29,8 @@ begin
     'projectceo_product_api.publish_production_package_version(uuid, jsonb, bigint, text)',
     'projectceo_api.review_source(uuid, text, text, bigint, text, text)',
     'projectceo_m3_api.register_documentation_sheet(uuid, uuid, text, text, text, text, text, text, text[], text, bigint, text)',
-    'projectceo_m3_api.attach_documentation_sheet_specifications(uuid, uuid, text, text, text, text[], text, bigint, text)'
+    'projectceo_m3_api.attach_documentation_sheet_specifications(uuid, uuid, text, text, text, text[], text, bigint, text)',
+    'projectceo_product_api.attach_external_release_refs(uuid, uuid, text, text, jsonb, bigint, text)'
   ]) signature
   where pg_catalog.has_function_privilege('authenticated', signature, 'EXECUTE')
   limit 1;
@@ -39,7 +40,7 @@ begin
 end
 $publication_closed_by_default$;
 
--- Права — это утверждение о доступе. Ниже проверяется сам доступ: три реальных
+-- Права — это утверждение о доступе. Ниже проверяется сам доступ: семь реальных
 -- вызова из-под роли, каждый обязан упереться в 42501 insufficient_privilege
 -- ДО того, как дойдёт до тела функции. Аргументы намеренно бессмысленные:
 -- если отказ придёт не по правам, а по содержимому, значит вызов состоялся, и
@@ -113,8 +114,19 @@ begin
     when insufficient_privilege then v_denied := v_denied + 1;
   end;
 
-  if v_denied <> 6 then
-    raise exception 'DB4_M3_PUBLICATION_DENIALS_EXPECTED_6_GOT_%', v_denied;
+  begin
+    perform projectceo_product_api.attach_external_release_refs(
+      '41111111-1111-4111-8111-111111111111',
+      '41111111-1111-4111-8111-111111111111',
+      'probe','probe','[]'::jsonb,1,'db4-guardrail-external-candidate'
+    );
+    raise exception 'DB4_M3_EXTERNAL_CANDIDATE_REACHED';
+  exception
+    when insufficient_privilege then v_denied := v_denied + 1;
+  end;
+
+  if v_denied <> 7 then
+    raise exception 'DB4_M3_PUBLICATION_DENIALS_EXPECTED_7_GOT_%', v_denied;
   end if;
 end
 $direct_calls_denied$;

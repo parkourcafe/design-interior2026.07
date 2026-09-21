@@ -53,8 +53,6 @@ begin
   cross join unnest(array[
     'projectceo_m4_api.submit_change_request(uuid, uuid, text, text, text, text, bigint, integer, bigint, text)',
     'projectceo_m4_api.replay_submit_change_request(uuid, uuid, text, text, text, text, bigint, integer, text)',
-    'projectceo_product_api.distribute_release(uuid, text, uuid, bigint, text)',
-    'projectceo_product_api.acknowledge_release(uuid, uuid, text, bigint, text)',
     'projectceo_product_api.distribute_release_request_bound(uuid, text, uuid, bigint, text)',
     'projectceo_product_api.acknowledge_release_request_bound(uuid, uuid, text, bigint, text)'
   ]) signature
@@ -150,5 +148,14 @@ begin
   end if;
 end
 $db5_default_deny_before$;
+
+do $legacy_m4_doors_absent$
+begin
+  if to_regprocedure('projectceo_product_api.distribute_release(uuid,text,uuid,bigint,text)') is not null
+     or to_regprocedure('projectceo_product_api.acknowledge_release(uuid,uuid,text,bigint,text)') is not null then
+    raise exception 'DB5_LEGACY_M4_DOOR_STILL_EXISTS';
+  end if;
+end
+$legacy_m4_doors_absent$;
 
 select 'DB5_DEFAULT_DENY_BEFORE_OK' as result;

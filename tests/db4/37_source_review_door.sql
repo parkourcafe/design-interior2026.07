@@ -96,7 +96,7 @@ select projectceo_api.review_source(
   '41111111-1111-4111-8111-111111111111',
   'revision-requirement-db4',
   'revision-requirement-db4',
-  50,
+  52,
   'confirmed',
   'db4-door-confirm'
 );
@@ -145,7 +145,7 @@ begin
     '41111111-1111-4111-8111-111111111111',
     'revision-requirement-db4',
     'revision-requirement-db4',
-    50,
+    52,
     'confirmed',
     'db4-door-confirm'
   );
@@ -171,7 +171,7 @@ begin
       '41111111-1111-4111-8111-111111111111',
       'revision-area-db4',
       'revision-area-db4',
-      51,
+      53,
       'confirmed',
       'db4-door-forbidden'
     );
@@ -213,7 +213,7 @@ begin
       '41111111-1111-4111-8111-111111111111',
       'revision-source-1',
       'revision-source-1',
-      51,
+      53,
       'rejected',
       'db4-door-already-decided'
     );
@@ -300,11 +300,17 @@ begin
 
   -- ...и обязана сузить ТОЛЬКО его: источник, у которого ревизия в графе есть,
   -- по-прежнему рецензируем, иначе v8 просто сломала бы ревью целиком.
-  if (
-    select s ->> 'reviewTargetRevisionId'
+  if not exists (
+    select 1
     from jsonb_array_elements(v_v8 #> '{data,sources}') s
     where s ->> 'sourceRevisionId' = 'revision-source-1'
-  ) is distinct from 'revision-source-1' then
+      and s ->> 'reviewTargetRevisionId' = 'revision-source-1'
+  ) or exists (
+    select 1
+    from jsonb_array_elements(v_v8 #> '{data,sources}') s
+    where s ->> 'sourceRevisionId' = 'revision-source-1'
+      and s ->> 'reviewTargetRevisionId' is distinct from 'revision-source-1'
+  ) then
     raise exception 'DB4_REVIEW_TARGET_LOST_FOR_GRAPH_BACKED_SOURCE';
   end if;
 

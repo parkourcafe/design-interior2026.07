@@ -26,8 +26,6 @@ begin
   select signature into v_reachable
   from unnest(array[
     -- Инкремент 1 — открыт A6, но закрыт по умолчанию до явного включения.
-    'projectceo_product_api.distribute_release(uuid, text, uuid, bigint, text)',
-    'projectceo_product_api.acknowledge_release(uuid, uuid, text, bigint, text)',
     'projectceo_product_api.distribute_release_request_bound(uuid, text, uuid, bigint, text)',
     'projectceo_product_api.acknowledge_release_request_bound(uuid, uuid, text, bigint, text)',
     'projectceo_m4_api.submit_change_request(uuid, uuid, text, text, text, text, bigint, integer, bigint, text)',
@@ -62,33 +60,11 @@ declare
   v_denied int := 0;
 begin
   begin
-    perform projectceo_product_api.distribute_release(
-      '41111111-1111-4111-8111-111111111111', 'probe',
-      '32222222-2222-4222-8222-222222222222', 1, 'db4-m4-probe'
-    );
-    raise exception 'DB4_M4_DISTRIBUTE_REACHED';
-  exception
-    when insufficient_privilege then v_denied := v_denied + 1;
-  end;
-
-  begin
     perform projectceo_product_api.distribute_release_request_bound(
       '41111111-1111-4111-8111-111111111111', 'probe',
       '32222222-2222-4222-8222-222222222222', 1, 'db4-m4-probe'
     );
     raise exception 'DB4_M4_DISTRIBUTE_REQUEST_BOUND_REACHED';
-  exception
-    when insufficient_privilege then v_denied := v_denied + 1;
-  end;
-
-  begin
-    perform projectceo_product_api.acknowledge_release(
-      '41111111-1111-4111-8111-111111111111',
-      '32222222-2222-4222-8222-222222222222',
-      'sha256:0000000000000000000000000000000000000000000000000000000000000000',
-      1, 'db4-m4-probe'
-    );
-    raise exception 'DB4_M4_ACKNOWLEDGE_REACHED';
   exception
     when insufficient_privilege then v_denied := v_denied + 1;
   end;
@@ -130,8 +106,8 @@ begin
     when insufficient_privilege then v_denied := v_denied + 1;
   end;
 
-  if v_denied <> 6 then
-    raise exception 'DB4_M4_EXECUTION_DENIALS_EXPECTED_6_GOT_%', v_denied;
+  if v_denied <> 4 then
+    raise exception 'DB4_M4_EXECUTION_DENIALS_EXPECTED_4_GOT_%', v_denied;
   end if;
 end
 $direct_calls_denied$;

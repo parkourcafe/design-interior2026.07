@@ -7,10 +7,11 @@ const state = vi.hoisted(() => ({
 }));
 
 vi.mock("@/lib/project-intelligence/delivery/projectceo/request-context", () => ({
+  PROJECTCEO_SESSION_PROVENANCE_HEADER: "X-ArchiDom-Auth-Session-Digest",
   ProjectCeoAuthenticationError: class ProjectCeoAuthenticationError extends Error {},
   createProjectCeoRequestContext: vi.fn(async () => ({
     client: { requestBound: true },
-    identity: { userId: "user-1" },
+    identity: { userId: "user-1", sessionDigest: `sha256:${"a".repeat(64)}` },
   })),
 }));
 

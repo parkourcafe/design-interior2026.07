@@ -1,3 +1,4 @@
+import type { ExternalReleaseCandidateRef } from "../../delivery/projectceo/command-contract";
 import type {
   ApprovalPackage,
   DecisionRevision,
@@ -399,6 +400,31 @@ export class ProjectBrainHumanPostgresAdapter {
     );
   }
 
+  /**
+   * Request-bound M3 baseline publication. The database derives the version
+   * snapshot and baseline descriptor in one transaction; the application only
+   * presents coordinates it obtained from the server-owned preview.
+   */
+  async publishBaselineAtomic(input: {
+    readonly projectId: string;
+    readonly expectedLatestVersionId: string | null;
+    readonly previousBaselineId: string | null;
+    readonly expectedStateRevision: number;
+    readonly commandRef: string;
+    readonly idempotencyKey: string;
+  }): Promise<CommandMutation<Readonly<Record<string, unknown>>>> {
+    return parseCommandMutation<Readonly<Record<string, unknown>>>(
+      await callProductRpc(this.client, "publish_baseline_atomic", {
+        project_id: input.projectId,
+        expected_latest_version_id: input.expectedLatestVersionId,
+        previous_baseline_id: input.previousBaselineId,
+        expected_state_revision: input.expectedStateRevision,
+        command_ref: input.commandRef,
+        idempotency_key: input.idempotencyKey,
+      }),
+    );
+  }
+
   async publishProductionPackageVersion(input: {
     readonly projectId: string;
     readonly descriptor: Readonly<Record<string, unknown>>;
@@ -416,6 +442,53 @@ export class ProjectBrainHumanPostgresAdapter {
           idempotency_key: input.idempotencyKey,
         },
       ),
+    );
+  }
+
+  async attachExternalReleaseRefs(input: {
+    readonly projectId: string;
+    readonly packageId: string;
+    readonly handoffId: string;
+    readonly handoffRevisionId: string;
+    readonly candidateRefs: readonly ExternalReleaseCandidateRef[];
+    readonly expectedStateRevision: number;
+    readonly idempotencyKey: string;
+  }): Promise<CommandMutation<{
+    readonly submissionId: string;
+    readonly subjectDigest: string;
+    readonly status: "candidate";
+    readonly refCount: number;
+  }>> {
+    return parseCommandMutation(
+      await callProductRpc(this.client, "attach_external_release_refs", {
+        p_project_id: input.projectId,
+        p_package_id: input.packageId,
+        p_handoff_id: input.handoffId,
+        p_handoff_revision_id: input.handoffRevisionId,
+        p_candidate_refs: input.candidateRefs,
+        p_expected_state_revision: input.expectedStateRevision,
+        p_idempotency_key: input.idempotencyKey,
+      }),
+    );
+  }
+
+  async publishReleaseRequestBound(input: {
+    readonly projectId: string;
+    readonly expectedBaselineId: string;
+    readonly expectedPreviousVersionId: string | null;
+    readonly expectedStateRevision: number;
+    readonly commandRef: string;
+    readonly idempotencyKey: string;
+  }): Promise<CommandMutation<ProductionPackageVersion>> {
+    return parseCommandMutation<ProductionPackageVersion>(
+      await callProductRpc(this.client, "publish_release_request_bound", {
+        project_id: input.projectId,
+        expected_baseline_id: input.expectedBaselineId,
+        expected_previous_version_id: input.expectedPreviousVersionId,
+        expected_state_revision: input.expectedStateRevision,
+        command_ref: input.commandRef,
+        idempotency_key: input.idempotencyKey,
+      }),
     );
   }
 

@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { r1PdfDeclaredGeometrySchema } from "./r1-pdf-fallback-contract";
 
 import { canonicalSerialize, validateLayoutDocument } from "../../../layout-studio/domain";
 import type { LayoutDocument } from "../../../layout-studio/domain";
@@ -38,6 +39,18 @@ const nodeId = z.string().trim().min(1).max(160);
 const claimRevisionId = z.string().trim().min(1).max(160);
 const commitM2Identifier = z.string().min(1).max(160)
   .refine((value) => value === value.trim(), "identifier_must_be_trimmed");
+// Candidate selectors contain exact persisted identities only; authority and hashes
+// are resolved by the request-bound database command.
+const externalReleaseCandidateRef = z.discriminatedUnion("kind", [
+  z.object({ kind: z.literal("asset_version"), assetVersionId: uuid }).strict(),
+  z.object({ kind: z.literal("representation_version"), representationVersionId: uuid }).strict(),
+  z.object({ kind: z.literal("documentation_sheet_revision"), sheetId: commitM2Identifier, sheetRevisionId: commitM2Identifier }).strict(),
+  z.object({ kind: z.literal("object_representation_binding"), objectRepresentationBindingId: uuid }).strict(),
+  z.object({ kind: z.literal("technical_reference_revision"), technicalReferenceRevisionId: uuid }).strict(),
+  z.object({ kind: z.literal("annotation_revision"), annotationRevisionId: uuid }).strict(),
+]);
+export type ExternalReleaseCandidateRef = z.infer<typeof externalReleaseCandidateRef>;
+
 const commitM2IdentifierList = z.array(commitM2Identifier).max(500);
 const m2ClientVariant = z.object({
   variantId: commitM2Identifier,
@@ -665,6 +678,27 @@ export const projectCeoCommandSchema = z.discriminatedUnion("kind", [
       }
     }),
   }).strict(),
+  projectSelector.extend({
+    contractVersion: z.literal(PROJECTCEO_COMMAND_CONTRACT_VERSION),
+    kind: z.literal("confirm_pdf_dwg_source_pair"),
+    payload: z.object({
+      packageId: uuid,
+      dwgAssetVersionId: uuid,
+      pdfAssetVersionId: uuid,
+      reason: z.string().min(1).max(2000).refine((value) => value === value.trim(), "reason_must_be_trimmed"),
+    }).strict().refine((value) => value.dwgAssetVersionId.toLowerCase() !== value.pdfAssetVersionId.toLowerCase(), "source_versions_must_differ"),
+  }).strict(),
+  projectSelector.extend({
+    contractVersion: z.literal(PROJECTCEO_COMMAND_CONTRACT_VERSION),
+    kind: z.literal("bind_pdf_dwg_sheet_sidecar"),
+    payload: z.object({
+      packageId: uuid, confirmationId: uuid,
+      sheetId: z.string().min(1).max(160).refine((v) => v === v.trim()),
+      sheetRevisionId: z.string().min(1).max(160).refine((v) => v === v.trim()),
+      geometry: r1PdfDeclaredGeometrySchema,
+      reason: z.string().min(1).max(2000).refine((v) => v === v.trim()),
+    }).strict(),
+  }).strict(),
   // M3: регистрация листа. Комната, подпись планировки и утверждённый коммит
   // в команде отсутствуют намеренно — происхождение выводит сервер из
   // опубликованного handoff, и параметров для его подмены у RPC просто нет.
@@ -699,6 +733,17 @@ export const projectCeoCommandSchema = z.discriminatedUnion("kind", [
         "specification_revision_ids_must_be_unique",
       ),
       reason: z.string().trim().min(3).max(4000),
+    }).strict(),
+  }).strict(),
+  projectSelector.extend({
+    contractVersion: z.literal(PROJECTCEO_COMMAND_CONTRACT_VERSION),
+    kind: z.literal("attach_external_release_refs"),
+    payload: z.object({
+      packageId: uuid,
+      handoffId: commitM2Identifier,
+      handoffRevisionId: commitM2Identifier,
+      candidateRefs: z.array(externalReleaseCandidateRef).min(1).max(2000),
+      expectedStateRevision: z.number().int().safe().nonnegative(),
     }).strict(),
   }).strict(),
   // Зеркалит publish_baseline: дескриптор с семантическим хешем строит

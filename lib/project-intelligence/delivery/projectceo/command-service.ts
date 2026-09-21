@@ -29,14 +29,9 @@ import {
   isExecutionV2V3Enabled,
 } from "./execution-flag";
 import {
-  computeBaselineSemanticHash,
   confirmBaselineSnapshot,
 } from "../../modules/decisions";
-import {
-  computeReleaseSemanticHash,
-  confirmReleaseSnapshot,
-  RELEASE_SCHEMA_VERSION,
-} from "../../modules/package/release-snapshot";
+import { confirmReleaseSnapshot } from "../../modules/package/release-snapshot";
 import { can } from "../../../../components/projectceo/role-policy";
 
 type UnknownRecord = Readonly<Record<string, unknown>>;
@@ -77,8 +72,11 @@ const UNAVAILABLE = new Set<ProjectCeoCommand["kind"]>([
 const DOCUMENTATION_MODULE = new Set<ProjectCeoCommand["kind"]>([
   "register_source",
   "review_source",
+  "confirm_pdf_dwg_source_pair",
+  "bind_pdf_dwg_sheet_sidecar",
   "register_documentation_sheet",
   "attach_documentation_sheet_specifications",
+  "attach_external_release_refs",
   ...DOCUMENTATION_PUBLICATION,
 ]);
 
@@ -342,14 +340,46 @@ export class ProjectCeoCommandService {
     }
     try {
       const idempotencyKey = this.idempotencyKey(command);
+      if (command.kind === "bind_pdf_dwg_sheet_sidecar") {
+        const scope=await this.scopeOnly(command.projectId.toLowerCase());
+        if (scope.accessScope==="package" && scope.packageId?.toLowerCase()!==command.payload.packageId.toLowerCase()) return failure(requestId,"error","forbidden");
+        const result=await this.foundation.bindPdfDwgSheetSidecar({projectId:command.projectId.toLowerCase(),...command.payload,idempotencyKey:`ui:${command.projectId.toLowerCase()}:${command.kind}:${command.commandId.toLowerCase()}`});
+        return completed(requestId,{...result,stateRevision:scope.stateRevision});
+      }
+      if (command.kind === "confirm_pdf_dwg_source_pair") {
+        const scope = await this.scopeOnly(command.projectId.toLowerCase());
+        if (scope.accessScope === "package" && scope.packageId?.toLowerCase() !== command.payload.packageId.toLowerCase()) {
+          return failure(requestId, "error", "forbidden");
+        }
+        const result = await this.foundation.confirmPdfDwgSourcePair({
+          projectId: command.projectId.toLowerCase(), ...command.payload,
+          idempotencyKey: `ui:${command.projectId.toLowerCase()}:${command.kind}:${command.commandId.toLowerCase()}`,
+        });
+        // Observed project revision only: pair confirmation does not increment
+        // workflow state or manufacture a revision inside the immutable receipt.
+        return completed(requestId, { ...result, stateRevision: scope.stateRevision });
+      }
       if (
         command.kind === "register_source"
         || command.kind === "register_documentation_sheet"
         || command.kind === "attach_documentation_sheet_specifications"
+        || command.kind === "attach_external_release_refs"
       ) {
         // Этим командам delivery-проекция не нужна: полный context() оплачивал
         // бы тяжёлое чтение продуктового мозга на каждом клике intake.
         const scope = await this.scopeOnly(command.projectId);
+      if (command.kind === "attach_external_release_refs") {
+        return completed(requestId, await this.product.attachExternalReleaseRefs({
+          projectId: command.projectId,
+          packageId: command.payload.packageId,
+          handoffId: command.payload.handoffId,
+          handoffRevisionId: command.payload.handoffRevisionId,
+          candidateRefs: command.payload.candidateRefs,
+          // Preserve the caller's observed state, including on idempotent replay.
+          expectedStateRevision: command.payload.expectedStateRevision,
+          idempotencyKey,
+        }));
+      }
       if (command.kind === "register_documentation_sheet") {
         // Происхождение листа в команде отсутствует: сервер выведет его из
         // опубликованного handoff, а подменить его параметрами нельзя — их нет.
@@ -899,25 +929,12 @@ export class ProjectCeoCommandService {
         }
         if (!confirmation.ok) return failure(requestId, "error", "stale_state");
 
-        const descriptor = {
-          id: `release:${command.commandId}`,
-          packageId: confirmation.composition.packageId,
-          baselineId: confirmation.composition.baselineId,
-          previousVersionId: confirmation.composition.previousVersionId,
-          exactRevisionRefs: confirmation.composition.exactRevisionRefs,
-          organizationId: scope.organizationId,
+        return completed(requestId, await this.product.publishReleaseRequestBound({
           projectId: command.projectId,
-          schemaVersion: RELEASE_SCHEMA_VERSION,
-          semanticHash: computeReleaseSemanticHash({
-            organizationId: scope.organizationId,
-            projectId: command.projectId,
-            composition: confirmation.composition,
-          }),
-        };
-        return completed(requestId, await this.product.publishProductionPackageVersion({
-          projectId: command.projectId,
-          descriptor,
+          expectedBaselineId: confirmation.composition.baselineId,
+          expectedPreviousVersionId: confirmation.composition.previousVersionId,
           expectedStateRevision: scope.stateRevision,
+          commandRef: `release:${command.commandId}`,
           idempotencyKey,
         }));
       }
@@ -959,61 +976,18 @@ export class ProjectCeoCommandService {
         }, command.payload.snapshotToken);
         if (!confirmation.ok) return failure(requestId, "error", "stale_state");
 
-        // Версия графа — предпосылка baseline, и её ещё нет: она рождается
-        // здесь, через дверь `20260810080000`. Идемпотентность производная от
-        // ключа команды, поэтому повтор запроса не создаёт вторую версию.
-        const version = await this.foundation.publishVersion({
+        // Атомарная дверь создаёт версию графа и baseline в одной транзакции.
+        // Клиент по-прежнему предъявляет только токен preview; координаты
+        // версии и прежнего baseline подтверждены этим серверным чтением, а
+        // descriptor, refs и hash выводятся SQL-операцией, а не браузером.
+        return completed(requestId, await this.product.publishBaselineAtomic({
           projectId: command.projectId,
           expectedLatestVersionId: typeof record(read.data.latestBaseline).graphVersionId === "string"
             ? record(read.data.latestBaseline).graphVersionId as string
             : null,
-          expectedStateRevision: scope.stateRevision,
-          // Метка обязана быть детерминированной. Часы в ней ломали ровно то,
-          // ради чего существует ключ идемпотентности: `label` входит в
-          // request digest RPC, поэтому повтор той же команды после потери
-          // ответа давал ДРУГОЙ digest и получал `idempotency_conflict` вместо
-          // прежнего результата. Идентификатор команды и есть то, что у повтора
-          // совпадает по определению.
-          label: `baseline:${command.commandId}`,
-          selectedRevisions: [],
-          idempotencyKey: `${idempotencyKey}:version`,
-        });
-        const versionId = record(record(version.result).version).id;
-        const graphVersionId = typeof versionId === "string" && versionId.length > 0
-          ? versionId
-          : null;
-        if (!graphVersionId) throw new ProjectIntelligenceAdapterError("internal_error", null);
-
-        const descriptor = {
-          id: `baseline:${command.commandId}`,
-          graphVersionId,
           previousBaselineId: confirmation.composition.previousBaselineId,
-          packageIds: confirmation.composition.packageIds,
-          sourceRevisionIds: confirmation.composition.sourceRevisionIds,
-          requirementRevisionIds: confirmation.composition.requirementRevisionIds,
-          assumptionRevisionIds: confirmation.composition.assumptionRevisionIds,
-          decisionRevisionIds: confirmation.composition.decisionRevisionIds,
-          selectionRevisionIds: confirmation.composition.selectionRevisionIds,
-          semanticHash: computeBaselineSemanticHash({
-            organizationId: scope.organizationId,
-            projectId: command.projectId,
-            graphVersionId,
-            previousBaselineId: confirmation.composition.previousBaselineId,
-            packageIds: confirmation.composition.packageIds,
-            sourceRevisionIds: confirmation.composition.sourceRevisionIds,
-            requirementRevisionIds: confirmation.composition.requirementRevisionIds,
-            assumptionRevisionIds: confirmation.composition.assumptionRevisionIds,
-            decisionRevisionIds: confirmation.composition.decisionRevisionIds,
-            selectionRevisionIds: confirmation.composition.selectionRevisionIds,
-            approvalPackageIds: confirmation.composition.approvalPackageIds,
-            packages,
-          }),
-          approvalPackageIds: confirmation.composition.approvalPackageIds,
-        };
-        return completed(requestId, await this.product.publishProjectBaseline({
-          projectId: command.projectId,
-          descriptor,
-          expectedStateRevision: version.stateRevision,
+          expectedStateRevision: scope.stateRevision,
+          commandRef: command.commandId,
           idempotencyKey,
         }));
       }
