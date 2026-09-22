@@ -2,6 +2,39 @@
 
 Scope: repository-only audit of the current RU RemHaOS/ArchiDom compatibility line. Production, shared environments, Google Drive and Pejeng were not accessed or changed.
 
+## Current reconciliation — 2026-09-23
+
+**ИЗВЛЕЧЕНО.** This section supersedes the September 16/17 runtime, publication and readiness statements below. Current checkout is `codex/remhaos-recovery-20260922`, based on `8a27b93a0877be7998ee6037961c64501d78de00`, with uncommitted follow-up repairs. Detailed requirement-to-evidence mapping: [WP-32 reconciliation](wp/WP-32_RECONCILIATION_2026-09-22.md).
+
+**ИЗВЛЕЧЕНО.** The local disposable wrapper completed with exit 0 at `2026-09-22T19:23:09.135Z`. Preserved `WP32_PASS_20260923.json` has SHA-256 `7df0e447af56d8579262107938661001fd67b7c4d0486c9b476ee63891c5646f`, rechecked on September 23. Evidence includes DB4 PostgreSQL 16/17 and the supported authenticated Kora chain. It was a dirty-worktree run: the receipt's HEAD alone does not identify all tested bytes.
+
+**НЕ ПОДТВЕРЖДЕНО.** The external executor's five-operation M2→M3 PASS does not prove external baseline→release→distribution→M4 acceptance, independently verified external source provenance, hosted acceptance or production readiness. Those remain separate requirements. No new follow-up PR has been published.
+
+**ИЗВЛЕЧЕНО.** Earlier AP5 launch attempts failed at local CLI profile loading, then session67567 reached browser execution but lacked the local DB_URL for the existing planner-statistics maintenance step (29 passed, 1 failed, 1 skipped). After correcting only the temporary launcher, session73078 exited0: **31 passed, zero skipped/failed/flaky**, no-skips gate passed, runtime disposed. Full result hash and scope are recorded in [WP-32 evidence](wp/WP-32_EVIDENCE.md). This is current dirty-snapshot local browser evidence, not hosted or final exact-commit acceptance.
+
+**ИЗВЛЕЧЕНО.** DEC-016 in `REMHAOS_DECISION_LOG_v1.md` cancels percentage readiness scores in favour of status plus evidence level. The numbers in the historical matrix below are retained only as `HISTORICAL_AUDIT_SNAPSHOT`, not current canonical scores.
+
+| Workspace | Current evidence assessment | Remaining acceptance boundary |
+|---|---|---|
+| M1 · Заказчик | **ИНТЕРПРЕТИРОВАНО — PARTIAL:** repository contracts and local DB evidence; whole customer journey not re-proven by WP-32 | **НЕ ПОДТВЕРЖДЕНО:** current browser/hosted M1→M2 and production adoption |
+| M2 · Дизайнер | **ИЗВЛЕЧЕНО — VERIFIED for the recorded dirty disposable snapshot:** authenticated Kora plus five-operation external sequence | **НЕ ПОДТВЕРЖДЕНО:** complete real external package provenance and final exact-commit acceptance |
+| M3 · Архитектор | **ИЗВЛЕЧЕНО — VERIFIED for Kora in the recorded dirty disposable snapshot:** baseline/release within supported chain | **НЕ ПОДТВЕРЖДЕНО:** complete external release, current browser and hosted acceptance |
+| M4 · ГлавПрораб | **ИЗВЛЕЧЕНО — VERIFIED for supported Kora in the recorded dirty disposable snapshot:** distribution/acknowledgement, change/impact, photo review, milestone acceptance | **НЕ ПОДТВЕРЖДЕНО:** full external M4, handover production adoption and hosted operations |
+
+**ИНТЕРПРЕТИРОВАНО.** Current architecture point: an authenticated local vertical slice with tighter package authorization, not a fully evidenced external pilot or production-ready product. Local enrollment/approval authorization repairs do not retroactively revoke historical explicit project grants.
+
+### Current sequential completion plan
+
+1. **ИЗВЛЕЧЕНО — completed for current dirty snapshot:** isolated AP5 passed 31/31; retain the no-skip receipt and cleanup evidence, and rerun when final code bytes change.
+2. **ИНТЕРПРЕТИРОВАНО:** Close external baseline/release/M4 through the same authenticated contracts; separately obtain missing source facts without using prohibited Drive/Pejeng access or fabricated substitutes.
+3. **ИНТЕРПРЕТИРОВАНО:** Run full integrated quality gates and independent authorization/security/idempotency/E2E review; reconcile every finding.
+4. **ИНТЕРПРЕТИРОВАНО:** Preserve exact source bytes and repeat acceptance against the final commit; publish the authorized follow-up branch/draft PR only after required gates. No automatic merge or CI/Vercel re-enablement.
+5. **ИНТЕРПРЕТИРОВАНО:** Reconcile remaining authorized work packages with the current evidence matrix, without duplicating WP-13/AV/R1-08A work. Hosted adoption, production, paid pilots and other owner-controlled actions remain separate gates.
+
+## Historical audit snapshot — September 16/17
+
+**ИЗВЛЕЧЕНО.** The following sections describe the earlier audit and preserve its source inventory. Their runtime blockers, percentages and publication status are historical, superseded by the current reconciliation above; they must not be cited as current-state evidence.
+
 ## Publication note — 2026-09-17
 
 **ИЗВЛЕЧЕНО.** This audit was prepared before the later local wrapper PASS recorded in `docs/audits/wp/WP-32_EVIDENCE.md` and `docs/execution/HANDOFF_WP32_PUBLISH_STATE_2026-09-17.md`. Where this file says the clean runtime receipt is missing or blocked by Colima/Docker startup, those lines are historical for this audit snapshot and are superseded by the later PASS evidence.

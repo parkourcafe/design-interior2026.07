@@ -1100,6 +1100,7 @@ function documentationView(input: {
 
 function operationStates(input: {
   readonly role: ProjectCeoRole;
+  readonly hasProjectScope: boolean;
   readonly delivery: AuthenticatedProjectReadProjection;
   readonly m4: readonly ExecutionDeliveryEnvelope[];
   readonly m1: M1WorkspaceView;
@@ -1111,8 +1112,10 @@ function operationStates(input: {
     ?? isDocumentationModuleEnabled();
   const executionEnabled = input.executionEnabled ?? isExecutionModuleEnabled();
   const executionV2V3Enabled = input.executionV2V3Enabled ?? isExecutionV2V3Enabled();
-  const supports = (capability: Parameters<typeof can>[1]): ProjectCeoOperationState => (
-    can(input.role, capability) ? { status: "available" } : unavailable("capability_missing")
+  const supportsProjectScope = (capability: Parameters<typeof can>[1]): ProjectCeoOperationState => (
+    input.hasProjectScope && can(input.role, capability)
+      ? { status: "available" }
+      : unavailable("capability_missing")
   );
   const packageVersions = rows(input.delivery.packageVersions);
   const releaseArtifacts = rows(input.delivery.releaseArtifacts);
@@ -1163,7 +1166,7 @@ function operationStates(input: {
     request.status === "draft" && request.requestedByCurrentActor
   ));
   const submittedApprovalRequest = input.m1.approvalRequests.find((request) => request.status === "submitted");
-  const m1InternalRole = input.role === "owner" || input.role === "architect";
+  const m1InternalRole = input.hasProjectScope && (input.role === "owner" || input.role === "architect");
   // Снапшот состава baseline: то же правило полноты, что применит команда, и
   // тот же токен, который она потребует назад.
   let baselineSnapshotToken: string | null = null;
@@ -1290,11 +1293,9 @@ function operationStates(input: {
         ? { status: "available", commandTargetId: submittedApprovalRequest.id }
         : unavailable("prerequisite_missing")
       : unavailable("capability_missing"),
-    create_invitation: can(input.role, "manage_access")
-      ? { status: "available" }
-      : unavailable("capability_missing"),
-    revoke_invitation: supports("manage_access"),
-    revoke_guest_grant: supports("manage_access"),
+    create_invitation: supportsProjectScope("manage_access"),
+    revoke_invitation: supportsProjectScope("manage_access"),
+    revoke_guest_grant: supportsProjectScope("manage_access"),
     // Intake M3 P0. Право на запись инвентаря сервер проверяет тем же
     // register_source; здесь оно только не предлагается тем, у кого его нет.
     // Пока модуль 3 выключен, поверхности нет ни у кого (A5 §4.2.2).
@@ -1579,7 +1580,7 @@ export class ProjectCeoLiveReadPort implements ProjectCeoUiReadPort {
             capabilities: [] as const,
           };
       let access = { invitations: [] as readonly InvitationView[], participants: [] as readonly ParticipantView[], grants: [] as readonly AccessGrantView[] };
-      if (firstEntry && roleFromDatabase(firstEntry.role) === "owner") {
+      if (firstEntry?.accessScope === "project" && roleFromDatabase(firstEntry.role) === "owner") {
         const envelope = await this.foundation.listProjectAccess(firstEntry.projectId);
         access = accessViews(requiredData(envelope));
       }
@@ -1619,10 +1620,12 @@ export class ProjectCeoLiveReadPort implements ProjectCeoUiReadPort {
         throw new ProjectIntelligenceAdapterError(readEnvelope.error.code, null);
       }
       const delivery = readEnvelope.data;
+      const hasProjectScope = scope.accessScope === "project";
       // Facts and approval requests are internal Project Memory. They are not
-      // part of the client published-only projection or the builder/guest
-      // delivery surface. Keep the RPC read behind the server-derived role.
-      const m1 = actor.role === "owner" || actor.role === "architect"
+      // part of a package-scoped workspace, the client published-only
+      // projection, or the builder/guest delivery surface. Keep these
+      // project-wide RPC reads behind the server-derived effective scope.
+      const m1 = hasProjectScope && (actor.role === "owner" || actor.role === "architect")
         ? await (async () => {
             const [facts, approvalRequests, legacyRead] = await Promise.all([
               this.platform.listProjectFacts(input.projectId),
@@ -1646,7 +1649,7 @@ export class ProjectCeoLiveReadPort implements ProjectCeoUiReadPort {
       const m2 = m2WorkspaceViews(delivery);
       const m2Cycle6 = m2Cycle6Views(delivery);
       let access = { invitations: [] as readonly InvitationView[], participants: [] as readonly ParticipantView[], grants: [] as readonly AccessGrantView[] };
-      if (can(actor.role, "manage_access")) {
+      if (hasProjectScope && can(actor.role, "manage_access")) {
         const envelope = await this.foundation.listProjectAccess(input.projectId);
         access = accessViews(requiredData(envelope));
       }
@@ -1660,7 +1663,7 @@ export class ProjectCeoLiveReadPort implements ProjectCeoUiReadPort {
         }
         access = { ...access, participants: [...participants.values()] };
       }
-      const historyEnvelope = can(actor.role, "view_audit")
+      const historyEnvelope = hasProjectScope && can(actor.role, "view_audit")
         ? await this.foundation.getAuditTimeline(input.projectId)
         : null;
       const sourceStats = record(delivery.sourceStats);
@@ -1726,6 +1729,7 @@ export class ProjectCeoLiveReadPort implements ProjectCeoUiReadPort {
         }),
         operations: operationStates({
           role: actor.role,
+          hasProjectScope,
           delivery,
           m4: m4Envelopes,
           m1,

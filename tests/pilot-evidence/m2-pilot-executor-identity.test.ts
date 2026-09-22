@@ -15,7 +15,10 @@ const uuid = (index: number) => `99000000-0000-4000-8000-${String(index).padStar
 const roles = ["owner_lead", "architect", "client_approver", "builder", "guest"];
 const operations = ["publish_m2_layout_version", "submit_m2_client_review", "review_m2_client_submission", "append_m2_approved_commit_revision", "publish_m2_m3_handoff"];
 const commandRoles = ["owner_lead", "owner_lead", "client_approver", "client_approver", "owner_lead"] as const;
-const PENDING_MANIFEST = JSON.stringify({ status: "pending" });
+const PENDING_MANIFEST = JSON.stringify({
+  ...JSON.parse(readFileSync("tests/fixtures/cycle7/external-package.manifest.json", "utf8")),
+  scope: { organizationId: uuid(1), projectId: uuid(2), packageId: uuid(3), roomId: "external-room" },
+});
 
 function outputDir() { const root = mkdtempSync(join(tmpdir(), "cycle7-identity-")); roots.push(root); return root; }
 function inputManifest(out: string) {
@@ -59,7 +62,30 @@ function receipt(textEntityIds = false) {
   };
 }
 
+function preparedFixture() {
+  const value: any = receipt(); const out = outputDir();
+  const manifestPath = inputManifest(out);
+  const pendingPath = join(out, "PENDING.json");
+  const koraReceiptPath = join(out, "KORA_RECEIPT.json");
+  writeFileSync(koraReceiptPath, JSON.stringify(value.runFiveSessions));
+  const koraReceiptDigest = sha(readFileSync(koraReceiptPath));
+  value.pendingBinding.koraReceiptDigest = koraReceiptDigest;
+  const pending = prepareM2PilotEvidence({ outputPath: pendingPath,
+    challengeNonce: value.challengeNonce, manifestDigest: value.manifestDigest,
+    executor: value.executor, koraReceipt: value.runFiveSessions, koraReceiptPath, koraReceiptDigest });
+  return { value, out, options: { outputDir: out, manifestPath, pendingPath, pending, koraReceiptPath } };
+}
+
 describe("Cycle 7 executor and Kora receipt identity binding", () => {
+  it("rejects a pending-only manifest before accepting receipt claims", () => {
+    const out = outputDir();
+    const manifestPath = join(out, "external-manifest.json");
+    writeFileSync(manifestPath, JSON.stringify({ status: "pending" }));
+    expect(() => finalizeM2PilotEvidence(receipt(), { outputDir: out, manifestPath }))
+      .toThrow("CYCLE7_EXTERNAL_SYNTHETIC_FORBIDDEN");
+    expect(existsSync(join(out, "PASS.json"))).toBe(false);
+  });
+
   it("pins executor and manifest in an exclusive private tmp directory before long gates", () => {
     const shell = readFileSync("tests/pilot-evidence/run-m2-pilot-evidence.zsh", "utf8");
     const pin = shell.indexOf('pin_dir=$(mktemp -d "${evidence_dir}/.pinned-inputs.XXXXXX")');
@@ -108,13 +134,15 @@ describe("Cycle 7 executor and Kora receipt identity binding", () => {
 
   it("finalizer rereads the protected Kora receipt and rejects stale/handwritten replacement", () => {
     const value: any = receipt(); const out = outputDir(); const pendingPath = join(out, "PENDING.json");
+    const manifestPath = inputManifest(out);
     const receiptPath = join(out, "KORA_RECEIPT.json");
     writeFileSync(receiptPath, JSON.stringify(value.runFiveSessions)); const computedDigest = sha(readFileSync(receiptPath));
+    value.pendingBinding.koraReceiptDigest = computedDigest;
     const pending = prepareM2PilotEvidence({ outputPath: pendingPath, challengeNonce: value.challengeNonce,
       manifestDigest: value.manifestDigest, executor: value.executor, koraReceipt: value.runFiveSessions,
       koraReceiptPath: receiptPath, koraReceiptDigest: computedDigest } as any);
     writeFileSync(receiptPath, JSON.stringify({ ...value.runFiveSessions, receiptId: uuid(119) }));
-    expect(() => finalizeM2PilotEvidence(value, { outputDir: out, pending, pendingPath, koraReceiptPath: receiptPath } as any)).toThrow();
+    expect(() => finalizeM2PilotEvidence(value, { outputDir: out, pending, pendingPath, manifestPath, koraReceiptPath: receiptPath } as any)).toThrow("KORA_RECEIPT_STALE_OR_REPLACED");
     expect(existsSync(join(out, "PASS.json"))).toBe(false);
   });
 
@@ -122,9 +150,14 @@ describe("Cycle 7 executor and Kora receipt identity binding", () => {
     const value: any = receipt(); const out = outputDir(); const pendingPath = join(out, "PENDING.json");
     const manifestPath = inputManifest(out);
     value.runFiveSessions.sessions = roles.map((role, index) => ({ role, userId: uuid(120 + index), sessionId: uuid(130 + index), requestId: uuid(140 + index) }));
+    const koraReceiptPath = join(out, "KORA_RECEIPT.json");
+    writeFileSync(koraReceiptPath, JSON.stringify(value.runFiveSessions));
+    const koraReceiptDigest = sha(readFileSync(koraReceiptPath));
+    value.pendingBinding.koraReceiptDigest = koraReceiptDigest;
     const pending = prepareM2PilotEvidence({ outputPath: pendingPath, challengeNonce: value.challengeNonce,
-      manifestDigest: value.manifestDigest, executor: value.executor, koraReceipt: value.runFiveSessions });
-    expect(() => finalizeM2PilotEvidence(value, { outputDir: out, pending, pendingPath, manifestPath })).not.toThrow();
+      manifestDigest: value.manifestDigest, executor: value.executor, koraReceipt: value.runFiveSessions,
+      koraReceiptPath, koraReceiptDigest });
+    expect(() => finalizeM2PilotEvidence(value, { outputDir: out, pending, pendingPath, manifestPath, koraReceiptPath })).not.toThrow();
   });
 
   it("refuses direct finalization when no genuine prepare-produced pending artifact is supplied", () => {
@@ -133,7 +166,7 @@ describe("Cycle 7 executor and Kora receipt identity binding", () => {
     expect(existsSync(join(out, "PASS.json"))).toBe(false);
   });
 
-  it("uses the exported prepare writer and passes its parsed pending artifact/path into finalization", async () => {
+  it("rejects prepare-produced claims without a protected Kora receipt file", async () => {
     const runner: any = await import("./run-m2-pilot-evidence");
     expect(runner.prepareM2PilotEvidence).toBeTypeOf("function");
     const out = outputDir(); const pendingPath = join(out, "PENDING.json"); const value: any = receipt();
@@ -143,34 +176,30 @@ describe("Cycle 7 executor and Kora receipt identity binding", () => {
       executor: value.executor, koraReceipt: value.runFiveSessions,
     });
     expect(pending).toEqual(JSON.parse(readFileSync(pendingPath, "utf8")));
-    expect(() => finalizeM2PilotEvidence(value, { outputDir: out, pending, pendingPath, manifestPath } as any)).not.toThrow();
-    expect(existsSync(join(out, "PASS.json"))).toBe(true);
+    expect(() => finalizeM2PilotEvidence(value, { outputDir: out, pending, pendingPath, manifestPath } as any)).toThrow("KORA_RECEIPT_REQUIRED");
+    expect(existsSync(join(out, "PASS.json"))).toBe(false);
   });
 
   it("rejects a Kora receipt produced by a different repo harness than prepare bound", () => {
-    const value: any = receipt(); const out = outputDir();
-    const producerPath = "tests/pilot-evidence/run-m2-pilot-evidence.zsh";
+    const { value, out, options } = preparedFixture();
+    const producerPath = "tests/pilot-evidence/executors/kora-five-session-producer.zsh";
     value.runFiveSessions.producer = { path: producerPath, digest: sha(readFileSync(producerPath)), repoOwned: true, challengeNonce: value.challengeNonce };
-    const otherPath = "tests/pilot-evidence/finalize-m2-pilot-evidence-cli.ts";
-    const pending = { status: "MANIFEST_VALIDATED_PENDING_RUN", challengeNonce: value.challengeNonce,
-      externalManifestDigest: value.manifestDigest, pendingBinding: { ...value.pendingBinding,
-        koraProducerPath: otherPath, koraProducerDigest: sha(readFileSync(otherPath)), koraChallengeNonce: value.challengeNonce } };
-    expect(() => finalizeM2PilotEvidence(value, { outputDir: out, pending, pendingPath: join(out, "PENDING.json") } as any)).toThrow();
+    expect(() => finalizeM2PilotEvidence(value, options)).toThrow("RECEIPT_TAMPERED_FIVE_SESSIONS");
     expect(existsSync(join(out, "PASS.json"))).toBe(false);
   });
 
   it("rejects verified executor A when the receipt claims repo file B", () => {
-    const value: any = receipt(); const out = outputDir();
+    const { value, out, options } = preparedFixture();
     value.pendingBinding.executorPath = "tests/pilot-evidence/finalize-m2-pilot-evidence.ts";
     value.pendingBinding.executorDigest = sha(readFileSync(value.pendingBinding.executorPath));
-    expect(() => finalizeM2PilotEvidence(value, { outputDir: out })).toThrow();
+    expect(() => finalizeM2PilotEvidence(value, options)).toThrow("RECEIPT_TAMPERED_EXECUTOR_BINDING");
     expect(existsSync(join(out, "PASS.json"))).toBe(false);
   });
 
   it("rejects a self-declared five-session marker not digest-bound to the pending Kora receipt", () => {
-    const value: any = receipt(); const out = outputDir();
+    const { value, out, options } = preparedFixture();
     value.runFiveSessions = { ...value.runFiveSessions, receiptId: uuid(111), digest: sha("self-declared") };
-    expect(() => finalizeM2PilotEvidence(value, { outputDir: out })).toThrow();
+    expect(() => finalizeM2PilotEvidence(value, options)).toThrow("KORA_RECEIPT_CLAIM_MISMATCH");
     expect(existsSync(join(out, "PASS.json"))).toBe(false);
   });
 
@@ -180,16 +209,20 @@ describe("Cycle 7 executor and Kora receipt identity binding", () => {
     expect(value.lineage.handoffId).toMatch(/^handoff-/); expect(value.lineage.submissionRevisionId).toMatch(/^[0-9a-f-]{36}$/);
     const pendingPath = join(out, "PENDING.json");
     const manifestPath = inputManifest(out);
+    const koraReceiptPath = join(out, "KORA_RECEIPT.json");
+    writeFileSync(koraReceiptPath, JSON.stringify(value.runFiveSessions));
+    const koraReceiptDigest = sha(readFileSync(koraReceiptPath));
+    value.pendingBinding.koraReceiptDigest = koraReceiptDigest;
     const pending = prepareM2PilotEvidence({
       outputPath: pendingPath, challengeNonce: value.challengeNonce, manifestDigest: value.manifestDigest,
-      executor: value.executor, koraReceipt: value.runFiveSessions,
+      executor: value.executor, koraReceipt: value.runFiveSessions, koraReceiptPath, koraReceiptDigest,
     });
     expect(pending).toEqual(JSON.parse(readFileSync(pendingPath, "utf8")));
-    finalizeM2PilotEvidence(value, { outputDir: out, pending, pendingPath, manifestPath });
+    finalizeM2PilotEvidence(value, { outputDir: out, pending, pendingPath, manifestPath, koraReceiptPath });
     const pass = JSON.parse(readFileSync(join(out, "PASS.json"), "utf8"));
     expect(pass.status).toBe("completed");
     expect(pass.executor).toMatchObject({ digest: value.executor.digest, verificationReceiptId: value.executor.verificationReceiptId });
     expect(pass.executor).not.toHaveProperty("path");
-    expect(pass.koraRun).toMatchObject({ receiptId: value.runFiveSessions.receiptId, digest: value.runFiveSessions.digest });
+    expect(pass.koraRun).toMatchObject({ receiptId: value.runFiveSessions.receiptId, digest: koraReceiptDigest });
   });
 });

@@ -133,7 +133,7 @@ entity_id_pattern='^[A-Za-z0-9][A-Za-z0-9._:@-]{0,159}$'
 
 query_db() {
   docker exec -i "${db_container}" \
-    psql -X -qAt --set ON_ERROR_STOP=1 --username postgres --dbname postgres
+    psql -X -qAt --set ON_ERROR_STOP=1 --username postgres --dbname postgres "$@"
 }
 
 session_digest() {
@@ -171,21 +171,46 @@ SQL
   )
   organization_id=$(print -r -- "${scope_receipt}" | jq -er '.organizationId') \
     || { print -u2 -r -- 'EXTERNAL_RUNNER_AUTHENTICATED_SCOPE_REQUIRED'; exit 68; }
+  [[ ${organization_id} =~ ${~uuid_pattern} ]] \
+    || { print -u2 -r -- 'EXTERNAL_RUNNER_AUTHENTICATED_SCOPE_INVALID'; exit 68; }
   print -r -- "${scope_receipt}" | jq -e '.packageExists == true and .authenticatedEnrollment == true and .distinctFromKora == true' >/dev/null \
     || { print -u2 -r -- 'EXTERNAL_RUNNER_AUTHENTICATED_SCOPE_REQUIRED'; exit 68; }
 }
 
 harvest_db_command() {
-  local operation=$1 database_operation=$1
+  local operation=$1 command_id=$2 key_suffix=${3:-} database_operation idempotency_kind expected_key expected_key_digest
+  [[ ${command_id} =~ ${~uuid_pattern} ]] || {
+    print -u2 -r -- "EXTERNAL_RUNNER_COMMAND_ID_INVALID operation=${operation}"
+    exit 68
+  }
   case ${operation} in
-    publish_m2_layout_version) database_operation=append_m2_layout_version_revision ;;
-    submit_m2_client_review) database_operation=submit_m2_client_review ;;
-    review_m2_client_submission) database_operation=review_m2_client_submission ;;
-    publish_m2_m3_handoff) database_operation=publish_m2_m3_handoff ;;
+    publish_m2_layout_version) database_operation=append_m2_layout_version_revision; idempotency_kind=${operation} ;;
+    submit_m2_client_review|review_m2_client_submission|publish_m2_m3_handoff) database_operation=${operation}; idempotency_kind=${operation} ;;
+    append_m2_approved_commit_revision)
+      database_operation=${operation}
+      idempotency_kind=review_m2_client_submission
+      [[ ${key_suffix} == :approved-commit ]] || {
+        print -u2 -r -- 'EXTERNAL_RUNNER_APPROVED_COMMIT_KEY_SUFFIX_INVALID'
+        exit 68
+      }
+      ;;
+    *) print -u2 -r -- "EXTERNAL_RUNNER_DB_OPERATION_UNKNOWN operation=${operation}"; exit 68 ;;
   esac
+  if [[ ${operation} != append_m2_approved_commit_revision && -n ${key_suffix} ]]; then
+    print -u2 -r -- "EXTERNAL_RUNNER_COMMAND_KEY_SUFFIX_UNEXPECTED operation=${operation}"
+    exit 68
+  fi
+  expected_key="ui:${project_id}:${idempotency_kind}:${command_id}${key_suffix}"
+  expected_key_digest=$(print -rn -- "${expected_key}" | shasum -a 256 | awk '{print $1}')
+  [[ ${expected_key_digest} =~ '^[0-9a-f]{64}$' ]] || {
+    print -u2 -r -- "EXTERNAL_RUNNER_COMMAND_KEY_DIGEST_INVALID operation=${operation}"
+    exit 68
+  }
   query_db <<SQL
 select json_build_object(
   'commandId', command.command_id,
+  'organizationId', command.organization_id,
+  'projectId', command.project_id,
   'actorUserId', command.actor_user_id,
   'requestId', audit.request_id,
   'resultingStateRevision', command.resulting_state_revision,
@@ -198,9 +223,9 @@ join projectceo_product.audit_events audit
  and audit.project_id = command.project_id
  and audit.command_id = command.command_id
 where command.project_id = '${project_id}'::uuid
+  and command.organization_id = '${organization_id}'::uuid
   and command.operation = '${database_operation}'
-order by command.completed_at desc
-limit 1;
+  and encode(command.key_digest, 'hex') = '${expected_key_digest}';
 SQL
 }
 
@@ -286,7 +311,7 @@ send_command() {
     exit 68
   }
 
-  local result_digest replay_digest request_id stateRevision previous_state_revision audit_event_id session_role=${role} expected_role expected_user_id actor_session_digest
+  local result_digest replay_digest request_id stateRevision previous_state_revision audit_event_id db_command_id db_record session_role=${role} expected_role expected_user_id actor_session_digest actor_session_id actor_user_id
   case ${role} in
     owner) session_role=owner_lead ;;
     client) session_role=client_approver ;;
@@ -305,18 +330,35 @@ send_command() {
   replay_digest=$(jq -cS '.result' "${second}" | shasum -a 256 | awk '{print "sha256:"$1}')
   request_id=$(jq -er '.requestId' "${first}")
   stage="command_${operation}_db_harvest"
-  db_record=$(harvest_db_command "${operation}" | tail -1)
+  db_record=$(harvest_db_command "${operation}" "${command_id}")
   if [[ -z ${db_record} ]]; then
     print -u2 -r -- "EXTERNAL_RUNNER_DB_COMMAND_MISSING operation=${operation}"
     exit 68
   fi
+  jq -e --argjson record "${db_record}" \
+    '.status == "completed" and .result == $record.logicalResult and .stateRevision == $record.resultingStateRevision' \
+    "${first}" >/dev/null || {
+    print -u2 -r -- "EXTERNAL_RUNNER_DB_RESPONSE_MISMATCH operation=${operation} phase=first"
+    exit 68
+  }
+  jq -e --argjson record "${db_record}" \
+    '.status == "completed" and .result == $record.logicalResult and .stateRevision == $record.resultingStateRevision' \
+    "${second}" >/dev/null || {
+    print -u2 -r -- "EXTERNAL_RUNNER_DB_RESPONSE_MISMATCH operation=${operation} phase=replay"
+    exit 68
+  }
+  jq -e --arg organizationId "${organization_id}" --arg projectId "${project_id}" \
+    '.organizationId == $organizationId and .projectId == $projectId' <<<"${db_record}" >/dev/null || {
+    print -u2 -r -- "EXTERNAL_RUNNER_DB_COMMAND_SCOPE_MISMATCH operation=${operation}"
+    exit 68
+  }
   if ! stateRevision=$(jq -er '.resultingStateRevision' <<<"${db_record}"); then
     print -u2 -r -- "EXTERNAL_RUNNER_DB_COMMAND_INVALID operation=${operation} field=resultingStateRevision"
     exit 68
   fi
   previous_state_revision=$(( stateRevision - 1 ))
   stage="command_${operation}_identity_harvest"
-  if ! command_id=$(jq -er '.commandId' <<<"${db_record}"); then
+  if ! db_command_id=$(jq -er '.commandId' <<<"${db_record}"); then
     print -u2 -r -- "EXTERNAL_RUNNER_DB_COMMAND_INVALID operation=${operation} field=commandId"
     exit 68
   fi
@@ -340,12 +382,12 @@ send_command() {
   }
   stage="command_${operation}_receipt_append"
 
-  jq --arg operation "${operation}" --arg commandId "${command_id}" --arg requestId "${request_id}" \
+  jq --arg operation "${operation}" --arg commandId "${db_command_id}" --arg submittedCommandId "${command_id}" --arg requestId "${request_id}" \
     --arg auditRequestId "$(jq -er '.requestId' <<<"${db_record}")" \
     --arg auditEventId "${audit_event_id}" --arg actorUserId "${actor_user_id}" --arg actorSessionId "${actor_session_id}" --arg actorSessionDigest "${actor_session_digest}" --arg role "${expected_role}" \
     --argjson previous "${previous_state_revision}" --argjson resulting "${stateRevision}" \
     --arg resultDigest "${result_digest}" --arg replayDigest "${replay_digest}" \
-    '. += [{operation: $operation, role: $role, replayMode: "direct", commandId: $commandId, requestId: $requestId,
+    '. += [{operation: $operation, role: $role, replayMode: "direct", commandId: $commandId, submittedCommandId: $submittedCommandId, requestId: $requestId,
             auditRequestId: $auditRequestId, auditEventId: $auditEventId, actorUserId: $actorUserId, actorSessionId: $actorSessionId, actorSessionDigest: $actorSessionDigest,
             previousStateRevision: $previous, resultingStateRevision: $resulting,
             resultDigest: $resultDigest, replayDigest: $replayDigest}]' \
@@ -359,10 +401,17 @@ send_command() {
 # public API or issuing a duplicate approved commit.
 record_approved_commit_side_effect() {
   local operation=append_m2_approved_commit_revision
-  local db_record result_digest stateRevision previous_state_revision command_id audit_event_id actor_user_id actor_session_id actor_session_digest expected_user_id request_id
-  db_record=$(harvest_db_command "${operation}" | tail -1)
+  local db_record result_digest stateRevision previous_state_revision db_command_id audit_event_id actor_user_id actor_session_id actor_session_digest expected_user_id request_id parent_command_id
+  parent_command_id=$(jq -er '.[] | select(.operation == "review_m2_client_submission") | .submittedCommandId' "${commands_file}")
+  [[ ${parent_command_id} =~ ${~uuid_pattern} ]] || { print -u2 -r -- 'EXTERNAL_RUNNER_APPROVED_COMMIT_PARENT_COMMAND_INVALID'; exit 68; }
+  db_record=$(harvest_db_command "${operation}" "${parent_command_id}" ':approved-commit')
   [[ -n ${db_record} ]] || { print -u2 -r -- 'EXTERNAL_RUNNER_APPROVED_COMMIT_SIDE_EFFECT_MISSING'; exit 68; }
-  command_id=$(jq -er '.commandId' <<<"${db_record}")
+  jq -e --arg organizationId "${organization_id}" --arg projectId "${project_id}" \
+    '.organizationId == $organizationId and .projectId == $projectId' <<<"${db_record}" >/dev/null || {
+    print -u2 -r -- 'EXTERNAL_RUNNER_APPROVED_COMMIT_SCOPE_MISMATCH'
+    exit 68
+  }
+  db_command_id=$(jq -er '.commandId' <<<"${db_record}")
   audit_event_id=$(jq -er '.auditEventId' <<<"${db_record}")
   request_id=$(jq -er '.[] | select(.operation == "review_m2_client_submission") | .requestId' "${commands_file}")
   actor_user_id=$(jq -er '.actorUserId' <<<"${db_record}")
@@ -373,11 +422,11 @@ record_approved_commit_side_effect() {
   expected_user_id=$(jq -er '.[] | select(.role == "client_approver") | .userId' "${sessions_file}")
   [[ ${actor_user_id} == ${expected_user_id} ]] || { print -u2 -r -- 'EXTERNAL_RUNNER_DB_COMMAND_ROLE_MISMATCH operation=append_m2_approved_commit_revision'; exit 68; }
   result_digest=$(jq -cS '.logicalResult' <<<"${db_record}" | shasum -a 256 | awk '{print "sha256:"$1}')
-  jq --arg operation "${operation}" --arg commandId "${command_id}" --arg requestId "${request_id}" \
+  jq --arg operation "${operation}" --arg commandId "${db_command_id}" --arg submittedCommandId "${parent_command_id}" --arg requestId "${request_id}" \
     --arg auditRequestId "$(jq -er '.requestId' <<<"${db_record}")" \
     --arg auditEventId "${audit_event_id}" --arg actorUserId "${actor_user_id}" --arg actorSessionId "${actor_session_id}" --arg actorSessionDigest "${actor_session_digest}" --arg role "client_approver" \
     --argjson previous "${previous_state_revision}" --argjson resulting "${stateRevision}" --arg digest "${result_digest}" \
-    '. += [{operation: $operation, role: $role, replayMode: "parent_atomic_side_effect", commandId: $commandId, requestId: $requestId,
+    '. += [{operation: $operation, role: $role, replayMode: "parent_atomic_side_effect", commandId: $commandId, submittedCommandId: $submittedCommandId, requestId: $requestId,
             auditRequestId: $auditRequestId, auditEventId: $auditEventId, actorUserId: $actorUserId, actorSessionId: $actorSessionId, actorSessionDigest: $actorSessionDigest,
             previousStateRevision: $previous, resultingStateRevision: $resulting,
             resultDigest: $digest, replayDigest: $digest}]' \
@@ -609,34 +658,38 @@ stage=submitted_review_complete
 submission_id=$(manifest_jq -er '.m2.submissionId')
 submission_revision_id=$(manifest_jq -er '.m2.submissionRevisionId')
 chosen_variant_id=$(manifest_jq -er '.m2.variants[0].variantId')
-review_prerequisites_after_submit=$(query_db <<SQL
+review_prerequisites_after_submit=$(query_db \
+  --set "project_id=${project_id}" \
+  --set "submission_id=${submission_id}" \
+  --set "submission_revision_id=${submission_revision_id}" \
+  --set "chosen_variant_id=${chosen_variant_id}" <<'SQL'
 select json_build_object(
   'submissionPresent', exists (
     select 1 from projectceo_product.m2_workspace_revisions submission
-    where submission.project_id = '${project_id}'::uuid
+    where submission.project_id = :'project_id'::uuid
       and submission.entity_kind = 'm2_client_submission'
-      and submission.entity_id = '${submission_id}'
+      and submission.entity_id = :'submission_id'
   ),
   'submissionRevisionCurrent', exists (
     select 1 from projectceo_product.m2_workspace_revisions submission
-    where submission.project_id = '${project_id}'::uuid
+    where submission.project_id = :'project_id'::uuid
       and submission.entity_kind = 'm2_client_submission'
-      and submission.entity_id = '${submission_id}'
-      and submission.revision_id = '${submission_revision_id}'
+      and submission.entity_id = :'submission_id'
+      and submission.revision_id = :'submission_revision_id'
   ),
   'assignedClientDistinct', exists (
     select 1 from projectceo_product.m2_workspace_revisions submission
-    where submission.project_id = '${project_id}'::uuid
+    where submission.project_id = :'project_id'::uuid
       and submission.entity_kind = 'm2_client_submission'
-      and submission.entity_id = '${submission_id}'
+      and submission.entity_id = :'submission_id'
       and (submission.payload->>'submittedByActorUserId')::uuid is distinct from
           (submission.payload->>'assignedClientUserId')::uuid
   ),
   'approvalPackageRequired', exists (
     select 1 from projectceo_product.m2_workspace_revisions submission
-    where submission.project_id = '${project_id}'::uuid
+    where submission.project_id = :'project_id'::uuid
       and submission.entity_kind = 'm2_client_submission'
-      and submission.entity_id = '${submission_id}'
+      and submission.entity_id = :'submission_id'
       and exists (
         select 1 from projectceo_product.approval_package_events event
         where event.project_id = submission.project_id
@@ -655,18 +708,18 @@ select json_build_object(
   'chosenVariantPresent', exists (
     select 1 from projectceo_product.m2_workspace_revisions submission,
       jsonb_array_elements(submission.payload->'variants') variant
-    where submission.project_id = '${project_id}'::uuid
+    where submission.project_id = :'project_id'::uuid
       and submission.entity_kind = 'm2_client_submission'
-      and submission.entity_id = '${submission_id}'
-      and variant->>'variantId' = '${chosen_variant_id}'
+      and submission.entity_id = :'submission_id'
+      and variant->>'variantId' = :'chosen_variant_id'
   ),
   'chosenBudgetClean', exists (
     select 1 from projectceo_product.m2_workspace_revisions submission,
       jsonb_array_elements(submission.payload->'variants') variant
-    where submission.project_id = '${project_id}'::uuid
+    where submission.project_id = :'project_id'::uuid
       and submission.entity_kind = 'm2_client_submission'
-      and submission.entity_id = '${submission_id}'
-      and variant->>'variantId' = '${chosen_variant_id}'
+      and submission.entity_id = :'submission_id'
+      and variant->>'variantId' = :'chosen_variant_id'
       and jsonb_array_length(variant#>'{budget,staleSelectionRevisionIds}') = 0
       and jsonb_array_length(variant#>'{budget,missingPriceSelectionRevisionIds}') = 0
   )

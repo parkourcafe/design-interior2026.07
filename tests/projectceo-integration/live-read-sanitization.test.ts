@@ -184,6 +184,35 @@ function fakeClient(
   };
 }
 
+function recordingClient(
+  projectEntries: readonly Readonly<Record<string, unknown>>[],
+  options: { readonly denyPrimaryRead?: boolean } = {},
+) {
+  const calls: string[] = [];
+  const primaryReadArgs: unknown[] = [];
+  const base = fakeClient({}, projectEntries);
+  const client: PostgresRpcClient = {
+    schema(schemaName) {
+      const delegate = base.schema(schemaName);
+      return {
+        rpc(functionName, args) {
+          calls.push(`${schemaName}.${functionName}`);
+          if (schemaName === "projectceo_read_api" && functionName === "get_project_workspace_read_v11") {
+            primaryReadArgs.push(args);
+          }
+          if (options.denyPrimaryRead
+            && schemaName === "projectceo_read_api"
+            && functionName === "get_project_workspace_read_v11") {
+            return Promise.resolve({ data: null, error: { code: "P1103", message: "forbidden" } });
+          }
+          return delegate.rpc(functionName, args);
+        },
+      };
+    },
+  };
+  return { client, calls, primaryReadArgs };
+}
+
 const client = fakeClient();
 
 function failingEnvelopeClient(functionToFail: string): PostgresRpcClient {
@@ -241,6 +270,99 @@ function executionWithPhotoDecision(decision: "accepted" | "rejected" | null) {
 }
 
 describe("ProjectCEO live DTO sanitizer", () => {
+  it("keeps a package architect in the package workspace without calling project-wide secondary reads", async () => {
+    const { client, calls, primaryReadArgs } = recordingClient([{
+      accessScope: "package",
+      organizationId,
+      projectId,
+      packageId,
+      role: "architect",
+      stateRevision: 4,
+    }]);
+    const result = await new ProjectCeoLiveReadPort(client, {
+      userId: "66666666-6666-4666-8666-666666666666",
+      displayName: "Package architect",
+    }).getProjectWorkspace({ projectId, requestId: "package-architect" });
+
+    expect(result.error).toBeNull();
+    expect(result.data?.actor.packageId).toBe(packageId);
+    expect(result.data?.sources.map((source) => source.packageId)).toEqual([packageId, packageId]);
+    expect(result.data?.m1).toEqual({ facts: [], approvalRequests: [] });
+    expect(result.data?.history).toEqual([]);
+    for (const operation of ["create_project_fact", "create_approval_request", "submit_approval_request", "decide_approval_request", "create_invitation", "revoke_invitation", "revoke_guest_grant"] as const) {
+      expect(result.data?.operations[operation]).toEqual({ status: "unavailable", reason: "capability_missing" });
+    }
+    expect(calls).toContain("projectceo_read_api.get_project_workspace_read_v11");
+    expect(primaryReadArgs).toEqual([{ project_id: projectId, package_id: packageId }]);
+    expect(calls).not.toContain("projectceo_platform_api.list_project_facts");
+    expect(calls).not.toContain("projectceo_platform_api.list_approval_requests");
+    expect(calls).not.toContain("projectceo_read_api.get_m1_legacy_project_read");
+    expect(calls).not.toContain("projectceo_api.get_audit_timeline");
+  });
+
+  it("retains project-wide secondary reads for a project architect", async () => {
+    const { client, calls } = recordingClient([{
+      accessScope: "project",
+      organizationId,
+      projectId,
+      role: "architect",
+      stateRevision: 4,
+    }]);
+    const result = await new ProjectCeoLiveReadPort(client, {
+      userId: "66666666-6666-4666-8666-666666666666",
+      displayName: "Project architect",
+    }).getProjectWorkspace({ projectId, requestId: "project-architect" });
+
+    expect(result.error).toBeNull();
+    expect(calls).toContain("projectceo_platform_api.list_project_facts");
+    expect(calls).toContain("projectceo_platform_api.list_approval_requests");
+    expect(calls).toContain("projectceo_read_api.get_m1_legacy_project_read");
+    expect(calls).toContain("projectceo_api.get_audit_timeline");
+    expect(result.data?.operations.create_project_fact).toEqual({ status: "available" });
+    expect(result.data?.operations.create_approval_request).toEqual({ status: "available" });
+  });
+
+  it("does not load project-wide access records into a package-only owner portfolio", async () => {
+    const { client, calls } = recordingClient([{
+      accessScope: "package",
+      organizationId,
+      projectId,
+      packageId,
+      role: "owner_lead",
+      stateRevision: 4,
+    }]);
+    const result = await new ProjectCeoLiveReadPort(client, {
+      userId: "66666666-6666-4666-8666-666666666666",
+      displayName: "Package owner",
+    }).getPortfolio({ requestId: "package-owner-portfolio" });
+
+    expect(result.error).toBeNull();
+    expect(result.data?.projects).toHaveLength(1);
+    expect(calls).not.toContain("projectceo_api.list_project_access");
+  });
+
+  it("keeps a denied package primary read forbidden instead of returning an empty workspace", async () => {
+    const { client, calls } = recordingClient([{
+      accessScope: "package",
+      organizationId,
+      projectId,
+      packageId,
+      role: "architect",
+      stateRevision: 4,
+    }], { denyPrimaryRead: true });
+    const result = await new ProjectCeoLiveReadPort(client, {
+      userId: "66666666-6666-4666-8666-666666666666",
+      displayName: "Denied package architect",
+    }).getProjectWorkspace({ projectId, requestId: "package-architect-denied" });
+
+    expect(result.data).toBeNull();
+    expect(result.error?.code).toBe("forbidden");
+    expect(calls).toEqual([
+      "projectceo_api.list_projects",
+      "projectceo_read_api.get_project_workspace_read_v11",
+    ]);
+  });
+
   it.each([
     ["builder", "builder"],
     ["client", "client_approver"],

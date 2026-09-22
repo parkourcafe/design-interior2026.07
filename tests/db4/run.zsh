@@ -100,7 +100,9 @@ for sql in \
   "${repo_root}/tests/db4/56_m1_rls_security.sql" \
   "${repo_root}/tests/db4/57_legacy_adopted_hardening.sql" \
   "${repo_root}/tests/db4/59_m1_legacy_read_rpc.sql" \
-  "${repo_root}/tests/db4/61_market_routing_receipts.sql"; do
+  "${repo_root}/tests/db4/61_market_routing_receipts.sql" \
+  "${repo_root}/tests/db4/77_authenticated_package_scoped_enrollment.sql" \
+  "${repo_root}/tests/db4/78_package_bound_approval_review.sql"; do
   print -r -- "Running ${sql:t}"
   run_file "${sql}"
 done

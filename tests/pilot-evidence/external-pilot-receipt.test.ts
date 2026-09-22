@@ -26,7 +26,10 @@ const NONCE = "cycle7-challenge-3d41f7ae90bc";
 const EXECUTOR_PATH = "tests/pilot-evidence/executors/external-package-runner.zsh";
 const ALLOWLISTED = "tests/pilot-evidence/executors/pending-external-system.zsh";
 const commandRoles = ["owner_lead", "owner_lead", "client_approver", "client_approver", "owner_lead"] as const;
-const MANIFEST_JSON = JSON.stringify({ status: "pending", synthetic: false, project: { name: "External venue" } });
+const MANIFEST_JSON = readFileSync("tests/fixtures/cycle7/external-package.manifest.json", "utf8");
+const MANIFEST_SCOPE = (JSON.parse(MANIFEST_JSON) as { scope: {
+  organizationId: string; projectId: string; packageId: string;
+} }).scope;
 const MANIFEST_DIGEST = sha(MANIFEST_JSON);
 
 function workdir() { const root = mkdtempSync(join(tmpdir(), "cycle7-external-")); roots.push(root); return root; }
@@ -44,7 +47,8 @@ function manifestFile(dir: string) {
 }
 
 function harvest(overrides: Record<string, any> = {}) {
-  const scope = { organizationId: uuid(1), projectId: uuid(2), packageId: uuid(3) };
+  const scope = { organizationId: MANIFEST_SCOPE.organizationId, projectId: MANIFEST_SCOPE.projectId,
+    packageId: MANIFEST_SCOPE.packageId };
   const sessions = EXTERNAL_RUN_ROLES.map((role, index) => {
     const sessionId = uuid(20 + index);
     return { role, userId: uuid(10 + index), sessionId, requestId: uuid(30 + index), serverSessionDigest: sha(sessionId) };
@@ -285,7 +289,7 @@ describe("External pilot receipt builder", () => {
       executor: { path: ALLOWLISTED, digest: executorDigest, verificationReceiptId },
       kora: { receiptId: koraReceipt.receiptId, receiptDigest: koraReceiptDigest, producerPath: ALLOWLISTED, producerDigest: executorDigest },
       harvest: actualAuditRun,
-    });
+    }) as any;
 
     const pendingPath = join(dir, "PENDING.json");
     const pending = prepareM2PilotEvidence({

@@ -390,6 +390,9 @@ describe("Layout Studio delivery/UI slice", () => {
       "20260920150000_r1_external_review_read_contract.sql",
       // Read-only pre-handoff subject composition; no Layout Studio changes.
       "20260920160000_r1_external_review_subject_preview.sql",
+      // Enrollment repair narrows supplied users to package capabilities only.
+      "20260922183823_projectceo_package_scoped_enrollment.sql",
+      "20260922185630_projectceo_package_bound_approval_review.sql",
     ];
     const actual = readdirSync(join(repoRoot, "supabase/migrations"), { withFileTypes: true })
       // Предмет проверки — миграции, а не всё содержимое папки. Рядом с ними
