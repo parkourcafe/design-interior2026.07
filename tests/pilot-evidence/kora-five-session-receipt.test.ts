@@ -26,11 +26,15 @@ const NONCE = "cycle7-challenge-7f0d9c2b41ae";
 const PRODUCER_PATH = "tests/pilot-evidence/executors/kora-five-session-producer.zsh";
 const FIVE_SESSION_RUNNER_PATH = "tests/ap1/e2e/run-five-sessions.zsh";
 const RUN_MARKER = "AP1_SUPPORTED_SLICE_E2E_OK users=5 auth=magiclink area_m2=1800 replay=true production_changed=false";
+const EXTERNAL_MANIFEST = readFileSync("tests/fixtures/cycle7/external-package.manifest.json", "utf8");
+const EXTERNAL_SCOPE = (JSON.parse(EXTERNAL_MANIFEST) as { scope: {
+  organizationId: string; projectId: string; packageId: string;
+} }).scope;
 
 function outputDir() { const root = mkdtempSync(join(tmpdir(), "cycle7-kora-receipt-")); roots.push(root); return root; }
 function inputManifest(dir: string) {
   const path = join(dir, "external-manifest.json");
-  writeFileSync(path, JSON.stringify({ status: "pending" }));
+  writeFileSync(path, EXTERNAL_MANIFEST);
   return path;
 }
 
@@ -190,7 +194,8 @@ describe("Kora five-session receipt builder", () => {
       koraReceiptPath, koraReceiptDigest, koraProducerPath: producerPath, koraProducerDigest: producerDigest,
     });
 
-    const scope = { organizationId: uuid(2), projectId: uuid(3), packageId: uuid(4) };
+    const scope = { organizationId: EXTERNAL_SCOPE.organizationId, projectId: EXTERNAL_SCOPE.projectId,
+      packageId: EXTERNAL_SCOPE.packageId };
     const operations = ["publish_m2_layout_version", "submit_m2_client_review", "review_m2_client_submission",
       "append_m2_approved_commit_revision", "publish_m2_m3_handoff"];
     const commandRoles = ["owner_lead", "owner_lead", "client_approver", "client_approver", "owner_lead"] as const;
@@ -206,7 +211,7 @@ describe("Kora five-session receipt builder", () => {
       previousStateRevision: 100 + index, resultingStateRevision: 101 + index,
       resultDigest: sha(`result-${index}`), replayDigest: sha(`result-${index}`), replayEqual: true,
     }));
-    finalizeM2PilotEvidence({
+    const finalizerReceipt = {
       status: "MANIFEST_VALIDATED_PENDING_RUN", challengeNonce: NONCE, manifestDigest, scope,
       executor: { path: executorPath, digest: executorDigest, repoOwned: true, verificationReceiptId },
       sessions: externalSessions,
@@ -220,7 +225,14 @@ describe("Kora five-session receipt builder", () => {
       }),
       runFiveSessions: koraReceipt,
       pendingBinding: (pending as any).pendingBinding,
-    }, { outputDir: dir, pending, pendingPath, koraReceiptPath, manifestPath, label: "External real package" });
+    };
+    expect(() => finalizeM2PilotEvidence({
+      ...finalizerReceipt,
+      scope: { ...scope, projectId: uuid(99) },
+    }, { outputDir: dir, pending, pendingPath, koraReceiptPath, manifestPath, label: "External real package" }))
+      .toThrow("RECEIPT_MANIFEST_SCOPE_MISMATCH");
+    finalizeM2PilotEvidence(finalizerReceipt,
+      { outputDir: dir, pending, pendingPath, koraReceiptPath, manifestPath, label: "External real package" });
 
     expect(existsSync(join(dir, "PASS.json"))).toBe(true);
     const pass = JSON.parse(readFileSync(join(dir, "PASS.json"), "utf8"));

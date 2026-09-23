@@ -3,6 +3,7 @@ import { execFile, execFileSync } from "node:child_process";
 import { existsSync, readFileSync, renameSync, rmSync, writeFileSync } from "node:fs";
 import { resolve, relative, join } from "node:path";
 import { canonicalJson } from "../../lib/project-intelligence/application/change-handoff/canonical";
+import { readPilotManifest, validateExternalPilot, validateKoraPilot } from "./m2-pilot-evidence-contract";
 
 type UnknownObject = Record<string, unknown>;
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -45,8 +46,11 @@ export function finalizeM2PilotEvidence(receipt: unknown, options: { readonly ou
   try {
     if (receipt === null || typeof receipt !== "object") throw new Error("RECEIPT_MISSING");
     if (!options.manifestPath || !existsSync(options.manifestPath)) throw new Error("CYCLE7_INPUT_MANIFEST_REQUIRED");
-    const inputManifest = object(JSON.parse(readFileSync(options.manifestPath, "utf8")) as unknown);
+    const inputManifest = readPilotManifest(options.manifestPath);
     if (inputManifest.status !== "pending") throw new Error("CYCLE7_INPUT_MANIFEST_MUST_BE_PENDING");
+    const koraManifest = readPilotManifest("tests/fixtures/cycle7/kora-one-room-pilot.json");
+    validateKoraPilot(koraManifest);
+    validateExternalPilot(inputManifest, koraManifest);
     if (!SHA.test(string(value.manifestDigest)) || fileDigest(options.manifestPath) !== value.manifestDigest) {
       throw new Error("CYCLE7_INPUT_MANIFEST_DIGEST_MISMATCH");
     }
@@ -77,6 +81,12 @@ export function finalizeM2PilotEvidence(receipt: unknown, options: { readonly ou
       || pendingBinding.executorVerificationReceiptId !== executor.verificationReceiptId) throw new Error("RECEIPT_TAMPERED_EXECUTOR_BINDING");
     const scope = object(value.scope);
     for (const key of ["organizationId", "projectId", "packageId"] as const) if (!UUID.test(string(scope[key]))) throw new Error("RECEIPT_TAMPERED_SCOPE");
+    const manifestScope = object(inputManifest.scope);
+    // Enrollment derives organization identity on the server. Project/package
+    // selectors must still match the pinned manifest exactly.
+    if (["projectId", "packageId"].some((key) => scope[key] !== manifestScope[key])) {
+      throw new Error("RECEIPT_MANIFEST_SCOPE_MISMATCH");
+    }
     const sessions = list(value.sessions); const fiveDistinctUsers = new Set(sessions.map((item) => string(item.userId))).size === 5;
     if (!validFiveSessions(sessions, true)) throw new Error("RECEIPT_TAMPERED_SESSIONS");
     const sessionBindings = new Set(sessions.map((item) => `${item.userId}:${item.sessionId}`));
@@ -158,12 +168,16 @@ export function finalizeM2PilotEvidence(receipt: unknown, options: { readonly ou
     }
     if (proofRequestIds.size !== 5) throw new Error("RECEIPT_TAMPERED_PROOF");
     const runFiveSessions = object(value.runFiveSessions);
-    let protectedKoraReceipt = runFiveSessions;
     const boundKoraPath = string(pendingBinding.koraReceiptPath);
-    if (boundKoraPath) {
-      if (!options.koraReceiptPath || resolve(options.koraReceiptPath) !== resolve(boundKoraPath)
-        || !existsSync(options.koraReceiptPath) || fileDigest(options.koraReceiptPath) !== pendingBinding.koraReceiptDigest) throw new Error("KORA_RECEIPT_STALE_OR_REPLACED");
-      protectedKoraReceipt = object(JSON.parse(readFileSync(options.koraReceiptPath, "utf8")));
+    if (!boundKoraPath || !options.koraReceiptPath) throw new Error("KORA_RECEIPT_REQUIRED");
+    if (resolve(options.koraReceiptPath) !== resolve(boundKoraPath)
+      || !existsSync(options.koraReceiptPath) || fileDigest(options.koraReceiptPath) !== pendingBinding.koraReceiptDigest) throw new Error("KORA_RECEIPT_STALE_OR_REPLACED");
+    const protectedKoraReceipt = object(JSON.parse(readFileSync(options.koraReceiptPath, "utf8")));
+    if (runFiveSessions.receiptId !== protectedKoraReceipt.receiptId
+      || (runFiveSessions.marker !== undefined && runFiveSessions.marker !== protectedKoraReceipt.marker)
+      || (runFiveSessions.sessions !== undefined
+        && canonicalJson(runFiveSessions.sessions) !== canonicalJson(protectedKoraReceipt.sessions ?? null))) {
+      throw new Error("KORA_RECEIPT_CLAIM_MISMATCH");
     }
     const koraSessions = list(protectedKoraReceipt.sessions);
     const producer = object(runFiveSessions.producer); const producerPath = string(producer.path); const producerAbsolute = resolve(producerPath);

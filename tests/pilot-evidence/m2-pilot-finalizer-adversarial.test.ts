@@ -4,22 +4,25 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { createHash } from "node:crypto";
 import { afterEach, describe, expect, it } from "vitest";
+import { finalizeM2PilotEvidence, runPilotExecutor } from "./finalize-m2-pilot-evidence";
 import { buildExternalProofFixture } from "./proof-fixture";
+import { prepareM2PilotEvidence } from "./run-m2-pilot-evidence";
 
 const temporary: string[] = [];
 afterEach(() => { for (const path of temporary.splice(0)) rmSync(path, { recursive: true, force: true }); });
 
 const ids = {
-  org: "91111111-1111-4111-8111-111111111111", project: "92222222-2222-4222-8222-222222222222",
-  package: "93333333-3333-4333-8333-333333333333", submission: "94444444-4444-4444-8444-444444444444",
+  org: "a1111111-1111-4111-8111-111111111111", project: "a2222222-2222-4222-8222-222222222222",
+  package: "a3333333-3333-4333-8333-333333333333", submission: "94444444-4444-4444-8444-444444444444",
   review: "95555555-5555-4555-8555-555555555555", commit: "96666666-6666-4666-8666-666666666666",
   handoff: "97777777-7777-4777-8777-777777777777",
 };
 const sha = (character: string) => `sha256:${character.repeat(64)}`;
 const uuid = (index: number) => `88000000-0000-4000-8000-${String(index).padStart(12, "0")}`;
 const commandRoles = ["owner_lead", "owner_lead", "client_approver", "client_approver", "owner_lead"] as const;
+const PENDING_MANIFEST = readFileSync("tests/fixtures/cycle7/external-package.manifest.json", "utf8");
 
-function receipt() {
+function receipt(manifestDigest = sha("a")) {
   const roles = ["owner_lead", "architect", "client_approver", "builder", "guest"];
   const sessions = roles.map((role, index) => {
     const sessionId = uuid(index + 6);
@@ -41,8 +44,9 @@ function receipt() {
   }));
   return {
     status: "MANIFEST_VALIDATED_PENDING_RUN", challengeNonce: "cycle7-challenge-7f0d9c",
-    manifestDigest: sha("a"), executor: { path: "tests/pilot-evidence/run-m2-pilot-evidence.zsh",
-      digest: `sha256:${createHash("sha256").update(readFileSync("tests/pilot-evidence/run-m2-pilot-evidence.zsh")).digest("hex")}`, repoOwned: true },
+    manifestDigest, executor: { path: "tests/pilot-evidence/run-m2-pilot-evidence.zsh",
+      digest: `sha256:${createHash("sha256").update(readFileSync("tests/pilot-evidence/run-m2-pilot-evidence.zsh")).digest("hex")}`,
+      repoOwned: true, verificationReceiptId: uuid(40) },
     scope: { organizationId: ids.org, projectId: ids.project, packageId: ids.package }, sessions, commands,
     lineage: { submissionId: ids.submission, submissionRevisionId: uuid(31), reviewId: ids.review, reviewRevisionId: uuid(32),
       approvedCommitId: ids.commit, approvedCommitRevisionId: uuid(33), clientSubmissionId: ids.submission,
@@ -50,72 +54,104 @@ function receipt() {
       handoffApprovedCommitId: ids.commit, handoffApprovedCommitRevisionId: uuid(33) },
     proofs: buildExternalProofFixture({
       scope: { organizationId: ids.org, projectId: ids.project, packageId: ids.package }, commands,
-      manifestDigest: sha("a"), challengeNonce: "cycle7-challenge-7f0d9c", uuid,
+      manifestDigest, challengeNonce: "cycle7-challenge-7f0d9c", uuid,
       sha: (value) => `sha256:${createHash("sha256").update(value).digest("hex")}`,
     }),
-    runFiveSessions: { marker: "RUN_FIVE_REQUEST_BOUND_SESSIONS", receiptId: uuid(45) },
+    runFiveSessions: { marker: "RUN_FIVE_REQUEST_BOUND_SESSIONS", receiptId: uuid(45), sessions },
   };
 }
 
-async function api() { return import("./finalize-m2-pilot-evidence"); }
 function outputDir() { const path = mkdtempSync(join(tmpdir(), "cycle7-finalizer-")); temporary.push(path); return path; }
 function assertNoArtifacts(path: string) { expect(existsSync(join(path, "PASS.json"))).toBe(false); expect(existsSync(join(path, "PASS.json.tmp"))).toBe(false); }
+function validFinalization() {
+  const out = outputDir();
+  const manifestPath = join(out, "external-manifest.json");
+  writeFileSync(manifestPath, PENDING_MANIFEST);
+  const value: any = receipt(`sha256:${createHash("sha256").update(PENDING_MANIFEST).digest("hex")}`);
+  const koraReceiptPath = join(out, "KORA_RECEIPT.json");
+  writeFileSync(koraReceiptPath, JSON.stringify(value.runFiveSessions));
+  const pendingPath = join(out, "PENDING.json");
+  const pending = prepareM2PilotEvidence({
+    outputPath: pendingPath,
+    challengeNonce: value.challengeNonce,
+    manifestDigest: value.manifestDigest,
+    executor: value.executor,
+    koraReceipt: value.runFiveSessions,
+    koraReceiptPath,
+  });
+  value.pendingBinding = pending.pendingBinding;
+  return { value, out, options: { outputDir: out, manifestPath, pendingPath, pending, koraReceiptPath } };
+}
+function expectRejected(mutate: (value: any) => void, code: string) {
+  const { value, out, options } = validFinalization();
+  mutate(value);
+  expect(() => finalizeM2PilotEvidence(value, options)).toThrow(code);
+  assertNoArtifacts(out);
+}
 
 describe("Cycle 7 executable finalizer adversarial gate", () => {
-  it("rejects arbitrary executor path/digest and requires repo ownership plus challenge nonce", async () => {
-    const { finalizeM2PilotEvidence } = await api();
+  it("builds a complete accepted manifest, pending binding and protected Kora receipt", () => {
+    const { value, out, options } = validFinalization();
+    expect(() => finalizeM2PilotEvidence(value, options)).not.toThrow();
+    expect(existsSync(join(out, "PASS.json"))).toBe(true);
+  });
+
+  it("rejects arbitrary executor path/digest and requires repo ownership plus challenge nonce", () => {
     for (const mutate of [
       (value: any) => { value.executor.path = "/tmp/evil.sh"; },
       (value: any) => { value.executor.digest = sha("f"); },
       (value: any) => { value.executor.repoOwned = false; },
-      (value: any) => { value.challengeNonce = ""; },
-    ]) { const value = receipt(); mutate(value); const out = outputDir(); expect(() => finalizeM2PilotEvidence(value, { outputDir: out })).toThrow(); assertNoArtifacts(out); }
+    ]) expectRejected(mutate, "RECEIPT_TAMPERED_EXECUTOR");
+
+    const { value, out, options } = validFinalization();
+    value.challengeNonce = "";
+    (options.pending as any).challengeNonce = "";
+    writeFileSync(options.pendingPath, JSON.stringify(options.pending, null, 2));
+    expect(() => finalizeM2PilotEvidence(value, options)).toThrow("RECEIPT_TAMPERED_EXECUTOR");
+    assertNoArtifacts(out);
   });
 
-  it("requires exactly five distinct UUID user/session/request bindings and one of each role", async () => {
-    const { finalizeM2PilotEvidence } = await api();
+  it("requires exactly five distinct UUID user/session/request bindings and one of each role", () => {
     for (const mutate of [
       (v: any) => { v.sessions.pop(); }, (v: any) => { v.sessions[4].userId = v.sessions[0].userId; },
       (v: any) => { v.sessions[4].sessionId = v.sessions[0].sessionId; }, (v: any) => { v.sessions[4].requestId = ""; },
       (v: any) => { v.sessions[4].role = "owner_lead"; },
-    ]) { const value = receipt(); mutate(value); const out = outputDir(); expect(() => finalizeM2PilotEvidence(value, { outputDir: out })).toThrow(); assertNoArtifacts(out); }
+    ]) expectRejected(mutate, "RECEIPT_TAMPERED_SESSIONS");
   });
 
-  it("rejects empty/tampered command receipts, scope, replay digests and unlinked states", async () => {
-    const { finalizeM2PilotEvidence } = await api();
+  it("rejects empty/tampered command receipts, scope, replay digests and unlinked states", () => {
     for (const mutate of [
       (v: any) => { v.commands[0].commandId = ""; }, (v: any) => { v.commands[0].auditEventId = "not-uuid"; },
       (v: any) => { v.commands[1].actorSessionId = uuid(49); }, (v: any) => { v.commands[2].role = "owner_lead"; },
       (v: any) => { v.commands[2].packageId = uuid(50); },
       (v: any) => { v.commands[2].replayDigest = sha("f"); }, (v: any) => { v.commands[2].replayEqual = false; },
       (v: any) => { v.commands[3].previousStateRevision = 999; },
-    ]) { const value = receipt(); mutate(value); const out = outputDir(); expect(() => finalizeM2PilotEvidence(value, { outputDir: out })).toThrow(); assertNoArtifacts(out); }
+    ]) expectRejected(mutate, "RECEIPT_TAMPERED_COMMAND_REPLAY");
   });
 
-  it("requires exact persisted submission-review-commit-handoff lineage and receipt proof objects", async () => {
-    const { finalizeM2PilotEvidence } = await api();
-    for (const mutate of [
-      (v: any) => { v.lineage.clientSubmissionId = uuid(51); },
-      (v: any) => { v.lineage.handoffApprovedCommitRevisionId = uuid(52); },
-      (v: any) => { v.proofs.audit = true; }, (v: any) => { delete v.proofs.tenancy.queryRequestId; },
-    ]) { const value = receipt(); mutate(value); const out = outputDir(); expect(() => finalizeM2PilotEvidence(value, { outputDir: out })).toThrow(); assertNoArtifacts(out); }
+  it("requires exact persisted submission-review-commit-handoff lineage and receipt proof objects", () => {
+    for (const [mutate, code] of [
+      [(v: any) => { v.lineage.clientSubmissionId = uuid(51); }, "RECEIPT_TAMPERED_LINEAGE"],
+      [(v: any) => { v.lineage.handoffApprovedCommitRevisionId = uuid(52); }, "RECEIPT_TAMPERED_LINEAGE"],
+      [(v: any) => { v.proofs.audit = true; }, "RECEIPT_TAMPERED_PROOF"],
+      [(v: any) => { delete v.proofs.tenancy.queryRequestId; }, "RECEIPT_TAMPERED_PROOF"],
+    ] as const) expectRejected(mutate, code);
   });
 
-  it("keeps Kora pending without an actual five-session run marker/receipt", async () => {
-    const { finalizeM2PilotEvidence } = await api(); const value = receipt(); delete (value as any).runFiveSessions;
-    const out = outputDir(); expect(() => finalizeM2PilotEvidence(value, { outputDir: out, label: "Kora Food Hall" })).toThrow(); assertNoArtifacts(out);
+  it("requires the protected Kora receipt path even when a self-declared marker is present", () => {
+    const { value, out, options } = validFinalization();
+    expect(() => finalizeM2PilotEvidence(value, { ...options, koraReceiptPath: undefined })).toThrow("KORA_RECEIPT_REQUIRED");
+    assertNoArtifacts(out);
   });
 
-  it("rejects secret/path traversal privacy tokens", async () => {
-    const { finalizeM2PilotEvidence } = await api();
+  it("rejects secret/path traversal privacy tokens", () => {
     for (const token of ["sk-secret", "sbp_token", "refresh_token", "/Volumes/private", "/mnt/package", "../escape"]) {
-      const value = receipt() as any; value.proofs.privacy.detail = token; const out = outputDir();
-      expect(() => finalizeM2PilotEvidence(value, { outputDir: out })).toThrow(); assertNoArtifacts(out);
+      expectRejected((value) => { value.proofs.privacy.detail = token; }, "RECEIPT_TAMPERED_PRIVACY");
     }
   });
 
   it("captures/redacts executor stdout and cleans temp/PASS on shell failure", async () => {
-    const { runPilotExecutor } = await api(); const dir = outputDir(); const script = join(dir, "fail.sh");
+    const dir = outputDir(); const script = join(dir, "fail.sh");
     writeFileSync(script, "#!/bin/sh\necho 'sk-secret /Users/private sbp_token'\necho failure >&2\nexit 9\n", { mode: 0o700 });
     await expect(runPilotExecutor({ executorPath: script, challengeNonce: "nonce", outputDir: dir })).rejects.toThrow();
     assertNoArtifacts(dir);

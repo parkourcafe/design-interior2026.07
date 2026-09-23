@@ -759,4 +759,4 @@ jq -n '{
 }' > "${evidence_dir}/summary.json"
 
 run_completed=1
-print -r -- "AP1_SUPPORTED_SLICE_E2E_OK users=5 auth=magiclink kora_registry=209 foundation_fixtures=4 site_photos=1 area_m2=1800 invite_accept=true distribution_ack=true change_impact=true photo_review=true milestone_accept=true replay=true csrf=true isolation=true seeded_preconditions=true production_changed=false"
+print -r -- "AP1_SUPPORTED_SLICE_E2E_OK users=5 auth=magiclink kora_registry=209 foundation_fixtures=0 site_photos=1 area_m2=1800 invite_accept=true distribution_ack=true change_impact=true photo_review=true milestone_accept=true replay=true csrf=true isolation=true identity_bootstrap=disposable production_changed=false"

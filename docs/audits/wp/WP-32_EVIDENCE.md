@@ -1,5 +1,18 @@
 # WP-32 — local disposable preflight evidence
 
+## Superseding verified update — 2026-09-23
+
+- ИЗВЛЕЧЕНО: post-fix canonical wrapper session13598 exited0 at `2026-09-22T20:31:59.000Z`, both wrapper markers and DB4 PG16/17 PASS. PASS SHA256 `a66b44b5d94c39609700513555fd8b16b5066e6d871a0f87b0b266076e0cb2cc`; permanent copy `../backups/WP32_PASS_POSTSQL_20260923.json`. Receipt pins reviewed executor `sha256:434d136440106668a319d5da44760836bde23f39880d60024b827c33760dafff`. Host-level `docker ps` against only the disposable socket returned no containers after cleanup.
+- ИЗВЛЕЧЕНО: post-fix release:check passed (256 files/2319 tests; lint0 errors/13 existing warnings, typecheck/build PASS). Independent full changed-source review found an inherited manifest→SQL diagnostic interpolation; minimal quoting fix passed fresh independent review,8 focused tests and real network-none PG16/PG17 probes. No business rows were seeded for those probes; both probe containers disposed.
+- НЕ ПОДТВЕРЖДЕНО: full external baseline→release→M4/source provenance and hosted acceptance remain open. The existing external PASS marker still covers five M2→M3 operations only. This latest runtime is a reviewed dirty-snapshot run, not yet a final committed-head run.
+
+- ИЗВЛЕЧЕНО: recovery branch `codex/remhaos-recovery-20260922`, base `8a27b93a0877be7998ee6037961c64501d78de00`, contains uncommitted follow-up repairs. Historical branch/base/blocker claims below describe earlier runs.
+- ИЗВЛЕЧЕНО: canonical wrapper PASS at `2026-09-22T19:23:09.135Z`, artifact SHA-256 `7df0e447af56d8579262107938661001fd67b7c4d0486c9b476ee63891c5646f`. DB4 PG16/PG17 and supported Kora plus five-operation external scope passed; see [reconciliation](WP-32_RECONCILIATION_2026-09-22.md).
+- ИЗВЛЕЧЕНО: local authenticated AP5 session73078 exited 0: 31 expected, 0 unexpected, 0 skipped, 0 flaky; report start `2026-09-22T19:59:00.369Z`, duration 37049.835 ms. `AP5_NO_SKIPS_OK skipped=0 passed=31`. Command: `npm run test:ap5 -- --trace off`, real disposable Auth/PostgREST/RLS and localhost application, one worker and no retries.
+- ИЗВЛЕЧЕНО: AP5 results SHA-256 `019d56ec6d625a655ece45be6cf702d83952c484ebf59e05854b60fae812f8b2`; temporary orchestration source SHA-256 `cf36736b337b1c7f929e8ad6c8a00b31f3a16c91ed8ef6c90874f4cb80d79c40`. Build passed before browser execution. Disposable teardown completed; `tests/ap5/.state` and temporary app log absence verified after process exit.
+- ИЗВЛЕЧЕНО: earlier AP5 attempt67567 had 29 passed, 1 failed, 1 skipped because launcher omitted local DB_URL for the existing ANALYZE step. No assertions or product authorization were weakened. Retry used CLI-provided local DB_URL in memory after loopback/port59622 validation. Profile loading used fresh SUPABASE_HOME, no keyring and explicit built-in SUPABASE_PROFILE; global credentials were not inspected or changed.
+- НЕ ПОДТВЕРЖДЕНО: final exact-commit integrated acceptance/review, full external Tashkent baseline→release→M4 and external source provenance remain open. These dirty-snapshot local passes do not prove hosted/production readiness or authorize production, shared environments, paid calls, CI/Vercel re-enablement or merge. No new follow-up PR published.
+
 Base: `e992255d9e8419843b174926bedf85d93c9a9bd6`.
 Branch: `codex/wp32-ap6-run-cycle7`.
 Status: canonical wrapper PASS for its existing scope; full WP-32 acceptance remains pending review and external M4 coverage.

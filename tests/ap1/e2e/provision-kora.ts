@@ -242,7 +242,7 @@ on conflict (id) do update set client_name = excluded.client_name, passport = ex
 
   const afterIngestion = await scope();
   const published = await rpc<{ readonly result: { readonly version: { readonly id: string } } }>(
-    architectClient, "projectceo_api", "publish_source_snapshot", {
+    ownerClient, "projectceo_api", "publish_source_snapshot", {
       project_id: EXTERNAL_PROJECT_ID, expected_latest_version_id: null,
       expected_state_revision: afterIngestion, label: "Tashkent external source set",
       idempotency_key: "ap6:tashkent:publish-source-set",
@@ -483,49 +483,6 @@ set client_name = 'Kora Food Hall',
       )
     )
 where id = '${PROJECT_ID}'::uuid;
-
-insert into projectceo_foundation.project_packages (
-  organization_id, project_id, id, stable_key, kind, parent_package_id, name
-)
-select workflow.organization_id, workflow.project_id, package.id,
-       package.stable_key, 'work_package', workflow.project_id, package.name
-from project_intelligence.project_workflows workflow
-cross join (values
-  ('${PACKAGE_IDS.engineering}'::uuid, 'engineering-release', 'Инженерный выпуск'),
-  ('${PACKAGE_IDS.controls}'::uuid, 'project-controls-release', 'Управление проектом'),
-  ('${PACKAGE_IDS.site}'::uuid, 'site-evidence-release', 'Полевые подтверждения')
-) package(id, stable_key, name)
-where workflow.project_id = '${PROJECT_ID}'::uuid
-on conflict (organization_id, project_id, id) do nothing;
-
-insert into project_intelligence.organization_members (
-  organization_id, user_id, role, status
-)
-select workflow.organization_id, '${owner.id}'::uuid, 'owner', 'active'
-from project_intelligence.project_workflows workflow
-where workflow.project_id = '${PROJECT_ID}'::uuid
-on conflict (organization_id, user_id) do nothing;
-
-insert into projectceo_foundation.project_memberships (
-  organization_id, project_id, user_id, role, status
-)
-select workflow.organization_id, workflow.project_id,
-       '${owner.id}'::uuid, 'owner_lead', 'active'
-from project_intelligence.project_workflows workflow
-where workflow.project_id = '${PROJECT_ID}'::uuid
-on conflict (organization_id, project_id, user_id) do nothing;
-
-insert into projectceo_foundation.project_member_capabilities (
-  organization_id, project_id, user_id, capability
-)
-select membership.organization_id, membership.project_id,
-       membership.user_id, preset.capability
-from projectceo_foundation.project_memberships membership
-cross join lateral projectceo_foundation._role_capabilities('owner_lead') preset
-where membership.project_id = '${PROJECT_ID}'::uuid
-  and membership.user_id = '${owner.id}'::uuid
-on conflict do nothing;
-
 commit;
 `);
 
@@ -537,9 +494,20 @@ commit;
     password: owner.password,
   });
   if (signInError) throw new Error("AP1_OWNER_PASSWORD_SESSION_FAILED");
-  await rpc(ownerClient, "projectceo_api", "enroll_organization_project", {
+  const architect = users.find((user) => user.role === "architect")!;
+  const builder = users.find((user) => user.role === "builder")!;
+  const client = users.find((user) => user.role === "client")!;
+  await rpc(ownerClient, "projectceo_api", "enroll_organization_project_scope", {
     project_id: PROJECT_ID,
-    idempotency_key: "ap1:kora:enroll-authenticated-project",
+    package_id: PACKAGE_IDS.engineering,
+    package_stable_key: "engineering-release",
+    package_name: "Инженерный выпуск",
+    members: [
+      { userId: architect.id, role: "architect" },
+      { userId: builder.id, role: "builder" },
+      { userId: client.id, role: "client_approver" },
+    ],
+    idempotency_key: "ap1:kora:authenticated-scope-enrollment",
   });
 
   const portfolio = await rpc<{
@@ -828,7 +796,7 @@ commit;
   }));
   chmodSync(sessionPath, 0o600);
   process.stdout.write(
-    "AP1_KORA_PROVISIONED users=5 registry=209 foundation_fixtures=4 site_photos=1 physical=210 materialized=82 placeholders=128 area_m2=1800 production_changed=false\n",
+    "AP1_KORA_PROVISIONED users=5 registry=209 foundation_fixtures=0 site_photos=1 physical=210 materialized=82 placeholders=128 area_m2=1800 production_changed=false\n",
   );
 }
 
