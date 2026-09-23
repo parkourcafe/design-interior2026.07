@@ -716,8 +716,9 @@ begin;
 set local role authenticated;
 set local request.jwt.claim.sub =
   '31111111-1111-4111-8111-111111111111';
--- A materialized source alone is not a native M3 package. The positive child
--- release scenario now lives in81 after actual handoff/sheet completeness.
+-- A materialized source alone cannot reach fresh child publication through the
+-- historical generic API: snapshot confirmation is now mandatory. The positive
+-- native scenario lives in81 after actual handoff/sheet completeness.
 \if :native_m3_legacy_upgrade_seed
 -- Only DB4's explicit pre-migration checkpoint selects this historical branch.
 select projectceo_product_api.publish_work_package_release_request_bound(
@@ -739,7 +740,7 @@ begin
     raise exception 'DB4_GENERIC_CHILD_BYPASSED_NATIVE_M3';
   exception when sqlstate 'P1111' then
     get stacked diagnostics detail = PG_EXCEPTION_DETAIL;
-    if detail::jsonb->>'reason' is distinct from 'NATIVE_M3_CONTEXT_INCOMPLETE' then raise; end if;
+    if detail::jsonb->>'reason' is distinct from 'NATIVE_CONTEXT_CONFIRMATION_REQUIRED' then raise; end if;
   end;
 end $native_handoff_required$;
 \endif
