@@ -60,7 +60,7 @@ end $$;
 create function pg_temp.native81_release_refused(p uuid, k uuid, command text,
   expected text default 'P1111', reason text default 'NATIVE_M3_CONTEXT_INCOMPLETE')
 returns void language plpgsql as $$
-declare before_data jsonb; s bigint; b text; previous text;
+declare before_data jsonb; s bigint; b text; previous text; context_digest text;
 begin
   before_data := pg_temp.native81_snapshot();
   select state_revision into strict s from project_intelligence.project_workflows where project_id=p;
@@ -70,9 +70,10 @@ begin
     where project_id=p and package_id=k order by version_no desc limit 1;
   set local role authenticated;
   set local request.jwt.claim.sub='31111111-1111-4111-8111-111111111111';
+  context_digest := projectceo_m3_api.get_native_m3_release_context(p,k)#>>'{data,contextDigest}';
   perform pg_temp.native81_denied(format(
-    'select projectceo_product_api.publish_work_package_release_request_bound(%L,%L,%L,%L,%L,%L,%L)',
-    p,k,coalesce(b,'baseline:missing'),previous,s,command,command),expected,reason);
+    'select projectceo_product_api.publish_native_m3_release_request_bound(%L,%L,%L,%L,%L,%L,%L,%L)',
+    p,k,coalesce(b,'baseline:missing'),previous,s,context_digest,command,command),expected,reason);
   reset role;
   if before_data is distinct from pg_temp.native81_snapshot() then
     raise exception 'DB4_81_REFUSED_PUBLICATION_WROTE_DATA:%',command;

@@ -10,8 +10,17 @@ create or replace function projectceo_product_api.publish_work_package_release_r
   expected_previous_version_id text, expected_state_revision bigint,
   command_ref text, idempotency_key text
 ) returns jsonb language plpgsql volatile security definer set search_path = '' as $function$
-declare result jsonb;
+declare ctx record; v_key_digest bytea; result jsonb;
 begin
+  perform projectceo_foundation._assert_idempotency_key(idempotency_key);
+  select * into strict ctx from projectceo_foundation._authorize_package_human(
+    project_id,package_id,'publish_release');
+  v_key_digest := project_intelligence._sha256_text(btrim(idempotency_key));
+  if not exists(select 1 from projectceo_product.command_records record
+    where record.organization_id=ctx.organization_id and record.project_id=publish_work_package_release_request_bound.project_id
+      and record.operation='publish_work_package_release_request_bound' and record.key_digest=v_key_digest) then
+    perform projectceo_product._raise('P1111','validation_failed','{"reason":"NATIVE_CONTEXT_CONFIRMATION_REQUIRED"}');
+  end if;
   result := projectceo_product.publish_work_package_release_request_bound(
     project_id, package_id, expected_baseline_id, expected_previous_version_id,
     expected_state_revision, command_ref, idempotency_key);
@@ -32,15 +41,31 @@ create function projectceo_product_api.publish_native_m3_release_request_bound(
   project_id uuid, package_id uuid, expected_baseline_id text,
   expected_previous_version_id text, expected_state_revision bigint,
   expected_context_digest text, command_ref text, idempotency_key text
-) returns jsonb language plpgsql volatile security definer set search_path = '' as $function$
+ ) returns jsonb language plpgsql volatile security definer set search_path = '' as $function$
 #variable_conflict use_variable
-declare ctx record; result jsonb; saved_digest text;
+declare ctx record; result jsonb; saved_digest text; v_key_digest bytea;
+  has_existing_replay boolean; current_context jsonb;
 begin
   if expected_context_digest is null or expected_context_digest !~ '^sha256:[0-9a-f]{64}$' then
     perform projectceo_product._raise('P1111','validation_failed','{"reason":"NATIVE_CONTEXT_DIGEST_INVALID"}');
   end if;
   select * into strict ctx from projectceo_foundation._authorize_package_human(
     project_id,package_id,'publish_release');
+  perform projectceo_foundation._assert_idempotency_key(idempotency_key);
+  v_key_digest := project_intelligence._sha256_text(btrim(idempotency_key));
+  select exists(select 1 from projectceo_product.command_records record
+    where record.organization_id=ctx.organization_id and record.project_id=publish_native_m3_release_request_bound.project_id
+      and record.operation='publish_work_package_release_request_bound' and record.key_digest=v_key_digest)
+    into has_existing_replay;
+  if not has_existing_replay then
+    current_context := projectceo_m3_api.get_native_m3_release_context(project_id,package_id)->'data';
+    if current_context->'structurallyComplete' is distinct from 'true'::jsonb then
+      perform projectceo_product._raise('P1111','validation_failed','{"reason":"NATIVE_M3_CONTEXT_INCOMPLETE"}');
+    end if;
+    if current_context->>'contextDigest' is distinct from expected_context_digest then
+      perform projectceo_product._raise('P1107','stale_state','{"reason":"NATIVE_CONTEXT_DIGEST_MISMATCH"}');
+    end if;
+  end if;
   -- The existing public engine reauthorizes, locks workflow + authority rows,
   -- handles exact actor/request replay, validates native completeness and the
   -- impact gate, and atomically saves the release and its context.
