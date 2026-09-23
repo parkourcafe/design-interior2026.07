@@ -1,4 +1,9 @@
 \set ON_ERROR_STOP on
+\if :{?native_m3_legacy_upgrade_seed}
+\else
+  \set native_m3_legacy_upgrade_seed false
+\endif
+select set_config('db4.native_legacy_seed', :'native_m3_legacy_upgrade_seed', false);
 
 -- DB3 operations seed one enrolled RU project, one exact version-scoped source
 -- evidence chain, owner + architect memberships and an active work package.
@@ -711,15 +716,33 @@ begin;
 set local role authenticated;
 set local request.jwt.claim.sub =
   '31111111-1111-4111-8111-111111111111';
+-- A materialized source alone is not a native M3 package. The positive child
+-- release scenario now lives in81 after actual handoff/sheet completeness.
+\if :native_m3_legacy_upgrade_seed
+-- Only DB4's explicit pre-migration checkpoint selects this historical branch.
 select projectceo_product_api.publish_work_package_release_request_bound(
-  '41111111-1111-4111-8111-111111111111',
-  '49999999-9999-4999-8999-999999999999',
-  'baseline:db4-publish-baseline-v1',
-  null,
-  :'db4_state_revision'::bigint,
-  'db4-publish-work-package-v1',
-  'db4-publish-work-package-v1'
-);
+  '41111111-1111-4111-8111-111111111111', '49999999-9999-4999-8999-999999999999',
+  'baseline:db4-publish-baseline-v1', null, :'db4_state_revision'::bigint,
+  'db4-publish-work-package-v1', 'db4-publish-work-package-v1');
+\else
+select set_config('db4.native_release_state', :'db4_state_revision', true);
+do $native_handoff_required$
+declare detail text;
+begin
+  begin
+    perform projectceo_product_api.publish_work_package_release_request_bound(
+      '41111111-1111-4111-8111-111111111111',
+      '49999999-9999-4999-8999-999999999999',
+      'baseline:db4-publish-baseline-v1', null,
+      current_setting('db4.native_release_state')::bigint,
+      'db4-publish-work-package-v1', 'db4-publish-work-package-v1');
+    raise exception 'DB4_GENERIC_CHILD_BYPASSED_NATIVE_M3';
+  exception when sqlstate 'P1111' then
+    get stacked diagnostics detail = PG_EXCEPTION_DETAIL;
+    if detail::jsonb->>'reason' is distinct from 'NATIVE_M3_CONTEXT_INCOMPLETE' then raise; end if;
+  end;
+end $native_handoff_required$;
+\endif
 commit;
 
 select state_revision as state_revision,
@@ -1184,14 +1207,17 @@ begin
   );
   if v_project #>> '{data,latestBaseline,id}'
        is distinct from 'baseline:db4-publish-baseline-v1'
-     or jsonb_array_length(v_project #> '{data,packageVersions}') <> 2
+     or jsonb_array_length(v_project #> '{data,packageVersions}') <>
+        (case when current_setting('db4.native_legacy_seed')::boolean then 2 else 1 end)
      or jsonb_array_length(v_project #> '{data,releaseArtifacts}') <> 1
      or jsonb_array_length(v_project #> '{data,acknowledgements}') <> 1 then
     raise exception 'DB4_PROJECT_DELIVERY_INCOMPLETE';
   end if;
-  if jsonb_array_length(v_package #> '{data,packageVersions}') <> 1
-     or v_package #>> '{data,packageVersions,0,packageId}'
-        is distinct from '49999999-9999-4999-8999-999999999999'
+  if jsonb_array_length(v_package #> '{data,packageVersions}') <>
+       (case when current_setting('db4.native_legacy_seed')::boolean then 1 else 0 end)
+     or (current_setting('db4.native_legacy_seed')::boolean and
+       v_package #>> '{data,packageVersions,0,packageId}'
+         is distinct from '49999999-9999-4999-8999-999999999999')
      or jsonb_array_length(v_package #> '{data,releaseArtifacts}') <> 0
      or v_package::text ~
        '41111111-1111-4111-8111-111111111111.*package-db4-root-v1' then

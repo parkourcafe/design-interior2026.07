@@ -4,6 +4,7 @@ vi.mock("server-only", () => ({}));
 
 const state = vi.hoisted(() => ({
   executeCalls: 0,
+  lastCommand: null as unknown,
 }));
 
 vi.mock("@/lib/project-intelligence/delivery/projectceo/request-context", () => ({
@@ -17,8 +18,9 @@ vi.mock("@/lib/project-intelligence/delivery/projectceo/request-context", () => 
 
 vi.mock("@/lib/project-intelligence/delivery/projectceo/command-service", () => ({
   ProjectCeoCommandService: class {
-    async execute() {
+    async execute(command: unknown) {
       state.executeCalls += 1;
+      state.lastCommand = command;
       return {
         contractVersion: "projectceo-command/0.1",
         requestId: "request-1",
@@ -104,6 +106,7 @@ function streamingRequest(options: {
 describe("ProjectCEO command route bounded body parsing", () => {
   beforeEach(() => {
     state.executeCalls = 0;
+    state.lastCommand = null;
   });
 
   it("fast-rejects a declared body larger than 96 KiB without reading its stream", async () => {
@@ -150,6 +153,31 @@ describe("ProjectCEO command route bounded body parsing", () => {
     }));
 
     expect(response.status).toBe(200);
+    expect(state.executeCalls).toBe(1);
+  });
+
+  it("parses and dispatches a native release confirmation only on publish_release", async () => {
+    const native = {
+      contractVersion: "projectceo-command/0.1",
+      commandId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+      kind: "publish_release",
+      projectId: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+      payload: {
+        packageId: "cccccccc-cccc-4ccc-8ccc-cccccccccccc",
+        snapshotToken: `sha256:${"a".repeat(64)}`,
+        expectedBaselineId: "baseline-1",
+        expectedPreviousVersionId: null,
+        expectedStateRevision: 7,
+      },
+    };
+    const response = await POST(new Request(endpoint, { method: "POST", headers: baseHeaders, body: JSON.stringify(native) }));
+    expect(response.status).toBe(200);
+    expect(state.executeCalls).toBe(1);
+    expect(state.lastCommand).toMatchObject(native);
+
+    const baseline = { ...native, kind: "publish_baseline" };
+    const refused = await POST(new Request(endpoint, { method: "POST", headers: baseHeaders, body: JSON.stringify(baseline) }));
+    expect(refused.status).toBe(400);
     expect(state.executeCalls).toBe(1);
   });
 

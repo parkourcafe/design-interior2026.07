@@ -220,6 +220,7 @@ begin
     ('projectceo_product_api.publish_baseline_atomic(uuid,text,text,bigint,text,text)'),
     ('projectceo_product_api.publish_release_request_bound(uuid,text,text,bigint,text,text)'),
     ('projectceo_product_api.publish_work_package_release_request_bound(uuid,uuid,text,text,bigint,text,text)'),
+    ('projectceo_product_api.publish_native_m3_release_request_bound(uuid,uuid,text,text,bigint,text,text,text)'),
     ('projectceo_product_api.create_external_annotation(uuid,uuid,uuid,uuid,uuid,text,jsonb,jsonb,jsonb,text,bigint,text)'),
     ('projectceo_product_api.revise_external_annotation(uuid,uuid,uuid,uuid,text,jsonb,jsonb,jsonb,text,bigint,text)'),
     ('projectceo_product_api.attach_external_release_refs(uuid,uuid,text,text,jsonb,bigint,text)')
@@ -247,8 +248,9 @@ begin
   -- projectceo_read_api, этого счётчика не касается) и
   -- preview_external_review_subject (20260920160000, эта схема, +1). Перепись
   -- существует ровно затем, чтобы новая RPC в схеме не появлялась молча.
-  -- R1 adds one candidate composition command, not another publication door.
-  if v_count <> 27 then
+  -- Native M3 snapshot confirmation adds one explicit public request-bound
+  -- door; its implementation remains default-denied outside the M3 switch.
+  if v_count <> 28 then
     raise exception 'DB4_UNEXPECTED_RPC_COUNT:%', v_count;
   end if;
 

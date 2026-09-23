@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { callRpc } from "@/lib/project-intelligence/adapters/postgres/rpc";
+import { ProjectIntelligenceAdapterError } from "@/lib/project-intelligence/adapters/postgres/errors";
 import type { PostgresRpcClient } from "@/lib/project-intelligence/adapters/postgres/contracts";
 import type { PrivateStorageClient } from "@/lib/project-intelligence/adapters/storage";
 import { FileIntakeStorageAdapter, type FileIntakeStorageAuthorization } from "./storage";
@@ -101,11 +102,42 @@ export class FileIntakeService {
     const created = await this.create(input);
     const authorization = uploadAuthorizationSchema.parse(created.result);
     if (authorization.status === "requested") {
+      const completedReplay = async () => {
+        if (!created.replay) return null;
+        // The immutable create receipt may predate the successful upload. Read
+        // current authorized state before retrying an INSERT into quarantine.
+        const current = (await this.list(input.projectId)).find(
+          (item) => item.intakeId === authorization.intakeId && item.projectId === input.projectId,
+        );
+        if (!current) throw new ProjectIntelligenceAdapterError("not_found", "P1204");
+        if (current.status !== "requested") {
+          if (![
+            "uploaded_to_quarantine", "scan_pending", "clean", "infected", "scan_failed",
+            "human_reviewed", "rejected", "ingested_candidate", "published_internal_copy",
+          ].includes(current.status)) throw new Error("file_intake_replay_state_unknown");
+          return {
+            ...created,
+            result: { ...created.result, status: current.status, uploaded: true },
+          };
+        }
+        return null;
+      };
+      const replay = await completedReplay();
+      if (replay) return replay;
       const storageAuthorization: FileIntakeStorageAuthorization = {
         ...authorization,
         upsert: false,
       };
-      await this.storageAdapter.uploadQuarantine(storageAuthorization, input.upload.bytes);
+      try {
+        const written = await this.storageAdapter.uploadQuarantine(storageAuthorization, input.upload.bytes);
+        if (!written) throw new Error("file_intake_existing_object_unverified");
+      } catch (error) {
+        // A concurrent replay may have completed after the first state read.
+        // Recover only from an authorized durable transition, never from 409/500 alone.
+        const concurrentReplay = await completedReplay();
+        if (concurrentReplay) return concurrentReplay;
+        throw error;
+      }
       await this.markUploaded({
         projectId: input.projectId,
         intakeId: authorization.intakeId,
@@ -196,6 +228,10 @@ export class FileIntakeService {
       sourceRole: z.string().min(1),
       status: z.enum(["ingested_candidate", "published_internal_copy"]),
       upsert: z.literal(false),
+      canonicalReceipt: z.object({
+        receiptId: z.string().uuid(), evidenceDigest: z.string().regex(/^[a-f0-9]{64}$/),
+        checksumHex: z.string().regex(/^[a-f0-9]{64}$/), byteLength: z.number().int().positive().max(100_000_000),
+      }).strict().nullable().optional(),
     }).parse(await callRpc(
       this.client,
       "remhaos_integration_api",
@@ -207,6 +243,22 @@ export class FileIntakeService {
   async createSignedDownload(input: { readonly projectId: string; readonly intakeId: string }) {
     const authorization = await this.authorizeDownload(input);
     return this.storageAdapter.createSignedUrl(authorization);
+  }
+
+  async publishWithStorage(input: {
+    readonly projectId: string; readonly intakeId: string; readonly idempotencyKey: string;
+  }) {
+    // This context comes only from the authenticated server RPC, never the
+    // request body. CLEAN alone is not a publication or human-review grant.
+    const authorization = await this.storageAuthorization(input);
+    if (authorization.projectId !== input.projectId || authorization.intakeId !== input.intakeId
+      || (authorization.canonicalReceipt && authorization.canonicalReceipt.checksumHex !== authorization.checksumHex)) {
+      throw new Error("file_intake_canonical_receipt_mismatch");
+    }
+    if (authorization.status === "ingested_candidate" && !authorization.canonicalReceipt) {
+      await this.copyToInternal({ authorization });
+    }
+    return this.publish(input);
   }
 
   async copyToInternal(input: {

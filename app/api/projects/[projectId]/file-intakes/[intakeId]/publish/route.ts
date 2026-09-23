@@ -28,11 +28,7 @@ context: { params: Promise<{ projectId: string; intakeId: string }> },
     if (!idempotencyKey) return fileIntakeErrorResponse(new FileIntakeRequestError());
     const requestContext = await createProjectCeoRequestContext();
     const service = new FileIntakeService(requestContext.client, requestContext.storage);
-    const storageAuthorization = await service.storageAuthorization({ projectId, intakeId });
-    if (storageAuthorization.status === "ingested_candidate") {
-      await service.copyToInternal({ authorization: storageAuthorization });
-    }
-    const data = await service.publish({ projectId, intakeId, idempotencyKey });
+    const data = await service.publishWithStorage({ projectId, intakeId, idempotencyKey });
     return NextResponse.json({ data }, { headers: { "Cache-Control": "private, no-store" } });
   } catch (error) {
     return fileIntakeErrorResponse(error);

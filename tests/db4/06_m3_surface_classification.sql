@@ -21,6 +21,7 @@ declare
   v_signature text;
   v_unknown text;
   v_classified text[] := array[
+    'projectceo_m3_api.get_native_m3_release_context(uuid, uuid)',
     'projectceo_read_api.get_pdf_dwg_sheet_sidecar(uuid, uuid, uuid)',
     'projectceo_api.bind_pdf_dwg_sheet_sidecar(uuid, uuid, uuid, text, text, bigint, jsonb, integer, text, jsonb, text, text)',
     'projectceo_read_api.get_pdf_dwg_source_pair_confirmation(uuid, uuid, uuid)',
@@ -34,6 +35,7 @@ declare
     'projectceo_product_api.publish_baseline_atomic(uuid, text, text, bigint, text, text)',
     'projectceo_product_api.publish_release_request_bound(uuid, text, text, bigint, text, text)',
     'projectceo_product_api.publish_work_package_release_request_bound(uuid, uuid, text, text, bigint, text, text)',
+    'projectceo_product_api.publish_native_m3_release_request_bound(uuid, uuid, text, text, bigint, text, text, text)',
     'projectceo_product_api.attach_external_release_refs(uuid, uuid, text, text, jsonb, bigint, text)'
   ];
 begin

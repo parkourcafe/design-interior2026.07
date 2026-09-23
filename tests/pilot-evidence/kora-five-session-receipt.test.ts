@@ -231,13 +231,11 @@ describe("Kora five-session receipt builder", () => {
       scope: { ...scope, projectId: uuid(99) },
     }, { outputDir: dir, pending, pendingPath, koraReceiptPath, manifestPath, label: "External real package" }))
       .toThrow("RECEIPT_MANIFEST_SCOPE_MISMATCH");
-    finalizeM2PilotEvidence(finalizerReceipt,
-      { outputDir: dir, pending, pendingPath, koraReceiptPath, manifestPath, label: "External real package" });
-
-    expect(existsSync(join(dir, "PASS.json"))).toBe(true);
-    const pass = JSON.parse(readFileSync(join(dir, "PASS.json"), "utf8"));
-    expect(pass.verdict).toBe("EXTERNAL_REAL_PACKAGE_PASS");
-    expect(pass.koraRun).toEqual({ receiptId: koraReceipt.receiptId, digest: koraReceiptDigest });
+    expect(() => finalizeM2PilotEvidence(finalizerReceipt,
+      { outputDir: dir, pending, pendingPath, koraReceiptPath, manifestPath, label: "External real package" }))
+      .toThrow("EXTERNAL_DELIVERY_NATIVE_M3_PROOF_REQUIRED");
+    expect(existsSync(join(dir, "PASS.json"))).toBe(false);
+    expect(existsSync(join(dir, "PASS.json.tmp"))).toBe(false);
   });
 });
 

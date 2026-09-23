@@ -45,7 +45,19 @@ for attempt in {1..120}; do
 done
 
 run_file "${repo_root}/tests/db2/00_supabase_prelude.sql"
+# Preserve the legacy second-package release needed by synthetic M4 concurrency
+# fixtures through a real populated upgrade, never a private-door seed. Fresh
+# native publication is separately exercised by PI_DB4_NATIVE_FRESH=1.
+native_release_upgrade="${repo_root}/supabase/migrations/20260923174529_projectceo_native_m3_release_binding.sql"
+impact_coverage_upgrade="${repo_root}/supabase/migrations/20260923183516_projectceo_release_requires_complete_impact.sql"
+native_confirmation_upgrade="${repo_root}/supabase/migrations/20260923190258_projectceo_native_m3_snapshot_confirmation.sql"
+all_migrations=("${repo_root}"/supabase/migrations/*.sql(N))
+if [[ "${all_migrations[-3]}" != "${native_release_upgrade}" || "${all_migrations[-2]}" != "${impact_coverage_upgrade}" || "${all_migrations[-1]}" != "${native_confirmation_upgrade}" ]]; then
+  print -u2 -r -- "DB5_NATIVE_UPGRADE_CHECKPOINT_REQUIRES_REVIEW"
+  exit 1
+fi
 for migration in "${repo_root}"/supabase/migrations/*.sql(N); do
+  if [[ "${migration}" == "${native_release_upgrade}" || "${migration}" == "${impact_coverage_upgrade}" || "${migration}" == "${native_confirmation_upgrade}" ]]; then continue; fi
   print -r -- "Applying ${migration:t}"
   run_file "${migration}"
 done
@@ -101,7 +113,18 @@ for sql in \
   "${repo_root}/tests/db5/31_impact_worker_reliability.sql" \
   "${repo_root}/tests/db5/32_impact_recovery_dec037.sql"; do
   print -r -- "Running ${sql:t}"
-  run_file "${sql}"
+  if [[ "${sql}" == "${repo_root}/tests/db4/20_product_operations.sql" ]]; then
+    docker exec -e PGPASSWORD="${password}" -i "${container}" \
+      psql -X --set ON_ERROR_STOP=1 --set native_m3_legacy_upgrade_seed=true \
+      --username postgres --dbname "${database}" < "${sql}"
+    print -r -- "Applying native M3 hardening to populated legacy fixture"
+    run_file "${native_release_upgrade}"
+    run_file "${impact_coverage_upgrade}"
+    run_file "${native_confirmation_upgrade}"
+    run_file "${repo_root}/tests/ap1/environment/enable-m3-publication.sql"
+  else
+    run_file "${sql}"
+  fi
 done
 
 PI_DB5_CONTAINER="${container}" \

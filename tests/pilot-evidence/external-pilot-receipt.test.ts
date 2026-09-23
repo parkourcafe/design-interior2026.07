@@ -258,7 +258,7 @@ describe("External pilot receipt builder", () => {
     expect(() => writeExternalPilotReceipt(receipt, path)).toThrow();
   });
 
-  it("produces a receipt the real finalizer publishes as PASS", () => {
+  it("does not promote a five-command M2 receipt to full external PASS", () => {
     const dir = workdir();
     const executorDigest = sha(readFileSync(ALLOWLISTED));
     const verificationReceiptId = uuid(5);
@@ -301,19 +301,11 @@ describe("External pilot receipt builder", () => {
       koraProducerPath: ALLOWLISTED, koraProducerDigest: executorDigest,
     });
 
-    finalizeM2PilotEvidence(receipt, {
+    expect(() => finalizeM2PilotEvidence(receipt, {
       outputDir: dir, pending, pendingPath, koraReceiptPath, manifestPath, label: "External real package",
-    });
-
-    const pass = JSON.parse(readFileSync(join(dir, "PASS.json"), "utf8"));
-    expect(pass.verdict).toBe("EXTERNAL_REAL_PACKAGE_PASS");
-    expect(pass.status).toBe("completed");
-    expect(pass.headSha).toMatch(/^[0-9a-f]{40}$/);
-    expect(pass.executedAt).toMatch(/^\d{4}-\d{2}-\d{2}T/);
-    expect(pass.markers).toEqual(["KORA_LOCAL_AUTHENTICATED_PASS", "EXTERNAL_REAL_PACKAGE_PASS"]);
-    expect(pass.executor).not.toHaveProperty("path");
-    expect(pass.fiveDistinctUsers).toBe(true);
-    expect(pass.commandIds).toHaveLength(EXTERNAL_RUN_OPERATIONS.length);
+    })).toThrow("EXTERNAL_DELIVERY_NATIVE_M3_PROOF_REQUIRED");
+    expect(existsSync(join(dir, "PASS.json"))).toBe(false);
+    expect(existsSync(join(dir, "PASS.json.tmp"))).toBe(false);
   });
 
   it("rejects a completed input manifest before publishing a runtime receipt", () => {

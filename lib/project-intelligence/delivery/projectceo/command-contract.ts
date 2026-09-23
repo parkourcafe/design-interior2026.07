@@ -12,6 +12,18 @@ const projectSelector = z.object({
   commandId: uuid,
 }).strict();
 
+export const nativeM3ReleasePayloadSchema = z.object({
+  packageId: uuid,
+  snapshotToken: z.string().regex(/^sha256:[0-9a-f]{64}$/),
+  expectedBaselineId: z.string().min(1).max(160).refine(value => value === value.trim()),
+  expectedPreviousVersionId: z.string().min(1).max(160).refine(value => value === value.trim()).nullable(),
+  expectedStateRevision: z.number().int().safe().nonnegative(),
+}).strict();
+export type NativeM3ReleasePayload = z.infer<typeof nativeM3ReleasePayloadSchema>;
+export function isNativeM3ReleasePayload(value: unknown): value is NativeM3ReleasePayload {
+  return nativeM3ReleasePayloadSchema.safeParse(value).success;
+}
+
 // Зеркалит VersionScopedEvidenceInput (project-brain.ts) и то, что реально
 // проверяет RPC projectceo_product._validate_evidence_array: все шесть полей
 // обязательны, до 100 элементов. Обязательно (кроме claimStatus="human_origin",
@@ -525,9 +537,7 @@ export const projectCeoCommandSchema = z.discriminatedUnion("kind", [
     // preview. Дескриптор с клиента больше не принимается — иначе состав
     // версии снова стал бы вводом пользователя, а правило полноты можно было
     // бы обойти, послав неполный список мимо экрана.
-    payload: z.object({
-      snapshotToken: z.string().regex(/^sha256:[0-9a-f]{64}$/i),
-    }).strict(),
+    payload: z.object({ snapshotToken: z.string().regex(/^sha256:[0-9a-f]{64}$/i) }).strict(),
   }).strict(),
   projectSelector.extend({
     contractVersion: z.literal(PROJECTCEO_COMMAND_CONTRACT_VERSION),
@@ -757,9 +767,12 @@ export const projectCeoCommandSchema = z.discriminatedUnion("kind", [
     // клиента больше не принимается — иначе состав версии снова стал бы вводом
     // пользователя, а полноту корневого пакета можно было бы обойти, послав
     // урезанный список мимо экрана.
-    payload: z.object({
-      snapshotToken: z.string().regex(/^sha256:[0-9a-f]{64}$/i),
-    }).strict(),
+    payload: z.union([
+      z.object({ snapshotToken: z.string().regex(/^sha256:[0-9a-f]{64}$/i) }).strict(),
+      // Native confirmation coordinates come from the authorized preview. They
+      // express what the human saw, never their actor/role/organization grants.
+      nativeM3ReleasePayloadSchema,
+    ]),
   }).strict(),
   // Сборка и закрытие handover идут через отдельный worker-allowlist
   // (AP3 §10): человеческой команды нет намеренно, и static-boundary тест

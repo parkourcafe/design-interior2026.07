@@ -3,6 +3,12 @@ set -euo pipefail
 
 repo_root=${0:a:h:h:h}
 image=${PI_DB_IMAGE:-postgres:16-alpine}
+native_runtime=${PI_DB4_NATIVE_RUNTIME:-0}
+if [[ "${native_runtime}" != 0 && "${native_runtime}" != 1 ]]; then exit 64; fi
+if [[ "${native_runtime}" == 1 && "${PI_DB4_NATIVE_FRESH:-0}" != 1 ]]; then
+  print -u2 -r -- "DB4_NATIVE_RUNTIME_REQUIRES_FRESH_MODE"
+  exit 64
+fi
 container="pi-db4-${$}-${RANDOM}"
 database=pi_db4
 password=pi_db4_local_only
@@ -45,7 +51,23 @@ for attempt in {1..120}; do
 done
 
 run_file "${repo_root}/tests/db2/00_supabase_prelude.sql"
+# Native M3 hardening must preserve real pre-migration replay. Seed the existing
+# legacy20 scenario before this FINAL migration, then upgrade before62. This is
+# an explicit populated-upgrade test, not a bypass of the new API. DB5 also
+# upgrades its legacy worker fixture. PI_DB4_NATIVE_FRESH=1 independently applies
+# the full ledger before20 and proves new first-release success in81.
+native_release_upgrade="${repo_root}/supabase/migrations/20260923174529_projectceo_native_m3_release_binding.sql"
+impact_coverage_upgrade="${repo_root}/supabase/migrations/20260923183516_projectceo_release_requires_complete_impact.sql"
+native_confirmation_upgrade="${repo_root}/supabase/migrations/20260923190258_projectceo_native_m3_snapshot_confirmation.sql"
+all_migrations=("${repo_root}"/supabase/migrations/*.sql(N))
+native_fresh=${PI_DB4_NATIVE_FRESH:-0}
+if [[ "${native_fresh}" != 0 && "${native_fresh}" != 1 ]]; then exit 64; fi
+if [[ "${all_migrations[-3]}" != "${native_release_upgrade}" || "${all_migrations[-2]}" != "${impact_coverage_upgrade}" || "${all_migrations[-1]}" != "${native_confirmation_upgrade}" ]]; then
+  print -u2 -r -- "DB4_NATIVE_UPGRADE_CHECKPOINT_REQUIRES_REVIEW"
+  exit 1
+fi
 for migration in "${repo_root}"/supabase/migrations/*.sql(N); do
+  if [[ "${native_fresh}" == 0 && ( "${migration}" == "${native_release_upgrade}" || "${migration}" == "${impact_coverage_upgrade}" || "${migration}" == "${native_confirmation_upgrade}" ) ]]; then continue; fi
   print -r -- "Applying ${migration:t}"
   run_file "${migration}"
 done
@@ -102,10 +124,58 @@ for sql in \
   "${repo_root}/tests/db4/59_m1_legacy_read_rpc.sql" \
   "${repo_root}/tests/db4/61_market_routing_receipts.sql" \
   "${repo_root}/tests/db4/77_authenticated_package_scoped_enrollment.sql" \
-  "${repo_root}/tests/db4/78_package_bound_approval_review.sql"; do
+  "${repo_root}/tests/db4/78_package_bound_approval_review.sql" \
+  "${repo_root}/tests/db4/79_file_intake_quarantine_authorization.sql" \
+  "${repo_root}/tests/db4/80_bound_file_scan.sql" \
+  "${repo_root}/tests/db4/81_native_m3_release_context.sql"; do
   print -r -- "Running ${sql:t}"
-  run_file "${sql}"
+  if [[ "${native_fresh}" == 1 && ( "${sql:t}" == "62_publish_work_package_release_request_bound.sql" || "${sql:t}" == "41_release_artifact_backlog.sql" ) ]]; then
+    print -r -- "Excluded legacy-upgrade-only probe ${sql:t} from native fresh fixture mode"
+    continue
+  fi
+  if [[ "${native_fresh}" == 0 && "${sql}" == "${repo_root}/tests/db4/20_product_operations.sql" ]]; then
+    docker exec -e PGPASSWORD="${password}" -i "${container}" \
+      psql -X --set ON_ERROR_STOP=1 --set native_m3_legacy_upgrade_seed=true \
+      --username postgres --dbname "${database}" < "${sql}"
+    print -r -- "Applying native M3 hardening to populated legacy fixture"
+    run_file "${native_release_upgrade}"
+    run_file "${impact_coverage_upgrade}"
+    run_file "${native_confirmation_upgrade}"
+    run_file "${repo_root}/tests/ap1/environment/enable-m3-publication.sql"
+  elif [[ "${native_runtime}" == 1 && "${sql:t}" == "81_native_m3_release_context.sql" ]]; then
+    docker exec -e PGPASSWORD="${password}" -i "${container}" \
+      psql -X --set ON_ERROR_STOP=1 --set native_m3_runtime_fixture=true \
+      --username postgres --dbname "${database}" < "${sql}"
+  else
+    run_file "${sql}"
+  fi
 done
+
+if [[ "${native_fresh}" == 1 ]]; then
+  if [[ "${native_runtime}" == 1 ]]; then
+    run_file "${repo_root}/tests/ap1/environment/enable-m4-increment-1.sql"
+    run_file "${repo_root}/tests/ap1/environment/enable-m4-v1-impact.sql"
+    run_file "${repo_root}/tests/db4/83_native_m3_second_release.sql"
+    PI_DB4_CONTAINER="${container}" PI_DB4_DATABASE="${database}" PI_DB4_PASSWORD="${password}" \
+      zsh "${repo_root}/tests/db4/run-native-m3-concurrency.zsh"
+    print -r -- "Restarting owned database for native M3 durable replay proof"
+    docker restart "${container}" >/dev/null
+    for attempt in {1..120}; do
+      if docker exec -e PGPASSWORD="${password}" "${container}" \
+          psql -X --tuples-only --no-align --username postgres --dbname "${database}" \
+          --command 'select 1' 2>/dev/null | rg -qx '1'; then break; fi
+      if (( attempt == 120 )); then
+        print -u2 -r -- "NATIVE_M3_RESTART_NOT_READY"
+        exit 1
+      fi
+      sleep 0.25
+    done
+    run_file "${repo_root}/tests/db4/82_native_m3_restart.sql"
+    print -r -- "DB4_NATIVE_M3_DURABILITY_HARNESS_OK image=${image}"
+  fi
+  print -r -- "DB4_NATIVE_M3_FRESH_FIXTURE_OK (legacy worker/concurrency suites excluded) image=${image}"
+  exit 0
+fi
 
 # Апгрейд населённой базы живёт в `run-telegram-upgrade.zsh` — там же, где
 # сценарии 45/46. Второй харнесс поднимал ради того же доказательства ещё

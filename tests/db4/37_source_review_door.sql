@@ -89,6 +89,11 @@ $db4_review_door_shape$;
 
 -- Положительный путь: член проекта с capability review_claim решает по ревизии
 -- через дверь, и решение доходит до append-only журнала.
+-- Derive the fixture checkpoint: native M3 now refuses the old generic child
+-- release, so an absolute revision52 is no longer this harness's current state.
+select set_config('db4.source_review_before',state_revision::text,false)
+from project_intelligence.project_workflows
+where project_id='41111111-1111-4111-8111-111111111111';
 begin;
 set local role authenticated;
 set local request.jwt.claim.sub = '31111111-1111-4111-8111-111111111111';
@@ -96,7 +101,7 @@ select projectceo_api.review_source(
   '41111111-1111-4111-8111-111111111111',
   'revision-requirement-db4',
   'revision-requirement-db4',
-  52,
+  current_setting('db4.source_review_before')::bigint,
   'confirmed',
   'db4-door-confirm'
 );
@@ -145,7 +150,7 @@ begin
     '41111111-1111-4111-8111-111111111111',
     'revision-requirement-db4',
     'revision-requirement-db4',
-    52,
+    current_setting('db4.source_review_before')::bigint,
     'confirmed',
     'db4-door-confirm'
   );
@@ -171,7 +176,7 @@ begin
       '41111111-1111-4111-8111-111111111111',
       'revision-area-db4',
       'revision-area-db4',
-      53,
+      current_setting('db4.source_review_before')::bigint + 1,
       'confirmed',
       'db4-door-forbidden'
     );
@@ -213,7 +218,7 @@ begin
       '41111111-1111-4111-8111-111111111111',
       'revision-source-1',
       'revision-source-1',
-      53,
+      current_setting('db4.source_review_before')::bigint + 1,
       'rejected',
       'db4-door-already-decided'
     );

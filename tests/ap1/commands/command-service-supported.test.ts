@@ -3,7 +3,7 @@ import { describe, expect, it, vi } from "vitest";
 vi.mock("server-only", () => ({}));
 
 import type { PostgresRpcClient } from "../../../lib/project-intelligence/adapters/postgres";
-import type { ProjectCeoCommand } from "../../../lib/project-intelligence/delivery/projectceo/command-contract";
+import { projectCeoCommandSchema, type ProjectCeoCommand } from "../../../lib/project-intelligence/delivery/projectceo/command-contract";
 import { ProjectCeoCommandService } from "../../../lib/project-intelligence/delivery/projectceo/command-service";
 import { buildReleaseSnapshot } from "../../../lib/project-intelligence/modules/package/release-snapshot";
 import { buildBaselineSnapshot } from "../../../lib/project-intelligence/modules/decisions";
@@ -197,6 +197,14 @@ function fakeClient(calls: Call[], options: FakeClientOptions = {}): PostgresRpc
       semanticHash,
     },
     "projectceo_product_api.publish_release_request_bound": {
+      id: "release:cccccccc-cccc-4ccc-8ccc-cccccccccccc",
+      projectId,
+      packageId,
+      versionNo: 1,
+      status: "published",
+      semanticHash,
+    },
+    "projectceo_product_api.publish_native_m3_release_request_bound": {
       id: "release:cccccccc-cccc-4ccc-8ccc-cccccccccccc",
       projectId,
       packageId,
@@ -946,6 +954,54 @@ describe("AP1 supported human commands", () => {
     expect(calls.some((call) => (
       call.name === "projectceo_product_api.publish_production_package_version"
     ))).toBe(false);
+  });
+
+  it("publishes a selected child only through its server-preview confirmation", async () => {
+    const calls: Call[] = [];
+    const token = `sha256:${"b".repeat(64)}`;
+    const result = await service(calls, {}, "true", {
+      projectEntries: [{ accessScope: "package", organizationId, projectId, packageId, role: "architect", stateRevision: 9 }],
+    }).execute(projectCeoCommandSchema.parse({
+      contractVersion: "projectceo-command/0.1", commandId: "cccccccc-cccc-4ccc-8ccc-cccccccccccc",
+      kind: "publish_release", projectId,
+      payload: {
+        packageId,
+        snapshotToken: token,
+        expectedBaselineId: "baseline-v2",
+        expectedPreviousVersionId: "release:prior-child",
+        expectedStateRevision: 7,
+      },
+    }), "native-child-release");
+    expect(result).toMatchObject({ status: "completed", replay: false });
+    expect(calls.find(call => call.name === "projectceo_product_api.publish_native_m3_release_request_bound")?.args).toEqual({
+      project_id: projectId, package_id: packageId, expected_baseline_id: "baseline-v2",
+      expected_previous_version_id: "release:prior-child", expected_state_revision: 7,
+      expected_context_digest: token, command_ref: "release:cccccccc-cccc-4ccc-8ccc-cccccccccccc",
+      idempotency_key: "ui:11111111-1111-4111-8111-111111111111:publish_release:cccccccc-cccc-4ccc-8ccc-cccccccccccc",
+    });
+    expect(calls.some(call => call.name === "projectceo_product_api.publish_release_request_bound")).toBe(false);
+  });
+
+  it("does not substitute the root for an invalid native child selector", async () => {
+    const calls: Call[] = [];
+    const result = await service(calls).execute(projectCeoCommandSchema.parse({
+      contractVersion: "projectceo-command/0.1", commandId: "cccccccc-cccc-4ccc-8ccc-cccccccccccc",
+      kind: "publish_release", projectId,
+      payload: {
+        packageId: projectId, snapshotToken: `sha256:${"b".repeat(64)}`,
+        expectedBaselineId: "baseline-v2", expectedPreviousVersionId: null, expectedStateRevision: 9,
+      },
+    }), "native-root-refused");
+    expect(result).toMatchObject({ status: "error", error: { code: "forbidden" } });
+    expect(calls.some(call => call.name.includes("publish_"))).toBe(false);
+  });
+
+  it("does not accept native package coordinates on the baseline command", () => {
+    expect(projectCeoCommandSchema.safeParse({
+      contractVersion: "projectceo-command/0.1", commandId: "cccccccc-cccc-4ccc-8ccc-cccccccccccc",
+      kind: "publish_baseline", projectId,
+      payload: { packageId, snapshotToken: `sha256:${"b".repeat(64)}`, expectedBaselineId: "baseline-v2", expectedPreviousVersionId: null, expectedStateRevision: 9 },
+    }).success).toBe(false);
   });
 
   it("does not offer a release when no baseline is published", async () => {

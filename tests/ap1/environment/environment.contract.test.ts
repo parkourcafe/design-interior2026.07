@@ -40,6 +40,20 @@ function sha256(path: string): string {
 describe("AP1 disposable Supabase environment contract", () => {
   const config = readFileSync(configPath, "utf8");
 
+  it.each([
+    { runtime: "invalid", fresh: "1", reason: null },
+    { runtime: "1", fresh: "0", reason: "DB4_NATIVE_RUNTIME_REQUIRES_FRESH_MODE" },
+    { runtime: "1", fresh: "invalid", reason: "DB4_NATIVE_RUNTIME_REQUIRES_FRESH_MODE" },
+  ])("rejects invalid native durability mode before Docker startup ($runtime/$fresh)", ({ runtime, fresh, reason }) => {
+    const result = spawnSync("/bin/zsh", [resolve(repoRoot, "tests/db4/run.zsh")], {
+      cwd: repoRoot, encoding: "utf8", timeout: 5000,
+      env: { ...process.env, PI_DB4_NATIVE_RUNTIME: runtime, PI_DB4_NATIVE_FRESH: fresh },
+    });
+    expect(result.status).toBe(64);
+    expect(result.stdout).not.toContain("DB4 harness image");
+    if (reason) expect(result.stderr).toContain(reason);
+  });
+
   it("pins a local-only project and non-default port range", () => {
     expect(config).toContain('project_id = "archidom-ap1-disposable"');
     for (const port of [59620, 59621, 59622, 59623, 59624, 59625, 59626, 59627, 59628, 59629]) {

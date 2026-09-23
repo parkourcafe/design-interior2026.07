@@ -90,10 +90,10 @@ function expectRejected(mutate: (value: any) => void, code: string) {
 }
 
 describe("Cycle 7 executable finalizer adversarial gate", () => {
-  it("builds a complete accepted manifest, pending binding and protected Kora receipt", () => {
+  it("refuses a complete M2 receipt as full external M3/M4 acceptance", () => {
     const { value, out, options } = validFinalization();
-    expect(() => finalizeM2PilotEvidence(value, options)).not.toThrow();
-    expect(existsSync(join(out, "PASS.json"))).toBe(true);
+    expect(() => finalizeM2PilotEvidence(value, options)).toThrow("EXTERNAL_DELIVERY_NATIVE_M3_PROOF_REQUIRED");
+    assertNoArtifacts(out);
   });
 
   it("rejects arbitrary executor path/digest and requires repo ownership plus challenge nonce", () => {

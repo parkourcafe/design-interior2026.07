@@ -492,6 +492,56 @@ export class ProjectBrainHumanPostgresAdapter {
     );
   }
 
+  async publishWorkPackageReleaseRequestBound(input: {
+    readonly projectId: string;
+    readonly packageId: string;
+    readonly expectedBaselineId: string;
+    readonly expectedPreviousVersionId: string | null;
+    readonly expectedStateRevision: number;
+    readonly commandRef: string;
+    readonly idempotencyKey: string;
+  }): Promise<CommandMutation<ProductionPackageVersion>> {
+    // The server derives native M3 lineage under the workflow lock. No caller
+    // descriptor/digest, root fallback or client assertion can replace it.
+    if (input.projectId === input.packageId) throw new Error("native_m3_work_package_required");
+    return parseCommandMutation<ProductionPackageVersion>(
+      await callProductRpc(this.client, "publish_work_package_release_request_bound", {
+        project_id: input.projectId,
+        package_id: input.packageId,
+        expected_baseline_id: input.expectedBaselineId,
+        expected_previous_version_id: input.expectedPreviousVersionId,
+        expected_state_revision: input.expectedStateRevision,
+        command_ref: input.commandRef,
+        idempotency_key: input.idempotencyKey,
+      }),
+    );
+  }
+
+  async publishNativeM3ReleaseRequestBound(input: {
+    readonly projectId: string;
+    readonly packageId: string;
+    readonly expectedBaselineId: string;
+    readonly expectedPreviousVersionId: string | null;
+    readonly expectedStateRevision: number;
+    readonly expectedContextDigest: string;
+    readonly commandRef: string;
+    readonly idempotencyKey: string;
+  }): Promise<CommandMutation<ProductionPackageVersion>> {
+    if (input.projectId === input.packageId) throw new Error("native_m3_work_package_required");
+    return parseCommandMutation<ProductionPackageVersion>(
+      await callProductRpc(this.client, "publish_native_m3_release_request_bound", {
+        project_id: input.projectId,
+        package_id: input.packageId,
+        expected_baseline_id: input.expectedBaselineId,
+        expected_previous_version_id: input.expectedPreviousVersionId,
+        expected_state_revision: input.expectedStateRevision,
+        expected_context_digest: input.expectedContextDigest,
+        command_ref: input.commandRef,
+        idempotency_key: input.idempotencyKey,
+      }),
+    );
+  }
+
   async distributeRelease(input: {
     readonly projectId: string;
     readonly artifactId: string;

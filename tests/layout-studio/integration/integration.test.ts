@@ -393,6 +393,14 @@ describe("Layout Studio delivery/UI slice", () => {
       // Enrollment repair narrows supplied users to package capabilities only.
       "20260922183823_projectceo_package_scoped_enrollment.sql",
       "20260922185630_projectceo_package_bound_approval_review.sql",
+      // WP-32 authenticated quarantine INSERT, independent of Layout Studio.
+      "20260923060722_remhaos_file_intake_quarantine_insert.sql",
+      "20260923110410_remhaos_bound_file_scan_completion.sql",
+      "20260923122957_remhaos_verified_scan_publication_context.sql",
+      "20260923171231_projectceo_native_m3_release_context.sql",
+      "20260923174529_projectceo_native_m3_release_binding.sql",
+      "20260923183516_projectceo_release_requires_complete_impact.sql",
+      "20260923190258_projectceo_native_m3_snapshot_confirmation.sql",
     ];
     const actual = readdirSync(join(repoRoot, "supabase/migrations"), { withFileTypes: true })
       // Предмет проверки — миграции, а не всё содержимое папки. Рядом с ними

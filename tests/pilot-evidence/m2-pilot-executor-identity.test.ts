@@ -157,7 +157,9 @@ describe("Cycle 7 executor and Kora receipt identity binding", () => {
     const pending = prepareM2PilotEvidence({ outputPath: pendingPath, challengeNonce: value.challengeNonce,
       manifestDigest: value.manifestDigest, executor: value.executor, koraReceipt: value.runFiveSessions,
       koraReceiptPath, koraReceiptDigest });
-    expect(() => finalizeM2PilotEvidence(value, { outputDir: out, pending, pendingPath, manifestPath, koraReceiptPath })).not.toThrow();
+    expect(() => finalizeM2PilotEvidence(value, { outputDir: out, pending, pendingPath, manifestPath, koraReceiptPath }))
+      .toThrow("EXTERNAL_DELIVERY_NATIVE_M3_PROOF_REQUIRED");
+    expect(existsSync(join(out, "PASS.json"))).toBe(false);
   });
 
   it("refuses direct finalization when no genuine prepare-produced pending artifact is supplied", () => {
@@ -218,11 +220,9 @@ describe("Cycle 7 executor and Kora receipt identity binding", () => {
       executor: value.executor, koraReceipt: value.runFiveSessions, koraReceiptPath, koraReceiptDigest,
     });
     expect(pending).toEqual(JSON.parse(readFileSync(pendingPath, "utf8")));
-    finalizeM2PilotEvidence(value, { outputDir: out, pending, pendingPath, manifestPath, koraReceiptPath });
-    const pass = JSON.parse(readFileSync(join(out, "PASS.json"), "utf8"));
-    expect(pass.status).toBe("completed");
-    expect(pass.executor).toMatchObject({ digest: value.executor.digest, verificationReceiptId: value.executor.verificationReceiptId });
-    expect(pass.executor).not.toHaveProperty("path");
-    expect(pass.koraRun).toMatchObject({ receiptId: value.runFiveSessions.receiptId, digest: koraReceiptDigest });
+    expect(() => finalizeM2PilotEvidence(value, { outputDir: out, pending, pendingPath, manifestPath, koraReceiptPath }))
+      .toThrow("EXTERNAL_DELIVERY_NATIVE_M3_PROOF_REQUIRED");
+    expect(existsSync(join(out, "PASS.json"))).toBe(false);
+    expect(existsSync(join(out, "PASS.json.tmp"))).toBe(false);
   });
 });

@@ -17,6 +17,7 @@ import {
 import { deriveOpaqueToken } from "../../adapters/storage";
 import {
   PROJECTCEO_COMMAND_CONTRACT_VERSION,
+  isNativeM3ReleasePayload,
   type ProjectCeoCommand,
   type ProjectCeoCommandResponse,
 } from "./command-contract";
@@ -340,6 +341,24 @@ export class ProjectCeoCommandService {
     }
     try {
       const idempotencyKey = this.idempotencyKey(command);
+      // Selected child publication has its own package-authorized database
+      // boundary. Do this before generic project context: a user can rightly
+      // hold two child memberships without gaining project-wide scope.
+      if (command.kind === "publish_release" && isNativeM3ReleasePayload(command.payload)) {
+        if (command.payload.packageId === command.projectId) {
+          return failure(requestId, "error", "forbidden");
+        }
+        return completed(requestId, await this.product.publishNativeM3ReleaseRequestBound({
+          projectId: command.projectId,
+          packageId: command.payload.packageId,
+          expectedBaselineId: command.payload.expectedBaselineId,
+          expectedPreviousVersionId: command.payload.expectedPreviousVersionId,
+          expectedStateRevision: command.payload.expectedStateRevision,
+          expectedContextDigest: command.payload.snapshotToken,
+          commandRef: `release:${command.commandId}`,
+          idempotencyKey,
+        }));
+      }
       if (command.kind === "bind_pdf_dwg_sheet_sidecar") {
         const scope=await this.scopeOnly(command.projectId.toLowerCase());
         if (scope.accessScope==="package" && scope.packageId?.toLowerCase()!==command.payload.packageId.toLowerCase()) return failure(requestId,"error","forbidden");

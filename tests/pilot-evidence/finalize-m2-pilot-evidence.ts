@@ -4,6 +4,8 @@ import { existsSync, readFileSync, renameSync, rmSync, writeFileSync } from "nod
 import { resolve, relative, join } from "node:path";
 import { canonicalJson } from "../../lib/project-intelligence/application/change-handoff/canonical";
 import { readPilotManifest, validateExternalPilot, validateKoraPilot } from "./m2-pilot-evidence-contract";
+import { validateExternalDeliveryEvidence, type ExternalDeliveryExpected } from "./external-delivery-evidence";
+import { assessExternalSourceReadiness } from "./external-source-readiness";
 
 type UnknownObject = Record<string, unknown>;
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -41,7 +43,10 @@ const validFiveSessions = (sessions: UnknownObject[], requireServerProvenance = 
   && sessions.every((item) => UUID.test(string(item.userId)) && UUID.test(string(item.sessionId)) && UUID.test(string(item.requestId))
     && (!requireServerProvenance || string(item.serverSessionDigest) === sessionDigest(string(item.sessionId))));
 
-export function finalizeM2PilotEvidence(receipt: unknown, options: { readonly outputDir: string; readonly label?: string; readonly pending?: unknown; readonly pendingPath?: string; readonly koraReceiptPath?: string; readonly manifestPath?: string }): void {
+export function finalizeM2PilotEvidence(receipt: unknown, options: { readonly outputDir: string; readonly label?: string; readonly pending?: unknown; readonly pendingPath?: string; readonly koraReceiptPath?: string; readonly manifestPath?: string;
+  /** Protected collector output, never copied from candidate delivery JSON. */
+  readonly deliveryBindings?: Pick<ExternalDeliveryExpected, "sources" | "workerInvocations">;
+}): void {
   const value = object(receipt); const output = join(options.outputDir, "PASS.json"); const temporary = `${output}.tmp`;
   try {
     if (receipt === null || typeof receipt !== "object") throw new Error("RECEIPT_MISSING");
@@ -196,14 +201,37 @@ export function finalizeM2PilotEvidence(receipt: unknown, options: { readonly ou
         || pendingBinding.koraProducerDigest !== producer.digest))
       || !validFiveSessions(koraSessions)) throw new Error("RECEIPT_TAMPERED_FIVE_SESSIONS");
     if (privateData.test(JSON.stringify(value))) throw new Error("RECEIPT_TAMPERED_PRIVACY");
-    const runtimeReceipt = { status: "completed", verdict: "EXTERNAL_REAL_PACKAGE_PASS", label: options.label ?? null,
+    // Five M2 commands are not the WP32 native M3→release→M4 contract. Until
+    // the independently measured native collector exists, fail closed instead
+    // of preserving a historically overbroad EXTERNAL_REAL_PACKAGE_PASS.
+    if (!options.deliveryBindings) throw new Error("EXTERNAL_DELIVERY_NATIVE_M3_PROOF_REQUIRED");
+    const { sources: measuredSources, workerInvocations } = options.deliveryBindings;
+    const sourceChecksums = list(inputManifest.sources).map(source => string(source.checksum));
+    validateExternalDeliveryEvidence(value.delivery, {
+      scope: { organizationId: string(scope.organizationId), projectId: string(scope.projectId), packageId: string(scope.packageId) },
+      upstream: { handoffId: string(lineage.handoffId), handoffRevisionId: string(lineage.handoffRevisionId),
+        approvedCommitId: string(lineage.approvedCommitId), approvedCommitRevisionId: string(lineage.approvedCommitRevisionId) },
+      sessions: sessions.map(session => ({ role: string(session.role), userId: string(session.userId), sessionId: string(session.sessionId),
+        requestId: string(session.requestId), serverSessionDigest: string(session.serverSessionDigest) })),
+      manifestDigest: string(value.manifestDigest), challengeNonce: string(value.challengeNonce), sourceChecksums,
+      sources: measuredSources, workerInvocations,
+      excludedProjectIds: [string(object(koraManifest.project).projectId)],
+    });
+    const sourceReadiness = assessExternalSourceReadiness(inputManifest,
+      measuredSources.map(source => source.checksum), measuredSources);
+    if (sourceReadiness.issues.length) throw new Error("EXTERNAL_SOURCE_RECONCILIATION_REQUIRED");
+    if (sourceReadiness.status === "SOURCE_METADATA_BOUND_CONTENT_REVIEW_REQUIRED") {
+      throw new Error("EXTERNAL_SOURCE_CONTENT_REVIEW_REQUIRED");
+    }
+    const runtimeReceipt = { contractVersion: "remhaos.wp32-runtime-receipt/1", status: "completed", verdict: "EXTERNAL_REAL_PACKAGE_PASS", label: options.label ?? null,
       headSha: currentHeadSha(), executedAt: new Date().toISOString(),
       markers: ["KORA_LOCAL_AUTHENTICATED_PASS", "EXTERNAL_REAL_PACKAGE_PASS"],
-      manifestDigest: value.manifestDigest, fiveDistinctUsers, commandIds: [...commandIds], stateRevisions,
+      manifestDigest: value.manifestDigest, deliveryEvidenceDigest: valueDigest(value.delivery), fiveDistinctUsers, commandIds: [...commandIds], stateRevisions,
       lineage: { submission: lineage.submissionId, review: lineage.reviewId, approvedCommit: lineage.approvedCommitId, handoff: lineage.handoffId },
       executor: { digest: executor.digest, verificationReceiptId: executor.verificationReceiptId },
       koraRun: { receiptId: protectedKoraReceipt.receiptId, digest: pendingBinding.koraReceiptDigest },
-      gates: { koraAuthenticatedFiveRole: true, externalRealPackage: true, audit: true, authenticatedRead: true, privacy: true, tenancy: true, replay: true },
+      gates: { koraAuthenticatedFiveRole: true, externalRealPackage: true, nativeM3FullDelivery: true, sourceContentVerified: true,
+        audit: true, authenticatedRead: true, privacy: true, tenancy: true, replay: true },
       proofs: { audit: true, authenticatedRead: true, privacy: true, tenancy: true, replay: true } };
     if (privateData.test(JSON.stringify(runtimeReceipt))) throw new Error("RUNTIME_RECEIPT_PRIVACY");
     writeFileSync(temporary, JSON.stringify(runtimeReceipt, null, 2), { flag: "wx", mode: 0o600 });

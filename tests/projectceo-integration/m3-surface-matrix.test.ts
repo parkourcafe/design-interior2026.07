@@ -68,6 +68,8 @@ describe("M3 surface matrix", () => {
    */
   it("matches the guardrail migration signature for signature", () => {
     const migrations = [
+      "supabase/migrations/20260923190258_projectceo_native_m3_snapshot_confirmation.sql",
+      "supabase/migrations/20260923171231_projectceo_native_m3_release_context.sql",
       "supabase/migrations/20260916025319_r1_sheet_sidecar_read_projection.sql",
       "supabase/migrations/20260916023137_r1_pdf_sheet_sidecar_request_door.sql",
       "supabase/migrations/20260811010000_projectceo_m3_publication_guardrail.sql",
@@ -98,7 +100,8 @@ describe("M3 surface matrix", () => {
   });
 
   it("keeps the enable script to module-gated M3 doors only", () => {
-    const enable = read("tests/ap1/environment/enable-m3-publication.sql").replace(/\s+/g, "");
+    const enable = (read("tests/ap1/environment/enable-m3-publication.sql")
+      + read("tests/ap1/environment/enable-native-m3-context.sql")).replace(/\s+/g, "");
     const moduleGated = [...M3_SURFACE.flatMap((row) => row.rpcs), ...M3_READ_RPCS]
       .filter((rpc) => rpc.closure === "revoked_from_authenticated")
       .map((rpc) => rpc.signature);
@@ -155,7 +158,7 @@ describe("M3 surface matrix", () => {
     const called = [...adapter.matchAll(/"projectceo_m3_api",\s*\n?\s*"([a-z_]+)"/g)]
       .map((match) => match[1]!);
     const classified = new Set(
-      M3_SURFACE.flatMap((row) => row.rpcs)
+      [...M3_SURFACE.flatMap((row) => row.rpcs), ...M3_READ_RPCS]
         .filter((rpc) => rpc.schema === "projectceo_m3_api")
         .map((rpc) => rpc.name),
     );

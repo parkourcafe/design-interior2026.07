@@ -31,6 +31,9 @@ const SQLSTATE_TO_FOUNDATION: Readonly<Record<string, FoundationErrorCode>> = {
   "P1110": "unsupported_source",
   "P1111": "validation_failed",
   "P1112": "internal_error",
+  // Integration file-intake gates use a separate SQLSTATE namespace.
+  "P1204": "not_found",
+  "P1209": "scope_conflict",
   "P2001": "identity_unverified",
   "P2002": "expired",
   "P2003": "revoked",

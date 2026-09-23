@@ -154,12 +154,16 @@ export const M3_SURFACE: readonly M3SurfaceRow[] = [
       signature: "projectceo_product_api.publish_release_request_bound(uuid, text, text, bigint, text, text)",
       sharing: "shared_schema",
       closure: "revoked_from_authenticated",
-    }, { schema: "projectceo_product_api", name: "publish_work_package_release_request_bound", signature: "projectceo_product_api.publish_work_package_release_request_bound(uuid, uuid, text, text, bigint, text, text)", sharing: "shared_schema", closure: "revoked_from_authenticated" }],
+    }, { schema: "projectceo_product_api", name: "publish_work_package_release_request_bound", signature: "projectceo_product_api.publish_work_package_release_request_bound(uuid, uuid, text, text, bigint, text, text)", sharing: "shared_schema", closure: "revoked_from_authenticated" }, { schema: "projectceo_product_api", name: "publish_native_m3_release_request_bound", signature: "projectceo_product_api.publish_native_m3_release_request_bound(uuid, uuid, text, text, bigint, text, text, text)", sharing: "m3_only", closure: "revoked_from_authenticated" }],
   },
 ];
 
 /** Read-only RPCs are separate from the mutation command registry. */
 export const M3_READ_RPCS: readonly M3PublicRpc[] = [{
+  schema: "projectceo_m3_api", name: "get_native_m3_release_context",
+  signature: "projectceo_m3_api.get_native_m3_release_context(uuid, uuid)",
+  sharing: "m3_only", closure: "revoked_from_authenticated",
+}, {
   schema: "projectceo_read_api", name: "get_pdf_dwg_sheet_sidecar",
   signature: "projectceo_read_api.get_pdf_dwg_sheet_sidecar(uuid, uuid, uuid)", sharing: "m3_only", closure: "revoked_from_authenticated",
 }, {
