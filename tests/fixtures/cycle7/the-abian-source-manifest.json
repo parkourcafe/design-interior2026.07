@@ -1,0 +1,46 @@
+{
+  "contractVersion": "remhaos.wp32-external-source-manifest/1",
+  "evidenceClass": "external_real_package_operator_verified",
+  "project": {
+    "name": "The Abian House",
+    "model": "full_project",
+    "country": "Indonesia",
+    "location": "Gianyar",
+    "floorAreaM2": 652.1
+  },
+  "sourceFacts": {
+    "drawingRegisterDate": "2025-09-20",
+    "revisedPositionDate": "2025-12-13",
+    "cameraExifPresent": false
+  },
+  "sources": [
+    {
+      "alias": "architect-source-1.pdf",
+      "kind": "pdf",
+      "sha256": "99a44ddb01fed41d5b6b9d7f2bce36cf6245394fdd9dedba33b3c15ae4be5eba"
+    },
+    {
+      "alias": "architect-source-2.xlsx",
+      "kind": "spreadsheet",
+      "sha256": "f6096a9857d163f0348ef057531790a20c847542a954f67e748b53c033afc654"
+    },
+    {
+      "alias": "architect-source-3.png",
+      "kind": "image",
+      "sha256": "9258296141ea1dfc5f9a2b34f25224a6a4cd8d728e6361e0765cb36efc3568d3"
+    }
+  ],
+  "priceObservation": {
+    "sourceAlias": "architect-source-2.xlsx",
+    "sourceCell": "Offering BoQ!F49",
+    "originalCurrency": "IDR",
+    "originalAmount": 9781500,
+    "exchangeRate": {
+      "authority": "Bank of Russia",
+      "date": "2025-09-20",
+      "nominalIdr": 10000,
+      "rub": 50.667
+    },
+    "convertedAmountRub": 49560
+  }
+}

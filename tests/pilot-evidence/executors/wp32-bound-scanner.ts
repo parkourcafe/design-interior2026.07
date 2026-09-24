@@ -1,14 +1,14 @@
-import { createHash, randomUUID, randomBytes } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 import { constants } from 'node:fs';
 import { readFile, writeFile, open, realpath, lstat, mkdtemp } from 'node:fs/promises';
-import { spawn, spawnSync } from 'node:child_process';
+import { spawn } from 'node:child_process';
 import { createRequire } from 'node:module';
 import { gzipSync } from 'node:zlib';
 import { homedir } from 'node:os';
 import { dirname, resolve, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { DockerClient } from '../../../lib/integration-gateway/r1-sandbox/docker';
-import { AV_PROFILE } from '../../../lib/integration-gateway/r1-sandbox/profile';
+import { AV_PROFILE, type ContainerObservation } from '../../../lib/integration-gateway/r1-sandbox/profile';
 import { observeLocalHost, assertHostAdmission } from '../../../lib/integration-gateway/r1-sandbox/admission';
 import { assertReadonlyImageOs } from '../../../lib/integration-gateway/r1-worker/clamav-runtime-manifest';
 
@@ -23,12 +23,20 @@ const { zipSync, strToU8 } = require('fflate');
 const sha = (b: Uint8Array | string) => createHash('sha256').update(b).digest('hex');
 const scopeRoots = new Set<string>();
 let output = '', cancelled = false;
-const report: Record<string, any> = { schema: 'wp32-local17-linux/1', status: 'running',
+interface ScannerSource { readonly status?:string;readonly sourceIndex?:number;readonly sourceSha256?:string;
+  readonly containerSha256?:string;readonly originalUnchanged?:boolean;readonly detectionNames?:readonly (string|undefined)[];
+  readonly [key:string]:unknown }
+interface ScannerReport { [key:string]:unknown;status:string;controls:Record<string,unknown>[];sources:ScannerSource[];
+  activeJob?:Record<string,unknown>;lastJob?:Record<string,unknown>;inventorySha256?:string;receiverSha256?:string;
+  resumedFromSha256?:string;signatureBundleSha256?:string;scannerExecutableSha256?:string;dailyVersion?:number;
+  dailyTimestampSeconds?:number;metricsResamples?:number }
+const report: ScannerReport = { schema: 'wp32-local17-linux/1', status: 'running',
   startedAt: new Date().toISOString(), profileId: 'wp32-clamav-local17/v1', limits: AV_PROFILE,
   maxRecursion: 17, imageId, architecture: 'linux/amd64', existingR1PolicyChanged: false,
   productionChanged: false, r1LeaseOrMaterializationProof: false, controls: [], sources: [] };
 function assert(ok: unknown, code: string): asserts ok { if (!ok) throw new Error(code); }
-function safeError(error: any) { return /^[A-Za-z0-9_:-]{1,100}$/.test(error?.message ?? '') ? error.message : 'LOCAL17_UNEXPECTED_ERROR'; }
+function safeError(error: unknown) { const message=error instanceof Error?error.message:'';
+  return /^[A-Za-z0-9_:-]{1,100}$/.test(message) ? message : 'LOCAL17_UNEXPECTED_ERROR'; }
 async function save() { if (output) await writeFile(`${output}/evidence.json`, JSON.stringify(report, null, 2), { mode: 0o600 }); }
 process.on('SIGTERM', () => { cancelled = true; });
 process.on('SIGINT', () => { cancelled = true; });
@@ -42,19 +50,19 @@ function args(name: string, nonce: string, mode: string) {
     `--tmpfs=/scratch:rw,nosuid,nodev,noexec,size=${AV_PROFILE.scratchBytes},mode=0700,uid=65532,gid=65532`,
     '--workdir=/scratch', '--entrypoint=/bin/sh', imageId, '/opt/wp32/local-scan.sh', mode];
 }
-function owned(c: any, name: string, nonce: string, mode: string) {
+function owned(c: ContainerObservation|null, name: string, nonce: string, mode: string) {
   assert(c && c.Image === imageId && c.Name === `/${name}` && c.Labels['wp32.local17.nonce'] === nonce, 'CONTAINER_OWNERSHIP_MISMATCH');
   const h = c.HostConfig;
   assert(c.User === '65532:65532' && JSON.stringify(c.Entrypoint) === '["/bin/sh"]'
     && JSON.stringify(c.Cmd) === JSON.stringify(['/opt/wp32/local-scan.sh', mode]), 'CONTAINER_COMMAND_MISMATCH');
   assert(h.ReadonlyRootfs && h.NetworkMode === 'none' && !h.Privileged && h.Init
     && JSON.stringify(h.CapDrop) === '["ALL"]' && !h.CapAdd?.length
-    && h.SecurityOpt.includes('no-new-privileges') && !h.SecurityOpt.some((v: string) => v.includes('unconfined'))
+    && Array.isArray(h.SecurityOpt) && h.SecurityOpt.includes('no-new-privileges') && !h.SecurityOpt.some(v => v.includes('unconfined'))
     && h.Memory === AV_PROFILE.memoryBytes && h.MemorySwap === AV_PROFILE.memoryBytes && h.NanoCpus === 1000000000
     && h.PidsLimit === AV_PROFILE.pids && h.ShmSize === AV_PROFILE.shmBytes
     && h.Tmpfs?.['/scratch'] === `rw,nosuid,nodev,noexec,size=${AV_PROFILE.scratchBytes},mode=0700,uid=65532,gid=65532`
     && Object.keys(h.Tmpfs).length === 1 && !h.Binds?.length && !h.Mounts?.length && !h.Devices?.length
-    && c.Mounts.every((m: any) => m.Type === 'tmpfs') && h.PidMode === '' && h.IpcMode === 'private'
+    && c.Mounts.every(m => m.Type === 'tmpfs') && h.PidMode === '' && h.IpcMode === 'private'
     && h.CgroupnsMode === 'private' && h.LogConfig.Type === 'none' && h.RestartPolicy.Name === 'no'
     && !Object.keys(h.PortBindings ?? {}).length, 'CONTAINER_LIMITS_MISMATCH');
 }
@@ -141,7 +149,7 @@ function pdf() {
   const objects = [ '<< /Type /Catalog /Pages 2 0 R >>', '<< /Type /Pages /Kids [3 0 R] /Count 1 >>',
     '<< /Type /Page /Parent 2 0 R /MediaBox [0 0 200 100] /Resources << /Font << /F1 5 0 R >> >> /Contents 4 0 R >>',
     `<< /Length ${Buffer.byteLength(content)} >>\nstream\n${content}\nendstream`, '<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>' ];
-  let text = '%PDF-1.4\n', offsets = [0];
+  let text = '%PDF-1.4\n'; const offsets = [0];
   objects.forEach((object, i) => { offsets.push(Buffer.byteLength(text)); text += `${i+1} 0 obj\n${object}\nendobj\n`; });
   const xref = Buffer.byteLength(text);
   text += `xref\n0 6\n0000000000 65535 f \n${offsets.slice(1).map(n => `${String(n).padStart(10,'0')} 00000 n \n`).join('')}trailer\n<< /Size 6 /Root 1 0 R >>\nstartxref\n${xref}\n%%EOF\n`;
@@ -163,7 +171,8 @@ async function main(controlsOnly = false, skipControls = false) {
   const inventoryRaw = await readFile(`${workspace}/artifacts/ARCHITECT_LOCAL_SOURCE_INVENTORY_20260923.json`);
   report.inventorySha256 = sha(inventoryRaw);
   assert(report.inventorySha256 === 'e918afd7a757756b5c54421c5035704401abef7aab5637036517e8a7720157f6', 'INVENTORY_CHANGED');
-  const inventory = JSON.parse(inventoryRaw.toString()); assert(inventory.rows.length === 32, 'INVENTORY_COUNT_CHANGED');
+  const inventory = JSON.parse(inventoryRaw.toString()) as {rows:Array<{root:string;path:string;bytes:number;sha256:string}>};
+  assert(inventory.rows.length === 32, 'INVENTORY_COUNT_CHANGED');
   for (const entry of inventory.rows) {
     assert(typeof entry.root==='string'&&entry.root.startsWith('/'),'SOURCE_ROOT_INVALID');scopeRoots.add(entry.root);
   }
@@ -172,14 +181,14 @@ async function main(controlsOnly = false, skipControls = false) {
     const priorBytes = await readFile(`${workspace}/backups/ARCHITECT_CLAMAV_LOCAL17_PARTIAL_20260923.json`);
     const priorDigest = sha(priorBytes);
     assert(priorDigest === '2f481dbf82b52963ed8254c3e1dcda6348e8502a5bc578f4847e7171f6f7e804', 'PRIOR_EVIDENCE_CHANGED');
-    const prior = JSON.parse(priorBytes.toString());
+    const prior = JSON.parse(priorBytes.toString()) as ScannerReport & {code?:string;imageId?:string;lastJob?:{cleanupConfirmed?:boolean}};
     assert(prior.status === 'LOCAL17_INCOMPLETE' && prior.code === 'sandbox_metrics_stale' && prior.imageId === imageId
       && prior.inventorySha256 === report.inventorySha256 && prior.receiverSha256 === report.receiverSha256
       && prior.lastJob?.cleanupConfirmed === true && !prior.activeJob && prior.sources.length === 13
-      && prior.sources.every((r:any,i:number)=>r.sourceIndex===i+1 && r.status==='clean' && r.originalUnchanged===true
-        && r.sourceSha256===inventory.rows[i].sha256 && r.containerSha256===r.sourceSha256), 'PRIOR_EVIDENCE_SCOPE_INVALID');
+      && prior.sources.every((r,i)=>r.sourceIndex===i+1 && r.status==='clean' && r.originalUnchanged===true
+        && r.sourceSha256===inventory.rows[i]!.sha256 && r.containerSha256===r.sourceSha256), 'PRIOR_EVIDENCE_SCOPE_INVALID');
     report.resumedFromSha256 = priorDigest;
-    report.sources = prior.sources.map((r:any)=>({...r,originEvidenceSha256:priorDigest}));
+    report.sources = prior.sources.map(r=>({...r,originEvidenceSha256:priorDigest}));
   }
   const image = await docker.command(['image','inspect','--format','{{json .}}',imageId]);
   assert(image.code === 0, 'IMAGE_MISSING'); const metadata = JSON.parse(image.stdout);
@@ -247,9 +256,10 @@ async function main(controlsOnly = false, skipControls = false) {
       console.log(JSON.stringify({ sourceIndex:index+1,status:result.status,originalUnchanged:unchanged })); assert(unchanged,'SOURCE_CHANGED_DURING_SCAN');
     } finally { await file.close(); }
   }
-  report.status = report.sources.every((s:any)=>s.status==='clean') ? 'LOCAL17_CORPUS_CLEAN' : 'LOCAL17_CORPUS_ALERTS';
-  report.summary = { scanned:report.sources.length,clean:report.sources.filter((s:any)=>s.status==='clean').length };
-  report.finishedAt=new Date().toISOString(); await save(); console.log(JSON.stringify({ status:report.status,...report.summary }));
+  report.status = report.sources.every(s=>s.status==='clean') ? 'LOCAL17_CORPUS_CLEAN' : 'LOCAL17_CORPUS_ALERTS';
+  const summary = { scanned:report.sources.length,clean:report.sources.filter(s=>s.status==='clean').length };
+  report.summary = summary;
+  report.finishedAt=new Date().toISOString(); await save(); console.log(JSON.stringify({ status:report.status,...summary }));
   if(report.status!=='LOCAL17_CORPUS_CLEAN') process.exitCode=2;
 }
 let initialized = false;
@@ -261,7 +271,10 @@ export async function initializeBoundScanner(options: {readonly diagnosticSkipCo
     signatureBundleSha256: report.signatureBundleSha256, signatureVersion: report.dailyVersion,
     signatureTimestamp: report.dailyTimestampSeconds };
 }
-export async function scanClaimedBytes({ claim, bytes }: { claim: any; bytes: Uint8Array }) {
+interface ScannerClaim {readonly taskId:string;readonly nonce:string;readonly attempt:number;readonly fence:number;
+  readonly claimedAt:string;readonly expiresAt:string;readonly checksumHex:string;readonly byteLength:number;
+  readonly policy:Record<string,unknown>}
+export async function scanClaimedBytes({ claim, bytes }: { claim: ScannerClaim; bytes: Uint8Array }) {
   assert(initialized && /^[a-f0-9-]{36}$/.test(claim.nonce), 'SCANNER_NOT_INITIALIZED');
   const expected = { policyVersion: 'wp32-clamav-local17/v1', imageId, engineVersion: '1.5.4',
     executableSha256: report.scannerExecutableSha256, receiverSha256: report.receiverSha256,
@@ -278,7 +291,7 @@ export async function scanClaimedBytes({ claim, bytes }: { claim: any; bytes: Ui
   assert(Number.isFinite(clockWaitMs) && clockWaitMs<=2000, 'CLAIM_CLOCK_SKEW');
   if (clockWaitMs>0) await new Promise(resolve=>setTimeout(resolve,Math.ceil(clockWaitMs)));
   assert(Date.now() >= Date.parse(claim.claimedAt) && Date.now() < Date.parse(claim.expiresAt), 'CLAIM_TIME_INVALID');
-  assert(Date.now()/1000-report.dailyTimestampSeconds+360<=86400, 'CLAIM_CVD_STALE');
+  assert(report.dailyTimestampSeconds!==undefined&&Date.now()/1000-report.dailyTimestampSeconds+360<=86400, 'CLAIM_CVD_STALE');
   assert(sha(bytes)===claim.checksumHex && bytes.length===claim.byteLength, 'CLAIM_BYTES_MISMATCH');
   const scanStartedAt = new Date().toISOString();
   const result = await job('scan',Buffer.from(bytes),claim.nonce);

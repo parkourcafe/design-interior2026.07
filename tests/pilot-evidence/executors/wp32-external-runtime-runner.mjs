@@ -522,7 +522,7 @@ try {
   const areaNodeId='abian-documented-scope';
   const decisionRevisionId=randomUUID();
   stage='m2-source-bound-decision';
-  const decision=await command(architect,projectId,'create_decision',{packageId,nodeId:decisionNodeId,
+  await command(architect,projectId,'create_decision',{packageId,nodeId:decisionNodeId,
     revisionId:decisionRevisionId,expectedRevisionId:bootstrapDecisionRevisionId,claimStatus:'interpreted',title:'The Abian House documented plan set',
     resolution:'Use the supplied plan PDF and drawing register as the exact input set. Geometry is not inferred or approved by this disposable run.',
     areaNodeId,decisionStatus:'proposed',evidence:[sourceEvidence(pdfSource)],
@@ -589,7 +589,7 @@ try {
   await command(architect,projectId,'attach_documentation_sheet_specifications',{packageId,sheetId,revisionId:sheetRevision2,
     expectedRevisionId:sheetRevision1,specificationRevisionIds:[selectionRevisionId],
     reason:'Attach the exact workbook-backed BoQ offering selection to the plan sheet.'},'attach-sheet-specifications',false);
-  const baseline=await publishFreshBaseline(owner,projectId,'BASELINE_B1');
+  await publishFreshBaseline(owner,projectId,'BASELINE_B1');
   const nativePreview=await request(architect,`/api/projectceo/projects/${projectId}/packages/${packageId}/release-context`);
   assert(nativePreview.status===200&&nativePreview.body?.data?.context?.structurallyComplete===true,'NATIVE_M3_CONTEXT_INCOMPLETE');
   const confirmation=nativePreview.body.data.confirmation;assert(confirmation,'NATIVE_M3_CONFIRMATION_MISSING');
@@ -621,7 +621,7 @@ try {
   await command(owner,projectId,'submit_approval_package',{approvalPackageId:changeApprovalId,expectedStatus:'draft'},'submit-change-approval',false);
   await command(client,projectId,'review_selection',{approvalPackageId:changeApprovalId,expectedStatus:'submitted',decision:'approved',
     reason:'Disposable operator acceptance of source chronology only; not a construction or commercial approval.'},'review-change-approval',false);
-  const baselineB2=await publishFreshBaseline(owner,projectId,'BASELINE_B2');
+  await publishFreshBaseline(owner,projectId,'BASELINE_B2');
   const change=await command(builder,projectId,'create_change',{reason:'Drawing register revision 3.1 to 4.1; cost and schedule deltas intentionally unknown.',
     fromProductionPackageVersionId:releaseVersion,deltaCostRub:0,deltaDays:0});
   const changeRequestId=change.first.result.id;assert(changeRequestId,'CHANGE_REQUEST_ID_MISSING');
