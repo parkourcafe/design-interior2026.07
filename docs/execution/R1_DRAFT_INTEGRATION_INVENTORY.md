@@ -5,7 +5,7 @@ required package gate.
 
 | PR | Package | Status | Integration prerequisite |
 | --- | --- | --- | --- |
-| #160 | R1-03 worker policy | Local contract only | Real scanner remains Gate 0 blocked. |
+| #160 | R1-03 worker policy | Local contract + later WP-32 real-corpus/bound-intake evidence | Production Gate0 remains open; local evidence is not hosted/adoption approval. |
 | #161 | R1-04 delivery helper | FINDINGS | Server broker, grant RPC and range-read storage port missing. |
 | #162 | R1-01 identities | FINDINGS_PENDING | Disposable DB apply and final review needed. |
 | #163 | R1-08A technical reference helper | Local contract only | Depends on R1 identity persistence. |

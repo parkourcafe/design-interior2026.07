@@ -1,5 +1,11 @@
 # R1-03 local ClamAV process evidence
 
+**Status reconciliation 23.09.2026:** this document remains the historical R1-03
+process proof. Later owner-approved WP-32 evidence adds an isolated Linux depth17
+32-file real-corpus result and two authenticated bound-intake scans; see
+`docs/audits/wp/WP-32_EVIDENCE.md`. Gate0 remains open because production
+engine/profile adoption, hosted operations and full R1 integration are separate.
+
 Context: repository_only. This increment implements the process adapter behind
 PR #174; it does not complete the full INT-R1-03 or open Gate 0.
 

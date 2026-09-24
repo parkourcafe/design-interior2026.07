@@ -4,6 +4,19 @@
 
 Real-Docker observations below are historical probe evidence; the later cleanup-owner and late-reconciliation changes were checked with real subprocess/SQLite and controlled Docker transport only. No fresh real-Docker or Gate 0 proof is claimed for those patches.
 
+**Superseding corpus note (23.09.2026).** The statement above remains true for
+this historical synthetic-sandbox slice, but it is no longer the complete project
+status. A separately authorized WP-32 local profile subsequently ran the pinned
+ClamAV1.5.4 Linux image against32 real architect-package files plus benign,
+EICAR, compressed-EICAR, deadline and recursion-limit controls. The combined
+receipt was32/32 clean under the separately approved depth17 local profile; exact
+hashes, limits, the13+19 resume boundary and cleanup evidence are recorded in
+`docs/audits/wp/WP-32_EVIDENCE.md` under “Owner-approved LOCAL17 corpus result”.
+Two exact PDF/XLSX inputs additionally passed authenticated intake, fresh scan
+after SYSTEM claim, immutable evidence and HTTP publication. Those later results
+do not convert this synthetic executor into a production adapter and do not close
+R1 Gate0, hosted adoption, source-content approval, native M3/M4 or production.
+
 This slice executes fixed synthetic Linux probes with a real Docker create → inspect → start → inspect/wait/kill → exact-ID removal lifecycle. It is not the ClamAV adapter, a byte-validation receipt, an application worker lease, or Gate 0 acceptance.
 
 ## Implemented boundary
@@ -106,7 +119,7 @@ Cleanup-owner correction before the late lane: focused 4 files / 35 tests passed
 - `npm run build -- --webpack`: passed; 46 static pages. Existing unset public support/legal display values used their repository placeholders.
 - Node built-in SQLite currently emits its experimental-feature warning; no dependency was added.
 
-Independent final source closure PASS: the reviewer verified all 25 files and their hashes, sizes and modes at aggregate 727d85b9514758503a87b42da2e11b4d83cbe8993a256031e4ddf30b77120e7c before this documentation-only status update. Code is unchanged. These proofs establish only the described local synthetic envelope. Real Linux ClamAV/CVD freshness, the readonly-image runner seam, source-byte ingress, application DB leases/lineage, RU hosted approval, real corpus and Gate 0 remain separate and unclaimed.
+Independent final source closure PASS: the reviewer verified all 25 files and their hashes, sizes and modes at aggregate 727d85b9514758503a87b42da2e11b4d83cbe8993a256031e4ddf30b77120e7c before this documentation-only status update. Code is unchanged. These proofs establish only the described local synthetic envelope. Later WP-32 evidence separately covers real Linux ClamAV/CVD freshness, real corpus and two bound application-intake files; production R1 adapter adoption, RU hosted approval and Gate0 remain separate and unclaimed.
 
 ## AV manifest and receiver components — 2026-09-13
 
