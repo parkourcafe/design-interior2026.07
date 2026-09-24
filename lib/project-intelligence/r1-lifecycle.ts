@@ -1,8 +1,8 @@
 const DAY_MS = 24 * 60 * 60 * 1000;
 
-export const R1_RETENTION_GRACE_DAYS = 30;
+export const R1_RETENTION_GRACE_DAYS = 90;
 export const R1_RETENTION_MAX_DRY_RUN_TARGETS = 10_000;
-export const R1_RETENTION_POLICY_VERSION = "remhaos.external-retention/1.0";
+export const R1_RETENTION_POLICY_VERSION = "remhaos.external-retention/1.1";
 
 export type R1RetentionPhase =
   | "idle"

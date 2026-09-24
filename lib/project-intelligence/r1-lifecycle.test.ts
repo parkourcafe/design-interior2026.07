@@ -7,7 +7,7 @@ import {
 } from "./r1-lifecycle";
 
 const baseInput: R1RetentionDryRunInput = {
-  now: "2026-10-01T00:00:00Z",
+  now: "2026-11-30T00:00:00Z",
   activeEntitlement: false,
   graceEvent: {
     source: "server_retention_ledger",
@@ -30,10 +30,10 @@ const baseInput: R1RetentionDryRunInput = {
 };
 
 describe("R1 retention dry-run planner", () => {
-  it("computes exactly 30 UTC days and never authorizes destructive work", () => {
+  it("computes exactly 90 UTC days from entitlement end and never authorizes destructive work", () => {
     const beforeExpiry = planR1Retention({
       ...baseInput,
-      now: "2026-09-30T23:59:59Z",
+      now: "2026-11-29T23:59:59Z",
     });
     const atExpiry = planR1Retention(baseInput);
 
@@ -42,7 +42,7 @@ describe("R1 retention dry-run planner", () => {
       nextAction: "wait_for_expiry",
       access: { read: true, write: false },
       grace: {
-        scheduledDeletionAt: "2026-10-01T00:00:00.000Z",
+        scheduledDeletionAt: "2026-11-30T00:00:00.000Z",
         remainingMs: 1_000,
         sourceEventId: "11111111-1111-4111-8111-111111111111",
         sourceEventSequence: 7,
@@ -254,7 +254,7 @@ describe("R1 retention dry-run planner", () => {
     expect(planR1Retention(baseInput).observability).toEqual({
       event: "retention_dry_run",
       policyVersion: R1_RETENTION_POLICY_VERSION,
-      evaluatedAt: "2026-10-01T00:00:00.000Z",
+      evaluatedAt: "2026-11-30T00:00:00.000Z",
       decision: "eligible_for_owner_review",
       phase: "idle",
       liveReferenceCount: 0,
@@ -271,7 +271,7 @@ describe("R1 retention dry-run planner", () => {
     ["upload timestamp without ledger projection", { graceEvent: { effectiveAt: "2026-09-01T00:00:00Z" } }, "r1_retention_grace_event_invalid"],
     ["invalid ledger event id", { graceEvent: { ...baseInput.graceEvent!, eventId: "upload-time" } }, "r1_retention_grace_event_invalid"],
     ["invalid ledger sequence", { graceEvent: { ...baseInput.graceEvent!, eventSequence: 0 } }, "r1_retention_grace_event_invalid"],
-    ["future grace event", { graceEvent: { ...baseInput.graceEvent!, effectiveAt: "2026-10-02T00:00:00Z" } }, "r1_retention_grace_event_in_future"],
+    ["future grace event", { graceEvent: { ...baseInput.graceEvent!, effectiveAt: "2026-12-02T00:00:00Z" } }, "r1_retention_grace_event_in_future"],
     ["claim without fence", { phase: "claimed" }, "r1_retention_claim_fence_invalid"],
     ["fence without claim", { claimFence: "claim-v1" }, "r1_retention_claim_fence_invalid"],
     ["invalid partial", { phase: "partial", claimFence: "claim-v1" }, "r1_retention_partial_progress_invalid"],

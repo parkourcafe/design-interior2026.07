@@ -1,5 +1,13 @@
 # WP-32 — local disposable preflight evidence
 
+## Retention clarification DEC-040 — 2026-09-24
+
+Status: **OWNER DECISION RECORDED; LOCAL DRY-RUN POLICY PASS**.
+
+- ИЗВЛЕЧЕНО: DEC-040 records the owner decision: after paid entitlement ends, the project receives90days read-only access and full export, then deletion unless a paid archive or legal hold applies. The clock starts at entitlement end, not project deletion. This locks only the retention clarification of DEC-026; it does not silently ratify the remaining tariff/business-model proposal.
+- ИЗВЛЕЧЕНО: existing `r1-lifecycle.ts` was real code and still encoded30days. A red boundary test observed the old `2026-10-01` deletion date. The planner now uses90days and policy version `remhaos.external-retention/1.1`; it still reports `destructiveActionAuthorized:false` and requires a separate owner purge gate. Targeted32/32 tests and typecheck passed.
+- НЕ ПОДТВЕРЖДЕНО: no production retention ledger adapter, entitlement billing integration, file purge worker, Storage backup deletion or hosted restore behavior is proved by this dry-run planner. DEC-040 opens none of those actions.
+
 ## PR208 enrollment negative and DB78 diagnostics — 2026-09-24
 
 Status: **LOCAL DB4 CONTRACT PASS**.
