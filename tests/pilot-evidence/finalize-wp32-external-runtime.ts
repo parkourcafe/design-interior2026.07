@@ -18,6 +18,7 @@ const rawSchema = z.object({
   schema: z.literal("remhaos.wp32-external-runtime/1"),
   status: z.literal("WP32_EXTERNAL_AUTHENTICATED_RUNTIME_PASS"),
   sourceCommit: z.string().regex(/^[a-f0-9]{40}$/),
+  trackedBindings: z.record(digest),
   harnessSha256: digest,
   scannerHarnessSha256: digest,
   lockfileSha256: digest,
@@ -50,6 +51,7 @@ export interface Wp32RuntimeExpected {
   readonly executorDigest: string;
   readonly scannerDigest: string;
   readonly lockfileDigest: string;
+  readonly trackedBindings: Readonly<Record<string,string>>;
 }
 
 export function finalizeWp32ExternalRuntime(raw: unknown, expected: Wp32RuntimeExpected) {
@@ -57,6 +59,8 @@ export function finalizeWp32ExternalRuntime(raw: unknown, expected: Wp32RuntimeE
   if(parsed.sourceCommit!==expected.headSha) throw new Error("WP32_RUNTIME_HEAD_MISMATCH");
   if(parsed.harnessSha256!==expected.executorDigest||parsed.scannerHarnessSha256!==expected.scannerDigest
     ||parsed.lockfileSha256!==expected.lockfileDigest) throw new Error("WP32_RUNTIME_EXECUTOR_DIGEST_MISMATCH");
+  if(JSON.stringify(Object.entries(parsed.trackedBindings).sort())!==JSON.stringify(Object.entries(expected.trackedBindings).sort()))
+    throw new Error("WP32_RUNTIME_TRACKED_BINDING_MISMATCH");
   if(new Set(parsed.sources.map(row=>row.alias)).size!==3
     ||parsed.sources.some(row=>sourceBindings.get(row.alias)!==row.sourceSha256||row.childSource.checksum!==row.sourceSha256
       ||row.childSource.packageId!==parsed.scope.packageId)) throw new Error("WP32_RUNTIME_SOURCE_BINDING_INVALID");

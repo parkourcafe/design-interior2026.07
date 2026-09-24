@@ -170,6 +170,17 @@ try {
   const gitHead = spawnSync('git', ['rev-parse', 'HEAD'], { cwd, encoding: 'utf8', timeout: 10000 });
   assert(gitHead.status === 0, 'SOURCE_HEAD_UNAVAILABLE');
   report.sourceCommit = gitHead.stdout.trim();
+  const trackedRuntimeFiles=['lib/project-intelligence/delivery/projectceo/command-service.ts',
+    'tests/ap1/environment/register-bound-child-source.ts','tests/pilot-evidence/executors/wp32-bound-scanner.ts',
+    'tests/pilot-evidence/executors/wp32-external-runtime-runner.mjs','tests/pilot-evidence/finalize-wp32-external-runtime.ts',
+    'tests/pilot-evidence/finalize-wp32-external-runtime-cli.ts','tests/fixtures/cycle7/the-abian-source-manifest.json',
+    'tests/pilot-evidence/executors/allowlist.json','package-lock.json'];
+  report.trackedBindings={};
+  for(const path of trackedRuntimeFiles){
+    const committed=spawnSync('git',['show',`${report.sourceCommit}:${path}`],{cwd,encoding:null,timeout:10000});
+    assert(committed.status===0&&sha(committed.stdout)===sha(readFileSync(`${cwd}/${path}`)),`TRACKED_RUNTIME_DIRTY:${path}`);
+    report.trackedBindings[path]=sha(committed.stdout);
+  }
   await new Promise((resolve, reject) => {
     const probe = createServer(); probe.once('error', () => reject(new Error('APP_PORT_IN_USE')));
     probe.listen(3100, '127.0.0.1', () => probe.close(resolve));
