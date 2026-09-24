@@ -1,4 +1,5 @@
 import type { Metadata, Viewport } from "next";
+import Script from "next/script";
 import "./globals.css";
 import { ru } from "@/lib/i18n/ru";
 import { appUrl } from "@/lib/env";
@@ -54,6 +55,16 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <body className="min-h-screen antialiased">
         {children}
         <Pwa />
+        <Script
+          src="https://www.googletagmanager.com/gtag/js?id=G-JSHYCJDNTH"
+          strategy="afterInteractive"
+        />
+        <Script id="google-analytics" strategy="afterInteractive">
+          {`window.dataLayer = window.dataLayer || [];
+function gtag(){dataLayer.push(arguments);}
+gtag('js', new Date());
+gtag('config', 'G-JSHYCJDNTH');`}
+        </Script>
       </body>
     </html>
   );
