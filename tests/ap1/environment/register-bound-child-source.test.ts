@@ -20,7 +20,8 @@ function fixture() {
     canonicalByteLength:bytes.length,canonicalVerifiedAt:"2026-09-23T00:01:01Z"};
   const completion={taskId:claim.taskId,intakeId:claim.intakeId,receiptId:id(6),evidenceDigest:"f".repeat(64),outcome:"clean" as const};
   const input={projectId:id(2),packageId:id(7),physicalRecordId:id(8),alias:"source-1.pdf",sourceRevisionId:"source-revision-1",key:"unit-child",
-    bytes,claim,evidence,completion};
+    bytes,claim,evidence,completion,area:undefined as undefined|{nodeId:string;revisionId:string;title:string;payload:Record<string,unknown>},
+    dependencyTargetNodeId:undefined as string|undefined};
   const counts=new Map<string,number>();
   const rpc=vi.fn(async(name:string,args:Readonly<Record<string,unknown>>={})=>{
     if(name==="authorize_source_upload")return {data:{data:{projectId:input.projectId,packageId:input.packageId,bucket:"client-uploads",
@@ -47,6 +48,22 @@ describe("child source ingestion from a verified scan (synthetic unit ports only
       fragments:[{sourceId:result.sourceId,locatorKind:"pdf",locator:{kind:"pdf",page:1}}],
       evidence_links:[{nodeRevisionId:f.input.sourceRevisionId,sourceFragmentId:result.fragmentId}],edges:[]});
     expect(JSON.stringify(graph)).not.toContain("sizeBytes\":1,");
+  });
+  it("binds an optional extracted area revision to the same measured source fragment",async()=>{
+    const f=fixture();
+    f.input.area={nodeId:"area-source-bound",revisionId:"area-source-bound-r1",title:"Source-bound area",
+      payload:{schemaVersion:"project-ceo/area/0.1",name:"Measured source scope"}};
+    f.input.dependencyTargetNodeId="decision-source-bound";
+    const result=await registerBoundChildSource(f.client,f.input,f.ports);
+    const graph=f.rpc.mock.calls.find(c=>c[0]==="ingest_source_graph")?.[1] as Record<string,unknown>;
+    expect(graph).toMatchObject({
+      nodes:expect.arrayContaining([expect.objectContaining({nodeId:"area-source-bound",kind:"area",currentRevisionId:"area-source-bound-r1"})]),
+      revisions:expect.arrayContaining([expect.objectContaining({revisionId:"area-source-bound-r1",nodeId:"area-source-bound",claimStatus:"extracted"})]),
+      evidence_links:expect.arrayContaining([expect.objectContaining({evidenceLinkId:result.areaEvidenceLinkId,
+        nodeRevisionId:"area-source-bound-r1",sourceFragmentId:result.fragmentId})]),
+      edges:[{edgeId:`dependency-${f.input.physicalRecordId}`,fromNodeId:`node-${result.sourceId}`,
+        toNodeId:"decision-source-bound",relation:"depends_on"}],
+    });
   });
   it.each(["scope","bytes","verdict","canonical"])("rejects invalid %s before business writes",async kind=>{
     const f=fixture();

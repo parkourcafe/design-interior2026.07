@@ -28,6 +28,7 @@ interface Call {
 interface FakeClientOptions {
   readonly deliveryOverrides?: Readonly<Record<string, unknown>>;
   readonly projectEntries?: readonly Readonly<Record<string, unknown>>[];
+  readonly projectSummaryLatestVersionId?: string | null;
   readonly readOverrides?: Readonly<Record<string, unknown>>;
 }
 
@@ -300,6 +301,10 @@ function fakeClient(calls: Call[], options: FakeClientOptions = {}): PostgresRpc
             extensionStatus: {},
             ...options.deliveryOverrides,
           }), error: null };
+        }
+        if (name === "projectceo_api.get_project_summary") {
+          return { data: envelope({ latestVersionId: options.projectSummaryLatestVersionId ?? "graph-v2",
+            organizationId, projectId, stateRevision: 9, packages: [] }), error: null };
         }
         if (name === "projectceo_api.list_project_access") {
           return { data: envelope({
@@ -1067,6 +1072,20 @@ describe("AP1 supported human commands", () => {
     expect(calls.some((call) => (
       call.name === "projectceo_product_api.publish_project_baseline"
     ))).toBe(false);
+  });
+
+  it("uses the workflow source snapshot coordinate for the first baseline", async () => {
+    const approvalPackages = [{id:"approval-source",status:"approved",createdAt:"2026-09-24T00:00:00.000Z",
+      items:[{targetKind:"decision_revision",entityId:"decision-source",revisionId:"decision-source-r1"}]}];
+    const packages = [{id:packageId,kind:"project_root",parentPackageId:null,stableKey:"root"}];
+    const snapshot=buildBaselineSnapshot({approvalPackages,packageIds:[packageId],previousBaselineId:null});
+    const calls:Call[]=[];
+    const result=await service(calls,{approvalPackages,packages,latestBaseline:null},"true",{
+      projectSummaryLatestVersionId:"graph-source-snapshot",
+    }).execute(command("publish_baseline",{snapshotToken:snapshot.token}),"baseline-after-source-snapshot");
+    expect(result).toMatchObject({status:"completed"});
+    expect(calls.find(call=>call.name==="projectceo_product_api.publish_baseline_atomic")?.args)
+      .toMatchObject({expected_latest_version_id:"graph-source-snapshot",previous_baseline_id:null});
   });
 
   it("refuses with stale_state when the state moved after the preview", async () => {

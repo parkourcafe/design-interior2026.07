@@ -23,6 +23,9 @@ export async function registerBoundChildSource(human: PostgresRpcClient, input: 
   readonly alias: string; readonly sourceRevisionId: string; readonly key: string;
   readonly bytes: Uint8Array; readonly claim: BoundScanClaim; readonly evidence: BoundScanEvidence;
   readonly completion: Completion;
+  readonly area?: { readonly nodeId: string; readonly revisionId: string; readonly title: string;
+    readonly payload: Readonly<Record<string, unknown>> };
+  readonly dependencyTargetNodeId?: string;
 }, ports: {
   /** Replay the actual completed SYSTEM RPC with retained exact evidence/key;
    * it rechecks capability/gate/current authority. Never return a fixed true. */
@@ -35,6 +38,10 @@ export async function registerBoundChildSource(human: PostgresRpcClient, input: 
   z.string().uuid().parse(input.projectId); z.string().uuid().parse(input.packageId); z.string().uuid().parse(input.physicalRecordId);
   z.string().regex(/^[A-Za-z0-9][A-Za-z0-9._:-]{0,159}$/).parse(input.sourceRevisionId);
   z.string().min(1).max(150).parse(input.key);
+  const area = input.area ? z.object({nodeId:z.string().min(1).max(160),revisionId:z.string().min(1).max(160),
+    title:z.string().min(1).max(1000),payload:z.record(z.unknown())}).strict().parse(input.area) : null;
+  const dependencyTargetNodeId=input.dependencyTargetNodeId
+    ? z.string().min(1).max(160).parse(input.dependencyTargetNodeId) : null;
   const { claim, evidence } = input;
   const completion = completionSchema.parse(input.completion);
   if (input.packageId === input.projectId || claim.projectId !== input.projectId || claim.packageId !== input.projectId
@@ -97,17 +104,28 @@ export async function registerBoundChildSource(human: PostgresRpcClient, input: 
   const nodeId = `node-${sourceId}`;
   const fragmentId = `fragment-${input.physicalRecordId}`, evidenceLinkId = `identity-${input.physicalRecordId}`;
   const payload = {schemaVersion:"project-ceo/source-metadata/0.1",sourceId};
+  const graphNodes: Array<Record<string, unknown>> = [{nodeId,kind:"source",stableKey:`source:${sourceId}`,currentRevisionId:input.sourceRevisionId}];
+  const graphRevisions: Array<Record<string, unknown>> = [{revisionId:input.sourceRevisionId,nodeId,revisionNo:1,title:input.alias,payload,origin:"import",claimStatus:"extracted",
+    unknownReason:null,replacesRevisionId:null,contentDigestHex:sha(JSON.stringify(payload))}];
+  const graphEvidence: Array<Record<string, unknown>> = [{evidenceLinkId,nodeRevisionId:input.sourceRevisionId,sourceFragmentId:fragmentId}];
+  if (area) {
+    graphNodes.push({nodeId:area.nodeId,kind:"area",stableKey:`area:${area.nodeId}`,currentRevisionId:area.revisionId});
+    graphRevisions.push({revisionId:area.revisionId,nodeId:area.nodeId,revisionNo:1,title:area.title,payload:area.payload,origin:"import",
+      claimStatus:"extracted",unknownReason:null,replacesRevisionId:null,contentDigestHex:sha(JSON.stringify(area.payload))});
+    graphEvidence.push({evidenceLinkId:`${evidenceLinkId}-area`,nodeRevisionId:area.revisionId,sourceFragmentId:fragmentId});
+  }
+  const graphEdges=dependencyTargetNodeId
+    ? [{edgeId:`dependency-${input.physicalRecordId}`,fromNodeId:nodeId,toNodeId:dependencyTargetNodeId,relation:"depends_on"}]
+    : [];
   const ingestion = await mutate("ingest_source_graph",{project_id:input.projectId,
     source:{sourceId,sourceRevisionId:input.sourceRevisionId,kind,checksumHex:checksum,packageId:input.packageId,
       metadata:{originalFilename:input.alias,mediaType:claim.mediaType,sizeBytes:input.bytes.byteLength,extension:claim.extension,
         sourceRole:claim.sourceRole,declaredRevision:null,documentStatus:"unknown"}},
     fragments:[{fragmentId,sourceId,locatorKind:anchor.locator.kind,locator:anchor.locator}],
-    nodes:[{nodeId,kind:"source",stableKey:`source:${sourceId}`,currentRevisionId:input.sourceRevisionId}],
-    revisions:[{revisionId:input.sourceRevisionId,nodeId,revisionNo:1,title:input.alias,payload,origin:"import",claimStatus:"extracted",
-      unknownReason:null,replacesRevisionId:null,contentDigestHex:sha(JSON.stringify(payload))}],
-    evidence_links:[{evidenceLinkId,nodeRevisionId:input.sourceRevisionId,sourceFragmentId:fragmentId}],
-    edges:[],expected_state_revision:await state(),idempotency_key:`${input.key}:graph`});
+    nodes:graphNodes,revisions:graphRevisions,evidence_links:graphEvidence,
+    edges:graphEdges,expected_state_revision:await state(),idempotency_key:`${input.key}:graph`});
   const ingested = object.parse(ingestion.result);
   if (ingested.sourceId !== sourceId || ingested.sourceRevisionId !== input.sourceRevisionId || ingested.packageId !== input.packageId) throw new Error("CHILD_SOURCE_RESULT_BINDING_INVALID");
-  return {sourceId,sourceRevisionId:input.sourceRevisionId,checksum,packageId:input.packageId,fragmentId,evidenceLinkId,anchor,registration,ingestion};
+  return {sourceId,sourceRevisionId:input.sourceRevisionId,checksum,packageId:input.packageId,fragmentId,evidenceLinkId,
+    areaEvidenceLinkId:area ? `${evidenceLinkId}-area` : null,anchor,registration,ingestion};
 }

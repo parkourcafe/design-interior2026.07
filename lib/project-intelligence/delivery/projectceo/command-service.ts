@@ -995,14 +995,26 @@ export class ProjectCeoCommandService {
         }, command.payload.snapshotToken);
         if (!confirmation.ok) return failure(requestId, "error", "stale_state");
 
+        // The workflow can already have a published source snapshot before its
+        // first baseline. `latestBaseline` is null in that state, so deriving
+        // the optimistic coordinate from `latestBaseline.graphVersionId`
+        // falsely sends null and the atomic RPC must reject every attempt.
+        // Read the actual workflow coordinate through the existing
+        // authenticated foundation summary instead.
+        const summary = await this.foundation.getProjectSummary(command.projectId);
+        if (summary.error || !summary.data) {
+          throw new ProjectIntelligenceAdapterError(summary.error?.code ?? "internal_error", null);
+        }
+        const latestVersionId = record(summary.data).latestVersionId;
+
         // Атомарная дверь создаёт версию графа и baseline в одной транзакции.
         // Клиент по-прежнему предъявляет только токен preview; координаты
         // версии и прежнего baseline подтверждены этим серверным чтением, а
         // descriptor, refs и hash выводятся SQL-операцией, а не браузером.
         return completed(requestId, await this.product.publishBaselineAtomic({
           projectId: command.projectId,
-          expectedLatestVersionId: typeof record(read.data.latestBaseline).graphVersionId === "string"
-            ? record(read.data.latestBaseline).graphVersionId as string
+          expectedLatestVersionId: typeof latestVersionId === "string"
+            ? latestVersionId
             : null,
           previousBaselineId: confirmation.composition.previousBaselineId,
           expectedStateRevision: scope.stateRevision,
