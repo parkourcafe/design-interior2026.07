@@ -59,10 +59,11 @@ run_file "${repo_root}/tests/db2/00_supabase_prelude.sql"
 native_release_upgrade="${repo_root}/supabase/migrations/20260923174529_projectceo_native_m3_release_binding.sql"
 impact_coverage_upgrade="${repo_root}/supabase/migrations/20260923183516_projectceo_release_requires_complete_impact.sql"
 native_confirmation_upgrade="${repo_root}/supabase/migrations/20260923190258_projectceo_native_m3_snapshot_confirmation.sql"
+package_member_restore="${repo_root}/supabase/migrations/20260924022328_projectceo_package_member_restore.sql"
 all_migrations=("${repo_root}"/supabase/migrations/*.sql(N))
 native_fresh=${PI_DB4_NATIVE_FRESH:-0}
 if [[ "${native_fresh}" != 0 && "${native_fresh}" != 1 ]]; then exit 64; fi
-if [[ "${all_migrations[-3]}" != "${native_release_upgrade}" || "${all_migrations[-2]}" != "${impact_coverage_upgrade}" || "${all_migrations[-1]}" != "${native_confirmation_upgrade}" ]]; then
+if [[ "${all_migrations[-4]}" != "${native_release_upgrade}" || "${all_migrations[-3]}" != "${impact_coverage_upgrade}" || "${all_migrations[-2]}" != "${native_confirmation_upgrade}" || "${all_migrations[-1]}" != "${package_member_restore}" ]]; then
   print -u2 -r -- "DB4_NATIVE_UPGRADE_CHECKPOINT_REQUIRES_REVIEW"
   exit 1
 fi

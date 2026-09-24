@@ -111,6 +111,156 @@ begin
 end
 $validation_and_conflicts$;
 
+-- Synthetic state setup only: the product does not yet expose a revocation
+-- command. Enrollment must never turn this explicit inactive state into a
+-- successful response; restoration belongs to its own audited command.
+do $restore_acl$
+declare runtime_role text;
+begin
+  if not has_function_privilege('authenticated',
+    'projectceo_api.restore_package_member_access(uuid,uuid,uuid,text,bigint,text)','EXECUTE') then
+    raise exception 'DB4_77_RESTORE_AUTHENTICATED_GRANT_MISSING';
+  end if;
+  foreach runtime_role in array array['anon','service_role','pi_human_executor','pi_worker_executor'] loop
+    if has_function_privilege(runtime_role,
+      'projectceo_api.restore_package_member_access(uuid,uuid,uuid,text,bigint,text)','EXECUTE') then
+      raise exception 'DB4_77_RESTORE_GRANT_BROADENED:%',runtime_role;
+    end if;
+    if has_function_privilege(runtime_role,
+      'projectceo_foundation._enroll_organization_project_scope_delegate(uuid,uuid,text,text,jsonb,text)','EXECUTE') then
+      raise exception 'DB4_77_PRIVATE_ENROLLMENT_DELEGATE_EXPOSED:%',runtime_role;
+    end if;
+  end loop;
+end
+$restore_acl$;
+
+do $inactive_member_requires_restore$
+declare
+  org uuid;
+  before_state bigint;
+  before_commands bigint;
+  before_events bigint;
+  before_capabilities bigint;
+  detail text;
+  restored jsonb;
+  replayed jsonb;
+begin
+  select (result#>>'{result,organizationId}')::uuid into strict org from enrollment_77;
+  update projectceo_foundation.package_memberships
+  set status='inactive'
+  where organization_id=org
+    and project_id='77555555-5555-4555-8555-555555555555'
+    and package_id='77666666-6666-4666-8666-666666666666'
+    and user_id='77222222-2222-4222-8222-222222222222';
+  select state_revision into strict before_state
+  from project_intelligence.project_workflows
+  where organization_id=org and project_id='77555555-5555-4555-8555-555555555555';
+  select count(*) into before_commands from projectceo_foundation.command_records
+  where organization_id=org and project_id='77555555-5555-4555-8555-555555555555';
+  select count(*) into before_events from projectceo_foundation.audit_events
+  where organization_id=org and project_id='77555555-5555-4555-8555-555555555555';
+  select count(*) into before_capabilities from projectceo_foundation.package_member_capabilities
+  where organization_id=org and project_id='77555555-5555-4555-8555-555555555555'
+    and package_id='77666666-6666-4666-8666-666666666666'
+    and user_id='77222222-2222-4222-8222-222222222222';
+  set local role authenticated;
+  set local request.jwt.claim.sub='77111111-1111-4111-8111-111111111111';
+  begin
+    perform projectceo_api.enroll_organization_project_scope(
+      '77555555-5555-4555-8555-555555555555','77666666-6666-4666-8666-666666666666',
+      'package-a','Package A',jsonb_build_array(jsonb_build_object(
+        'userId','77222222-2222-4222-8222-222222222222','role','architect')),
+      'db4-77-inactive-architect-enroll');
+    raise exception 'DB4_77_INACTIVE_PACKAGE_MEMBER_ENROLLMENT_ACCEPTED';
+  exception when sqlstate 'P1109' then
+    get stacked diagnostics detail=pg_exception_detail;
+    if detail::jsonb->>'reason' is distinct from 'PACKAGE_MEMBER_INACTIVE_RESTORE_REQUIRED' then raise; end if;
+  end;
+  reset role;
+  if (select status from projectceo_foundation.package_memberships
+      where organization_id=org and project_id='77555555-5555-4555-8555-555555555555'
+        and package_id='77666666-6666-4666-8666-666666666666'
+        and user_id='77222222-2222-4222-8222-222222222222') <> 'inactive'
+    or before_state <> (select state_revision from project_intelligence.project_workflows
+      where organization_id=org and project_id='77555555-5555-4555-8555-555555555555')
+    or before_commands <> (select count(*) from projectceo_foundation.command_records
+      where organization_id=org and project_id='77555555-5555-4555-8555-555555555555')
+    or before_events <> (select count(*) from projectceo_foundation.audit_events
+      where organization_id=org and project_id='77555555-5555-4555-8555-555555555555') then
+    raise exception 'DB4_77_INACTIVE_ENROLLMENT_MUTATED_STATE';
+  end if;
+
+  set local role authenticated;
+  set local request.jwt.claim.sub='77222222-2222-4222-8222-222222222222';
+  begin
+    perform projectceo_api.restore_package_member_access(
+      '77555555-5555-4555-8555-555555555555','77666666-6666-4666-8666-666666666666',
+      '77222222-2222-4222-8222-222222222222','architect',before_state,'db4-77-restore-denied');
+    raise exception 'DB4_77_NON_OWNER_RESTORED_MEMBER';
+  exception when sqlstate 'P1103' then null; end;
+  set local request.jwt.claim.sub='77111111-1111-4111-8111-111111111111';
+  begin
+    perform projectceo_api.restore_package_member_access(
+      '77555555-5555-4555-8555-555555555555','77666666-6666-4666-8666-666666666666',
+      '77222222-2222-4222-8222-222222222222','builder',before_state,'db4-77-restore-role');
+    raise exception 'DB4_77_RESTORE_REPLACED_ROLE';
+  exception when sqlstate 'P1109' then
+    get stacked diagnostics detail=pg_exception_detail;
+    if detail::jsonb->>'reason' is distinct from 'PACKAGE_MEMBER_ROLE_REPLACEMENT_REQUIRED' then raise; end if;
+  end;
+  begin
+    perform projectceo_api.restore_package_member_access(
+      '77555555-5555-4555-8555-555555555555','77666666-6666-4666-8666-666666666666',
+      '77222222-2222-4222-8222-222222222222','architect',before_state-1,'db4-77-restore-stale');
+    raise exception 'DB4_77_RESTORE_ACCEPTED_STALE_STATE';
+  exception when sqlstate 'P1107' then null; end;
+  restored:=projectceo_api.restore_package_member_access(
+    '77555555-5555-4555-8555-555555555555','77666666-6666-4666-8666-666666666666',
+    '77222222-2222-4222-8222-222222222222','architect',before_state,'db4-77-restore-architect');
+  replayed:=projectceo_api.restore_package_member_access(
+    '77555555-5555-4555-8555-555555555555','77666666-6666-4666-8666-666666666666',
+    '77222222-2222-4222-8222-222222222222','architect',before_state,'db4-77-restore-architect');
+  if restored->>'replay'<>'false' or restored->>'stateRevision'<>(before_state+1)::text
+    or restored#>>'{result,status}'<>'active' or restored#>>'{result,role}'<>'architect'
+    or replayed is distinct from jsonb_set(restored,'{replay}','true'::jsonb) then
+    raise exception 'DB4_77_RESTORE_OR_REPLAY_INVALID:%:%',restored,replayed;
+  end if;
+  begin
+    perform projectceo_api.restore_package_member_access(
+      '77555555-5555-4555-8555-555555555555','77666666-6666-4666-8666-666666666666',
+      '77222222-2222-4222-8222-222222222222','architect',before_state+1,'db4-77-restore-again');
+    raise exception 'DB4_77_ALREADY_ACTIVE_RESTORED_AGAIN';
+  exception when sqlstate 'P1109' then
+    get stacked diagnostics detail=pg_exception_detail;
+    if detail::jsonb->>'reason' is distinct from 'PACKAGE_MEMBER_ALREADY_ACTIVE' then raise; end if;
+  end;
+  reset role;
+  if (select status from projectceo_foundation.package_memberships
+      where organization_id=org and project_id='77555555-5555-4555-8555-555555555555'
+        and package_id='77666666-6666-4666-8666-666666666666'
+        and user_id='77222222-2222-4222-8222-222222222222')<>'active'
+    or before_capabilities<>(select count(*) from projectceo_foundation.package_member_capabilities
+      where organization_id=org and project_id='77555555-5555-4555-8555-555555555555'
+        and package_id='77666666-6666-4666-8666-666666666666'
+        and user_id='77222222-2222-4222-8222-222222222222')
+    or before_commands+1<>(select count(*) from projectceo_foundation.command_records
+      where organization_id=org and project_id='77555555-5555-4555-8555-555555555555')
+    or before_events+1<>(select count(*) from projectceo_foundation.audit_events
+      where organization_id=org and project_id='77555555-5555-4555-8555-555555555555')
+    or not exists(select 1 from projectceo_foundation.audit_events event
+      join projectceo_foundation.command_records command on command.command_id=event.command_id
+      where event.organization_id=org and event.project_id='77555555-5555-4555-8555-555555555555'
+        and event.event_type='package_member_access_restored'
+        and command.operation='restore_package_member_access'
+        and command.actor_user_id='77111111-1111-4111-8111-111111111111') then
+    raise exception 'DB4_77_RESTORE_NOT_EXACTLY_ONCE';
+  end if;
+  -- The original enrollment result remains immutable, while the fixture's
+  -- expected current workflow state advances by the audited restore command.
+  update enrollment_77 set state_revision=before_state+1;
+end
+$inactive_member_requires_restore$;
+
 do $reads$
 declare value jsonb; actor uuid;
 begin
