@@ -46,8 +46,8 @@ begin
     raise exception 'DB4_83_IMPACT_PROBE_REQUIRES_COMPLETE_NATIVE_CONTEXT:%',context;
   end if;
   perform pg_temp.native83_denied(format(
-    'select projectceo_product_api.publish_work_package_release_request_bound(%L,%L,%L,%L,%L,%L,%L)',
-    p,k,context->>'baselineId',context->>'previousVersionId',context->>'stateRevision',command,command),
+    'select projectceo_product_api.publish_native_m3_release_request_bound(%L,%L,%L,%L,%L,%L,%L,%L)',
+    p,k,context->>'baselineId',context->>'previousVersionId',context->>'stateRevision',context->>'contextDigest',command,command),
     'P1110','HUMAN_REVIEWED_IMPACT_REQUIRED');
   reset role;
   if before_data is distinct from pg_temp.native83_snapshot() then
@@ -353,9 +353,9 @@ begin
       raise exception 'DB4_83_DEPTH_PROBE_NATIVE_CONTEXT_BECAME_INCOMPLETE';
     end if;
     begin
-      response := projectceo_product_api.publish_work_package_release_request_bound(p,k,
+      response := projectceo_product_api.publish_native_m3_release_request_bound(p,k,
         probe_context->>'baselineId',probe_context->>'previousVersionId',
-        (probe_context->>'stateRevision')::bigint,'native83-depth-release','native83-depth-release');
+        (probe_context->>'stateRevision')::bigint,probe_context->>'contextDigest','native83-depth-release','native83-depth-release');
     exception when sqlstate 'P1110' then
       get stacked diagnostics actual_state=returned_sqlstate,actual_detail=pg_exception_detail;
       if coalesce(nullif(actual_detail,''),'{}')::jsonb->>'reason' is distinct from 'HUMAN_REVIEWED_IMPACT_REQUIRED' then
@@ -500,8 +500,8 @@ begin
   select * into strict first_rows from native83_first;
   set local role authenticated; set local request.jwt.claim.sub='31111111-1111-4111-8111-111111111111';
   context := projectceo_m3_api.get_native_m3_release_context(p,k)->'data';
-  response := projectceo_product_api.publish_work_package_release_request_bound(p,k,context->>'baselineId',
-    context->>'previousVersionId',(context->>'stateRevision')::bigint,'native83-release','native83-release');
+  response := projectceo_product_api.publish_native_m3_release_request_bound(p,k,context->>'baselineId',
+    context->>'previousVersionId',(context->>'stateRevision')::bigint,context->>'contextDigest','native83-release','native83-release');
   reset role;
   if response->'replay' is distinct from 'false'::jsonb
     or response#>>'{result,id}' is distinct from 'release:native83-release'
@@ -526,11 +526,11 @@ begin
   end if;
   before_data := pg_temp.native83_snapshot();
   set local role authenticated; set local request.jwt.claim.sub='31111111-1111-4111-8111-111111111111';
-  replay := projectceo_product_api.publish_work_package_release_request_bound(p,k,context->>'baselineId',
-    context->>'previousVersionId',(context->>'stateRevision')::bigint,'native83-release','native83-release');
+  replay := projectceo_product_api.publish_native_m3_release_request_bound(p,k,context->>'baselineId',
+    context->>'previousVersionId',(context->>'stateRevision')::bigint,context->>'contextDigest','native83-release','native83-release');
   if replay is distinct from jsonb_set(response,'{replay}','true'::jsonb) then raise exception 'DB4_83_SECOND_REPLAY_INVALID'; end if;
-  replay := projectceo_product_api.publish_work_package_release_request_bound(p,k,saved.context->>'baselineId',
-    saved.context->>'previousVersionId',(saved.context->>'stateRevision')::bigint,'native81-release','native81-release');
+  replay := projectceo_product_api.publish_native_m3_release_request_bound(p,k,saved.context->>'baselineId',
+    saved.context->>'previousVersionId',(saved.context->>'stateRevision')::bigint,saved.context->>'contextDigest','native81-release','native81-release');
   reset role;
   if replay is distinct from jsonb_set(saved.response,'{replay}','true'::jsonb)
     or before_data is distinct from pg_temp.native83_snapshot() then raise exception 'DB4_83_REPLAYS_WROTE_DATA'; end if;

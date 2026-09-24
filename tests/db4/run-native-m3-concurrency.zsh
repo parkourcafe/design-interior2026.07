@@ -124,9 +124,9 @@ end $$;
 
 create function native_m3_fixture.release_sql(context jsonb, command_ref text)
 returns text language sql immutable as $$
-  select format('select projectceo_product_api.publish_work_package_release_request_bound(%L,%L,%L,%L,%L,%L,%L)',
+  select format('select projectceo_product_api.publish_native_m3_release_request_bound(%L,%L,%L,%L,%L,%L,%L,%L)',
     context#>>'{scope,projectId}',context#>>'{scope,packageId}',context->>'baselineId',
-    context->>'previousVersionId',context->>'stateRevision',command_ref,command_ref)
+    context->>'previousVersionId',context->>'stateRevision',context->>'contextDigest',command_ref,command_ref)
 $$;
 
 create function native_m3_fixture.replay_first() returns void language plpgsql as $$
@@ -135,10 +135,10 @@ begin
   select * into strict saved from native_m3_fixture.published;
   set local role authenticated;
   set local request.jwt.claim.sub='31111111-1111-4111-8111-111111111111';
-  replay := projectceo_product_api.publish_work_package_release_request_bound(
+  replay := projectceo_product_api.publish_native_m3_release_request_bound(
     (saved.context#>>'{scope,projectId}')::uuid,(saved.context#>>'{scope,packageId}')::uuid,
     saved.context->>'baselineId',saved.context->>'previousVersionId',
-    (saved.context->>'stateRevision')::bigint,'native81-release','native81-release');
+    (saved.context->>'stateRevision')::bigint,saved.context->>'contextDigest','native81-release','native81-release');
   reset role;
   if replay is distinct from jsonb_set(saved.response,'{replay}','true'::jsonb) then
     raise exception 'DB4_NATIVE82_REPLAY_ENVELOPE_CHANGED';

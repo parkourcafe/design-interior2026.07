@@ -99,7 +99,7 @@ begin
     raise exception 'DB4_WORK_PACKAGE_NATIVE_GATE_BYPASSED';
   exception when sqlstate 'P1111' then
     get stacked diagnostics detail = pg_exception_detail;
-    if detail::jsonb->>'reason' is distinct from 'NATIVE_M3_CONTEXT_INCOMPLETE' then
+    if detail::jsonb->>'reason' is distinct from 'NATIVE_CONTEXT_CONFIRMATION_REQUIRED' then
       raise exception 'DB4_WORK_PACKAGE_WRONG_VALIDATION:%',detail;
     end if;
   end;

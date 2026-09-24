@@ -13,7 +13,9 @@ begin;
 do $default_deny$
 declare r text;
 begin
-  foreach r in array array['anon','authenticated','service_role','pi_human_executor','pi_worker_executor'] loop
+  -- `authenticated` is intentionally granted in this later DB4 phase because
+  -- 05 proved default deny before enable-m3 and module-switch test49 reopened M3.
+  foreach r in array array['anon','service_role','pi_human_executor','pi_worker_executor'] loop
     if has_function_privilege(r,'projectceo_m3_api.get_native_m3_release_context(uuid,uuid)','EXECUTE') then
       raise exception 'DB4_81_DEFAULT_EXECUTE_GRANTED:%',r;
     end if;
@@ -70,7 +72,11 @@ begin
     where project_id=p and package_id=k order by version_no desc limit 1;
   set local role authenticated;
   set local request.jwt.claim.sub='31111111-1111-4111-8111-111111111111';
-  context_digest := projectceo_m3_api.get_native_m3_release_context(p,k)#>>'{data,contextDigest}';
+  if expected = 'P1113' then
+    context_digest := 'sha256:' || repeat('0',64);
+  else
+    context_digest := projectceo_m3_api.get_native_m3_release_context(p,k)#>>'{data,contextDigest}';
+  end if;
   perform pg_temp.native81_denied(format(
     'select projectceo_product_api.publish_native_m3_release_request_bound(%L,%L,%L,%L,%L,%L,%L,%L)',
     p,k,coalesce(b,'baseline:missing'),previous,s,context_digest,command,command),expected,reason);
@@ -100,6 +106,7 @@ begin
   foreach r in array array['anon','authenticated','service_role','pi_human_executor','pi_worker_executor'] loop
     foreach signature in array array[
       'projectceo_product.publish_work_package_release_request_bound(uuid,uuid,text,text,bigint,text,text)',
+      'projectceo_product._publish_work_package_release_engine(uuid,uuid,text,text,bigint,text,text)',
       'projectceo_product_api.publish_production_package_version(uuid,jsonb,bigint,text)'
     ] loop
       if has_function_privilege(r,signature,'EXECUTE') then
@@ -112,6 +119,8 @@ begin
     execute format('set local role %I',r);
     perform pg_temp.native81_denied(
       'select projectceo_product.publish_work_package_release_request_bound(null,null,null,null,null,null,null)','42501');
+    perform pg_temp.native81_denied(
+      'select projectceo_product._publish_work_package_release_engine(null,null,null,null,null,null,null)','42501');
     perform pg_temp.native81_denied(
       'select projectceo_product_api.publish_production_package_version(null,null,null,null)','42501');
     if r <> 'authenticated' then
@@ -396,26 +405,26 @@ begin
   before_data := pg_temp.native81_snapshot();
   set local role authenticated; set local request.jwt.claim.sub='31111111-1111-4111-8111-111111111111';
   perform pg_temp.native81_denied(format(
-    'select projectceo_product_api.publish_work_package_release_request_bound(%L,%L,%L,%L,%L,%L,%L)',
-    p,k,b,previous,s-1,'native81-stale-state','native81-stale-state'),'P1107');
+    'select projectceo_product_api.publish_native_m3_release_request_bound(%L,%L,%L,%L,%L,%L,%L,%L)',
+    p,k,b,previous,s-1,observed->>'contextDigest','native81-stale-state','native81-stale-state'),'P1107');
   perform pg_temp.native81_denied(format(
-    'select projectceo_product_api.publish_work_package_release_request_bound(%L,%L,%L,%L,%L,%L,%L)',
-    p,k,'baseline:obsolete',previous,s,'native81-stale-baseline','native81-stale-baseline'),'P1107');
+    'select projectceo_product_api.publish_native_m3_release_request_bound(%L,%L,%L,%L,%L,%L,%L,%L)',
+    p,k,'baseline:obsolete',previous,s,observed->>'contextDigest','native81-stale-baseline','native81-stale-baseline'),'P1107');
   perform pg_temp.native81_denied(format(
-    'select projectceo_product_api.publish_work_package_release_request_bound(%L,%L,%L,%L,%L,%L,%L)',
-    p,k,b,'release:obsolete',s,'native81-stale-previous','native81-stale-previous'),'P1107');
+    'select projectceo_product_api.publish_native_m3_release_request_bound(%L,%L,%L,%L,%L,%L,%L,%L)',
+    p,k,b,'release:obsolete',s,observed->>'contextDigest','native81-stale-previous','native81-stale-previous'),'P1107');
   set local request.jwt.claim.sub='';
   perform pg_temp.native81_denied(format(
-    'select projectceo_product_api.publish_work_package_release_request_bound(%L,%L,%L,%L,%L,%L,%L)',
-    p,k,b,previous,s,'native81-no-actor','native81-no-actor'),'P1101');
+    'select projectceo_product_api.publish_native_m3_release_request_bound(%L,%L,%L,%L,%L,%L,%L,%L)',
+    p,k,b,previous,s,observed->>'contextDigest','native81-no-actor','native81-no-actor'),'P1101');
   set local request.jwt.claim.sub='33333333-3333-4333-8333-333333333333';
   perform pg_temp.native81_denied(format(
-    'select projectceo_product_api.publish_work_package_release_request_bound(%L,%L,%L,%L,%L,%L,%L)',
-    p,k,b,previous,s,'native81-other-org','native81-other-org'),'P1103');
+    'select projectceo_product_api.publish_native_m3_release_request_bound(%L,%L,%L,%L,%L,%L,%L,%L)',
+    p,k,b,previous,s,observed->>'contextDigest','native81-other-org','native81-other-org'),'P1103');
   set local request.jwt.claim.sub='31111111-1111-4111-8111-111111111111';
   perform pg_temp.native81_denied(format(
-    'select projectceo_product_api.publish_work_package_release_request_bound(%L,%L,%L,%L,%L,%L,%L)',
-    p,p,b,previous,s,'native81-root-release','native81-root-release'),'P1109','WORK_PACKAGE_REQUIRED');
+    'select projectceo_product_api.publish_native_m3_release_request_bound(%L,%L,%L,%L,%L,%L,%L,%L)',
+    p,p,b,previous,s,observed->>'contextDigest','native81-root-release','native81-root-release'),'P1109','WORK_PACKAGE_REQUIRED');
   reset role;
   if before_data is distinct from pg_temp.native81_snapshot() then
     raise exception 'DB4_81_STALE_OR_UNAUTHORIZED_RELEASE_WROTE_DATA';
@@ -485,6 +494,10 @@ begin
     raise exception 'DB4_81_GENERIC_FRESH_CONFIRMATION_REFUSAL_WROTE_DATA';
   end if;
 
+  -- Exact replay retains the preview's original state/version coordinates,
+  -- rather than silently substituting today's current head.
+  s := (observed->>'stateRevision')::bigint;
+  previous := observed->>'previousVersionId';
   before_data := pg_temp.native81_snapshot();
   set local role authenticated; set local request.jwt.claim.sub='31111111-1111-4111-8111-111111111111';
   replay := projectceo_product_api.publish_native_m3_release_request_bound(
@@ -604,7 +617,8 @@ begin
     'select projectceo_product_api.publish_work_package_release_request_bound(%L,%L,%L,%L,%L,%L,%L)',
     saved.context#>>'{scope,projectId}',saved.context#>>'{scope,packageId}',
     saved.context->>'baselineId',saved.context->>'previousVersionId',
-    saved.context->>'stateRevision','native81-obsolete-context','native81-obsolete-context'),'P1107');
+    saved.context->>'stateRevision','native81-obsolete-context','native81-obsolete-context'),
+    'P1111','NATIVE_CONTEXT_CONFIRMATION_REQUIRED');
   replay := projectceo_product_api.publish_native_m3_release_request_bound(
     (saved.context#>>'{scope,projectId}')::uuid,(saved.context#>>'{scope,packageId}')::uuid,
     saved.context->>'baselineId',saved.context->>'previousVersionId',
@@ -679,7 +693,8 @@ select 'DB4_NATIVE_M3_DURABLE_SYNTHETIC_FIXTURE_READY' result;
 rollback;
 do $grant_rolled_back$
 begin
-  if has_function_privilege('authenticated','projectceo_m3_api.get_native_m3_release_context(uuid,uuid)','EXECUTE') then
+  if not projectceo_platform.is_module_open('m3')
+    and has_function_privilege('authenticated','projectceo_m3_api.get_native_m3_release_context(uuid,uuid)','EXECUTE') then
     raise exception 'DB4_81_TEST_GRANT_ESCAPED_TRANSACTION';
   end if;
 end $grant_rolled_back$;

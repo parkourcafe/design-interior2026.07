@@ -80,14 +80,12 @@ for sql in \
   "${repo_root}/tests/db4/62_r1_external_annotations.sql" \
   "${repo_root}/tests/db4/63_r1_external_release_attachment_resolver.sql" \
   "${repo_root}/tests/db4/05_m3_publication_guardrail.sql" \
-  "${repo_root}/tests/db4/06_m3_surface_classification.sql" \
   "${repo_root}/tests/db4/07_m4_execution_boundary.sql" \
   "${repo_root}/tests/db4/08_m4_surface_classification.sql" \
   "${repo_root}/tests/db4/55_m4_v2_v3_compatibility.sql" \
   "${repo_root}/tests/ap1/environment/enable-m3-publication.sql" \
   "${repo_root}/tests/ap1/environment/enable-m4-increment-1.sql" \
   "${repo_root}/tests/ap1/environment/enable-m4-v1-impact.sql" \
-  "${repo_root}/tests/db4/10_schema_security.sql" \
   "${repo_root}/tests/db4/20_product_operations.sql" \
   "${repo_root}/tests/db4/62_publish_work_package_release_request_bound.sql" \
   "${repo_root}/tests/db4/30_m2_expansion_operations.sql" \
@@ -150,6 +148,12 @@ for sql in \
     run_file "${sql}"
   fi
 done
+
+# These two schema/matrix checks must observe the final migrated state. In the
+# populated-upgrade mode, 20 deliberately applies the last migrations midway
+# through this list so it can first create a historical release with old bytes.
+run_file "${repo_root}/tests/db4/06_m3_surface_classification.sql"
+run_file "${repo_root}/tests/db4/10_schema_security.sql"
 
 if [[ "${native_fresh}" == 1 ]]; then
   if [[ "${native_runtime}" == 1 ]]; then

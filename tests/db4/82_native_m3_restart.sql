@@ -61,10 +61,10 @@ begin
   live_context := projectceo_m3_api.get_native_m3_release_context(
     (saved.context#>>'{scope,projectId}')::uuid,(saved.context#>>'{scope,packageId}')::uuid)->'data';
   -- Replay ORIGINAL input, deliberately not the current context/state/head.
-  replay := projectceo_product_api.publish_work_package_release_request_bound(
+  replay := projectceo_product_api.publish_native_m3_release_request_bound(
     (saved.context#>>'{scope,projectId}')::uuid,(saved.context#>>'{scope,packageId}')::uuid,
     saved.context->>'baselineId',saved.context->>'previousVersionId',
-    (saved.context->>'stateRevision')::bigint,'native81-release','native81-release');
+    (saved.context->>'stateRevision')::bigint,saved.context->>'contextDigest','native81-release','native81-release');
   reset role;
   if replay is distinct from jsonb_set(saved.response,'{replay}','true'::jsonb)
     or live_context->>'contextDigest' is not distinct from saved.context->>'contextDigest'

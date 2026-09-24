@@ -29,12 +29,22 @@ grant execute on function
   projectceo_product_api.publish_baseline_atomic(uuid, text, text, bigint, text, text),
   projectceo_product_api.publish_release_request_bound(uuid, text, text, bigint, text, text),
   projectceo_product_api.publish_work_package_release_request_bound(uuid, uuid, text, text, bigint, text, text),
-  projectceo_product_api.publish_native_m3_release_request_bound(uuid, uuid, text, text, bigint, text, text, text),
   projectceo_api.review_source(uuid, text, text, bigint, text, text),
   projectceo_m3_api.register_documentation_sheet(uuid, uuid, text, text, text, text, text, text, text[], text, bigint, text),
   projectceo_m3_api.attach_documentation_sheet_specifications(uuid, uuid, text, text, text, text[], text, bigint, text),
   projectceo_product_api.attach_external_release_refs(uuid, uuid, text, text, jsonb, bigint, text)
   to authenticated;
+
+-- Populated-upgrade DB4 applies this script once before the new confirmation
+-- migration and once after it. A production schema always has the function;
+-- this conditional keeps the upgrade rehearsal faithful without inventing it.
+do $native_confirmation_enable$
+begin
+  if to_regprocedure('projectceo_product_api.publish_native_m3_release_request_bound(uuid, uuid, text, text, bigint, text, text, text)') is not null then
+    execute 'grant execute on function projectceo_product_api.publish_native_m3_release_request_bound(uuid, uuid, text, text, bigint, text, text, text) to authenticated';
+  end if;
+end
+$native_confirmation_enable$;
 
 do $enabled$
 declare
@@ -45,7 +55,6 @@ begin
     'projectceo_product_api.publish_baseline_atomic(uuid, text, text, bigint, text, text)',
     'projectceo_product_api.publish_release_request_bound(uuid, text, text, bigint, text, text)',
     'projectceo_product_api.publish_work_package_release_request_bound(uuid, uuid, text, text, bigint, text, text)',
-    'projectceo_product_api.publish_native_m3_release_request_bound(uuid, uuid, text, text, bigint, text, text, text)',
     'projectceo_api.review_source(uuid, text, text, bigint, text, text)',
     'projectceo_m3_api.register_documentation_sheet(uuid, uuid, text, text, text, text, text, text, text[], text, bigint, text)',
     'projectceo_m3_api.attach_documentation_sheet_specifications(uuid, uuid, text, text, text, text[], text, bigint, text)',
@@ -55,6 +64,10 @@ begin
   limit 1;
   if v_missing is not null then
     raise exception 'PROJECTCEO_M3_PUBLICATION_NOT_ENABLED:%', v_missing;
+  end if;
+  if to_regprocedure('projectceo_product_api.publish_native_m3_release_request_bound(uuid, uuid, text, text, bigint, text, text, text)') is not null
+    and not has_function_privilege('authenticated', 'projectceo_product_api.publish_native_m3_release_request_bound(uuid, uuid, text, text, bigint, text, text, text)', 'EXECUTE') then
+    raise exception 'PROJECTCEO_M3_NATIVE_CONFIRMATION_NOT_ENABLED';
   end if;
 end
 $enabled$;

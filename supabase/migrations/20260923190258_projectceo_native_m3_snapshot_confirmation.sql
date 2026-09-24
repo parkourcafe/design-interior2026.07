@@ -2,6 +2,47 @@
 -- Original coordinates are retained by the caller for replay; current state
 -- must not replace them. No second command ledger or revision engine is added.
 begin;
+-- 20260923174529 placed the original engine in projectceo_product and its
+-- native binding wrapper at the public name. Preserve BOTH before replacing
+-- that public name with a replay-only compatibility door.
+alter function projectceo_product.publish_work_package_release_request_bound(
+  uuid,uuid,text,text,bigint,text,text
+) rename to _publish_work_package_release_engine;
+do $rename_engine_self_references$
+declare definition text;
+  anchor text := 'publish_work_package_release_request_bound.';
+begin
+  definition := pg_get_functiondef('projectceo_product._publish_work_package_release_engine(uuid,uuid,text,text,bigint,text,text)'::regprocedure);
+  if (length(definition)-length(replace(definition,anchor,'')))/length(anchor) <> 6 then
+    raise exception 'NATIVE_ENGINE_SELF_REFERENCE_ANCHOR_MISMATCH';
+  end if;
+  execute replace(definition,anchor,'_publish_work_package_release_engine.');
+end
+$rename_engine_self_references$;
+revoke all on function projectceo_product._publish_work_package_release_engine(
+  uuid,uuid,text,text,bigint,text,text
+) from public,anon,authenticated,service_role,pi_human_executor,pi_worker_executor;
+
+do $move_native_binding$
+declare definition text;
+  anchor text := 'projectceo_product.publish_work_package_release_request_bound(';
+begin
+  definition := pg_get_functiondef('projectceo_product_api.publish_work_package_release_request_bound(uuid,uuid,text,text,bigint,text,text)'::regprocedure);
+  -- The native binding invokes the engine once for a new publication and once
+  -- for its exact replay branch. Both must remain private after the move.
+  if (length(definition)-length(replace(definition,anchor,'')))/length(anchor) <> 2 then
+    raise exception 'NATIVE_BINDING_ENGINE_ANCHOR_MISMATCH';
+  end if;
+  execute replace(definition,anchor,'projectceo_product._publish_work_package_release_engine(');
+end
+$move_native_binding$;
+alter function projectceo_product_api.publish_work_package_release_request_bound(
+  uuid,uuid,text,text,bigint,text,text
+) set schema projectceo_product;
+revoke all on function projectceo_product.publish_work_package_release_request_bound(
+  uuid,uuid,text,text,bigint,text,text
+) from public,anon,authenticated,service_role,pi_human_executor,pi_worker_executor;
+
 -- The historical no-digest public signature stays callable only as an exact
 -- replay. Fresh publication through Data API must use the confirmation door
 -- below. The actual engine has already moved to the private schema.
@@ -45,6 +86,7 @@ create function projectceo_product_api.publish_native_m3_release_request_bound(
 #variable_conflict use_variable
 declare ctx record; result jsonb; saved_digest text; v_key_digest bytea;
   has_existing_replay boolean; current_context jsonb;
+  locked_state bigint;
 begin
   if expected_context_digest is null or expected_context_digest !~ '^sha256:[0-9a-f]{64}$' then
     perform projectceo_product._raise('P1111','validation_failed','{"reason":"NATIVE_CONTEXT_DIGEST_INVALID"}');
@@ -52,12 +94,23 @@ begin
   select * into strict ctx from projectceo_foundation._authorize_package_human(
     project_id,package_id,'publish_release');
   perform projectceo_foundation._assert_idempotency_key(idempotency_key);
+  -- Serialize classification with the binding engine. Without this lock, a
+  -- concurrent same-key retry can inspect pre-commit context and refuse before
+  -- the first transaction's command record becomes replayable.
+  select workflow.state_revision into strict locked_state
+    from project_intelligence.project_workflows workflow
+    where workflow.organization_id=ctx.organization_id
+      and workflow.project_id=publish_native_m3_release_request_bound.project_id
+    for update;
   v_key_digest := project_intelligence._sha256_text(btrim(idempotency_key));
   select exists(select 1 from projectceo_product.command_records record
     where record.organization_id=ctx.organization_id and record.project_id=publish_native_m3_release_request_bound.project_id
       and record.operation='publish_work_package_release_request_bound' and record.key_digest=v_key_digest)
     into has_existing_replay;
   if not has_existing_replay then
+    if locked_state is distinct from expected_state_revision then
+      perform projectceo_product._raise('P1107','stale_state',jsonb_build_object('currentStateRevision',locked_state));
+    end if;
     current_context := projectceo_m3_api.get_native_m3_release_context(project_id,package_id)->'data';
     if current_context->'structurallyComplete' is distinct from 'true'::jsonb then
       perform projectceo_product._raise('P1111','validation_failed','{"reason":"NATIVE_M3_CONTEXT_INCOMPLETE"}');
@@ -66,7 +119,7 @@ begin
       perform projectceo_product._raise('P1107','stale_state','{"reason":"NATIVE_CONTEXT_DIGEST_MISMATCH"}');
     end if;
   end if;
-  -- The existing public engine reauthorizes, locks workflow + authority rows,
+  -- The preserved private native binding reauthorizes, locks workflow + authority rows,
   -- handles exact actor/request replay, validates native completeness and the
   -- impact gate, and atomically saves the release and its context.
   result := projectceo_product.publish_work_package_release_request_bound(
@@ -114,7 +167,7 @@ begin
   if (length(definition)-length(replace(definition,anchor,'')))/length(anchor) <> 1 then
     raise exception 'NATIVE_M3_MODULE_SIGNATURE_ANCHOR_MISMATCH';
   end if;
-  execute replace(definition,anchor,anchor || E'\n      ''projectceo_product_api.publish_native_m3_release_request_bound(uuid, uuid, text, text, bigint, text, text, text)'',');
+  execute replace(definition,anchor,anchor || E'\n      ''projectceo_product_api.publish_native_m3_release_request_bound(uuid, uuid, text, text, bigint, text, text, text)'',\n      ''projectceo_m3_api.get_native_m3_release_context(uuid, uuid)'',');
 end
 $m3_module_signature$;
 commit;
