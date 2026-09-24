@@ -1,5 +1,36 @@
 # WP-32 — local disposable preflight evidence
 
+## WP-32 acceptance scope — authoritative checkpoint 2026-09-24
+
+This list consolidates the already approved scope; it does not add product
+features or reduce the external acceptance requirement.
+
+**In scope:** authenticated organization/project/work-package enrollment and
+separate role sessions; exact real source bytes, server checksum, AV receipt,
+child-package source materialization and provenance; M2 decision/client approval
+and exact persisted M2→M3 handoff; native selected-child M3 sheet/specification
+coverage, completeness, baseline and immutable release; M4 distribution,
+recipient acknowledgement, change, policy-bound complete impact, photo evidence
+review and milestone acceptance; replay, tenancy/capability negatives, immutable
+audit, concurrency/restart proof, sanitized exact-SHA finalizer receipt and green
+Cycle7 gate; disposable cleanup.
+
+**Out of scope:** merge, deploy, shared/production mutation, hosted adoption,
+production Gate0 activation, billing/payment, legal/data-plane approval, automatic
+CI/Vercel, CAD/BIM authoring, ERP/accounting/warehouse/marketplace, and M4 handover
+archive finalization beyond the required milestone acceptance. These are separate
+owner gates or later packages and cannot be inferred from WP-32 PASS.
+
+| Requirement | Current evidence | Status |
+|---|---|---|
+| Authenticated scoped enrollment and role isolation | DB77/78, AP5 historical local receipts, explicit inactive restore contract | VERIFIED local/disposable |
+| Real source bytes → CLEAN → child source snapshot |32-file corpus;51/51 two-file bound intake/publication;46/46 child snapshot | VERIFIED for two selected real files; not full content review |
+| External M2 decisions/approval/exact handoff | External five-operation receipt and strict source-readiness checks | PARTIAL — tracked Tashkent metadata is not bound to current32-file corpus |
+| Native selected-child M3 completeness/baseline/release | HTTP confirmation, immutable context, second release/races/restart PG16/17 | VERIFIED synthetic/local contracts; real content-driven native release still open |
+| External M4 distribution through milestone acceptance | Supported Kora disposable chain only | NOT_COMPLETE for external package |
+| Finalizer and Cycle7 on exact candidate SHA | Refuses M2-only and metadata-only receipts | NOT_COMPLETE — native external runtime receipt required |
+| Hosted/production launch | Explicitly outside WP-32 | NOT_CLOSED / separate owner gate |
+
 ## Retention clarification DEC-040 — 2026-09-24
 
 Status: **OWNER DECISION RECORDED; LOCAL DRY-RUN POLICY PASS**.
