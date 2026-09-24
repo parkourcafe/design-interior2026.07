@@ -16,6 +16,14 @@
     {
       "path": "tests/pilot-evidence/executors/external-package-runner.zsh",
       "digest": "sha256:434d136440106668a319d5da44760836bde23f39880d60024b827c33760dafff"
+    },
+    {
+      "path": "tests/pilot-evidence/executors/wp32-external-runtime-runner.mjs",
+      "digest": "sha256:a4057c8965dab2a0961ca88969a66614d5a4e5eb2c44e528fbfe4e5c280993ca"
+    },
+    {
+      "path": "tests/pilot-evidence/executors/wp32-bound-scanner.ts",
+      "digest": "sha256:1fb733ec5ad7cdc75e1b347f30344429f4b00aa4c7a0160f9c8fa7a7f40226bf"
     }
   ]
 }
