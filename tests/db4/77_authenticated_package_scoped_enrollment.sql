@@ -15,6 +15,37 @@ insert into public.projects(id,designer_id,client_name,intake_token) values
 
 create temporary table enrollment_77(result jsonb, state_revision bigint) on commit drop;
 
+do $non_owner_cannot_enroll$
+declare detail text;
+begin
+  set local role authenticated;
+  set local request.jwt.claim.sub='77222222-2222-4222-8222-222222222222';
+  begin
+    perform projectceo_api.enroll_organization_project_scope(
+      '77555555-5555-4555-8555-555555555555','77888888-8888-4888-8888-888888888888',
+      'unauthorized-package','Unauthorized package','[]'::jsonb,'db4-77-non-owner-enroll');
+    raise exception 'DB4_77_NON_OWNER_ENROLLMENT_ACCEPTED';
+  -- Public project RLS intentionally hides another owner's project before the
+  -- internal owner assertion, so the authenticated seam returns not_found
+  -- rather than disclosing project existence through a forbidden reason.
+  exception when sqlstate 'P1104' then
+    get stacked diagnostics detail=pg_exception_detail;
+    if detail::jsonb->>'entity' is distinct from 'project' then raise; end if;
+  end;
+  reset role;
+  if exists(select 1 from project_intelligence.project_workflows
+      where project_id='77555555-5555-4555-8555-555555555555')
+    or exists(select 1 from projectceo_foundation.project_packages
+      where project_id='77555555-5555-4555-8555-555555555555')
+    or exists(select 1 from projectceo_foundation.command_records
+      where project_id='77555555-5555-4555-8555-555555555555')
+    or exists(select 1 from projectceo_foundation.audit_events
+      where project_id='77555555-5555-4555-8555-555555555555') then
+    raise exception 'DB4_77_NON_OWNER_ENROLLMENT_MUTATED_STATE';
+  end if;
+end
+$non_owner_cannot_enroll$;
+
 do $enroll$
 declare
   a jsonb;

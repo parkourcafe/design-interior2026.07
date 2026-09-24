@@ -51,7 +51,7 @@ begin
   select a, state_revision from project_intelligence.project_workflows
   where project_id='77555555-5555-4555-8555-555555555555';
   if b#>>'{result,packageId}' <> '77777777-7777-4777-8777-777777777777' then
-    raise exception 'DB4_77_PACKAGE_B_ENROLLMENT_FAILED:%',b;
+    raise exception 'DB4_78_PACKAGE_B_ENROLLMENT_FAILED:%',b;
   end if;
 end
 $enroll$;
@@ -63,7 +63,7 @@ begin
   if (select count(*) from projectceo_foundation.package_memberships where organization_id=org and project_id='77555555-5555-4555-8555-555555555555' and package_id='77666666-6666-4666-8666-666666666666') <> 3
      or exists(select 1 from projectceo_foundation.project_memberships where organization_id=org and project_id='77555555-5555-4555-8555-555555555555' and user_id in ('77222222-2222-4222-8222-222222222222','77333333-3333-4333-8333-333333333333','77444444-4444-4444-8444-444444444444'))
      or exists(select 1 from projectceo_foundation.package_memberships where organization_id=org and package_id='77777777-7777-4777-8777-777777777777') then
-    raise exception 'DB4_77_MEMBER_SCOPE_ESCALATED';
+    raise exception 'DB4_78_MEMBER_SCOPE_ESCALATED';
   end if;
   if exists (
     select expected.user_id, expected.capability from (values
@@ -72,12 +72,12 @@ begin
       ('77444444-4444-4444-8444-444444444444'::uuid,'view_project'),('77444444-4444-4444-8444-444444444444'::uuid,'review_selection')
     ) expected(user_id,capability)
     where not exists(select 1 from projectceo_foundation.package_member_capabilities actual where actual.organization_id=org and actual.project_id='77555555-5555-4555-8555-555555555555' and actual.package_id='77666666-6666-4666-8666-666666666666' and actual.user_id=expected.user_id and actual.capability=expected.capability)
-  ) then raise exception 'DB4_77_PACKAGE_CAPABILITIES_INCOMPLETE'; end if;
+  ) then raise exception 'DB4_78_PACKAGE_CAPABILITIES_INCOMPLETE'; end if;
   if not exists(select 1 from projectceo_foundation.project_member_capabilities where organization_id=org and project_id='77555555-5555-4555-8555-555555555555' and user_id='77111111-1111-4111-8111-111111111111' and capability='manage_access') then
-    raise exception 'DB4_77_OWNER_PROJECT_SCOPE_MISSING';
+    raise exception 'DB4_78_OWNER_PROJECT_SCOPE_MISSING';
   end if;
   if not exists(select 1 from projectceo_foundation.project_member_capabilities where organization_id=org and project_id='77555555-5555-4555-8555-555555555555' and user_id='77999999-9999-4999-8999-999999999999' and capability='review_source') then
-    raise exception 'DB4_77_PREEXISTING_PROJECT_GRANT_NOT_PRESERVED';
+    raise exception 'DB4_78_PREEXISTING_PROJECT_GRANT_NOT_PRESERVED';
   end if;
 end
 $scope_shape$;
@@ -88,24 +88,24 @@ begin
   set local request.jwt.claim.sub='77111111-1111-4111-8111-111111111111';
   begin
     perform projectceo_api.enroll_organization_project_scope('77555555-5555-4555-8555-555555555555','77888888-8888-4888-8888-888888888888','invalid-null','Invalid null',null,'db4-77-null');
-    raise exception 'DB4_77_NULL_MEMBERS_ACCEPTED';
+    raise exception 'DB4_78_NULL_MEMBERS_ACCEPTED';
   exception when sqlstate 'P1111' then null; end;
   begin
     perform projectceo_api.enroll_organization_project_scope('77555555-5555-4555-8555-555555555555','77888888-8888-4888-8888-888888888888','invalid-duplicate','Invalid duplicate',jsonb_build_array(
       jsonb_build_object('userId','77333333-3333-4333-8333-333333333333','role','builder'),jsonb_build_object('userId','77333333-3333-4333-8333-333333333333','role','builder')),'db4-77-duplicate');
-    raise exception 'DB4_77_DUPLICATE_MEMBER_ACCEPTED';
+    raise exception 'DB4_78_DUPLICATE_MEMBER_ACCEPTED';
   exception when sqlstate 'P1111' then null; end;
   begin
     perform projectceo_api.enroll_organization_project_scope('77555555-5555-4555-8555-555555555555','77888888-8888-4888-8888-888888888888','invalid-role','Invalid role',jsonb_build_array(jsonb_build_object('userId','77333333-3333-4333-8333-333333333333','role','owner_lead')),'db4-77-role');
-    raise exception 'DB4_77_INVALID_ROLE_ACCEPTED';
+    raise exception 'DB4_78_INVALID_ROLE_ACCEPTED';
   exception when sqlstate 'P1111' then null; end;
   begin
     perform projectceo_api.enroll_organization_project_scope('77555555-5555-4555-8555-555555555555','77666666-6666-4666-8666-666666666666','package-a-renamed','Package A','[]'::jsonb,'db4-77-package-identity');
-    raise exception 'DB4_77_PACKAGE_IDENTITY_REPLACED';
+    raise exception 'DB4_78_PACKAGE_IDENTITY_REPLACED';
   exception when sqlstate 'P1109' then null; end;
   begin
     perform projectceo_api.enroll_organization_project_scope('77555555-5555-4555-8555-555555555555','77666666-6666-4666-8666-666666666666','package-a','Package A',jsonb_build_array(jsonb_build_object('userId','77333333-3333-4333-8333-333333333333','role','architect')),'db4-77-package-role-conflict');
-    raise exception 'DB4_77_PACKAGE_ROLE_REPLACED';
+    raise exception 'DB4_78_PACKAGE_ROLE_REPLACED';
   exception when sqlstate 'P1109' then null; end;
   reset role;
 end
@@ -118,9 +118,9 @@ begin
   foreach actor in array array['77222222-2222-4222-8222-222222222222'::uuid,'77333333-3333-4333-8333-333333333333'::uuid,'77444444-4444-4444-8444-444444444444'::uuid] loop
     perform set_config('request.jwt.claim.sub',actor::text,true);
     value := projectceo_read_api.get_project_workspace_read('77555555-5555-4555-8555-555555555555','77666666-6666-4666-8666-666666666666');
-    if value#>>'{scope,packageId}' <> '77666666-6666-4666-8666-666666666666' then raise exception 'DB4_77_PACKAGE_A_READ_FAILED:%',actor; end if;
-    begin perform projectceo_read_api.get_project_workspace_read('77555555-5555-4555-8555-555555555555','77777777-7777-4777-8777-777777777777'); raise exception 'DB4_77_PACKAGE_B_READ_ESCALATED:%',actor; exception when sqlstate 'P1103' then null; end;
-    begin perform projectceo_read_api.get_project_workspace_read('77555555-5555-4555-8555-555555555555',null); raise exception 'DB4_77_PROJECT_READ_ESCALATED:%',actor; exception when sqlstate 'P1103' then null; end;
+    if value#>>'{scope,packageId}' <> '77666666-6666-4666-8666-666666666666' then raise exception 'DB4_78_PACKAGE_A_READ_FAILED:%',actor; end if;
+    begin perform projectceo_read_api.get_project_workspace_read('77555555-5555-4555-8555-555555555555','77777777-7777-4777-8777-777777777777'); raise exception 'DB4_78_PACKAGE_B_READ_ESCALATED:%',actor; exception when sqlstate 'P1103' then null; end;
+    begin perform projectceo_read_api.get_project_workspace_read('77555555-5555-4555-8555-555555555555',null); raise exception 'DB4_78_PROJECT_READ_ESCALATED:%',actor; exception when sqlstate 'P1103' then null; end;
   end loop;
   perform set_config('request.jwt.claim.sub','77999999-9999-4999-8999-999999999999',true);
   perform projectceo_read_api.get_project_workspace_read('77555555-5555-4555-8555-555555555555',null);
@@ -142,11 +142,11 @@ begin
     jsonb_build_object('userId','77222222-2222-4222-8222-222222222222','role','architect'),jsonb_build_object('userId','77333333-3333-4333-8333-333333333333','role','builder'),jsonb_build_object('userId','77444444-4444-4444-8444-444444444444','role','client_approver')),'db4-77-package-a');
   reset role;
   select state_revision into after_state from project_intelligence.project_workflows where project_id='77555555-5555-4555-8555-555555555555';
-  if replayed->'result' is distinct from original->'result' or replayed->>'replay' <> 'true' or after_state <> before_state then raise exception 'DB4_77_REPLAY_CHANGED_STATE'; end if;
+  if replayed->'result' is distinct from original->'result' or replayed->>'replay' <> 'true' or after_state <> before_state then raise exception 'DB4_78_REPLAY_CHANGED_STATE'; end if;
   begin
     set local role authenticated; set local request.jwt.claim.sub='77111111-1111-4111-8111-111111111111';
     perform projectceo_api.enroll_organization_project_scope('77555555-5555-4555-8555-555555555555','77666666-6666-4666-8666-666666666666','package-a','Changed','[]'::jsonb,'db4-77-package-a');
-    raise exception 'DB4_77_CHANGED_PAYLOAD_ACCEPTED';
+    raise exception 'DB4_78_CHANGED_PAYLOAD_ACCEPTED';
   exception when sqlstate 'P1108' then null; end;
 end
 $replay$;
@@ -170,12 +170,12 @@ begin
   end loop;
   reset role; select state_revision into before_s from project_intelligence.project_workflows where project_id='77555555-5555-4555-8555-555555555555';
   set local role authenticated; set local request.jwt.claim.sub='77444444-4444-4444-8444-444444444444';
-  begin perform projectceo_product_api.review_approval_package('77555555-5555-4555-8555-555555555555','approval-77-b','submitted','approved','Sibling denied',before_s,'db4-77-review-b'); raise exception 'DB4_77_SIBLING_REVIEWED'; exception when sqlstate 'P1103' then null; end;
+  begin perform projectceo_product_api.review_approval_package('77555555-5555-4555-8555-555555555555','approval-77-b','submitted','approved','Sibling denied',before_s,'db4-77-review-b'); raise exception 'DB4_78_SIBLING_REVIEWED'; exception when sqlstate 'P1103' then null; end;
   set local request.jwt.claim.sub='77333333-3333-4333-8333-333333333333';
-  begin perform projectceo_product_api.review_approval_package('77555555-5555-4555-8555-555555555555','approval-77-a','submitted','approved','Builder denied',before_s,'db4-77-review-builder'); raise exception 'DB4_77_BUILDER_REVIEWED'; exception when sqlstate 'P1103' then null; end;
+  begin perform projectceo_product_api.review_approval_package('77555555-5555-4555-8555-555555555555','approval-77-a','submitted','approved','Builder denied',before_s,'db4-77-review-builder'); raise exception 'DB4_78_BUILDER_REVIEWED'; exception when sqlstate 'P1103' then null; end;
   reset role;
   set local request.jwt.claim.sub='';
-  begin perform projectceo_product_api.review_approval_package('77555555-5555-4555-8555-555555555555','approval-77-a','submitted','approved','Anon denied',before_s,'db4-77-review-anon'); raise exception 'DB4_77_ANON_REVIEWED'; exception when sqlstate 'P1101' then null; end;
+  begin perform projectceo_product_api.review_approval_package('77555555-5555-4555-8555-555555555555','approval-77-a','submitted','approved','Anon denied',before_s,'db4-77-review-anon'); raise exception 'DB4_78_ANON_REVIEWED'; exception when sqlstate 'P1101' then null; end;
   set local role authenticated; set local request.jwt.claim.sub='77444444-4444-4444-8444-444444444444';
   first:=projectceo_product_api.review_approval_package('77555555-5555-4555-8555-555555555555','approval-77-a','submitted','approved','Client approves A',before_s,'db4-77-review-a');
   reset role; select state_revision into after_s from project_intelligence.project_workflows where project_id='77555555-5555-4555-8555-555555555555';
@@ -185,8 +185,8 @@ begin
   reset role;
   if after_s<>before_s+1 or e<>1 or replayed->'result' is distinct from first->'result' or replayed->>'replay'<>'true'
     or (select state_revision from project_intelligence.project_workflows where project_id='77555555-5555-4555-8555-555555555555')<>after_s
-    or (select count(*) from projectceo_product.approval_package_events where project_id='77555555-5555-4555-8555-555555555555' and approval_package_id='approval-77-a' and to_status='approved')<>e then raise exception 'DB4_77_REVIEW_REPLAY_INVALID'; end if;
-  begin set local role authenticated; set local request.jwt.claim.sub='77444444-4444-4444-8444-444444444444'; perform projectceo_product_api.review_approval_package('77555555-5555-4555-8555-555555555555','approval-77-a','submitted','approved','Changed',before_s,'db4-77-review-a'); raise exception 'DB4_77_REVIEW_CHANGED_ACCEPTED'; exception when sqlstate 'P1108' then null; end;
+    or (select count(*) from projectceo_product.approval_package_events where project_id='77555555-5555-4555-8555-555555555555' and approval_package_id='approval-77-a' and to_status='approved')<>e then raise exception 'DB4_78_REVIEW_REPLAY_INVALID'; end if;
+  begin set local role authenticated; set local request.jwt.claim.sub='77444444-4444-4444-8444-444444444444'; perform projectceo_product_api.review_approval_package('77555555-5555-4555-8555-555555555555','approval-77-a','submitted','approved','Changed',before_s,'db4-77-review-a'); raise exception 'DB4_78_REVIEW_CHANGED_ACCEPTED'; exception when sqlstate 'P1108' then null; end;
   reset role;
 end
 $approval_review$;

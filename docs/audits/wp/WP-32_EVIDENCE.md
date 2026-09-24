@@ -1,5 +1,13 @@
 # WP-32 — local disposable preflight evidence
 
+## PR208 enrollment negative and DB78 diagnostics — 2026-09-24
+
+Status: **LOCAL DB4 CONTRACT PASS**.
+
+- ИЗВЛЕЧЕНО: DB77 now exercises an authenticated non-owner attempting `enroll_organization_project_scope` and requires zero workflow/package/command/audit mutation. The actual public seam returns `P1104/not_found` because `public.projects` RLS hides another owner's project before the internal `LEGACY_PROJECT_OWNER_REQUIRED` assertion. The task's proposed P1103 reason is therefore not reachable without privileged RLS bypass; retaining not-found prevents project enumeration and is the safer contract.
+- ИЗВЛЕЧЕНО: every diagnostic exception marker in DB78 now uses its own `DB4_78_*` prefix; assertions and SQL behavior are unchanged. Full DB4 PG16 passed with `DB4_AUTHENTICATED_PACKAGE_SCOPED_ENROLLMENT_OK`, `DB4_PACKAGE_BOUND_APPROVAL_REVIEW_OK` and final `DB4_PRODUCT_BRAIN_HARNESS_OK`. Log SHA256 `bb4a9c51fc24e2f4b30a3f39cbbe743906a32f13f2b62b24d755d1f8727a90b9`; disposable Docker was empty after completion.
+- НЕ ПОДТВЕРЖДЕНО: this SQL-role/claim scenario is not a hosted browser/Auth proof. It establishes the database authorization response and absence of mutations.
+
 ## Inactive package member restoration — 2026-09-24
 
 Status: **LOCAL AUTHORIZATION CONTRACT PASS; hosted Auth remains separate**.
