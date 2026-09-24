@@ -1,5 +1,15 @@
 # WP-32 — local disposable preflight evidence
 
+## Inactive package member restoration — 2026-09-24
+
+Status: **LOCAL AUTHORIZATION CONTRACT PASS; hosted Auth remains separate**.
+
+- ИЗВЛЕЧЕНО: owner confirmed verbatim: «Подтверждаю: отозванный доступ не восстанавливается автоматически. Возврат выполняется отдельным аудируемым действием». Additive migration `20260924022328_projectceo_package_member_restore.sql` moves the earlier enrollment implementation behind a revoked private delegate. The unchanged public enrollment signature now rolls back and refuses `P1109/PACKAGE_MEMBER_INACTIVE_RESTORE_REQUIRED` whenever a requested member retains inactive organization or package membership; it cannot return a false `project_scope_enrolled` success.
+- ИЗВЛЕЧЕНО: new authenticated RPC `restore_package_member_access` requires current project-wide `manage_access`, exact project/package/member/role and expected workflow revision. It locks the workflow and membership rows, rejects role replacement, stale state, non-owner callers and a second active restore, preserves the existing capability rows, prevents organization reactivation when other active scopes require reconciliation, and writes one idempotent command plus one `package_member_access_restored` audit event. The private delegate is denied to all runtime roles; the public restore RPC is granted only to `authenticated`.
+- ИЗВЛЕЧЕНО: TDD red run reproduced the defect exactly: DB77 stopped at `DB4_77_INACTIVE_PACKAGE_MEMBER_ENROLLMENT_ACCEPTED`; log SHA256 `aee338d3c514bd0031bddee715b5193b1152431b37d3b7ed46f698ef8edd3587`. Final full DB4 passed on PG16 (`207157d4cd944fd9759a398865074fa4cb9ca741a5ba44efd55d93750126f5a6`) and PG17 (`6284c057aa977ed9ea84e9ac46cb962f4230732a55fb40929b6aea6520114690`), including restore denial/replay/audit exactly-once and the existing restart/concurrency suite. Full DB5 compatibility passed on PG16 (`9cb23b9c16104d472787f4d90d2fd1c6a2f6b3567ac20c66f5618c5bc2f6c2af`) and PG17 (`b67fc2affa40058cab0e4190c3e0453f7d4e2f9dde9a55503da088be0fb916bd`). Layout migration inventory7/7, typecheck, ledger, shell syntax and diff checks passed. All owned containers were removed; no production/shared state or real member access changed.
+- ИЗВЛЕЧЕНО: Codex Security diff scan `3f43fff2-f14a-49cd-bb3a-ed199e56e057` reviewed immutable range `631b4c5..a7f2620`, reported complete coverage of enrollment, restoration, ACL and idempotency/audit surfaces, and produced zero findings. Review used the parent fallback because delegated workers were unavailable; Daybreak protected-output access was not granted. Hosted/production behavior was explicitly excluded.
+- НЕ ПОДТВЕРЖДЕНО: a production revocation RPC does not yet exist, so DB77 creates the inactive state by rollback-only direct fixture update. This proves enrollment/restore behavior from that state, not an end-user revocation UI or hosted Auth session revocation. Those remain separate scope.
+
 ## Native M3 HTTP confirmation boundary — 2026-09-24
 
 Status: **LOCAL SQL + route-contract PASS; external authenticated E2E remains open**.
