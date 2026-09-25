@@ -211,7 +211,6 @@ try {
   selectedSources = sources;
   report.harnessSha256 = sha(readFileSync(new URL(import.meta.url)));
   report.scannerHarnessSha256 = sha(readFileSync(`${cwd}/tests/pilot-evidence/executors/wp32-bound-scanner.ts`));
-  report.anchorParserSha256=sha(readFileSync('/private/tmp/wp32-source-anchor.py'));
   report.lockfileSha256 = sha(readFileSync(`${cwd}/package-lock.json`));
   report.candidateFiles = Object.fromEntries([
     'tests/ap1/environment/register-bound-child-source.ts',

@@ -19,7 +19,7 @@
     },
     {
       "path": "tests/pilot-evidence/executors/wp32-external-runtime-runner.mjs",
-      "digest": "sha256:a4057c8965dab2a0961ca88969a66614d5a4e5eb2c44e528fbfe4e5c280993ca"
+      "digest": "sha256:41f894e7a97355c2b841af14863e8c11dc9a73dd545c81915e33e33a627c9043"
     },
     {
       "path": "tests/pilot-evidence/executors/wp32-bound-scanner.ts",
