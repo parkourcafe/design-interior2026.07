@@ -27,6 +27,7 @@ git -C "${repo_root}" diff --quiet || {
 
 export DOCKER_HOST="${docker_host}"
 zsh "${repo_root}/tests/ap1/environment/run-local.zsh" dispose >/dev/null 2>&1 || true
+zsh "${repo_root}/tests/ap1/environment/bootstrap-wp32-clamav-bundle.zsh"
 cd "${repo_root}"
 ./node_modules/.bin/tsx tests/pilot-evidence/finalize-wp32-external-runtime-cli.ts "${output_path}"
 print -r -- "WP32_FINALIZER_PASS receipt=${output_path}"
