@@ -5,7 +5,9 @@ import { describe, expect, it } from "vitest";
 import {
   assertExactPackageScope,
   can,
+  canInScope,
   capabilitiesForRole,
+  capabilitiesForScope,
   visibleTabsForRole,
 } from "../../components/projectceo/role-policy";
 import { loadSanitizedRoleMatrixForTest } from "./role-harness";
@@ -22,6 +24,51 @@ function capabilitiesFromMigration(dbRole: string): string[] {
   if (!match?.[1]) throw new Error(`role ${dbRole} missing from capability migration`);
   return [...match[1].matchAll(/'([^']+)'/g)].map(([ , capability ]) => capability!);
 }
+
+const packageMigration = readFileSync(join(
+  process.cwd(),
+  "supabase/migrations/20260802090000_projectceo_m2_client_review_m3_handoff.sql",
+), "utf8");
+
+function packageCapabilitiesFromMigration(dbRole: string): string[] {
+  const body = packageMigration.slice(
+    packageMigration.indexOf("function projectceo_foundation._package_role_capabilities"),
+  );
+  const match = body.match(new RegExp(
+    `when '${dbRole}' then array\\[([\\s\\S]*?)\\]::text\\[\\]`,
+  ));
+  if (!match?.[1]) throw new Error(`package role ${dbRole} missing from capability migration`);
+  return [...match[1].matchAll(/'([^']+)'/g)].map(([ , capability ]) => capability!);
+}
+
+describe("ProjectCEO package-scoped capability template (DEC-040)", () => {
+  it("mirrors _package_role_capabilities exactly for every package role", () => {
+    const roleMap = { architect: "architect", builder: "builder", client: "client_approver" } as const;
+    for (const [uiRole, dbRole] of Object.entries(roleMap) as Array<[
+      keyof typeof roleMap,
+      (typeof roleMap)[keyof typeof roleMap],
+    ]>) {
+      expect([...capabilitiesForScope(uiRole, "package")], uiRole)
+        .toEqual(packageCapabilitiesFromMigration(dbRole));
+    }
+  });
+
+  it("keeps the package architect at six minimal rights", () => {
+    expect(capabilitiesForScope("architect", "package")).toEqual([
+      "view_project",
+      "register_source",
+      "acknowledge_release",
+      "create_change",
+      "upload_photo_evidence",
+      "review_milestone",
+    ]);
+    for (const capability of ["publish_baseline", "publish_release", "manage_budget", "distribute_release"] as const) {
+      expect(canInScope("architect", capability, "package"), capability).toBe(false);
+      expect(canInScope("architect", capability, "project"), capability).toBe(true);
+    }
+    expect(capabilitiesForScope("owner", "package")).toEqual([]);
+  });
+});
 
 describe("ProjectCEO role-scoped UI policy", () => {
   it("reserves project and access management for owner", () => {

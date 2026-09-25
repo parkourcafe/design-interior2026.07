@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createRegionalPublicTokenClient } from "@/lib/supabase/regional-admin";
 import { getProjectByIntakeToken } from "@/lib/intake";
+import { INTAKE_OPEN_STATUSES, isIntakeOpen } from "@/lib/intake-status";
 import { runRiskPipeline } from "@/lib/brief/pipeline";
 import { checkRateLimit, clientIp } from "@/lib/rate-limit";
 import type { AnswersMap, RiskCard } from "@/lib/types";
@@ -25,6 +26,11 @@ export async function POST(request: Request) {
   };
   const project = await getProjectByIntakeToken(body.token ?? "");
   if (!project) return NextResponse.json({ error: "not_found" }, { status: 404 });
+  // Повторная отправка после завершения брифа запрещена: иначе она откатывает
+  // статус проекта и затирает принятые дизайнером карточки рисков.
+  if (!isIntakeOpen(project.status)) {
+    return NextResponse.json({ error: "already_submitted" }, { status: 409 });
+  }
 
   const answers = body.answers ?? {};
   const admin = createRegionalPublicTokenClient(project.cellCode, "intake-submit");
@@ -54,8 +60,17 @@ export async function POST(request: Request) {
     };
     const contactName = passport.contact?.name?.trim();
     if (contactName) update.client_name = contactName;
-    const savedProject = await admin.from("projects").update(update).eq("id", project.id);
+    // Условный переход закрывает гонку двух параллельных отправок: только
+    // одна из них застанет открытый статус и дойдёт до пересборки карточек.
+    const savedProject = await admin.from("projects").update(update)
+      .eq("id", project.id)
+      .in("status", [...INTAKE_OPEN_STATUSES])
+      .select("id")
+      .maybeSingle();
     if (savedProject.error) throw new Error("passport_failed");
+    if (!savedProject.data) {
+      return NextResponse.json({ error: "already_submitted" }, { status: 409 });
+    }
 
     // B1 (Фаза 2): миграция 20260829074543 создаёт неизменяемую ревизию
     // атомарно тем же UPDATE. Маршрут не получает прямого доступа к закрытому

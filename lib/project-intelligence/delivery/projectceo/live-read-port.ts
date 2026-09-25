@@ -56,7 +56,7 @@ import {
   type UiError,
 } from "@/components/projectceo/contracts";
 import type { ProjectCeoUiReadPort } from "@/components/projectceo/port";
-import { capabilitiesForRole, can } from "@/components/projectceo/role-policy";
+import { can, canInScope, capabilitiesForScope } from "@/components/projectceo/role-policy";
 import { ru } from "@/lib/i18n/ru";
 import { reviewPackageCompleteness } from "../../modules/documentation";
 import { isDocumentationModuleEnabled } from "./documentation-flag";
@@ -193,7 +193,8 @@ function actorFor(
     displayName: identity.displayName,
     projectId: entry.projectId,
     packageId: entry.accessScope === "package" ? entry.packageId ?? null : null,
-    capabilities: capabilitiesForRole(role),
+    // Пакетный участник получает только пакетный шаблон прав (DEC-040).
+    capabilities: capabilitiesForScope(role, entry.accessScope === "package" ? "package" : "project"),
   };
 }
 
@@ -1112,8 +1113,14 @@ function operationStates(input: {
     ?? isDocumentationModuleEnabled();
   const executionEnabled = input.executionEnabled ?? isExecutionModuleEnabled();
   const executionV2V3Enabled = input.executionV2V3Enabled ?? isExecutionV2V3Enabled();
+  // База выдаёт пакетному участнику только пакетный шаблон (DEC-040): без
+  // этого поверхность предлагала бы пакетному architect publish_release, а
+  // база отклоняла бы P1103.
+  const allowed = (capability: Parameters<typeof can>[1]): boolean => canInScope(
+    input.role, capability, input.hasProjectScope ? "project" : "package",
+  );
   const supportsProjectScope = (capability: Parameters<typeof can>[1]): ProjectCeoOperationState => (
-    input.hasProjectScope && can(input.role, capability)
+    input.hasProjectScope && allowed(capability)
       ? { status: "available" }
       : unavailable("capability_missing")
   );
@@ -1276,19 +1283,19 @@ function operationStates(input: {
     }
   }
   const states: ProjectCeoOperationStates = {
-    create_project_fact: m1InternalRole && can(input.role, "review_source")
+    create_project_fact: m1InternalRole && allowed("review_source")
       ? { status: "available" }
       : unavailable("capability_missing"),
-    create_approval_request: m1InternalRole && can(input.role, "view_project")
+    create_approval_request: m1InternalRole && allowed("view_project")
       ? { status: "available" }
       : unavailable("capability_missing"),
-    submit_approval_request: m1InternalRole && can(input.role, "view_project")
+    submit_approval_request: m1InternalRole && allowed("view_project")
       ? draftApprovalRequest
         ? { status: "available", commandTargetId: draftApprovalRequest.id }
         : unavailable("prerequisite_missing")
       : unavailable("capability_missing"),
     decide_approval_request: m1InternalRole
-      && (can(input.role, "review_claim") || can(input.role, "review_selection"))
+      && (allowed("review_claim") || allowed("review_selection"))
       ? submittedApprovalRequest
         ? { status: "available", commandTargetId: submittedApprovalRequest.id }
         : unavailable("prerequisite_missing")
@@ -1301,7 +1308,7 @@ function operationStates(input: {
     // Пока модуль 3 выключен, поверхности нет ни у кого (A5 §4.2.2).
     register_source: !documentationEnabled
       ? unavailable("module_disabled")
-      : can(input.role, "register_source")
+      : allowed("register_source")
         ? { status: "available" }
         : unavailable("capability_missing"),
     // Решение по источнику пишется через review_claim, и RPC требует именно
@@ -1313,7 +1320,7 @@ function operationStates(input: {
     // API, не находился PostgREST и выходил наружу как 500: это поймал AP5.
     review_source: !documentationEnabled
       ? unavailable("module_disabled")
-      : can(input.role, "review_claim") && can(input.role, "review_source")
+      : allowed("review_claim") && allowed("review_source")
         ? pendingSourceRevisionId ? {
             status: "available",
             commandTargetId: pendingSourceRevisionId,
@@ -1325,44 +1332,44 @@ function operationStates(input: {
     // чего, и предлагать её было бы обещанием отказа.
     register_documentation_sheet: !documentationEnabled
       ? unavailable("module_disabled")
-      : can(input.role, "prepare_client_handoff")
+      : allowed("prepare_client_handoff")
         ? publishedDocumentationHandoff ? { status: "available" }
           : unavailable("prerequisite_missing")
         : unavailable("capability_missing"),
     attach_documentation_sheet_specifications: !documentationEnabled
       ? unavailable("module_disabled")
-      : can(input.role, "prepare_client_handoff")
+      : allowed("prepare_client_handoff")
         ? hasDocumentationSheet ? { status: "available" }
           : unavailable("prerequisite_missing")
         : unavailable("capability_missing"),
-    create_decision: can(input.role, "revise_decision")
+    create_decision: allowed("revise_decision")
       ? { status: "available" }
       : unavailable("capability_missing"),
-    create_selection: can(input.role, "create_selection")
+    create_selection: allowed("create_selection")
       ? { status: "available" }
       : unavailable("capability_missing"),
-    create_m2_room: can(input.role, "revise_decision")
+    create_m2_room: allowed("revise_decision")
       ? { status: "available" }
       : unavailable("capability_missing"),
-    create_m2_variant: can(input.role, "revise_decision")
+    create_m2_variant: allowed("revise_decision")
       ? { status: "available" }
       : unavailable("capability_missing"),
-    create_m2_material: can(input.role, "create_selection")
+    create_m2_material: allowed("create_selection")
       ? { status: "available" }
       : unavailable("capability_missing"),
-    set_m2_budget: can(input.role, "manage_budget")
+    set_m2_budget: allowed("manage_budget")
       ? { status: "available" }
       : unavailable("capability_missing"),
-    create_m2_client_handoff: can(input.role, "prepare_client_handoff")
+    create_m2_client_handoff: allowed("prepare_client_handoff")
       ? { status: "available" }
       : unavailable("capability_missing"),
-    create_approval_package: can(input.role, "review_claim")
+    create_approval_package: allowed("review_claim")
       ? { status: "available" }
       : unavailable("capability_missing"),
-    submit_approval_package: can(input.role, "review_claim")
+    submit_approval_package: allowed("review_claim")
       ? hasDraftApproval ? { status: "available" } : unavailable("prerequisite_missing")
       : unavailable("capability_missing"),
-    review_selection: can(input.role, "review_selection")
+    review_selection: allowed("review_selection")
       ? hasSubmittedApproval ? { status: "available" } : unavailable("prerequisite_missing")
       : unavailable("capability_missing"),
     // `read_contract_pending` здесь стоял до 10.08.2026 и означал честное «мы
@@ -1379,7 +1386,7 @@ function operationStates(input: {
     // модуле — сильнейшая операция мимо собственного выключателя.
     publish_baseline: !documentationEnabled
       ? unavailable("module_disabled")
-      : can(input.role, "publish_baseline")
+      : allowed("publish_baseline")
         ? approvalSupersededEntities.length === 0 && baselineSnapshotToken ? {
             status: "available",
             commandTargetId: baselineSnapshotToken,
@@ -1390,25 +1397,25 @@ function operationStates(input: {
     // `prerequisite_missing`, а не кнопка, которую отвергнет база.
     publish_release: !documentationEnabled
       ? unavailable("module_disabled")
-      : can(input.role, "publish_release")
+      : allowed("publish_release")
         ? releaseSnapshotToken ? {
             status: "available",
             commandTargetId: releaseSnapshotToken,
           } : unavailable("prerequisite_missing")
         : unavailable("capability_missing"),
-    distribute_release: can(input.role, "distribute_release")
+    distribute_release: allowed("distribute_release")
       ? distributableVersionId ? {
           status: "available",
           commandTargetId: distributableVersionId,
         } : unavailable("prerequisite_missing")
       : unavailable("capability_missing"),
-    acknowledge_release: can(input.role, "acknowledge_release")
+    acknowledge_release: allowed("acknowledge_release")
       ? pendingDistribution ? {
           status: "available",
           commandTargetId: pendingDistribution.distributionId,
         } : unavailable("prerequisite_missing")
       : unavailable("capability_missing"),
-    create_change: input.role === "builder" && can(input.role, "create_change")
+    create_change: input.role === "builder" && allowed("create_change")
       ? changeReady ? {
           status: "available",
           commandTargetId: nullableText(
@@ -1419,7 +1426,7 @@ function operationStates(input: {
           ) ?? undefined,
         } : unavailable("prerequisite_missing")
       : unavailable("capability_missing"),
-    review_change_impact: can(input.role, "review_change_impact")
+    review_change_impact: allowed("review_change_impact")
       ? unreviewedImpactId ? {
           status: "available",
           commandTargetId: unreviewedImpactId,
@@ -1432,19 +1439,19 @@ function operationStates(input: {
     // (guard инкремента) даёт тот же исход — эта строка лишь держит форму
     // states полной.
     acknowledge_impact_truncation: unavailable("increment_not_authorized"),
-    upload_photo_evidence: can(input.role, "upload_photo_evidence")
+    upload_photo_evidence: allowed("upload_photo_evidence")
       ? uploadMilestoneId ? {
           status: "available",
           commandTargetId: uploadMilestoneId,
         } : unavailable("prerequisite_missing")
       : unavailable("capability_missing"),
-    review_photo_evidence: can(input.role, "review_milestone")
+    review_photo_evidence: allowed("review_milestone")
       ? undecidedPhotoId ? {
           status: "available",
           commandTargetId: undecidedPhotoId,
         } : unavailable("prerequisite_missing")
       : unavailable("capability_missing"),
-    accept_milestone: can(input.role, "review_milestone")
+    accept_milestone: allowed("review_milestone")
       ? acceptableMilestoneId ? {
           status: "available",
           commandTargetId: acceptableMilestoneId,

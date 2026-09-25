@@ -29,23 +29,38 @@ export default function ProposalEditor({
     setSaved(false);
   }
 
+  // Сервер отклоняет правки не-черновика; интерфейс фиксирует это состояние
+  // и перечитывает страницу, чтобы показать клиентскую версию текста.
+  function lockAsSent() {
+    setSent(true);
+    setSendError(ru.proposal.lockedAfterSend);
+    router.refresh();
+  }
+
   function save() {
     startTransition(async () => {
       const res = await saveProposal(projectId, sections);
       if (res.ok) setSaved(true);
+      else if (res.reason === "not_draft") lockAsSent();
     });
   }
 
   function send() {
     startTransition(async () => {
       setSendError(null);
-      await saveProposal(projectId, sections);
+      const draft = await saveProposal(projectId, sections);
+      if (!draft.ok && draft.reason === "not_draft") {
+        lockAsSent();
+        return;
+      }
       const res = await sendProposal(projectId);
       if (res.ok) {
         setSent(true);
         router.refresh();
       } else if (res.reason === "approval_required") {
         setSendError(ru.proposal.approvalRequired);
+      } else if (res.reason === "not_draft") {
+        lockAsSent();
       }
     });
   }
@@ -72,9 +87,11 @@ export default function ProposalEditor({
   return (
     <div className="space-y-6">
       <div className="no-print flex flex-wrap items-center gap-3">
-        <button onClick={save} disabled={pending} className="btn-ghost">
-          {pending ? ru.proposal.saving : saved ? ru.proposal.saved : ru.proposal.save}
-        </button>
+        {!sent && (
+          <button onClick={save} disabled={pending} className="btn-ghost">
+            {pending ? ru.proposal.saving : saved ? ru.proposal.saved : ru.proposal.save}
+          </button>
+        )}
         {!sent && (
           <button onClick={rebuild} disabled={pending} className="btn-ghost">
             Пересобрать
@@ -112,6 +129,7 @@ export default function ProposalEditor({
             <textarea
               value={s.body}
               onChange={(e) => edit(s.id, e.target.value)}
+              readOnly={sent}
               className="input min-h-32 font-sans leading-relaxed"
             />
           </div>

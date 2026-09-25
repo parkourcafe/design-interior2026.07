@@ -15,7 +15,6 @@ const callers: Readonly<Record<string, string>> = {
   "app/api/client/create/route.ts": "client-bootstrap",
   "app/api/proposal/respond/route.ts": "proposal-response",
   "app/p/[public_token]/page.tsx": "public-proposal",
-  "app/b/[token]/page.tsx": "public-brief",
   "app/room/[access_token]/page.tsx": "participant-room",
   "app/api/brief/custom-question/plan-upload/route.ts": "authenticated-plan-upload",
   "app/api/project-room/task-status/route.ts": "participant-task-status",

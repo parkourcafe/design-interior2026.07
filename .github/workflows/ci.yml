@@ -5,6 +5,13 @@ name: CI
 # скриншоте; теперь он лежит в логах прогона и виден в PR.
 
 on:
+  # DEC-040 (25.09.2026): CI обязателен на каждом PR. Автоматический прогон
+  # был отключён 18.09 (07e186d); владелец вернул его — без зелёного CI нет
+  # ни merge, ни deploy. Один полный прогон на PR: AP5 запускается на
+  # opened/synchronize/reopened. push-trigger по-прежнему не нужен — один
+  # commit в PR не должен запускать два одинаковых прогона.
+  pull_request:
+    types: [opened, synchronize, reopened]
   workflow_dispatch:
     inputs:
       hosted_staging:

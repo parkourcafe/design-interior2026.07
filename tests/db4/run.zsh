@@ -102,7 +102,9 @@ for sql in \
   "${repo_root}/tests/db4/59_m1_legacy_read_rpc.sql" \
   "${repo_root}/tests/db4/61_market_routing_receipts.sql" \
   "${repo_root}/tests/db4/77_authenticated_package_scoped_enrollment.sql" \
-  "${repo_root}/tests/db4/78_package_bound_approval_review.sql"; do
+  "${repo_root}/tests/db4/78_package_bound_approval_review.sql" \
+  "${repo_root}/tests/db4/79_m1_proposal_lifecycle_guard.sql" \
+  "${repo_root}/tests/db4/80_package_capability_template_ledger.sql"; do
   print -r -- "Running ${sql:t}"
   run_file "${sql}"
 done

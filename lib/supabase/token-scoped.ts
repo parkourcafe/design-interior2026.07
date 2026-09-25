@@ -10,7 +10,6 @@ const purposes = new Set([
   "client-bootstrap",
   "proposal-response",
   "public-proposal",
-  "public-brief",
   "participant-room",
   "authenticated-plan-upload",
   "participant-task-status",

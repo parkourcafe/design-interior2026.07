@@ -6,7 +6,6 @@ import { quickQuestions, deepQuestions, type Question } from "@/lib/brief/questi
 import { customQuestionToRuntimeQuestion, type CustomBriefQuestion } from "@/lib/brief/custom-questions";
 import { ru } from "@/lib/i18n/ru";
 import { supportEmail } from "@/lib/env";
-import ShareBrief from "@/components/share-brief";
 import DesignerCard from "@/components/designer-card";
 import type { DesignerPublic } from "@/lib/designer";
 
@@ -32,13 +31,11 @@ export default function IntakeWizard({
   selfServe = false,
   customQuestions = [],
   designer = null,
-  baseUrl = "",
 }: {
   token: string;
   selfServe?: boolean;
   customQuestions?: CustomBriefQuestion[];
   designer?: DesignerPublic | null;
-  baseUrl?: string;
 }) {
   const [started, setStarted] = useState(false);
   const [answers, setAnswers] = useState<Answers>({});
@@ -165,7 +162,9 @@ export default function IntakeWizard({
       body: JSON.stringify({ token, answers: { ...answers, comments } }),
     });
     setSubmitting(false);
-    if (res.ok) {
+    // 409 — бриф уже отправлен (например, во второй вкладке): повторная
+    // отправка запрещена сервером, показываем тот же экран «готово».
+    if (res.ok || res.status === 409) {
       try {
         localStorage.removeItem(storageKey);
       } catch {
@@ -197,7 +196,6 @@ export default function IntakeWizard({
         <main className="mx-auto flex min-h-screen max-w-lg flex-col justify-center px-6 text-center">
           <h1 className="font-display text-3xl font-semibold">{ru.client.shareTitle}</h1>
           <p className="mt-2 text-muted">{ru.client.shareHint}</p>
-          <ShareBrief url={`${baseUrl}/b/${token}`} />
         </main>
       );
     }

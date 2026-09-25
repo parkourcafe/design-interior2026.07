@@ -74,6 +74,40 @@ const ROLE_CAPABILITIES: Readonly<Record<ProjectCeoRole, readonly ProjectCeoCapa
   ],
 };
 
+/**
+ * Зеркало `projectceo_foundation._package_role_capabilities` (миграция
+ * `20260802090000`). Пакетный участник получает ровно этот шаблон: так
+ * решил владелец (DEC-040), и с миграции `20260925091000` база обрезает
+ * любую продуктовую выдачу пакетных прав до него. Пакетный architect —
+ * шесть минимальных прав, без publish_baseline/publish_release/manage_budget.
+ */
+const PACKAGE_ROLE_CAPABILITIES: Readonly<Record<ProjectCeoRole, readonly ProjectCeoCapability[]>> = {
+  owner: [],
+  architect: [
+    "view_project",
+    "register_source",
+    "acknowledge_release",
+    "create_change",
+    "upload_photo_evidence",
+    "review_milestone",
+  ],
+  builder: [
+    "view_project",
+    "register_source",
+    "acknowledge_release",
+    "create_change",
+    "upload_photo_evidence",
+  ],
+  client: [
+    "view_project",
+    "review_selection",
+    "acknowledge_release",
+    "create_change",
+    "review_milestone",
+  ],
+  guest: ROLE_CAPABILITIES.guest,
+};
+
 const TAB_CAPABILITY: Readonly<Record<ProjectCeoTab, ProjectCeoCapability>> = {
   overview: "view_project",
   passport: "view_project",
@@ -108,6 +142,24 @@ export function can(
   capability: ProjectCeoCapability,
 ): boolean {
   return ROLE_CAPABILITIES[role].includes(capability);
+}
+
+export type ProjectCeoAccessScope = "project" | "package";
+
+/** Права актора с учётом области доступа: пакетный участник — только шаблон. */
+export function capabilitiesForScope(
+  role: ProjectCeoRole,
+  scope: ProjectCeoAccessScope,
+): readonly ProjectCeoCapability[] {
+  return scope === "package" ? PACKAGE_ROLE_CAPABILITIES[role] : ROLE_CAPABILITIES[role];
+}
+
+export function canInScope(
+  role: ProjectCeoRole,
+  capability: ProjectCeoCapability,
+  scope: ProjectCeoAccessScope,
+): boolean {
+  return capabilitiesForScope(role, scope).includes(capability);
 }
 
 export function visibleTabsForRole(role: ProjectCeoRole): readonly ProjectCeoTab[] {
