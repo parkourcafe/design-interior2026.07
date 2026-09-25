@@ -20,10 +20,10 @@ docker image inspect "${image_id}" >/dev/null 2>&1 || { print -u2 -r -- "WP32_BU
 umask 077
 mkdir -p "${bundle_root}/build" "${bundle_root}/docker"
 cleanup() {
-  local status=$?
+  local exit_status=$?
   docker rm -f "${container_name}" >/dev/null 2>&1 || true
-  if (( status != 0 )); then rm -rf -- "${bundle_root}"; fi
-  return ${status}
+  if (( exit_status != 0 )); then rm -rf -- "${bundle_root}"; fi
+  return ${exit_status}
 }
 trap cleanup EXIT INT TERM
 docker create --name "${container_name}" "${image_id}" >/dev/null
