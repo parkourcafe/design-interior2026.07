@@ -166,6 +166,11 @@ psql_value() {
 }
 
 supabase_cli() {
+  if [[ ${target} == local ]]; then
+    npm exec --yes --package="supabase@${SUPABASE_CLI_VERSION}" -- supabase \
+      --profile "${repo_root}/tests/ap1/environment/disposable-cli-profile.toml" "$@"
+    return
+  fi
   npm exec --yes --package="supabase@${SUPABASE_CLI_VERSION}" -- supabase "$@"
 }
 
@@ -377,9 +382,20 @@ begin
 end
 $roles$;
 
-grant pi_table_owner     to current_user with inherit true, set true;
-grant pi_human_executor  to current_user with inherit true, set true;
-grant pi_worker_executor to current_user with inherit true, set true;
+-- Local roles.sql may already provide these rights. Avoid redundant GRANTs;
+-- the verification below remains authoritative for both bootstrap targets.
+do $memberships$
+declare
+  required_role text;
+begin
+  foreach required_role in array array['pi_table_owner','pi_human_executor','pi_worker_executor'] loop
+    if not (pg_has_role(current_user, required_role, 'SET')
+            and pg_has_role(current_user, required_role, 'USAGE')) then
+      execute format('grant %I to %I with inherit true, set true', required_role, current_user);
+    end if;
+  end loop;
+end
+$memberships$;
 
 do $verify$
 declare

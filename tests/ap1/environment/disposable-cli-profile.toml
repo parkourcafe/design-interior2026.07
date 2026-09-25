@@ -1,0 +1,5 @@
+# Local CLI profile: intentionally contains no hosted credentials or project reference.
+name = "archidom-ap1-disposable"
+api_url = "http://127.0.0.1:54321"
+dashboard_url = "http://127.0.0.1:54323"
+project_host = "localhost"

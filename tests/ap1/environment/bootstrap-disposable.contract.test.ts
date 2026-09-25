@@ -68,9 +68,12 @@ describe("AP1 bootstrap-манифест одноразового стенда",
 
   it("готовит роли pi_* с членством inherit/set до миграций", () => {
     for (const role of ["pi_table_owner", "pi_human_executor", "pi_worker_executor"]) {
-      expect(script).toContain(`grant ${role}`);
+      expect(script).toContain(`'${role}'`);
     }
     expect(script).toContain("with inherit true, set true");
+    expect(script).toContain("pg_has_role(current_user, required_role, 'SET')");
+    expect(script).toContain("pg_has_role(current_user, required_role, 'USAGE')");
+    expect(script).toContain("format('grant %I to %I with inherit true, set true', required_role, current_user)");
     expect(script).toContain("AP1_BOOTSTRAP_ROLE_MEMBERSHIP_INVALID");
   });
 
