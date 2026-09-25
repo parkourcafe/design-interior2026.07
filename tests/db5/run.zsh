@@ -53,7 +53,11 @@ impact_coverage_upgrade="${repo_root}/supabase/migrations/20260923183516_project
 native_confirmation_upgrade="${repo_root}/supabase/migrations/20260923190258_projectceo_native_m3_snapshot_confirmation.sql"
 package_member_restore="${repo_root}/supabase/migrations/20260924022328_projectceo_package_member_restore.sql"
 all_migrations=("${repo_root}"/supabase/migrations/*.sql(N))
-if [[ "${all_migrations[-4]}" != "${native_release_upgrade}" || "${all_migrations[-3]}" != "${impact_coverage_upgrade}" || "${all_migrations[-2]}" != "${native_confirmation_upgrade}" || "${all_migrations[-1]}" != "${package_member_restore}" ]]; then
+native_release_index=${all_migrations[(I)${native_release_upgrade}]}
+impact_coverage_index=${all_migrations[(I)${impact_coverage_upgrade}]}
+native_confirmation_index=${all_migrations[(I)${native_confirmation_upgrade}]}
+package_member_restore_index=${all_migrations[(I)${package_member_restore}]}
+if (( native_release_index == 0 || impact_coverage_index != native_release_index + 1 || native_confirmation_index != impact_coverage_index + 1 || package_member_restore_index != native_confirmation_index + 1 )); then
   print -u2 -r -- "DB5_NATIVE_UPGRADE_CHECKPOINT_REQUIRES_REVIEW"
   exit 1
 fi
