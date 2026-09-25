@@ -33,7 +33,6 @@ export default function ProposalEditor({
   // и перечитывает страницу, чтобы показать клиентскую версию текста.
   function lockAsSent() {
     setSent(true);
-    setSendError(ru.proposal.lockedAfterSend);
     router.refresh();
   }
 
@@ -104,6 +103,7 @@ export default function ProposalEditor({
           {sent ? ru.proposal.sent : pending ? ru.proposal.sending : ru.proposal.send}
         </button>
         {sendError && <p role="alert" className="basis-full text-sm text-amber-800">{sendError}</p>}
+        {sent && <p className="basis-full text-sm text-muted">{ru.proposal.lockedAfterSend}</p>}
       </div>
 
       <div className="no-print rounded-md border border-line bg-white p-3 text-sm">

@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { getStudio } from "@/lib/studio";
 import { makeToken } from "@/lib/tokens";
@@ -107,6 +107,7 @@ export default async function ProposalPage({ params }: { params: Promise<{ id: s
   let sections: ProposalSection[];
   let publicToken: string;
   let sent = false;
+  let issuedMeanwhile = false;
 
   // Выданное КП (sent/accepted) не пересобирается даже с пустыми секциями:
   // его содержимое неизменяемо и в базе (proposals_lifecycle_guard).
@@ -137,9 +138,14 @@ export default async function ProposalPage({ params }: { params: Promise<{ id: s
         publicToken = existing.public_token as string;
         const updated = await supabase.from("proposals").update({ sections })
           .eq("id", existing.id)
-          .eq("status", "draft");
+          .eq("status", "draft")
+          .select("id")
+          .maybeSingle();
         if (updated.error) throw new Error("proposal_update_failed");
-        await ensureProposalCreatedState("proposal_draft");
+        // КП успели отправить между чтением и записью (другая вкладка):
+        // показываем выданное состояние, а не пересобранный «черновик».
+        if (!updated.data) issuedMeanwhile = true;
+        else await ensureProposalCreatedState("proposal_draft");
       } else {
         publicToken = makeToken();
         const created = await supabase.from("proposals").insert({
@@ -157,6 +163,9 @@ export default async function ProposalPage({ params }: { params: Promise<{ id: s
       throw error;
     }
   }
+  // Перечитываем страницу вне try: redirect() бросает служебное исключение,
+  // которое не должно засчитываться как сбой создания КП.
+  if (issuedMeanwhile) redirect(`/dashboard/projects/${p.id}/proposal`);
 
   const publicUrl = `${await requestBaseUrl()}/p/${publicToken}`;
 

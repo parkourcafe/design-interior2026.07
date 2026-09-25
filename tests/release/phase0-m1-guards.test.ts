@@ -117,7 +117,6 @@ describe("intake submit is accepted only while the brief is open (BUG-02)", () =
     const projectUpdate = state.operations.find((op) => op.startsWith("projects:update"));
     expect(projectUpdate).toContain("status in created|brief_sent|brief_in_progress");
     expect(state.operations.some((op) => op.startsWith("risk_cards:"))).toBe(false);
-    expect(state.operations.some((op) => op.startsWith("answers:"))).toBe(false);
   });
 
   it("does not accept attachments through the intake token after submission", async () => {
@@ -130,12 +129,12 @@ describe("intake submit is accepted only while the brief is open (BUG-02)", () =
     expect(state.operations).toEqual([]);
   });
 
-  it("writes answers only after winning the conditional transition", async () => {
+  it("saves raw answers before the conditional transition so a later failure cannot lose them", async () => {
     await submit(submitRequest());
-    const projectUpdate = state.operations.findIndex((op) => op.startsWith("projects:update"));
     const answers = state.operations.findIndex((op) => op.startsWith("answers:upsert"));
-    expect(projectUpdate).toBeGreaterThanOrEqual(0);
-    expect(answers).toBeGreaterThan(projectUpdate);
+    const projectUpdate = state.operations.findIndex((op) => op.startsWith("projects:update"));
+    expect(answers).toBeGreaterThanOrEqual(0);
+    expect(projectUpdate).toBeGreaterThan(answers);
   });
 
   it("still completes an open brief", async () => {
