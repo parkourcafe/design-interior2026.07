@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createRegionalPublicTokenClient } from "@/lib/supabase/regional-admin";
 import { getProjectByIntakeToken } from "@/lib/intake";
+import { isIntakeOpen } from "@/lib/intake-status";
 
 export const dynamic = "force-dynamic";
 
@@ -14,6 +15,11 @@ export async function POST(request: Request) {
   const file = form.get("file");
   const project = await getProjectByIntakeToken(token);
   if (!project) return NextResponse.json({ error: "not_found" }, { status: 404 });
+  // После отправки брифа intake-токен больше не пишет в проект: вложения
+  // принимаются только пока бриф открыт (как и сама отправка).
+  if (!isIntakeOpen(project.status)) {
+    return NextResponse.json({ error: "already_submitted" }, { status: 409 });
+  }
   if (!(file instanceof File)) return NextResponse.json({ error: "no_file" }, { status: 400 });
 
   const admin = createRegionalPublicTokenClient(project.cellCode, "intake-upload");

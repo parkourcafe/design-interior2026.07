@@ -160,7 +160,6 @@ function externalManifest(): ExternalManifest {
 async function provisionExternalPackage(
   ownerClient: SupabaseClient,
   clientClient: SupabaseClient,
-  architectClient: SupabaseClient,
   dbContainer: string,
   users: readonly ExternalUser[],
   projectOwner: ProvisionedUser,
@@ -257,8 +256,12 @@ on conflict (id) do update set client_name = excluded.client_name, passport = ex
     sourceRevisionId: `tashkent-source-${suffix}-r1`,
     fragmentId: `tashkent-fragment-${suffix}`,
   });
+  // DEC-040: пакетный architect (доступ только через enrollment) держит шесть
+  // минимальных прав пакетного шаблона — без revise_decision/create_selection.
+  // Решение, выборы и цены внешнего пакета готовит владелец с проектной
+  // областью; architect остаётся участником пакета для приёмки выпуска.
   const decision = await rpc<{ readonly result: { readonly revisionId: string } }>(
-    architectClient, "projectceo_product_api", "append_decision_revision", {
+    ownerClient, "projectceo_product_api", "append_decision_revision", {
       project_id: EXTERNAL_PROJECT_ID, package_id: EXTERNAL_PACKAGE_ID,
       node_id: EXTERNAL_DESIGN_INTENT_NODE_ID, revision_id: EXTERNAL_DESIGN_INTENT_REVISION_ID,
       expected_revision_id: null, claim_status: "interpreted", title: "Кухня и гостиная первого этажа",
@@ -274,7 +277,7 @@ on conflict (id) do update set client_name = excluded.client_name, passport = ex
     ["tashkent-selection-kitchen", "Кухонный комплект", { item: "Kitchen fronts and carcass", unit: "set", amountRub: 125800 }],
   ] as const;
   for (const [nodeId, title, specification] of selectionSpecs) {
-    await rpc(architectClient, "projectceo_product_api", "append_selection_revision", {
+    await rpc(ownerClient, "projectceo_product_api", "append_selection_revision", {
       project_id: EXTERNAL_PROJECT_ID, package_id: EXTERNAL_PACKAGE_ID, node_id: nodeId,
       revision_id: `${nodeId}-r1`, expected_revision_id: null, claim_status: "interpreted", title,
       area_node_id: EXTERNAL_AREA_NODE_ID, decision_revision_id: decision.result.revisionId,
@@ -283,7 +286,7 @@ on conflict (id) do update set client_name = excluded.client_name, passport = ex
     });
   }
   for (const [nodeId, , specification] of selectionSpecs) {
-    await rpc(architectClient, "projectceo_product_api", "append_price_observation", {
+    await rpc(ownerClient, "projectceo_product_api", "append_price_observation", {
       project_id: EXTERNAL_PROJECT_ID, selection_revision_id: `${nodeId}-r1`,
       observation_id: `${nodeId}-price-uzs-rub`, amount_rub: specification.amountRub,
       evidence: evidenceFor("plan-ground"), supplier_ref: "operator-tashkent-worksheet",
@@ -383,7 +386,6 @@ async function provisionExternalOnly(): Promise<void> {
   await provisionExternalPackage(
     externalOwnerClient,
     await authenticate("client"),
-    await authenticate("architect"),
     dbContainer,
     users,
     externalOwner,

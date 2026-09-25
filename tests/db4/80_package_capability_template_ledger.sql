@@ -140,6 +140,11 @@ begin
   insert into projectceo_foundation.project_member_capabilities (organization_id, project_id, user_id, capability)
   select v_org, '80555555-5555-4555-8555-555555555555', '80333333-3333-4333-8333-333333333333', rc.capability
   from projectceo_foundation._role_capabilities('architect') rc;
+  -- Enrollment до WP-32 заводил и пакетное членство, но без пакетных прав.
+  insert into projectceo_foundation.package_memberships
+    (organization_id, project_id, package_id, user_id, role, status)
+  values (v_org, '80555555-5555-4555-8555-555555555555', '80666666-6666-4666-8666-666666666666',
+          '80333333-3333-4333-8333-333333333333', 'architect', 'active');
 
   -- Прямая привилегированная запись (не продуктовый путь) не блокируется,
   -- но журналируется и видна сверке.
@@ -161,7 +166,8 @@ begin
     'db4-80-legacy-revoke', '80555555-5555-4555-8555-555555555555');
   if (v_result->>'packageCapabilitiesRevoked')::int <> 1
      or (v_result->>'projectCapabilitiesRevoked')::int <> v_project_template
-     or (v_result->>'projectMembershipsDeactivated')::int <> 1 then
+     or (v_result->>'projectMembershipsDeactivated')::int <> 1
+     or (v_result->>'packageTemplateBackfilled')::int <> 6 then
     raise exception 'DB4_80_LEGACY_REVOKE_COUNTS:%', v_result;
   end if;
 
@@ -173,6 +179,13 @@ begin
       where project_id='80555555-5555-4555-8555-555555555555'
         and user_id='80333333-3333-4333-8333-333333333333') <> 'inactive' then
     raise exception 'DB4_80_LEGACY_MEMBERSHIP_STILL_ACTIVE';
+  end if;
+  -- Отозванный участник сохраняет ровно шесть минимальных пакетных прав.
+  if (select count(*) from projectceo_foundation.package_member_capabilities
+      where project_id='80555555-5555-4555-8555-555555555555'
+        and package_id='80666666-6666-4666-8666-666666666666'
+        and user_id='80333333-3333-4333-8333-333333333333') <> 6 then
+    raise exception 'DB4_80_REVOKED_MEMBER_PACKAGE_TEMPLATE_MISSING';
   end if;
   if not exists (
     select 1 from projectceo_foundation.project_member_capabilities

@@ -67,6 +67,9 @@ describe("ProjectCEO package-scoped capability template (DEC-040)", () => {
       expect(canInScope("architect", capability, "project"), capability).toBe(true);
     }
     expect(capabilitiesForScope("owner", "package")).toEqual([]);
+    expect(capabilitiesForScope("guest", "package")).toEqual([]);
+    // Проектная область guest не меняется: его доступ — отдельный guest grant.
+    expect(capabilitiesForScope("guest", "project")).toEqual(capabilitiesForRole("guest"));
   });
 });
 

@@ -108,10 +108,13 @@ export default async function ProposalPage({ params }: { params: Promise<{ id: s
   let publicToken: string;
   let sent = false;
 
-  if (existing && Array.isArray(existing.sections) && (existing.sections as ProposalSection[]).length > 0) {
-    sections = existing.sections as ProposalSection[];
+  // Выданное КП (sent/accepted) не пересобирается даже с пустыми секциями:
+  // его содержимое неизменяемо и в базе (proposals_lifecycle_guard).
+  const issued = existing?.status === "sent" || existing?.status === "accepted";
+  if (existing && (issued || (Array.isArray(existing.sections) && (existing.sections as ProposalSection[]).length > 0))) {
+    sections = Array.isArray(existing.sections) ? existing.sections as ProposalSection[] : [];
     publicToken = existing.public_token as string;
-    sent = existing.status === "sent" || existing.status === "accepted";
+    sent = issued;
     try {
       await ensureProposalCreatedState(existing.status === "accepted"
         ? "proposal_accepted"
@@ -132,7 +135,9 @@ export default async function ProposalPage({ params }: { params: Promise<{ id: s
       });
       if (existing) {
         publicToken = existing.public_token as string;
-        const updated = await supabase.from("proposals").update({ sections }).eq("id", existing.id);
+        const updated = await supabase.from("proposals").update({ sections })
+          .eq("id", existing.id)
+          .eq("status", "draft");
         if (updated.error) throw new Error("proposal_update_failed");
         await ensureProposalCreatedState("proposal_draft");
       } else {
@@ -208,6 +213,9 @@ export default async function ProposalPage({ params }: { params: Promise<{ id: s
       </div>
 
       <ProposalEditor
+        // Смена статуса (отправка из другой вкладки) пересоздаёт редактор с
+        // текстом из базы, а не с локальными несохранёнными правками.
+        key={`${publicToken}:${sent ? "issued" : "draft"}`}
         projectId={p.id}
         initialSections={sections}
         publicUrl={publicUrl}

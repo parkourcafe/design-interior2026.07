@@ -125,38 +125,73 @@ end
 $approved_send$;
 
 -- 4. Отправленное КП неизменяемо, клиентский ответ за конечного пользователя
---    не ставится, выданное КП не удаляется.
+--    не ставится, выданное КП не удаляется — каждый случай своим отказом.
 do $issued_locked_for_end_user$
 declare
   v_message text;
-  v_case text;
+  v_case record;
 begin
-  foreach v_case in array array['edit', 'accept', 'delete'] loop
+  for v_case in
+    select * from (values
+      ('edit', 'PROPOSAL_CONTENT_LOCKED'),
+      ('accept', 'PROPOSAL_STATUS_TRANSITION_DENIED'),
+      ('to_draft', 'PROPOSAL_STATUS_TRANSITION_DENIED'),
+      ('delete', 'PROPOSAL_ISSUED_DELETE_DENIED')
+    ) cases(name, expected)
+  loop
     set local role authenticated;
     set local request.jwt.claim.sub = '31111111-1111-4111-8111-111111111111';
     begin
-      if v_case = 'edit' then
+      if v_case.name = 'edit' then
         update public.proposals set sections = '[{"id":"s1","title":"t","body":"v2"}]'::jsonb
         where id = '79a00000-0000-4000-8000-000000000001';
-      elsif v_case = 'accept' then
+      elsif v_case.name = 'accept' then
         update public.proposals set status = 'accepted'
+        where id = '79a00000-0000-4000-8000-000000000001';
+      elsif v_case.name = 'to_draft' then
+        update public.proposals set status = 'draft'
         where id = '79a00000-0000-4000-8000-000000000001';
       else
         delete from public.proposals where id = '79a00000-0000-4000-8000-000000000001';
       end if;
-      raise exception 'DB4_79_ISSUED_%_ACCEPTED', upper(v_case);
+      raise exception 'DB4_79_ISSUED_%_ACCEPTED', upper(v_case.name);
     exception when sqlstate '42501' then
       get stacked diagnostics v_message = message_text;
-      if v_message not in (
-        'PROPOSAL_CONTENT_LOCKED',
-        'PROPOSAL_STATUS_TRANSITION_DENIED',
-        'PROPOSAL_ISSUED_DELETE_DENIED'
-      ) then raise; end if;
+      if v_message is distinct from v_case.expected then
+        raise exception 'DB4_79_ISSUED_%_WRONG_DENIAL:%', upper(v_case.name), v_message;
+      end if;
     end;
     reset role;
   end loop;
 end
 $issued_locked_for_end_user$;
+
+-- 4a. Серверная роль тоже не перепрыгивает переходы: draft → accepted и
+--     sent → draft отклоняются для всех.
+do $server_cannot_skip_transitions$
+declare
+  v_message text;
+begin
+  set local role service_role;
+  begin
+    update public.proposals set status = 'accepted'
+    where id = '79b00000-0000-4000-8000-000000000001';
+    raise exception 'DB4_79_SERVER_DRAFT_TO_ACCEPTED_ACCEPTED';
+  exception when sqlstate '42501' then
+    get stacked diagnostics v_message = message_text;
+    if v_message <> 'PROPOSAL_STATUS_TRANSITION_DENIED' then raise; end if;
+  end;
+  begin
+    update public.proposals set status = 'draft'
+    where id = '79a00000-0000-4000-8000-000000000001';
+    raise exception 'DB4_79_SERVER_SENT_TO_DRAFT_ACCEPTED';
+  exception when sqlstate '42501' then
+    get stacked diagnostics v_message = message_text;
+    if v_message <> 'PROPOSAL_STATUS_TRANSITION_DENIED' then raise; end if;
+  end;
+  reset role;
+end
+$server_cannot_skip_transitions$;
 
 -- 5. Серверный путь ответа клиента (service role) переводит sent → accepted;
 --    откат accepted → sent запрещён всем, включая серверные роли.

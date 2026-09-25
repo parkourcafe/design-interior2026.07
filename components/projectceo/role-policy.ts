@@ -105,7 +105,9 @@ const PACKAGE_ROLE_CAPABILITIES: Readonly<Record<ProjectCeoRole, readonly Projec
     "create_change",
     "review_milestone",
   ],
-  guest: ROLE_CAPABILITIES.guest,
+  // В базе _package_role_capabilities('guest') пуст: гость не бывает
+  // пакетным участником, его доступ — отдельный guest grant.
+  guest: [],
 };
 
 const TAB_CAPABILITY: Readonly<Record<ProjectCeoTab, ProjectCeoCapability>> = {

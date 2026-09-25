@@ -18,10 +18,26 @@ describe("Kora disposable enrollment", () => {
     expect(enrollment).toContain('{ userId: client.id, role: "client_approver" }');
   });
 
-  it("uses the external owner for the project-wide source snapshot while retaining the architect's package work", () => {
+  it("uses the external owner for the project-wide source snapshot", () => {
     const provision = source();
     const snapshot = provision.slice(provision.indexOf("const afterIngestion = await scope()"), provision.indexOf("const versionId = published.result.version.id"));
     expect(snapshot).toContain('ownerClient, "projectceo_api", "publish_source_snapshot"');
     expect(snapshot).not.toContain('architectClient, "projectceo_api", "publish_source_snapshot"');
+  });
+
+  it("never asks the package-enrolled architect for operations outside the package template (DEC-040)", () => {
+    const provision = source();
+    const external = provision.slice(
+      provision.indexOf("async function provisionExternalPackage"),
+      provision.indexOf("const createdApproval = await rpc"),
+    );
+    // Пакетный шаблон architect: view_project, register_source,
+    // acknowledge_release, create_change, upload_photo_evidence,
+    // review_milestone. Решение, выбор и цена требуют revise_decision /
+    // create_selection — их делает владелец с проектной областью.
+    expect(external).not.toMatch(/architectClient/);
+    for (const operation of ["append_decision_revision", "append_selection_revision", "append_price_observation"]) {
+      expect(external).toMatch(new RegExp(`ownerClient, "projectceo_product_api", "${operation}"`));
+    }
   });
 });

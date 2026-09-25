@@ -70,6 +70,7 @@ vi.mock("@/lib/proposal/latest", () => ({
 }));
 
 import { POST as submit } from "../../app/api/intake/submit/route";
+import { POST as upload } from "../../app/api/intake/upload/route";
 import {
   rebuildProposal,
   saveProposal,
@@ -116,6 +117,25 @@ describe("intake submit is accepted only while the brief is open (BUG-02)", () =
     const projectUpdate = state.operations.find((op) => op.startsWith("projects:update"));
     expect(projectUpdate).toContain("status in created|brief_sent|brief_in_progress");
     expect(state.operations.some((op) => op.startsWith("risk_cards:"))).toBe(false);
+    expect(state.operations.some((op) => op.startsWith("answers:"))).toBe(false);
+  });
+
+  it("does not accept attachments through the intake token after submission", async () => {
+    state.projectStatus = "proposal_accepted";
+    const form = new FormData();
+    form.set("token", "token");
+    form.set("file", new File(["fixture"], "plan.pdf"));
+    const response = await upload(new Request("http://localhost/api/intake/upload", { method: "POST", body: form }));
+    expect(response.status).toBe(409);
+    expect(state.operations).toEqual([]);
+  });
+
+  it("writes answers only after winning the conditional transition", async () => {
+    await submit(submitRequest());
+    const projectUpdate = state.operations.findIndex((op) => op.startsWith("projects:update"));
+    const answers = state.operations.findIndex((op) => op.startsWith("answers:upsert"));
+    expect(projectUpdate).toBeGreaterThanOrEqual(0);
+    expect(answers).toBeGreaterThan(projectUpdate);
   });
 
   it("still completes an open brief", async () => {
@@ -157,12 +177,22 @@ describe("public brief link /b/ is closed (DEC-040)", () => {
     });
   }
 
-  it("has no /b/ route and no component that builds a /b/ link", () => {
+  it("has no /b/ route and no code that builds a /b/ link in any form", () => {
     expect(existsSync(join(root, "app/b"))).toBe(false);
     expect(existsSync(join(root, "components/share-brief.tsx"))).toBe(false);
-    for (const file of [...sourceFiles(join(root, "app")), ...sourceFiles(join(root, "components"))]) {
-      expect(readFileSync(file, "utf8"), file).not.toMatch(/\/b\/\$\{/);
+    // Единственные законные упоминания — списки «не индексировать» и
+    // «не показывать PWA-баннер»: они только закрывают путь.
+    const allowed = new Set([join(root, "app/robots.ts"), join(root, "components/pwa.tsx")]);
+    for (const file of [...sourceFiles(join(root, "app")), ...sourceFiles(join(root, "components")), ...sourceFiles(join(root, "lib"))]) {
+      if (allowed.has(file)) continue;
+      expect(readFileSync(file, "utf8"), file).not.toMatch(/["'`]\/b\//);
     }
+  });
+
+  it("stops caching token pages in the service worker and drops the old cache", () => {
+    const worker = readFileSync(join(root, "public/sw.js"), "utf8");
+    expect(worker).not.toContain('"remhaos-v1"');
+    expect(worker).toMatch(/NO_STORE_PREFIXES = \[[^\]]*"\/b\/"[^\]]*"\/i\/"[^\]]*"\/p\/"/);
   });
 
   it("removes the service-role purpose that served the public brief", () => {

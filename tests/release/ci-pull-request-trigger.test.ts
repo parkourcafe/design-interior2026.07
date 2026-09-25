@@ -34,9 +34,13 @@ describe("CI runs on every pull request", () => {
     expect(on).toMatch(/types:\s*\[\s*opened,\s*synchronize,\s*reopened\s*\]/);
   });
 
-  it("does not restrict the blocking gates to manual dispatch", () => {
+  it("does not gate the blocking jobs on the triggering event", () => {
     for (const job of ["scope", "gates", "database", "execution_database", "ap5"]) {
-      expect(jobBlock(workflow, job), job).not.toMatch(/if:[^\n]*workflow_dispatch/);
+      const block = jobBlock(workflow, job);
+      // Job-level if (4 пробела) не должен зависеть от github.event_name —
+      // иначе job можно тихо выключить для pull_request.
+      const jobIf = block.split("\n").filter((line) => /^ {4}if:/.test(line)).join("\n");
+      expect(jobIf, job).not.toMatch(/event_name|workflow_dispatch|pull_request/);
     }
   });
 });

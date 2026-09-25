@@ -37,22 +37,12 @@ export async function POST(request: Request) {
 
   try {
 
-    // 1. Сохранить сырые ответы (upsert по project_id + question_id).
-    const answerRows = Object.entries(answers).map(([question_id, value]) => ({
-      project_id: project.id,
-      question_id,
-      value,
-    }));
-    if (answerRows.length > 0) {
-      const saved = await admin.from("answers").upsert(answerRows, { onConflict: "project_id,question_id" });
-      if (saved.error) throw new Error("answers_failed");
-    }
-
-    // 2. Полный проход: паспорт + карточки (деградация внутри пайплайна).
+    // 1. Полный проход: паспорт + карточки (деградация внутри пайплайна).
     const { passport, cards, llmOk } = await runRiskPipeline(answers);
 
-    // 3. Записать паспорт. Имя клиента — из контакта (чтобы дизайнер понимал,
-    // чья это заявка среди множества).
+    // 2. Записать паспорт и статус (условно), затем сырые ответы. Имя
+    // клиента — из контакта (чтобы дизайнер понимал, чья это заявка среди
+    // множества).
     const update: Record<string, unknown> = {
       passport,
       passport_revision_llm_ok: llmOk,
@@ -72,11 +62,24 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "already_submitted" }, { status: 409 });
     }
 
+    // Сырые ответы пишутся только после того, как этот запрос выиграл
+    // условный переход: проигравшая параллельная отправка не перезапишет
+    // ответы, по которым уже построен паспорт (upsert по project_id + question_id).
+    const answerRows = Object.entries(answers).map(([question_id, value]) => ({
+      project_id: project.id,
+      question_id,
+      value,
+    }));
+    if (answerRows.length > 0) {
+      const saved = await admin.from("answers").upsert(answerRows, { onConflict: "project_id,question_id" });
+      if (saved.error) throw new Error("answers_failed");
+    }
+
     // B1 (Фаза 2): миграция 20260829074543 создаёт неизменяемую ревизию
     // атомарно тем же UPDATE. Маршрут не получает прямого доступа к закрытому
     // реестру и не вычисляет revision_no вне транзакции.
 
-    // 4. Пересобрать карточки: удалить прежние, вставить новые как 'proposed'.
+    // 3. Пересобрать карточки: удалить прежние, вставить новые как 'proposed'.
     const removed = await admin.from("risk_cards").delete().eq("project_id", project.id);
     if (removed.error) throw new Error("risks_failed");
     if (cards.length > 0) {
@@ -96,7 +99,7 @@ export async function POST(request: Request) {
       if (savedCards.error) throw new Error("risks_failed");
     }
 
-    // 5. Событие brief_completed.
+    // 4. Событие brief_completed.
     const completed = await admin.from("events").insert({
       designer_id: project.designer_id,
       project_id: project.id,

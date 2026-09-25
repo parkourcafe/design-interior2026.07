@@ -25,6 +25,13 @@
 --      inactive, его права удаляются.
 --    Отзыв — функция _revoke_legacy_capability_grants, чтобы её можно было
 --    проверить тестом и повторить оператором на уже заполненной базе.
+--    Активное пакетное членство после отзыва дополняется пакетным шаблоном
+--    своей роли: минимальный доступ сохраняется, широкий — нет.
+--    Известное ограничение: членство переводится в inactive, а не удаляется
+--    (на него ссылаются FK журналов и источников), поэтому повторное
+--    проектное приглашение отозванному участнику сейчас отклоняется
+--    RECIPIENT_ALREADY_HAS_SCOPE. Восстановление проектного доступа — отдельный
+--    аудируемый путь, вне Фазы 0.
 --
 -- 3. Проверяемый аудит выданных прав: append-only журнал
 --    capability_grant_ledger (baseline / granted / revoked / denied_by_template)
@@ -238,6 +245,7 @@ declare
   v_package_revoked integer;
   v_project_revoked integer;
   v_memberships_deactivated integer;
+  v_package_backfilled integer;
 begin
   if p_reason is null or char_length(p_reason) not between 1 and 120 then
     raise exception 'CAPABILITY_REVOKE_REASON_REQUIRED';
@@ -291,12 +299,31 @@ begin
   select (select count(*) from removed), (select count(*) from deactivated)
     into v_project_revoked, v_memberships_deactivated;
 
+  -- Enrollment до WP-32 заводил пакетное членство без пакетных прав: после
+  -- отзыва проектного доступа такой участник остался бы вовсе без доступа.
+  -- Решение владельца — шесть минимальных прав, а не ноль: активное пакетное
+  -- членство дополняется ровно шаблоном своей роли (запись идёт продуктовым
+  -- путём и проходит через template clamp и журнал).
+  with backfilled as (
+    insert into projectceo_foundation.package_member_capabilities
+      (organization_id, project_id, package_id, user_id, capability)
+    select pm.organization_id, pm.project_id, pm.package_id, pm.user_id, template.capability
+    from projectceo_foundation.package_memberships pm
+    cross join lateral projectceo_foundation._package_role_capabilities(pm.role) template
+    where pm.status = 'active'
+      and (p_project_id is null or pm.project_id = p_project_id)
+    on conflict do nothing
+    returning 1
+  )
+  select count(*) into v_package_backfilled from backfilled;
+
   perform pg_catalog.set_config('projectceo.capability_change_reason', '', true);
 
   return jsonb_build_object(
     'packageCapabilitiesRevoked', v_package_revoked,
     'projectCapabilitiesRevoked', v_project_revoked,
-    'projectMembershipsDeactivated', v_memberships_deactivated
+    'projectMembershipsDeactivated', v_memberships_deactivated,
+    'packageTemplateBackfilled', v_package_backfilled
   );
 end
 $function$;

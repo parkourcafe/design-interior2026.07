@@ -73,9 +73,13 @@ begin
           v_requests := projectceo_platform_api.list_approval_requests(
             new.project_id, 'approved'
           ) -> 'requests';
-        exception when others then
-          -- Незачисленный проект или нет view_project — approval не доказан.
-          v_requests := null;
+        exception
+          -- Незачисленный проект, нет view_project или нет доступа к схеме —
+          -- approval не доказан. Прочие ошибки (сбой, deadlock, сериализация)
+          -- пробрасываются как есть, а не маскируются под «нужен approval».
+          when sqlstate 'P1101' or sqlstate 'P1103' or sqlstate 'P1104'
+            or sqlstate 'P1109' or sqlstate 'P1111' or sqlstate '42501' then
+            v_requests := null;
         end;
         if v_requests is null
           or jsonb_typeof(v_requests) <> 'array'
