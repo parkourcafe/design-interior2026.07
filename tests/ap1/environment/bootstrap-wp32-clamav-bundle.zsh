@@ -5,16 +5,26 @@ bundle_root=/private/tmp/remhaos-clamav-linux17.rBDwPn
 image_id=sha256:0e6f64a14da7f5d8de1a6565e1516f6d023817613bbcdb729b7811c6d984b750
 container_name="wp32-bundle-restore-$(uuidgen | tr '[:upper:]' '[:lower:]')"
 
-[[ -z $(docker ps -aq) ]] || { print -u2 -r -- "WP32_BUNDLE_EMPTY_DOCKER_REQUIRED"; exit 65; }
 if [[ -e ${bundle_root} ]]; then
   [[ -d ${bundle_root} && ! -L ${bundle_root} ]] || { print -u2 -r -- "WP32_BUNDLE_PATH_REJECTED"; exit 65; }
   [[ -r ${bundle_root}/build/main.cvd && -r ${bundle_root}/build/daily.cvd && -r ${bundle_root}/build/bytecode.cvd && -r ${bundle_root}/build/local-scan.sh ]] || {
     print -u2 -r -- "WP32_BUNDLE_INCOMPLETE"
     exit 65
   }
+  for container_id in ${(f)"$(docker ps -aq --filter 'name=^/wp32-bundle-restore-')"}; do
+    [[ -z ${container_id} ]] && continue
+    observation=$(docker inspect --format '{{.Image}} {{.Name}}' "${container_id}")
+    [[ ${observation} == "${image_id} /wp32-bundle-restore-"* ]] || {
+      print -u2 -r -- "WP32_BUNDLE_ORPHAN_OWNERSHIP_REJECTED"
+      exit 65
+    }
+    docker rm -f "${container_id}" >/dev/null
+  done
   print -r -- "WP32_BUNDLE_PRESENT root=${bundle_root}"
   exit 0
 fi
+
+[[ -z $(docker ps -aq) ]] || { print -u2 -r -- "WP32_BUNDLE_EMPTY_DOCKER_REQUIRED"; exit 65; }
 
 docker image inspect "${image_id}" >/dev/null 2>&1 || { print -u2 -r -- "WP32_BUNDLE_IMAGE_MISSING"; exit 66; }
 umask 077
