@@ -448,6 +448,8 @@ describe("Layout Studio delivery/UI slice", () => {
       // M1 approval read projection exposes only current-actor ownership of
       // drafts; the actor identity remains server-side.
       "20260831170000_projectceo_platform_approval_request_actor_projection.sql",
+      "20260924054328_projectceo_aldo_project_stage_revisions.sql",
+      "20260924055006_projectceo_aldo_client_review_comments.sql",
     ]);
   });
 

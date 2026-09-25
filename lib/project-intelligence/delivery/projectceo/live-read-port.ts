@@ -1649,8 +1649,13 @@ export class ProjectCeoLiveReadPort implements ProjectCeoUiReadPort {
       const execution = m4Views(m4Envelopes);
       const m2 = m2WorkspaceViews(delivery);
       const m2Cycle6 = m2Cycle6Views(delivery);
-      const stageRevisions: readonly ProjectStageRevisionView[] = hasProjectScope
-        ? (await this.platform.listProjectStageRevisions(input.projectId)).flatMap((item) => {
+      const stageRows = hasProjectScope
+        ? await this.platform.listProjectStageRevisions(input.projectId).catch((error: unknown) => {
+            if (error instanceof ProjectIntelligenceAdapterError && error.code === "not_found") return [];
+            throw error;
+          })
+        : [];
+      const stageRevisions: readonly ProjectStageRevisionView[] = stageRows.flatMap((item) => {
             if (!(["01_brief", "02_concept_offer", "03_preliminary_design", "04_design_development", "05_technical_documentation", "06_preconstruction", "07_construction_closeout"] as const).includes(item.stageId as never)) return [];
             const approvalStatus = item.approvalStatus;
             return [{
@@ -1660,8 +1665,7 @@ export class ProjectCeoLiveReadPort implements ProjectCeoUiReadPort {
               approvalStatus: approvalStatus === "draft" || approvalStatus === "submitted" || approvalStatus === "approved" || approvalStatus === "rejected" || approvalStatus === "change_requested" ? approvalStatus : null,
               notApplicableReason: item.notApplicableReason,
             }];
-          })
-        : [];
+          });
       let access = { invitations: [] as readonly InvitationView[], participants: [] as readonly ParticipantView[], grants: [] as readonly AccessGrantView[] };
       if (hasProjectScope && can(actor.role, "manage_access")) {
         const envelope = await this.foundation.listProjectAccess(input.projectId);

@@ -44,6 +44,7 @@ const REGISTRY_ENTRIES: readonly RegisteredAction[] = [
   { kind: "create_approval_request", module: "platform", capability: "view_project", status: "active", basis: "20260824150000 + command-service.ts" },
   { kind: "submit_approval_request", module: "platform", capability: "view_project", status: "active", basis: "20260824150000 + command-service.ts" },
   { kind: "decide_approval_request", module: "platform", capability: null, status: "active", basis: "20260824150000 + command-service.ts (request capability is server-selected)" },
+  { kind: "record_project_stage_revision", module: "platform", capability: "view_project", status: "active", basis: "20260924054328 + command-service.ts" },
   // --- Access --------------------------------------------------------------
   { kind: "create_invitation", module: "access", capability: "manage_access", status: "active", basis: "live-read-port.ts:1171" },
   { kind: "revoke_invitation", module: "access", capability: "manage_access", status: "active", basis: "live-read-port.ts:1174" },

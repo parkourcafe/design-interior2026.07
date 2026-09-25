@@ -314,9 +314,9 @@ function OverviewView({
 
       <section className="rounded-2xl border border-line bg-white p-5 shadow-sm">
         <p className="text-xs font-semibold uppercase tracking-[0.14em] text-muted">{projectCeoRu.workspace.overview.stagesTitle}</p>
-        {view.stageRevisions.length === 0 ? <p className="mt-3 text-sm text-muted">{projectCeoRu.workspace.overview.stagesEmpty}</p> : (
+        {(view.stageRevisions ?? []).length === 0 ? <p className="mt-3 text-sm text-muted">{projectCeoRu.workspace.overview.stagesEmpty}</p> : (
           <ul className="mt-3 grid gap-2 md:grid-cols-2">
-            {view.stageRevisions.map((stage) => <li key={stage.revisionId} className="rounded-xl bg-paper p-3 text-sm">
+            {(view.stageRevisions ?? []).map((stage) => <li key={stage.revisionId} className="rounded-xl bg-paper p-3 text-sm">
               <p className="font-medium">{projectCeoRu.workspace.overview.stageLabels[stage.stageId]}</p>
               <p className="mt-1 text-xs text-muted">R{stage.revisionNo} · {stage.approvalStatus ?? projectCeoRu.common.dash}</p>
               {stage.blockerReason && <p className="mt-2 text-xs text-red-700">{projectCeoRu.workspace.overview.stageBlocked}: {stage.blockerReason}</p>}

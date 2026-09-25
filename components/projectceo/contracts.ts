@@ -652,7 +652,7 @@ export interface ProjectWorkspaceView {
   readonly history: readonly AuditEventView[];
   readonly controlledAnalytics: readonly AnalyticsEvent[];
   readonly documentation: DocumentationView | null;
-  readonly stageRevisions: readonly ProjectStageRevisionView[];
+  readonly stageRevisions?: readonly ProjectStageRevisionView[];
   readonly operations: ProjectCeoOperationStates;
 }
 
