@@ -491,6 +491,16 @@ select jsonb_build_object(
 ) as baseline_descriptor
 \gset db4_
 
+-- DEC-040 (4): baseline требует опубликованную передачу по каждому пакету.
+select pi_test_fixture.seed_handoff(
+  '41111111-1111-4111-8111-111111111111', '41111111-1111-4111-8111-111111111111',
+  'handoff-db4-root', 'revision-decision-db4-r1', array['revision-selection-db4-r1'],
+  '31111111-1111-4111-8111-111111111111');
+select pi_test_fixture.seed_handoff(
+  '41111111-1111-4111-8111-111111111111', '49999999-9999-4999-8999-999999999999',
+  'handoff-db4-work', 'revision-decision-db4-r1', array['revision-selection-db4-r1'],
+  '31111111-1111-4111-8111-111111111111');
+
 begin;
 set local role authenticated;
 set local request.jwt.claim.sub =
@@ -517,6 +527,7 @@ begin
       '41111111-1111-4111-8111-111111111111',
       current_setting('projectceo.db4_graph_version_id'),
       null,
+      pi_test_fixture.handoff_refs('41111111-1111-4111-8111-111111111111'),
       current_setting('projectceo.db4_state_revision')::bigint,
       'db4-baseline-before-review',
       'db4-baseline-before-review'
@@ -573,6 +584,7 @@ select projectceo_product_api.publish_baseline_atomic(
   '41111111-1111-4111-8111-111111111111',
   :'db4_graph_version_id',
   null,
+  pi_test_fixture.handoff_refs('41111111-1111-4111-8111-111111111111'),
   :'db4_state_revision'::bigint,
   'db4-publish-baseline-v1',
   'db4-publish-baseline-v1'

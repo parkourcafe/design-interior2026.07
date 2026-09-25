@@ -217,7 +217,7 @@ begin
     ('projectceo_product_api.list_release_artifact_backlog(integer)'),
     -- Атомарная дверь публикации baseline (20260825030000, M3 backlog #6):
     -- закрыта по умолчанию, открывается выключателем модуля; сценарий 51.
-    ('projectceo_product_api.publish_baseline_atomic(uuid,text,text,bigint,text,text)'),
+    ('projectceo_product_api.publish_baseline_atomic(uuid,text,text,jsonb,bigint,text,text)'),
     ('projectceo_product_api.publish_release_request_bound(uuid,text,text,bigint,text,text)'),
     ('projectceo_product_api.publish_work_package_release_request_bound(uuid,uuid,text,text,bigint,text,text)'),
     ('projectceo_product_api.create_external_annotation(uuid,uuid,uuid,uuid,uuid,text,jsonb,jsonb,jsonb,text,bigint,text)'),

@@ -300,6 +300,17 @@ select jsonb_build_object(
 ) as baseline_descriptor
 \gset db5_
 
+-- DEC-040 (4): решение пересмотрено (r2) — дизайнер публикует новую ревизию
+-- передачи по каждому пакету до baseline v2.
+select pi_test_fixture.seed_handoff(
+  '41111111-1111-4111-8111-111111111111', '41111111-1111-4111-8111-111111111111',
+  'handoff-db4-root', 'revision-decision-db5-r2', array['revision-selection-db4-r1'],
+  '31111111-1111-4111-8111-111111111111');
+select pi_test_fixture.seed_handoff(
+  '41111111-1111-4111-8111-111111111111', '49999999-9999-4999-8999-999999999999',
+  'handoff-db4-work', 'revision-decision-db5-r2', array['revision-selection-db4-r1'],
+  '31111111-1111-4111-8111-111111111111');
+
 begin;
 set local role authenticated;
 set local request.jwt.claim.sub =
@@ -308,6 +319,7 @@ select projectceo_product_api.publish_baseline_atomic(
   '41111111-1111-4111-8111-111111111111',
   :'db5_graph_version_id',
   'baseline:db4-publish-baseline-v1',
+  pi_test_fixture.handoff_refs('41111111-1111-4111-8111-111111111111'),
   :'db5_state_revision'::bigint,
   'db5-publish-baseline-v2',
   'db5-publish-baseline-v2'

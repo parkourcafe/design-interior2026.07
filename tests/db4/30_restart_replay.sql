@@ -101,6 +101,7 @@ select projectceo_product_api.publish_baseline_atomic(
   '41111111-1111-4111-8111-111111111111',
   nullif(:'db4_door_expected_latest', ''),
   nullif(:'db4_door_previous_baseline', ''),
+  pi_test_fixture.handoff_refs('41111111-1111-4111-8111-111111111111'),
   :'db4_door_expected_state'::bigint,
   'db4-atomic-1',
   'db4-atomic-door-1'

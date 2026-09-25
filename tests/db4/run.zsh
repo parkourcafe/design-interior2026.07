@@ -49,6 +49,8 @@ for migration in "${repo_root}"/supabase/migrations/*.sql(N); do
   print -r -- "Applying ${migration:t}"
   run_file "${migration}"
 done
+# DEC-040 (4): засев опубликованных передач M2→M3 для позитивных цепочек M3.
+run_file "${repo_root}/tests/fixtures/sql/m3_handoff_fixture.sql"
 
 for sql in \
   "${repo_root}/tests/db3/20_foundation_operations.sql" \
@@ -94,6 +96,7 @@ for sql in \
   "${repo_root}/tests/db4/49_platform_module_switch.sql" \
   "${repo_root}/tests/db4/50_released_archive_read.sql" \
   "${repo_root}/tests/db4/51_publish_baseline_door.sql" \
+  "${repo_root}/tests/db4/81_m3_handoff_gate.sql" \
   "${repo_root}/tests/db4/52_source_ingest_worker.sql" \
   "${repo_root}/tests/db4/53_m3_read_gate.sql" \
   "${repo_root}/tests/db4/54_workspace_read_superseded_approvals.sql" \

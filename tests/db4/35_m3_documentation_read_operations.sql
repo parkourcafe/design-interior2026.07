@@ -11,16 +11,25 @@
 set role authenticated;
 set request.jwt.claim.sub='31111111-1111-4111-8111-111111111111';
 do $m3_read_owner$
-declare v_read jsonb; v_sheet jsonb;
+declare v_read jsonb; v_sheet jsonb; v_handoffs jsonb; v_doc_handoffs jsonb;
 begin
   select projectceo_read_api.get_project_workspace_read_v7(
     '41111111-1111-4111-8111-111111111111',null) into v_read;
+  -- DEC-040 (4): позитивные цепочки M3 засевают свои передачи
+  -- (tests/fixtures/sql/m3_handoff_fixture.sql); предмет этого теста —
+  -- передача cycle6 из tests/db4/33, поэтому проверяем именно её.
+  select coalesce(jsonb_agg(h), '[]'::jsonb) into v_handoffs
+  from jsonb_array_elements(v_read#>'{data,m2M3Handoffs}') h
+  where h->>'id' = 'cycle6-handoff';
+  select coalesce(jsonb_agg(h), '[]'::jsonb) into v_doc_handoffs
+  from jsonb_array_elements(v_read#>'{data,m3DocumentationHandoffs}') h
+  where h->>'roomId' = 'cycle6-living-room';
   if v_read->'error' is not null and v_read->'error'<>'null'::jsonb then
     raise exception 'DB4_M3_READ_OWNER_FORBIDDEN';
   end if;
   -- v6 остаётся целым: проекция расширяется, а не подменяется.
   if v_read#>'{data,m2M3Handoffs}' is null
-     or jsonb_array_length(v_read#>'{data,m2M3Handoffs}')<>1 then
+     or jsonb_array_length(v_handoffs)<>1 then
     raise exception 'DB4_M3_READ_BASE_LOST';
   end if;
   if jsonb_array_length(v_read#>'{data,m3DocumentationSheets}')<>1 then
@@ -44,14 +53,14 @@ begin
   end if;
   -- Вход модуля отдаётся в его собственной форме: комната и design intent
   -- есть, иначе проверку комплектности не на чем запустить.
-  if jsonb_array_length(v_read#>'{data,m3DocumentationHandoffs}')<>1 then
+  if jsonb_array_length(v_doc_handoffs)<>1 then
     raise exception 'DB4_M3_READ_HANDOFF_COUNT';
   end if;
-  if v_read#>>'{data,m3DocumentationHandoffs,0,roomId}'<>'cycle6-living-room'
-     or v_read#>>'{data,m3DocumentationHandoffs,0,designIntentRevisionId}' is null
-     or v_read#>>'{data,m3DocumentationHandoffs,0,layout,semanticHash}'
+  if v_doc_handoffs#>>'{0,roomId}'<>'cycle6-living-room'
+     or v_doc_handoffs#>>'{0,designIntentRevisionId}' is null
+     or v_doc_handoffs#>>'{0,layout,semanticHash}'
         is distinct from v_sheet#>>'{origin,semanticHash}'
-     or v_read#>'{data,m3DocumentationHandoffs,0,selectionRevisionIds}'
+     or v_doc_handoffs#>'{0,selectionRevisionIds}'
         <>jsonb_build_array('revision-selection-db4-r1') then
     raise exception 'DB4_M3_READ_HANDOFF_SHAPE';
   end if;
