@@ -1,4 +1,4 @@
-import type { BaselineHandoffRef } from "@/lib/project-intelligence/delivery/projectceo/handoff-refs";
+import type { BaselineHandoffRef } from "../../delivery/projectceo/handoff-refs";
 import type { ExternalReleaseCandidateRef } from "../../delivery/projectceo/command-contract";
 import type {
   ApprovalPackage,

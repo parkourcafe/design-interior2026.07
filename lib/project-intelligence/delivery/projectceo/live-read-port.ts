@@ -1,6 +1,6 @@
-import { baselineHandoffRefs } from "./handoff-refs";
 import "server-only";
 
+import { baselineHandoffRefs } from "./handoff-refs";
 import {
   FoundationPostgresAdapter,
   ProjectCeoPlatformPostgresAdapter,
@@ -1202,7 +1202,8 @@ function operationStates(input: {
   const baselineHandoffsReady = baselineHandoffRefs(
     rows(input.delivery.packages).flatMap((entry) => {
       const id = nullableText(entry.id);
-      return id ? [id] : [];
+      const status = nullableText(entry.status);
+      return id && (status === null || status === "active") ? [id] : [];
     }),
     input.delivery.m2M3Handoffs.map((handoff) => ({
       id: handoff.id,

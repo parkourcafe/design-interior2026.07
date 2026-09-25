@@ -176,6 +176,7 @@ begin
   end if;
 
   -- DEC-040 (4): форма и содержание ссылок на передачи — до публикации.
+  v_baseline_id := 'baseline:' || btrim(coalesce(command_ref, ''));
   if handoff_refs is null
      or jsonb_typeof(handoff_refs) <> 'array'
      or jsonb_array_length(handoff_refs) not between 1 and 100 then
@@ -204,30 +205,16 @@ begin
         'P1111', 'validation_failed', '{"field":"handoffRefs.duplicatePackageId"}'::jsonb
       );
     end if;
-    v_handoff := projectceo_product._require_latest_published_handoff(
-      v_context.organization_id, project_id, v_package_id,
-      v_ref->>'handoffId', v_ref->>'handoffRevisionId'
-    );
     v_refs := v_refs || jsonb_build_array(jsonb_build_object(
       'packageId', v_package_id::text,
-      'handoffId', v_handoff.entity_id,
-      'handoffRevisionId', v_handoff.revision_id,
-      'designIntentRevisionId', v_handoff.payload->>'designIntentRevisionId'
+      'handoffId', v_ref->>'handoffId',
+      'handoffRevisionId', v_ref->>'handoffRevisionId'
     ));
   end loop;
 
-  v_result := projectceo_product._publish_baseline_atomic_unchecked(
-    project_id,
-    expected_latest_version_id,
-    previous_baseline_id,
-    expected_state_revision,
-    command_ref,
-    idempotency_key
-  );
-  v_baseline_id := 'baseline:' || btrim(command_ref);
-
-  -- Точный replay: та же команда с другими ссылками — конфликт, не новый
-  -- baseline и не молчаливое принятие.
+  -- Точный replay первым: если этот baseline уже опубликован с передачами,
+  -- та же команда с теми же ссылками возвращает прежний результат (даже если
+  -- передачу с тех пор переопубликовали), с другими ссылками — P1110.
   select coalesce(jsonb_agg(jsonb_build_object(
       'packageId', r.package_id::text,
       'handoffId', r.handoff_id,
@@ -251,7 +238,42 @@ begin
         'P1110', 'idempotency_conflict', '{"reason":"HANDOFF_REFS_CHANGED"}'::jsonb
       );
     end if;
-    return v_result;
+    return projectceo_product._publish_baseline_atomic_unchecked(
+      project_id, expected_latest_version_id, previous_baseline_id,
+      expected_state_revision, command_ref, idempotency_key
+    );
+  end if;
+
+  -- Первый вызов: каждая ссылка — последняя опубликованная ревизия передачи
+  -- своего пакета.
+  v_refs := '[]'::jsonb;
+  for v_ref in select value from jsonb_array_elements(handoff_refs) loop
+    v_handoff := projectceo_product._require_latest_published_handoff(
+      v_context.organization_id, project_id, (v_ref->>'packageId')::uuid,
+      v_ref->>'handoffId', v_ref->>'handoffRevisionId'
+    );
+    v_refs := v_refs || jsonb_build_array(jsonb_build_object(
+      'packageId', ((v_ref->>'packageId')::uuid)::text,
+      'handoffId', v_handoff.entity_id,
+      'handoffRevisionId', v_handoff.revision_id,
+      'designIntentRevisionId', v_handoff.payload->>'designIntentRevisionId'
+    ));
+  end loop;
+
+  v_result := projectceo_product._publish_baseline_atomic_unchecked(
+    project_id,
+    expected_latest_version_id,
+    previous_baseline_id,
+    expected_state_revision,
+    command_ref,
+    idempotency_key
+  );
+  -- Replay команды, выполненной до гейта: у такого baseline ссылок нет, и
+  -- задним числом они не пришиваются — нужен новый baseline с передачей.
+  if coalesce((v_result->>'replay')::boolean, false) then
+    perform projectceo_product._raise(
+      'P1111', 'validation_failed', '{"reason":"M2_HANDOFF_REQUIRED"}'::jsonb
+    );
   end if;
 
   -- Каждый пакет baseline — ровно с одной передачей, и наоборот.
@@ -407,11 +429,15 @@ begin
     create or replace function projectceo_platform._module_signatures(p_module text)
     returns text[] language sql immutable security definer set search_path = '' as $body$
       select case p_module
-        when 'm3' then %L::text[]
-        when 'm4_increment_1' then %L::text[]
+        when 'm3' then array[%s]
+        when 'm4_increment_1' then array[%s]
         else null end;
     $body$;
-  $definition$, pg_catalog.array_replace(v_m3, v_old, v_new), v_m4);
+  $definition$,
+    (select pg_catalog.string_agg(pg_catalog.quote_literal(value), E',\n          ' order by ordinality)
+     from unnest(pg_catalog.array_replace(v_m3, v_old, v_new)) with ordinality as entry(value, ordinality)),
+    (select pg_catalog.string_agg(pg_catalog.quote_literal(value), E',\n          ' order by ordinality)
+     from unnest(v_m4) with ordinality as entry(value, ordinality)));
   if projectceo_platform._module_signatures('m3') is distinct from pg_catalog.array_replace(v_m3, v_old, v_new)
      or projectceo_platform._module_signatures('m4_increment_1') is distinct from v_m4
      or exists (

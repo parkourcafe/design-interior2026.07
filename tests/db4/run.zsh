@@ -51,6 +51,7 @@ for migration in "${repo_root}"/supabase/migrations/*.sql(N); do
 done
 # DEC-040 (4): засев опубликованных передач M2→M3 для позитивных цепочек M3.
 run_file "${repo_root}/tests/fixtures/sql/m3_handoff_fixture.sql"
+run_file "${repo_root}/tests/fixtures/sql/m3_handoff_refs_fixture.sql"
 
 for sql in \
   "${repo_root}/tests/db3/20_foundation_operations.sql" \

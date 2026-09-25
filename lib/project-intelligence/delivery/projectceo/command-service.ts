@@ -1,6 +1,6 @@
-import { baselineHandoffRefs } from "./handoff-refs";
 import "server-only";
 
+import { baselineHandoffRefs } from "./handoff-refs";
 import {
   FoundationPostgresAdapter,
   ProjectCeoM3HumanPostgresAdapter,
@@ -980,8 +980,14 @@ export class ProjectCeoCommandService {
         // DEC-040 (4): передача M2→M3 по каждому пакету baseline. Ссылки
         // выводятся из того же серверного чтения; без передачи хотя бы одного
         // пакета публикация не предлагается и не исполняется.
+        // Состав baseline — активные пакеты (так же выводит его база).
+        const activePackageIds = rows(read.data.packages).flatMap((entry) => (
+          typeof entry.id === "string" && (entry.status === undefined || entry.status === "active")
+            ? [entry.id]
+            : []
+        ));
         const handoffs = baselineHandoffRefs(
-          packages.map((entry) => entry.id),
+          activePackageIds,
           rows(read.data.m2M3Handoffs).flatMap((entry) => (
             typeof entry.id === "string" && typeof entry.packageId === "string"
               && typeof entry.revisionId === "string" && typeof entry.revisionNo === "number"
