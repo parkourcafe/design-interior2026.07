@@ -563,6 +563,24 @@ export class ProjectCeoCommandService {
           idempotencyKey,
         }));
       }
+      if (command.kind === "record_project_stage_revision") {
+        const scope = await this.scopeOnly(command.projectId);
+        return completed(requestId, await this.platform.recordProjectStageRevision({
+          projectId: command.projectId,
+          stageId: command.payload.stageId,
+          resultRevisionId: command.payload.resultRevisionId,
+          ownerUserId: command.payload.ownerUserId,
+          plannedAt: command.payload.plannedAt,
+          actualAt: command.payload.actualAt,
+          blockerReason: command.payload.blockerReason,
+          requirements: command.payload.requirements,
+          approvalStatus: command.payload.approvalStatus,
+          approvalRevisionId: command.payload.approvalRevisionId,
+          notApplicableReason: command.payload.notApplicableReason,
+          expectedStateRevision: scope.stateRevision,
+          idempotencyKey,
+        }));
+      }
       const { scope, delivery } = await this.context(command.projectId);
       if (command.kind === "submit_m2_client_review") {
         return completed(requestId, await this.product.submitM2ClientReview({

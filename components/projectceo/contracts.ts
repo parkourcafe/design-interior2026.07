@@ -609,6 +609,19 @@ export interface DocumentationView {
   readonly completeness: readonly DocumentationCompletenessView[];
 }
 
+export interface ProjectStageRevisionView {
+  readonly stageId: "01_brief" | "02_concept_offer" | "03_preliminary_design" | "04_design_development" | "05_technical_documentation" | "06_preconstruction" | "07_construction_closeout";
+  readonly revisionId: string;
+  readonly revisionNo: number;
+  readonly resultRevisionId: string | null;
+  readonly ownerUserId: string;
+  readonly plannedAt: string | null;
+  readonly actualAt: string | null;
+  readonly blockerReason: string | null;
+  readonly approvalStatus: "draft" | "submitted" | "approved" | "rejected" | "change_requested" | null;
+  readonly notApplicableReason: string | null;
+}
+
 export interface ProjectWorkspaceView {
   readonly project: ProjectSummary;
   readonly actor: ProjectCeoActor;
@@ -639,6 +652,7 @@ export interface ProjectWorkspaceView {
   readonly history: readonly AuditEventView[];
   readonly controlledAnalytics: readonly AnalyticsEvent[];
   readonly documentation: DocumentationView | null;
+  readonly stageRevisions: readonly ProjectStageRevisionView[];
   readonly operations: ProjectCeoOperationStates;
 }
 

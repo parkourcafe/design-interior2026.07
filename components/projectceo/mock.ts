@@ -703,6 +703,7 @@ function roleScopedWorkspace(role: ProjectCeoRole): ProjectWorkspaceView {
     // The deterministic Kora fixture stops at M2: it carries no documentation
     // package, so the section is absent rather than present-and-empty.
     documentation: null,
+    stageRevisions: [],
     controlledAnalytics: isCore ? analytics : [],
     operations: fixtureOperations,
   };

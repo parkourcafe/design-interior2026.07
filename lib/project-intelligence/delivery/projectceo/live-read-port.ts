@@ -48,6 +48,7 @@ import {
   type ProjectPackageView,
   type ProjectSummary,
   type ProjectWorkspaceView,
+  type ProjectStageRevisionView,
   type ReleaseSummary,
   type SelectionView,
   type DocumentationView,
@@ -1648,6 +1649,19 @@ export class ProjectCeoLiveReadPort implements ProjectCeoUiReadPort {
       const execution = m4Views(m4Envelopes);
       const m2 = m2WorkspaceViews(delivery);
       const m2Cycle6 = m2Cycle6Views(delivery);
+      const stageRevisions: readonly ProjectStageRevisionView[] = hasProjectScope
+        ? (await this.platform.listProjectStageRevisions(input.projectId)).flatMap((item) => {
+            if (!(["01_brief", "02_concept_offer", "03_preliminary_design", "04_design_development", "05_technical_documentation", "06_preconstruction", "07_construction_closeout"] as const).includes(item.stageId as never)) return [];
+            const approvalStatus = item.approvalStatus;
+            return [{
+              stageId: item.stageId as ProjectStageRevisionView["stageId"], revisionId: item.revisionId,
+              revisionNo: item.revisionNo, resultRevisionId: item.resultRevisionId, ownerUserId: item.ownerUserId,
+              plannedAt: item.plannedAt, actualAt: item.actualAt, blockerReason: item.blockerReason,
+              approvalStatus: approvalStatus === "draft" || approvalStatus === "submitted" || approvalStatus === "approved" || approvalStatus === "rejected" || approvalStatus === "change_requested" ? approvalStatus : null,
+              notApplicableReason: item.notApplicableReason,
+            }];
+          })
+        : [];
       let access = { invitations: [] as readonly InvitationView[], participants: [] as readonly ParticipantView[], grants: [] as readonly AccessGrantView[] };
       if (hasProjectScope && can(actor.role, "manage_access")) {
         const envelope = await this.foundation.listProjectAccess(input.projectId);
@@ -1727,6 +1741,7 @@ export class ProjectCeoLiveReadPort implements ProjectCeoUiReadPort {
           delivery,
           enabled: isDocumentationModuleEnabled(),
         }),
+        stageRevisions,
         operations: operationStates({
           role: actor.role,
           hasProjectScope,

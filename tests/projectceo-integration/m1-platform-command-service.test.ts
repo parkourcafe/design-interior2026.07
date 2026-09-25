@@ -86,6 +86,45 @@ function command<T extends ProjectCeoCommand["kind"]>(
 }
 
 describe("M1 platform command boundary", () => {
+  it("records a stage revision through the server-derived project scope", async () => {
+    const calls: Call[] = [];
+    const input = command("record_project_stage_revision", {
+      stageId: "01_brief",
+      resultRevisionId: "passport-v1",
+      ownerUserId: "50000000-0000-4000-8000-000000000001",
+      plannedAt: "2026-09-24T10:00:00+05:00",
+      actualAt: null,
+      blockerReason: null,
+      requirements: [{ id: "brief", label: "Версия брифа", satisfied: true }],
+      approvalStatus: "submitted",
+      approvalRevisionId: "passport-v1",
+      notApplicableReason: null,
+    }, "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee");
+
+    const result = await service(calls).execute(input, "http-aldo-stage");
+    expect(result).toMatchObject({ status: "completed", operation: "record_project_stage_revision", stateRevision: 42 });
+    expect(calls).toContainEqual({
+      name: "projectceo_platform_api.record_project_stage_revision",
+      args: {
+        project_id: projectId,
+        stage_id: "01_brief",
+        result_revision_id: "passport-v1",
+        owner_user_id: input.payload.ownerUserId,
+        planned_at: input.payload.plannedAt,
+        actual_at: null,
+        blocker_reason: null,
+        requirements: input.payload.requirements,
+        approval_status: "submitted",
+        approval_revision_id: "passport-v1",
+        not_applicable_reason: null,
+        expected_state_revision: 41,
+        idempotency_key: `ui:${projectId}:record_project_stage_revision:${input.commandId}`,
+      },
+    });
+    expect(JSON.stringify(calls)).not.toContain("actorId");
+    expect(JSON.stringify(calls)).not.toContain("organizationId");
+  });
+
   it("uses the server project state revision and keeps fact provenance in the RPC contract", async () => {
     const calls: Call[] = [];
     const input = command("create_project_fact", {

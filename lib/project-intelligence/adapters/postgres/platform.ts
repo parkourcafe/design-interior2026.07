@@ -32,6 +32,23 @@ export interface PlatformApprovalRequestRecord {
   readonly createdAt: string;
 }
 
+export interface PlatformProjectStageRevisionRecord {
+  readonly stageId: string;
+  readonly revisionId: string;
+  readonly revisionNo: number;
+  readonly resultRevisionId: string | null;
+  readonly ownerUserId: string;
+  readonly plannedAt: string | null;
+  readonly actualAt: string | null;
+  readonly blockerReason: string | null;
+  readonly requirements: readonly unknown[];
+  readonly approvalStatus: string | null;
+  readonly approvalRevisionId: string | null;
+  readonly notApplicableReason: string | null;
+  readonly notApplicableBy: string | null;
+  readonly createdAt: string;
+}
+
 type RecordValue = Readonly<Record<string, unknown>>;
 
 function record(value: unknown): RecordValue {
@@ -91,6 +108,24 @@ function approval(value: unknown): PlatformApprovalRequestRecord | null {
   };
 }
 
+function stageRevision(value: unknown): PlatformProjectStageRevisionRecord | null {
+  const item = record(value);
+  const stageId = text(item.stageId);
+  const revisionId = text(item.revisionId);
+  const ownerUserId = text(item.ownerUserId);
+  const createdAt = text(item.createdAt);
+  const revisionNo = item.revisionNo;
+  if (!stageId || !revisionId || !ownerUserId || !createdAt || typeof revisionNo !== "number" || !Number.isSafeInteger(revisionNo) || revisionNo < 1) return null;
+  return {
+    stageId, revisionId, revisionNo,
+    resultRevisionId: text(item.resultRevisionId), ownerUserId,
+    plannedAt: text(item.plannedAt), actualAt: text(item.actualAt), blockerReason: text(item.blockerReason),
+    requirements: Array.isArray(item.requirements) ? item.requirements : [],
+    approvalStatus: text(item.approvalStatus), approvalRevisionId: text(item.approvalRevisionId),
+    notApplicableReason: text(item.notApplicableReason), notApplicableBy: text(item.notApplicableBy), createdAt,
+  };
+}
+
 export class ProjectCeoPlatformPostgresAdapter {
   constructor(private readonly client: PostgresRpcClient) {}
 
@@ -122,6 +157,30 @@ export class ProjectCeoPlatformPostgresAdapter {
           return item ? [item] : [];
         })
       : [];
+  }
+
+  async listProjectStageRevisions(projectId: string): Promise<readonly PlatformProjectStageRevisionRecord[]> {
+    const data = record(await callRpc(this.client, "projectceo_platform_api", "get_project_stage_revisions", { project_id: projectId }));
+    return Array.isArray(data.stages) ? data.stages.flatMap((value) => {
+      const item = stageRevision(value);
+      return item ? [item] : [];
+    }) : [];
+  }
+
+  async recordProjectStageRevision(input: {
+    readonly projectId: string; readonly stageId: string; readonly resultRevisionId: string | null;
+    readonly ownerUserId: string; readonly plannedAt: string | null; readonly actualAt: string | null;
+    readonly blockerReason: string | null; readonly requirements: readonly unknown[];
+    readonly approvalStatus: string | null; readonly approvalRevisionId: string | null;
+    readonly notApplicableReason: string | null; readonly expectedStateRevision: number; readonly idempotencyKey: string;
+  }): Promise<CommandMutation<unknown>> {
+    return parseCommandMutation(await callRpc(this.client, "projectceo_platform_api", "record_project_stage_revision", {
+      project_id: input.projectId, stage_id: input.stageId, result_revision_id: input.resultRevisionId,
+      owner_user_id: input.ownerUserId, planned_at: input.plannedAt, actual_at: input.actualAt,
+      blocker_reason: input.blockerReason, requirements: input.requirements, approval_status: input.approvalStatus,
+      approval_revision_id: input.approvalRevisionId, not_applicable_reason: input.notApplicableReason,
+      expected_state_revision: input.expectedStateRevision, idempotency_key: input.idempotencyKey,
+    }));
   }
 
   async createProjectFact(input: {

@@ -1399,6 +1399,20 @@ export const ru = {
         handoverSummary: (accepted: number, total: number, documents: number) =>
           `Принято ${accepted} из ${total} зон · гарантийных документов ${documents}.`,
         noArchiveHash: "Архив не фиксируется до полной human acceptance",
+        stagesTitle: "Этапы проекта",
+        stagesEmpty: "Этапы пока не зафиксированы.",
+        stageBlocked: "Есть блокировка",
+        stageNotApplicable: "Не применимо",
+        stageApproval: "Согласование",
+        stageLabels: {
+          "01_brief": "01 · Знакомство и бриф",
+          "02_concept_offer": "02 · Концепция и предложение",
+          "03_preliminary_design": "03 · Эскизный проект",
+          "04_design_development": "04 · Разработка дизайна",
+          "05_technical_documentation": "05 · Рабочая документация",
+          "06_preconstruction": "06 · Подготовка к ремонту",
+          "07_construction_closeout": "07 · Работы и завершение",
+        },
       },
       m1: {
         heading: "Паспорт проекта",

@@ -774,6 +774,22 @@ export const projectCeoCommandSchema = z.discriminatedUnion("kind", [
       nativeM3ReleasePayloadSchema,
     ]),
   }).strict(),
+  projectSelector.extend({
+    contractVersion: z.literal(PROJECTCEO_COMMAND_CONTRACT_VERSION),
+    kind: z.literal("record_project_stage_revision"),
+    payload: z.object({
+      stageId: z.enum(["01_brief", "02_concept_offer", "03_preliminary_design", "04_design_development", "05_technical_documentation", "06_preconstruction", "07_construction_closeout"]),
+      resultRevisionId: inventoryKey.nullable(),
+      ownerUserId: uuid,
+      plannedAt: z.string().datetime({ offset: true }).nullable(),
+      actualAt: z.string().datetime({ offset: true }).nullable(),
+      blockerReason: z.string().trim().min(1).max(4000).nullable(),
+      requirements: z.array(z.object({ id: inventoryKey, label: z.string().trim().min(1).max(500), satisfied: z.boolean() }).strict()).max(200),
+      approvalStatus: z.enum(["draft", "submitted", "approved", "rejected", "change_requested"]).nullable(),
+      approvalRevisionId: inventoryKey.nullable(),
+      notApplicableReason: z.string().trim().min(1).max(4000).nullable(),
+    }).strict(),
+  }).strict(),
   // Сборка и закрытие handover идут через отдельный worker-allowlist
   // (AP3 §10): человеческой команды нет намеренно, и static-boundary тест
   // запрещает её появление в этом сервисе.
