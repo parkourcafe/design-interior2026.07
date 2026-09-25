@@ -230,49 +230,42 @@ begin
 end
 $release_requires_handoff$;
 
--- 8. Настоящая дверь выпуска: у baseline нет ссылки на передачу пакета
---    (строку снимаем в откатываемой транзакции, выключив append-only) —
---    work-package выпуск отклоняется триггером таблицы выпусков.
+-- 8. У baseline нет ссылки на передачу пакета (строку снимаем в
+--    откатываемой транзакции, выключив append-only).
 alter table projectceo_product.baseline_handoff_refs disable trigger baseline_handoff_refs_append_only;
 delete from projectceo_product.baseline_handoff_refs
 where baseline_id = 'baseline:db4-gate-positive'
   and package_id = '49999999-9999-4999-8999-999999999999';
 alter table projectceo_product.baseline_handoff_refs enable trigger baseline_handoff_refs_append_only;
 
-select
-  (select state_revision from project_intelligence.project_workflows
-   where project_id = '41111111-1111-4111-8111-111111111111') as release_state,
-  coalesce((select production_package_version_id from projectceo_product.production_package_versions
-   where project_id = '41111111-1111-4111-8111-111111111111'
-     and package_id = '49999999-9999-4999-8999-999999999999'
-   order by version_no desc limit 1), '') as release_previous
-\gset gate_
-select set_config('db4.gate_release_state', :'gate_release_state', true);
-select set_config('db4.gate_release_previous', :'gate_release_previous', true);
-
-set local role authenticated;
-set local request.jwt.claim.sub = '31111111-1111-4111-8111-111111111111';
-do $release_door_refused$
+-- Продуктовый путь выпуска пишет production_package_versions от имени
+-- владельца дверей (pi_table_owner). Та же запись для пакета без ссылки в
+-- baseline отклоняется триггером до любых ограничений таблицы.
+set local role pi_table_owner;
+do $release_row_refused$
 declare v_detail text;
 begin
   begin
-    perform projectceo_product_api.publish_work_package_release_request_bound(
-      '41111111-1111-4111-8111-111111111111',
-      '49999999-9999-4999-8999-999999999999',
-      'baseline:db4-gate-positive',
-      nullif(current_setting('db4.gate_release_previous'), ''),
-      current_setting('db4.gate_release_state')::bigint,
-      'db4-gate-release-without-handoff',
-      'db4-gate-release-without-handoff');
-    raise exception 'DB4_81_RELEASE_DOOR_WITHOUT_HANDOFF_ACCEPTED';
+    insert into projectceo_product.production_package_versions
+    select (jsonb_populate_record(
+      null::projectceo_product.production_package_versions,
+      to_jsonb(v) || jsonb_build_object(
+        'baseline_id', 'baseline:db4-gate-positive',
+        'production_package_version_id', 'db4-gate-release-probe')
+    )).*
+    from projectceo_product.production_package_versions v
+    where v.project_id = '41111111-1111-4111-8111-111111111111'
+      and v.package_id = '49999999-9999-4999-8999-999999999999'
+    limit 1;
+    raise exception 'DB4_81_RELEASE_ROW_WITHOUT_HANDOFF_ACCEPTED';
   exception when sqlstate 'P1111' then
     get stacked diagnostics v_detail = pg_exception_detail;
     if v_detail::jsonb->>'reason' is distinct from 'M2_HANDOFF_REQUIRED' then
-      raise exception 'DB4_81_RELEASE_DOOR_WRONG_REFUSAL:%', v_detail;
+      raise exception 'DB4_81_RELEASE_ROW_WRONG_REFUSAL:%', v_detail;
     end if;
   end;
 end
-$release_door_refused$;
+$release_row_refused$;
 reset role;
 
 rollback;
