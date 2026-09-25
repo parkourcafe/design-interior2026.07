@@ -1,3 +1,4 @@
+import { seedM3HandoffsForBaseline } from "./m3-handoff-fixture";
 import { createHash, randomUUID } from "node:crypto";
 
 import { expect, test, type APIRequestContext, type Browser } from "@playwright/test";
@@ -369,6 +370,12 @@ test.describe("AP5 — цепочка Kora на живом стеке", () => {
     });
     expect(approved.status, commandDiagnostic(approved)).toBe(200);
 
+    // DEC-040 (4): передача M2→M3 по каждому пакету — до baseline.
+    seedM3HandoffsForBaseline({
+      projectId: handoff().projectId,
+      designIntentRevisionId: AP5_DECISION_REVISION_ID,
+    });
+
     // Поверхность обязана предложить публикацию и выдать токен: именно его
     // команда потребует назад, и именно он ловит гонку.
     const view = await workspace(architect);
@@ -609,6 +616,10 @@ test.describe("AP5 — цепочка Kora на живом стеке", () => {
     });
     expect(approved.status, commandDiagnostic(approved)).toBe(200);
 
+    seedM3HandoffsForBaseline({
+      projectId: handoff().projectId,
+      designIntentRevisionId: AP5_DECISION_REVISION_ID_2,
+    });
     const beforeSecondBaseline = await workspace(architect);
     expect(beforeSecondBaseline.operations.publish_baseline?.status).toBe("available");
     const snapshotToken = beforeSecondBaseline.operations.publish_baseline?.commandTargetId;
@@ -907,6 +918,7 @@ test.describe("AP5 — цепочка Kora на живом стеке", () => {
     });
     expect(approved.status, commandDiagnostic(approved)).toBe(200);
 
+    seedM3HandoffsForBaseline({ projectId: handoff().projectId, designIntentRevisionId: revisionId });
     const beforeBaseline = await workspace(architect);
     expect(beforeBaseline.operations.publish_baseline?.status).toBe("available");
     const snapshotToken = beforeBaseline.operations.publish_baseline?.commandTargetId;

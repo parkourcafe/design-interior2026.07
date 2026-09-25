@@ -95,15 +95,21 @@ select set_config('db4.gate_refs',
 select pi_test_fixture.seed_handoff(
   '41111111-1111-4111-8111-111111111111', '49999999-9999-4999-8999-999999999999',
   'handoff-db4-81-stale', 'revision-decision-db4-r1', array['revision-selection-db4-r1'],
-  '31111111-1111-4111-8111-111111111111');
+  '31111111-1111-4111-8111-111111111111') as stale_r1
+\gset gate_
 select pi_test_fixture.seed_handoff(
   '41111111-1111-4111-8111-111111111111', '49999999-9999-4999-8999-999999999999',
   'handoff-db4-81-stale', 'revision-decision-db4-r1', array['revision-selection-db4-r1'],
-  '31111111-1111-4111-8111-111111111111');
+  '31111111-1111-4111-8111-111111111111') as stale_r2
+\gset gate_
 select pi_test_fixture.seed_handoff(
   '41111111-1111-4111-8111-111111111111', '49999999-9999-4999-8999-999999999999',
-  'handoff-db4-81-foreign', 'revision-decision-not-in-graph', array[]::text[],
-  '31111111-1111-4111-8111-111111111111');
+  'handoff-db4-81-foreign', 'revision-decision-not-in-graph', array['revision-selection-db4-r1'],
+  '31111111-1111-4111-8111-111111111111') as foreign_r1
+\gset gate_
+select set_config('db4.gate_stale_r1', :'gate_stale_r1', true);
+select set_config('db4.gate_stale_r2', :'gate_stale_r2', true);
+select set_config('db4.gate_foreign_r1', :'gate_foreign_r1', true);
 
 set local role authenticated;
 set local request.jwt.claim.sub = '31111111-1111-4111-8111-111111111111';
@@ -122,7 +128,7 @@ begin
   -- 3. Устаревшая ревизия передачи.
   perform pi_test_fixture.expect_baseline_refusal(jsonb_build_array(v_root, jsonb_build_object(
     'packageId', '49999999-9999-4999-8999-999999999999',
-    'handoffId', 'handoff-db4-81-stale', 'handoffRevisionId', 'handoff-db4-81-stale-r1'
+    'handoffId', 'handoff-db4-81-stale', 'handoffRevisionId', current_setting('db4.gate_stale_r1')
   )), 'P1109', 'M2_HANDOFF_STALE', 'stale');
   -- 4. Передача, которой нет у пакета (чужой пакет).
   perform pi_test_fixture.expect_baseline_refusal(jsonb_build_array(v_root, jsonb_build_object(
@@ -132,7 +138,7 @@ begin
   -- 5. Содержание передачи не вошло в baseline.
   perform pi_test_fixture.expect_baseline_refusal(jsonb_build_array(v_root, jsonb_build_object(
     'packageId', '49999999-9999-4999-8999-999999999999',
-    'handoffId', 'handoff-db4-81-foreign', 'handoffRevisionId', 'handoff-db4-81-foreign-r1'
+    'handoffId', 'handoff-db4-81-foreign', 'handoffRevisionId', current_setting('db4.gate_foreign_r1')
   )), 'P1111', 'M2_HANDOFF_NOT_IN_BASELINE', 'not_in_baseline');
 end
 $refusals$;
@@ -171,7 +177,7 @@ begin
       current_setting('db4.gate_previous_baseline_id'),
       (select jsonb_agg(case when ref->>'packageId' = '49999999-9999-4999-8999-999999999999'
           then jsonb_build_object('packageId', ref->>'packageId',
-            'handoffId', 'handoff-db4-81-stale', 'handoffRevisionId', 'handoff-db4-81-stale-r2')
+            'handoffId', 'handoff-db4-81-stale', 'handoffRevisionId', current_setting('db4.gate_stale_r2'))
           else ref end)
        from jsonb_array_elements(v_refs) ref),
       current_setting('db4.gate_state_revision')::bigint,

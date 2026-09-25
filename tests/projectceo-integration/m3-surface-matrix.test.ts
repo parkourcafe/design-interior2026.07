@@ -75,6 +75,7 @@ describe("M3 surface matrix", () => {
       "supabase/migrations/20260912110000_r1_external_release_attachment_manifest.sql",
       "supabase/migrations/20260915191820_r1_pdf_dwg_source_pair_request_door.sql",
       "supabase/migrations/20260915194544_r1_source_pair_read_projection.sql",
+      "supabase/migrations/20260925100000_projectceo_m3_handoff_gate.sql",
     ];
     const revokeBlock = migrations.map((path) => {
       const migration = read(path);
@@ -88,10 +89,17 @@ describe("M3 surface matrix", () => {
       expect(revokeBlock.replace(/\s+/g, "")).toContain(withoutSpaces);
     }
     // И обратно: миграция не отзывает ничего, чего нет в матрице.
+    // DEC-040 (4): 6-аргументная baseline-дверь удалена миграцией
+    // 20260925100000; её исторический revoke во флипе 20260911160000 остаётся
+    // в истории схемы, но в матрице живой поверхности её нет.
+    const superseded = new Set([
+      "projectceo_product_api.publish_baseline_atomic(uuid, text, text, bigint, text, text)",
+    ]);
     const revokedInMigration = revokeBlock
       .split("\n")
       .map((line) => line.trim().replace(/,$/, ""))
-      .filter((line) => line.includes("(") && line.includes("."));
+      .filter((line) => line.includes("(") && line.includes("."))
+      .filter((line) => !superseded.has(line));
     expect([...new Set(revokedInMigration)].sort()).toEqual(
       [...M3_REVOKED_SIGNATURES].sort(),
     );

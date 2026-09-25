@@ -40,7 +40,9 @@ begin
   order by revision_no desc
   limit 1;
   v_revision_no := coalesce(v_previous.revision_no, 0) + 1;
-  v_revision_id := p_handoff_id || '-r' || v_revision_no;
+  -- UUID-идентификаторы — как у настоящей двери: authenticated-чтение (TS)
+  -- строго валидирует форму передачи.
+  v_revision_id := extensions.gen_random_uuid()::text;
   insert into projectceo_product.m2_workspace_revisions (
     organization_id, project_id, package_id, entity_kind, entity_id, revision_id,
     revision_no, supersedes_revision_id, status, payload, reason, reason_digest,
@@ -50,19 +52,22 @@ begin
     v_revision_no, v_previous.revision_id, 'published',
     jsonb_build_object(
       'approvedCommitId', p_handoff_id || '-commit',
-      'approvedCommitRevisionId', p_handoff_id || '-commit-r1',
+      'approvedCommitRevisionId', extensions.gen_random_uuid()::text,
       'roomId', p_handoff_id || '-room',
       'designIntentRevisionId', p_design_intent_revision_id,
       'chosenVariant', jsonb_build_object(
         'variantId', p_handoff_id || '-variant',
         'layoutDocumentId', p_handoff_id || '-layout',
         'layoutVersionId', p_handoff_id || '-layout-v1',
-        'layoutRevisionId', p_handoff_id || '-layout-r1',
+        'layoutRevisionId', extensions.gen_random_uuid()::text,
         'semanticHash', 'sha256:' || encode(extensions.digest(p_handoff_id, 'sha256'), 'hex')
       ),
-      'layoutRevisionId', p_handoff_id || '-layout-r1',
+      'layoutRevisionId', extensions.gen_random_uuid()::text,
       'selectionRevisionIds', to_jsonb(p_selection_revision_ids),
-      'budget', null,
+      'budget', jsonb_build_object(
+        'asOf', statement_timestamp(), 'staleAfterDays', 30,
+        'staleSelectionRevisionIds', '[]'::jsonb, 'missingPriceSelectionRevisionIds', '[]'::jsonb
+      ),
       'schemaVersion', 'archidom.m2-to-m3-handoff/0.1',
       'publishedAt', statement_timestamp()
     ),

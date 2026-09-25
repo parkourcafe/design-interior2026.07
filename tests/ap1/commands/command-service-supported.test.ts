@@ -986,11 +986,35 @@ describe("AP1 supported human commands", () => {
       previousBaselineId: "baseline-v2",
     });
 
+    // DEC-040 (4): без опубликованной передачи пакета публикация не
+    // исполняется — ни одного вызова baseline-двери.
+    const refused: Call[] = [];
+    const withoutHandoff = await service(refused, {
+      approvalPackages,
+      packages,
+      latestBaseline: { id: "baseline-v2", graphVersionId: "graph-v2" },
+    }).execute(
+      command("publish_baseline", { snapshotToken: snapshot.token }),
+      "baseline-publish-no-handoff",
+    );
+    expect(withoutHandoff).toMatchObject({ status: "unavailable" });
+    expect(refused.some((call) => call.name === "projectceo_product_api.publish_baseline_atomic")).toBe(false);
+
     const calls: Call[] = [];
     const result = await service(calls, {
       approvalPackages,
       packages,
       latestBaseline: { id: "baseline-v2", graphVersionId: "graph-v2" },
+      m2M3Handoffs: [{
+      id: "handoff-1", packageId: packageId, revisionId: "73000000-0000-4000-8000-000000000013",
+      revisionNo: 1, status: "published", approvedCommitId: "commit-1",
+      approvedCommitRevisionId: "73000000-0000-4000-8000-000000000015",
+      layoutRevisionId: "73000000-0000-4000-8000-000000000014",
+      selectionRevisionIds: ["selection-a@1"],
+      budget: { asOf: "2026-08-06T09:45:00.000Z", staleAfterDays: 30, amountRub: 125000,
+        staleSelectionRevisionIds: [], missingPriceSelectionRevisionIds: [] },
+      createdAt: "2026-08-06T12:00:00.000Z",
+    }],
     }).execute(
       command("publish_baseline", { snapshotToken: snapshot.token }),
       "baseline-publish",
@@ -1004,6 +1028,11 @@ describe("AP1 supported human commands", () => {
       project_id: projectId,
       expected_latest_version_id: "graph-v2",
       previous_baseline_id: "baseline-v2",
+      handoff_refs: [{
+        packageId,
+        handoffId: "handoff-1",
+        handoffRevisionId: "73000000-0000-4000-8000-000000000013",
+      }],
       expected_state_revision: 9,
       command_ref: "cccccccc-cccc-4ccc-8ccc-cccccccccccc",
     });
@@ -1388,7 +1417,19 @@ describe("AP1 supported human commands", () => {
       packageIds: [packageId],
       previousBaselineId: null,
     });
-    const overrides = { approvalPackages, packages, latestBaseline: null };
+    const overrides = {
+      approvalPackages, packages, latestBaseline: null,
+      m2M3Handoffs: [{
+      id: "handoff-1", packageId: packageId, revisionId: "73000000-0000-4000-8000-000000000013",
+      revisionNo: 1, status: "published", approvedCommitId: "commit-1",
+      approvedCommitRevisionId: "73000000-0000-4000-8000-000000000015",
+      layoutRevisionId: "73000000-0000-4000-8000-000000000014",
+      selectionRevisionIds: ["selection-a@1"],
+      budget: { asOf: "2026-08-06T09:45:00.000Z", staleAfterDays: 30, amountRub: 125000,
+        staleSelectionRevisionIds: [], missingPriceSelectionRevisionIds: [] },
+      createdAt: "2026-08-06T12:00:00.000Z",
+    }],
+    };
 
     const first: Call[] = [];
     await service(first, overrides).execute(

@@ -1,3 +1,4 @@
+import { baselineHandoffRefs } from "./handoff-refs";
 import "server-only";
 
 import {
@@ -1198,6 +1199,19 @@ function operationStates(input: {
   } catch {
     baselineSnapshotToken = null;
   }
+  const baselineHandoffsReady = baselineHandoffRefs(
+    rows(input.delivery.packages).flatMap((entry) => {
+      const id = nullableText(entry.id);
+      return id ? [id] : [];
+    }),
+    input.delivery.m2M3Handoffs.map((handoff) => ({
+      id: handoff.id,
+      packageId: handoff.packageId,
+      revisionId: handoff.revisionId,
+      revisionNo: handoff.revisionNo,
+      createdAt: handoff.createdAt,
+    })),
+  ).ok;
   // Снапшот версии пакета: тот же приём, что у baseline, шагом позже. Состав
   // берётся из опубликованного baseline (чтение v9, `20260810090000`), а не из
   // одобренного «сейчас» — версия обязана выражать замороженное, иначе RPC
@@ -1384,10 +1398,12 @@ function operationStates(input: {
     // Выход модуля 3 закрыт его же флагом (A5 §4.2.2). До 11.08 закрыт был
     // только приём, и публикация оставалась предложенной при выключенном
     // модуле — сильнейшая операция мимо собственного выключателя.
+    // DEC-040 (4): без опубликованной передачи M2→M3 по каждому пакету
+    // baseline база публикацию отклонит — кнопку не предлагаем.
     publish_baseline: !documentationEnabled
       ? unavailable("module_disabled")
       : allowed("publish_baseline")
-        ? approvalSupersededEntities.length === 0 && baselineSnapshotToken ? {
+        ? approvalSupersededEntities.length === 0 && baselineSnapshotToken && baselineHandoffsReady ? {
             status: "available",
             commandTargetId: baselineSnapshotToken,
           } : unavailable("prerequisite_missing")

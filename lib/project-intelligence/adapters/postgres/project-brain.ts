@@ -1,3 +1,4 @@
+import type { BaselineHandoffRef } from "@/lib/project-intelligence/delivery/projectceo/handoff-refs";
 import type { ExternalReleaseCandidateRef } from "../../delivery/projectceo/command-contract";
 import type {
   ApprovalPackage,
@@ -409,6 +410,7 @@ export class ProjectBrainHumanPostgresAdapter {
     readonly projectId: string;
     readonly expectedLatestVersionId: string | null;
     readonly previousBaselineId: string | null;
+    readonly handoffRefs: readonly BaselineHandoffRef[];
     readonly expectedStateRevision: number;
     readonly commandRef: string;
     readonly idempotencyKey: string;
@@ -418,6 +420,8 @@ export class ProjectBrainHumanPostgresAdapter {
         project_id: input.projectId,
         expected_latest_version_id: input.expectedLatestVersionId,
         previous_baseline_id: input.previousBaselineId,
+        // DEC-040 (4): опубликованная передача M2→M3 по каждому пакету.
+        handoff_refs: input.handoffRefs,
         expected_state_revision: input.expectedStateRevision,
         command_ref: input.commandRef,
         idempotency_key: input.idempotencyKey,

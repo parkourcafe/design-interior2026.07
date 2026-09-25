@@ -1,3 +1,4 @@
+import { baselineHandoffRefs } from "./handoff-refs";
 import "server-only";
 
 import {
@@ -976,6 +977,27 @@ export class ProjectCeoCommandService {
         }, command.payload.snapshotToken);
         if (!confirmation.ok) return failure(requestId, "error", "stale_state");
 
+        // DEC-040 (4): передача M2→M3 по каждому пакету baseline. Ссылки
+        // выводятся из того же серверного чтения; без передачи хотя бы одного
+        // пакета публикация не предлагается и не исполняется.
+        const handoffs = baselineHandoffRefs(
+          packages.map((entry) => entry.id),
+          rows(read.data.m2M3Handoffs).flatMap((entry) => (
+            typeof entry.id === "string" && typeof entry.packageId === "string"
+              && typeof entry.revisionId === "string" && typeof entry.revisionNo === "number"
+              && typeof entry.createdAt === "string"
+              ? [{
+                id: entry.id,
+                packageId: entry.packageId,
+                revisionId: entry.revisionId,
+                revisionNo: entry.revisionNo,
+                createdAt: entry.createdAt,
+              }]
+              : []
+          )),
+        );
+        if (!handoffs.ok) return failure(requestId, "unavailable", "operation_unavailable");
+
         // Атомарная дверь создаёт версию графа и baseline в одной транзакции.
         // Клиент по-прежнему предъявляет только токен preview; координаты
         // версии и прежнего baseline подтверждены этим серверным чтением, а
@@ -986,6 +1008,7 @@ export class ProjectCeoCommandService {
             ? record(read.data.latestBaseline).graphVersionId as string
             : null,
           previousBaselineId: confirmation.composition.previousBaselineId,
+          handoffRefs: handoffs.refs,
           expectedStateRevision: scope.stateRevision,
           commandRef: command.commandId,
           idempotencyKey,

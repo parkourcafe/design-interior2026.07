@@ -90,6 +90,20 @@ run_sql() {
 # These accepted SQL scenarios construct the exact source/evidence, baseline,
 # release, change-impact, photo, milestone and handover chain. They run only in
 # the disposable local database and are followed by real GoTrue user sessions.
+# DEC-040 (4): baseline M3 требует опубликованную передачу M2→M3 по каждому
+# пакету. Путь M2 (планировки → ревью клиента → approved commit → передача)
+# доказывают DB4 33 и внешний раннер AP6; здесь — фикстура одноразовой базы с
+# design intent, который войдёт в baseline.
+seed_m3_handoffs() {
+  local design_intent=$1
+  [[ ${design_intent} =~ '^[A-Za-z0-9._:@-]{1,160}$' ]] || { print -u2 -r -- "AP1_HANDOFF_SEED_INVALID"; exit 1; }
+  { cat tests/fixtures/sql/m3_handoff_fixture.sql
+    print -r -- "select pi_test_fixture.seed_handoff(package.project_id, package.id, 'ap1-handoff-' || package.stable_key, '${design_intent}', array['ap1-handoff-selection'], (select designer_id from public.projects where id = package.project_id)) from projectceo_foundation.project_packages package where package.project_id = '${project_id}'::uuid and package.status = 'active';"
+  } | docker exec -i "${db_container}" \
+    psql -X --set ON_ERROR_STOP=1 --username "${db_psql_user}" --dbname postgres \
+    > "${evidence_dir}/m3-handoff-seed-${design_intent}.log"
+}
+
 run_sql tests/ap1/environment/reset-disposable-data.sql
 run_sql tests/ap1/environment/cleanup-repeatable-run.sql
 run_sql tests/ap1/environment/enable-m3-publication.sql
@@ -352,6 +366,7 @@ review_http=$(post_json client /api/projectceo/commands "${review_payload}" "${e
 [[ ${review_http} == 200 ]] || { print -u2 -r -- "AP1_APPROVAL_REVIEW_HTTP status=${review_http}"; exit 1; }
 jq -e '.status == "completed"' "${evidence_dir}/approval-review.json" >/dev/null
 
+seed_m3_handoffs "${decision_revision_id}"
 get_json architect "/api/projectceo/projects/${project_id}" "${evidence_dir}/architect-workspace-m2.json"
 baseline_token=$(jq -er '.data.operations.publish_baseline.commandTargetId' "${evidence_dir}/architect-workspace-m2.json")
 baseline_command_id=$(uuidgen | tr '[:upper:]' '[:lower:]')
@@ -496,6 +511,7 @@ change_approval_review_http=$(post_json client /api/projectceo/commands "${chang
 [[ ${change_approval_review_http} == 200 ]] || { print -u2 -r -- "AP1_CHANGE_APPROVAL_REVIEW_HTTP status=${change_approval_review_http}"; exit 1; }
 jq -e '.status == "completed"' "${evidence_dir}/change-approval-review.json" >/dev/null
 
+seed_m3_handoffs "${change_decision_revision_id}"
 get_json architect "/api/projectceo/projects/${project_id}" "${evidence_dir}/architect-workspace-change-baseline.json"
 change_baseline_token=$(jq -er '.data.operations.publish_baseline.commandTargetId' "${evidence_dir}/architect-workspace-change-baseline.json")
 change_baseline_command_id=$(uuidgen | tr '[:upper:]' '[:lower:]')

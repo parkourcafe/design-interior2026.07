@@ -397,6 +397,8 @@ describe("Layout Studio delivery/UI slice", () => {
       // шаблон прав с журналом выдачи; Layout Studio не затрагивают.
       "20260925090000_legacy_m1_proposal_lifecycle_guard.sql",
       "20260925091000_projectceo_package_capability_template_ledger.sql",
+      // DEC-040 (4): гейт передачи M2→M3 для baseline/выпуска M3.
+      "20260925100000_projectceo_m3_handoff_gate.sql",
     ];
     const actual = readdirSync(join(repoRoot, "supabase/migrations"), { withFileTypes: true })
       // Предмет проверки — миграции, а не всё содержимое папки. Рядом с ними

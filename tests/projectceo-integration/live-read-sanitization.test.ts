@@ -1041,10 +1041,22 @@ describe("ProjectCEO live DTO sanitizer", () => {
         revisionId: "decision-r1",
       }],
     }];
+    // DEC-040 (4): у пакета есть опубликованная передача M2→M3.
+    const m2M3Handoffs = [{
+      id: "handoff-1", packageId: packageId, revisionId: "73000000-0000-4000-8000-000000000013",
+      revisionNo: 1, status: "published", approvedCommitId: "commit-1",
+      approvedCommitRevisionId: "73000000-0000-4000-8000-000000000015",
+      layoutRevisionId: "73000000-0000-4000-8000-000000000014",
+      selectionRevisionIds: ["selection-a@1"],
+      budget: { asOf: "2026-08-06T09:45:00.000Z", staleAfterDays: 30, amountRub: 125000,
+        staleSelectionRevisionIds: [], missingPriceSelectionRevisionIds: [] },
+      createdAt: "2026-08-06T12:00:00.000Z",
+    }];
     const result = await new ProjectCeoLiveReadPort(fakeClient({
       approvalPackages,
       packages: [{ id: packageId, kind: "work_package", name: "Architecture", status: "active" }],
       latestBaseline: null,
+      m2M3Handoffs,
     }), {
       userId: "66666666-6666-4666-8666-666666666666",
       displayName: "Owner",
@@ -1060,6 +1072,17 @@ describe("ProjectCEO live DTO sanitizer", () => {
       status: "available",
       commandTargetId: expected,
     });
+
+    // Без передачи тот же состав не предлагается: база его отклонит.
+    const withoutHandoff = await new ProjectCeoLiveReadPort(fakeClient({
+      approvalPackages,
+      packages: [{ id: packageId, kind: "work_package", name: "Architecture", status: "active" }],
+      latestBaseline: null,
+    }), {
+      userId: "66666666-6666-4666-8666-666666666666",
+      displayName: "Owner",
+    }).getProjectWorkspace({ projectId, requestId: "baseline-preview-no-handoff" });
+    expect(withoutHandoff.data?.operations.publish_baseline).toMatchObject({ status: "unavailable" });
   });
 
   it("does not offer baseline publication when an approved revision is superseded", async () => {

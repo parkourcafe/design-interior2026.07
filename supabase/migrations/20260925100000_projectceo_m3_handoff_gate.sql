@@ -11,8 +11,10 @@
 --        передачи (устаревшая → M2_HANDOFF_STALE);
 --      * набор пакетов в ссылках совпадает с набором пакетов опубликованного
 --        baseline (пакет без передачи → M2_HANDOFF_REQUIRED);
---      * ревизии передачи (designIntentRevisionId, selectionRevisionIds) вошли
---        в refs этого baseline (иначе M2_HANDOFF_NOT_IN_BASELINE).
+--      * design intent передачи (designIntentRevisionId — согласованное
+--        решение M2) вошёл в refs этого baseline как decision_revision (иначе
+--        M2_HANDOFF_NOT_IN_BASELINE). Выборы/материалы передачи (цены,
+--        комплектация) в состав baseline M3 не обязаны входить и не проверяются.
 --    Ссылки сохраняются в append-only baseline_handoff_refs. Повтор той же
 --    команды с другими ссылками — P1110 (точный replay, как у
 --    register_documentation_sheet). Все проверки — в одной транзакции с
@@ -210,8 +212,7 @@ begin
       'packageId', v_package_id::text,
       'handoffId', v_handoff.entity_id,
       'handoffRevisionId', v_handoff.revision_id,
-      'designIntentRevisionId', v_handoff.payload->>'designIntentRevisionId',
-      'selectionRevisionIds', coalesce(v_handoff.payload->'selectionRevisionIds', '[]'::jsonb)
+      'designIntentRevisionId', v_handoff.payload->>'designIntentRevisionId'
     ));
   end loop;
 
@@ -277,23 +278,17 @@ begin
     );
   end if;
 
-  -- Содержание передачи вошло в baseline.
+  -- Согласованное решение передачи (design intent) вошло в baseline.
   if exists (
     select 1
     from jsonb_array_elements(v_refs) ref
-    cross join lateral (
-      select 'decision_revision'::text as target_kind, ref->>'designIntentRevisionId' as revision_id
-      union all
-      select 'selection_revision', selection.value
-      from jsonb_array_elements_text(ref->'selectionRevisionIds') selection
-    ) expected
     where not exists (
       select 1 from projectceo_product.project_baseline_refs br
       where br.organization_id = v_context.organization_id
         and br.project_id = project_id
         and br.baseline_id = v_baseline_id
-        and br.target_kind = expected.target_kind
-        and br.revision_id = expected.revision_id
+        and br.target_kind = 'decision_revision'
+        and br.revision_id = ref->>'designIntentRevisionId'
     )
   ) then
     perform projectceo_product._raise(
@@ -321,6 +316,11 @@ alter function projectceo_product_api.publish_baseline_atomic(
 revoke all on function projectceo_product_api.publish_baseline_atomic(
   uuid, text, text, jsonb, bigint, text, text
 ) from public, anon, authenticated, service_role, pi_human_executor, pi_worker_executor;
+
+-- Дверь модульная: открывает её только выключатель M3 (enable-m3-publication).
+revoke execute on function
+  projectceo_product_api.publish_baseline_atomic(uuid, text, text, jsonb, bigint, text, text)
+from authenticated;
 
 alter function projectceo_product._require_latest_published_handoff(uuid, uuid, uuid, text, text)
   owner to pi_table_owner;
