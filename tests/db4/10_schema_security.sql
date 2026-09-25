@@ -224,6 +224,8 @@ begin
     ('projectceo_product_api.create_external_annotation(uuid,uuid,uuid,uuid,uuid,text,jsonb,jsonb,jsonb,text,bigint,text)'),
     ('projectceo_product_api.revise_external_annotation(uuid,uuid,uuid,uuid,text,jsonb,jsonb,jsonb,text,bigint,text)'),
     ('projectceo_product_api.attach_external_release_refs(uuid,uuid,text,text,jsonb,bigint,text)')
+    ,('projectceo_product_api.list_m2_client_review_comments(uuid,uuid,text,text)')
+    ,('projectceo_product_api.add_m2_client_review_comment(uuid,uuid,text,text,text,text)')
   ) expected(signature)
   where to_regprocedure(expected.signature) is null
   limit 1;
@@ -250,7 +252,9 @@ begin
   -- существует ровно затем, чтобы новая RPC в схеме не появлялась молча.
   -- Native M3 snapshot confirmation adds one explicit public request-bound
   -- door; its implementation remains default-denied outside the M3 switch.
-  if v_count <> 28 then
+  -- Aldo client review comments add a package-scoped read and an idempotent
+  -- write door in this schema; both are enumerated above.
+  if v_count <> 30 then
     raise exception 'DB4_UNEXPECTED_RPC_COUNT:%', v_count;
   end if;
 
