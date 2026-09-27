@@ -782,6 +782,7 @@ function m1Views(input: {
     readonly requestId: string;
     readonly subjectKind: string;
     readonly subjectId: string;
+    readonly subjectRevisionCurrent: boolean | null;
     readonly approverCapability: string;
     readonly status: string;
     readonly requestedByCurrentActor: boolean;
@@ -823,6 +824,7 @@ function m1Views(input: {
       id: request.requestId,
       subjectKind: request.subjectKind,
       subjectId: request.subjectId,
+      subjectRevisionCurrent: request.subjectRevisionCurrent,
       approverCapability: request.approverCapability,
       status: request.status,
       requestedByCurrentActor: request.requestedByCurrentActor,

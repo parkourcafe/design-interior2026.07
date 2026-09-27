@@ -11,6 +11,7 @@ const state = vi.hoisted(() => ({
   projectStatus: "created",
   proposalStatus: "draft",
   projectUpdateMatches: true,
+  approvalRevisionCurrent: true,
   operations: [] as string[],
 }));
 
@@ -28,7 +29,10 @@ vi.mock("@/lib/brief/pipeline", () => ({
 const fakeClient = vi.hoisted(() => () => ({
   schema: () => ({
     rpc: async () => ({
-      data: { requests: [{ subjectKind: "project_passport", subjectId: "project", status: "approved" }] },
+      data: { requests: [{
+        subjectKind: "project_passport", subjectId: "project", status: "approved",
+        subjectRevisionCurrent: state.approvalRevisionCurrent,
+      }] },
       error: null,
     }),
   }),
@@ -88,6 +92,7 @@ beforeEach(() => {
   state.projectStatus = "created";
   state.proposalStatus = "draft";
   state.projectUpdateMatches = true;
+  state.approvalRevisionCurrent = true;
   state.operations = [];
 });
 
@@ -152,6 +157,12 @@ describe("issued proposals are immutable in the application (BUG-03/BUG-04)", ()
     expect(await sendProposal("project")).toEqual({ ok: false, reason: "not_draft" });
     expect(state.operations.some((op) => op.startsWith("proposals:update"))).toBe(false);
     expect(state.operations.some((op) => op.startsWith("projects:update"))).toBe(false);
+  });
+
+  it("does not send when the approval belongs to an earlier passport revision (DEC-041 §3)", async () => {
+    state.approvalRevisionCurrent = false;
+    expect(await sendProposal("project")).toEqual({ ok: false, reason: "approval_required" });
+    expect(state.operations.some((op) => op.startsWith("proposals:update"))).toBe(false);
   });
 
   it("guards every draft write and advances the project only forward", async () => {

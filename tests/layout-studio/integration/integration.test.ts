@@ -399,6 +399,7 @@ describe("Layout Studio delivery/UI slice", () => {
       "20260925091000_projectceo_package_capability_template_ledger.sql",
       // DEC-042 (4): гейт передачи M2→M3 для baseline/выпуска M3.
       "20260925100000_projectceo_m3_handoff_gate.sql",
+      "20260927090000_projectceo_passport_approval_authority.sql",
     ];
     const actual = readdirSync(join(repoRoot, "supabase/migrations"), { withFileTypes: true })
       // Предмет проверки — миграции, а не всё содержимое папки. Рядом с ними

@@ -33,6 +33,7 @@ type ApprovalRequest = {
   readonly subjectKind?: unknown;
   readonly subjectId?: unknown;
   readonly status?: unknown;
+  readonly subjectRevisionCurrent?: unknown;
 };
 
 async function hasApprovedProjectPassport(
@@ -54,6 +55,8 @@ async function hasApprovedProjectPassport(
     && (value as ApprovalRequest).subjectKind === "project_passport"
     && (value as ApprovalRequest).subjectId === projectId
     && (value as ApprovalRequest).status === "approved"
+    // DEC-041 §3: одобрение прежней ревизии паспорта не открывает отправку.
+    && (value as ApprovalRequest).subjectRevisionCurrent === true
   ));
 }
 

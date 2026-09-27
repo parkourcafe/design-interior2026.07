@@ -514,10 +514,12 @@ export class ProjectCeoCommandService {
         }
         if (command.kind === "create_approval_request") {
           // The browser selects only the M1 subject. The capability that can
-          // decide it is a server-owned policy, never a client-provided role.
+          // decide it is a server-owned policy, never a client-provided role;
+          // the database derives the same value itself (DEC-041 §3, migration
+          // 20260927090000) and ignores this argument for passport subjects.
           const approverCapability = command.payload.subjectKind === "client_passport"
             ? "review_selection"
-            : "review_claim";
+            : "approve_passport";
           return completed(requestId, await this.platform.createApprovalRequest({
             projectId: command.projectId,
             subjectKind: command.payload.subjectKind,

@@ -1440,6 +1440,7 @@ export const ru = {
           rejected: "Отклонено",
         },
         selfApproved: "Подтверждено автором действия",
+        passportRevisionStale: "Паспорт изменился после этой заявки — одобрение не действует, нужна новая заявка",
         decidedBy: (id: string) => `Решил участник ${id.slice(0, 8)}`,
         createdAt: (date: string) => `Создано ${date}`,
         legacyPassport: {

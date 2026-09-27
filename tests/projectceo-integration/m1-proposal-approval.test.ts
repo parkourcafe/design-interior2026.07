@@ -66,6 +66,22 @@ describe("M1 proposal approval gate", () => {
     expect(insert).not.toHaveBeenCalled();
   });
 
+  it("fails closed when the approval belongs to an earlier passport revision (DEC-041 §3)", async () => {
+    const { client, proposalUpdate } = setup([{
+      subjectKind: "project_passport",
+      subjectId: projectId,
+      status: "approved",
+      subjectRevisionCurrent: false,
+    }]);
+
+    await expect(sendProposal(projectId)).resolves.toEqual({
+      ok: false,
+      reason: "approval_required",
+    });
+    expect(client.from).not.toHaveBeenCalled();
+    expect(proposalUpdate).not.toHaveBeenCalled();
+  });
+
   it("sends only when the request-bound project passport approval is approved", async () => {
     const {
       client, proposalUpdate, projectUpdate, insert, proposalStatusFilter, projectStatusFilter,
@@ -73,6 +89,7 @@ describe("M1 proposal approval gate", () => {
       subjectKind: "project_passport",
       subjectId: projectId,
       status: "approved",
+      subjectRevisionCurrent: true,
     }]);
 
     await expect(sendProposal(projectId)).resolves.toEqual({ ok: true });

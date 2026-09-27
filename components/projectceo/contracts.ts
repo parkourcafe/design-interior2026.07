@@ -191,6 +191,8 @@ export interface M1ApprovalRequestView {
   readonly id: string;
   readonly subjectKind: "project_passport" | "client_passport";
   readonly subjectId: string;
+  /** DEC-041 §3: false — паспорт изменился после заявки, одобрение не действует. */
+  readonly subjectRevisionCurrent: boolean | null;
   readonly approverCapability: string;
   readonly status: "draft" | "submitted" | "approved" | "rejected";
   readonly requestedByCurrentActor: boolean;

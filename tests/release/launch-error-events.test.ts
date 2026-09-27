@@ -17,7 +17,7 @@ vi.mock("@/lib/brief/pipeline", () => ({ runRiskPipeline: async () => {
 // Один и тот же поддельный клиент нужен двум модулям: intake-роуты ходят через
 // региональный клиент (WP-42B), а proposal/respond остался на token-scoped.
 const fakeClient = vi.hoisted(() => () => ({
-  schema: () => ({ rpc: async () => ({ data: { requests: [{ subjectKind: "project_passport", subjectId: "project", status: "approved" }] }, error: null }) }),
+  schema: () => ({ rpc: async () => ({ data: { requests: [{ subjectKind: "project_passport", subjectId: "project", status: "approved", subjectRevisionCurrent: true }] }, error: null }) }),
   storage: { from: () => ({ upload: async () => ({ error: { message: "private filename" } }) }) },
   from: (table: string) => {
     let operation = "select";

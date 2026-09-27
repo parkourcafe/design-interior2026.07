@@ -37,6 +37,13 @@ values
   ('79b00000-0000-4000-8000-000000000001', '42222222-2222-4222-8222-222222222222',
    1, '[]'::jsonb, 'draft', 'db4-79-token-b');
 
+-- Одобрение паспорта привязано к его ревизии (DEC-041 §3, миграция
+-- 20260927090000): ревизия появляется тем же триггером, что и после брифа.
+update public.projects
+set passport = '{"object":{"type":"flat","area_m2":54,"city":"db4-79"}}'::jsonb,
+    passport_revision_llm_ok = true
+where id = '41111111-1111-4111-8111-111111111111';
+
 -- 1. Без утверждённого approval паспорта прямой draft → sent отклоняется.
 do $send_without_approval_denied$
 declare
