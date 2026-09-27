@@ -102,6 +102,17 @@ begin
 end
 $function$;
 
+-- Чтение готовности (20260928091000) от имени владельца: проблема комнаты.
+create function pg_temp.readiness_problem(p_room text)
+returns text language sql as $function$
+  select room->>'problem'
+  from jsonb_array_elements(pg_temp.call_as('31111111-1111-4111-8111-111111111111',
+    'select projectceo_read_api.get_m3_room_handoff_readiness(''41111111-1111-4111-8111-111111111111'')'
+  )->'rooms') room
+  where room->>'roomId' = p_room
+    and room->>'packageId' = '41111111-1111-4111-8111-111111111111'
+$function$;
+
 -- Новая ревизия selection node-selection-db4 (черновик, не утверждена).
 create function pg_temp.append_selection(p_revision_id text, p_key text)
 returns jsonb language sql as $function$
@@ -170,6 +181,22 @@ begin
   if pg_temp.db4_room_problem() is not null then
     raise exception 'DB4_83_BASELINE_STATE_NOT_FRESH:%', pg_temp.db4_room_problem();
   end if;
+  -- Чтение готовности видит то же самое, что проверит дверь.
+  if pg_temp.readiness_problem('db4-room') is not null
+     or not exists (
+       select 1 from jsonb_array_elements(pg_temp.call_as(
+         '31111111-1111-4111-8111-111111111111',
+         'select projectceo_read_api.get_m3_room_handoff_readiness(''41111111-1111-4111-8111-111111111111'')'
+       )->'rooms') room
+       where room->>'roomId' = 'db4-room' and (room->>'applicable')::boolean
+     ) then
+    raise exception 'DB4_83_READINESS_NOT_FRESH';
+  end if;
+  if pg_catalog.has_function_privilege(
+    'anon', 'projectceo_read_api.get_m3_room_handoff_readiness(uuid)', 'execute'
+  ) then
+    raise exception 'DB4_83_READINESS_REACHABLE_BY_ANON';
+  end if;
 end
 $schema_contract$;
 
@@ -192,6 +219,13 @@ savepoint new_room;
 select pg_temp.copy_approved_commit('approved-db4-83-new-room', 'db4-room-83');
 select pg_temp.expect_publish_error(
   current_setting('db4.t83_refs')::jsonb, 'P1111', 'db4-room-83', 'new_room_without_handoff');
+do $readiness_missing$
+begin
+  if pg_temp.readiness_problem('db4-room-83') is distinct from 'M2_HANDOFF_MISSING' then
+    raise exception 'DB4_83_READINESS_MISSING_ROOM:%', pg_temp.readiness_problem('db4-room-83');
+  end if;
+end
+$readiness_missing$;
 rollback to savepoint new_room;
 
 -- === 3. Новый утверждённый дизайн той же комнаты ============================
@@ -223,8 +257,10 @@ $draft_is_not_stale$;
 select pg_temp.approve_selection('revision-selection-db4-83', 'approval-db4-83-selection');
 do $approved_is_stale$
 begin
-  if pg_temp.db4_room_problem() is distinct from 'M2_HANDOFF_SELECTION_SUPERSEDED' then
-    raise exception 'DB4_83_APPROVED_SELECTION_NOT_DETECTED:%', pg_temp.db4_room_problem();
+  if pg_temp.db4_room_problem() is distinct from 'M2_HANDOFF_SELECTION_SUPERSEDED'
+     or pg_temp.readiness_problem('db4-room') is distinct from 'M2_HANDOFF_SELECTION_SUPERSEDED' then
+    raise exception 'DB4_83_APPROVED_SELECTION_NOT_DETECTED:%/%',
+      pg_temp.db4_room_problem(), pg_temp.readiness_problem('db4-room');
   end if;
 end
 $approved_is_stale$;

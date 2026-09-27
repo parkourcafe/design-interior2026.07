@@ -1377,6 +1377,21 @@ export const ru = {
           "Заморозить всё утверждённое в новой версии? Состав ниже собран сервером; "
           + "если состояние проекта изменилось, публикация будет отклонена.",
         publishBaselineNothing: "Пока нечего замораживать: нет утверждённых решений",
+        // DEC-041 §4: почему baseline недоступен со стороны передач M2→M3.
+        handoffBlockersTitle: "Baseline недоступен: нужна свежая передача от дизайнера",
+        handoffMissingPackage: (packageId: string) => `Пакет ${packageId}: нет ни одной передачи M2→M3`,
+        handoffBlockedRoom: (roomId: string, reason: string) => `Комната «${roomId}»: ${reason}`,
+        handoffProblems: {
+          M2_HANDOFF_MISSING: "дизайн утверждён, передачи нет",
+          M2_HANDOFF_STALE: "есть более новая передача этой комнаты",
+          M2_HANDOFF_COMMIT_SUPERSEDED: "клиент утвердил новый дизайн, нужна новая передача",
+          M2_HANDOFF_DECISION_SUPERSEDED: "решение переутверждено, нужна новая передача",
+          M2_HANDOFF_DECISION_NOT_APPROVED: "решение в передаче не утверждено",
+          M2_HANDOFF_SELECTION_SUPERSEDED: "материал или спецификация переутверждены, нужна новая передача",
+          M2_HANDOFF_SELECTION_NOT_APPROVED: "материал в передаче не утверждён",
+          M2_HANDOFF_INCOMPLETE: "передача неполная",
+        } as Record<string, string>,
+        handoffProblemUnknown: "передача не прошла проверку",
         publishBaselineHint:
           "Версия замораживает утверждённое состояние целиком — выбирать состав вручную нельзя",
         publishRelease: "Выпустить пакет",

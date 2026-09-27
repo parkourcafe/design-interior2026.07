@@ -1,36 +1,67 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
-import { baselineHandoffRefs } from "../../lib/project-intelligence/delivery/projectceo/handoff-refs";
+import { baselineRoomHandoffRefs } from "../../lib/project-intelligence/delivery/projectceo/handoff-refs";
 
-// DEC-042 (4): baseline и выпуск M3 требуют опубликованную передачу M2→M3 по
-// каждому пакету (миграция 20260925100000, DB4 81).
+// DEC-042 (4) и DEC-041 §4: baseline и выпуск M3 требуют свежую передачу
+// M2→M3 по каждой комнате с утверждённым дизайном и хотя бы одну в каждом
+// пакете (миграции 20260925100000, 20260928090000; DB4 81, 83). Свежесть
+// считает сервер — здесь проверяется только сборка ссылок из его ответа.
 
-const handoff = (id: string, packageId: string, revisionNo: number, createdAt: string) => ({
-  id, packageId, revisionId: `${id}@${revisionNo}`, revisionNo, createdAt,
+const room = (
+  packageId: string, roomId: string, problem: string | null, applicable = true,
+  handoff: string | null = `h-${roomId}`,
+) => ({
+  packageId, roomId, applicable,
+  handoffId: handoff, handoffRevisionId: handoff ? `${handoff}@1` : null, problem,
 });
 
-describe("baselineHandoffRefs", () => {
-  it("picks the latest revision of the newest handoff per package", () => {
-    const result = baselineHandoffRefs(["p1", "p2"], [
-      handoff("h-a", "p1", 1, "2026-09-25T10:00:00Z"),
-      handoff("h-a", "p1", 2, "2026-09-25T11:00:00Z"),
-      handoff("h-b", "p2", 1, "2026-09-25T09:00:00Z"),
-      handoff("h-c", "p2", 1, "2026-09-25T12:00:00Z"),
-    ]);
-    expect(result).toEqual({
+describe("baselineRoomHandoffRefs", () => {
+  it("binds every fresh room, ordered by package and room", () => {
+    expect(baselineRoomHandoffRefs(["p1", "p2"], [
+      room("p2", "kitchen", null),
+      room("p1", "living", null),
+      room("p1", "bath", null),
+    ])).toEqual({
       ok: true,
       refs: [
-        { packageId: "p1", handoffId: "h-a", handoffRevisionId: "h-a@2" },
-        { packageId: "p2", handoffId: "h-c", handoffRevisionId: "h-c@1" },
+        { packageId: "p1", roomId: "bath", handoffId: "h-bath", handoffRevisionId: "h-bath@1" },
+        { packageId: "p1", roomId: "living", handoffId: "h-living", handoffRevisionId: "h-living@1" },
+        { packageId: "p2", roomId: "kitchen", handoffId: "h-kitchen", handoffRevisionId: "h-kitchen@1" },
       ],
     });
   });
 
-  it("refuses when any baseline package has no published handoff", () => {
-    expect(baselineHandoffRefs(["p1", "p2"], [handoff("h-a", "p1", 1, "2026-09-25T10:00:00Z")]))
-      .toEqual({ ok: false, missingPackageIds: ["p2"] });
-    expect(baselineHandoffRefs(["p1"], [])).toEqual({ ok: false, missingPackageIds: ["p1"] });
+  it("blocks when a room with an approved design has no fresh handoff", () => {
+    expect(baselineRoomHandoffRefs(["p1"], [
+      room("p1", "living", null),
+      room("p1", "kitchen", "M2_HANDOFF_SELECTION_SUPERSEDED"),
+      room("p1", "bath", "M2_HANDOFF_MISSING", true, null),
+    ])).toEqual({
+      ok: false,
+      missingPackageIds: [],
+      blockedRooms: [
+        { packageId: "p1", roomId: "kitchen", problem: "M2_HANDOFF_SELECTION_SUPERSEDED" },
+        { packageId: "p1", roomId: "bath", problem: "M2_HANDOFF_MISSING" },
+      ],
+    });
+  });
+
+  it("skips a stale handoff of a room without an approved design", () => {
+    expect(baselineRoomHandoffRefs(["p1"], [
+      room("p1", "living", null),
+      room("p1", "draft-room", "M2_HANDOFF_STALE", false),
+    ])).toEqual({
+      ok: true,
+      refs: [{ packageId: "p1", roomId: "living", handoffId: "h-living", handoffRevisionId: "h-living@1" }],
+    });
+  });
+
+  it("refuses when an active package has no handoff at all", () => {
+    expect(baselineRoomHandoffRefs(["p1", "p2"], [room("p1", "living", null)]))
+      .toEqual({ ok: false, missingPackageIds: ["p2"], blockedRooms: [] });
+    expect(baselineRoomHandoffRefs(["p1"], []))
+      .toEqual({ ok: false, missingPackageIds: ["p1"], blockedRooms: [] });
   });
 });
 

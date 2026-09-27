@@ -611,8 +611,20 @@ export interface DocumentationView {
   readonly completeness: readonly DocumentationCompletenessView[];
 }
 
+/** DEC-041 §4: что мешает опубликовать baseline M3 со стороны передач M2→M3. */
+export interface BaselineHandoffBlockersView {
+  readonly missingPackageIds: readonly string[];
+  readonly blockedRooms: readonly {
+    readonly packageId: string;
+    readonly roomId: string;
+    readonly problem: string;
+  }[];
+}
+
 export interface ProjectWorkspaceView {
   readonly project: ProjectSummary;
+  /** null — передачи по комнатам готовы или чтение недоступно этому участнику. */
+  readonly baselineHandoffBlockers?: BaselineHandoffBlockersView | null;
   readonly actor: ProjectCeoActor;
   readonly m1: M1WorkspaceView;
   readonly packages: readonly ProjectPackageView[];

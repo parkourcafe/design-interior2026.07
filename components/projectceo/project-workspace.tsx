@@ -370,9 +370,33 @@ function OverviewView({
               </div>
             ) : view.operations.publish_baseline.status === "unavailable"
               && view.operations.publish_baseline.reason === "prerequisite_missing" ? (
-                <p className="mt-4 text-xs text-muted">
-                  {projectCeoRu.workspace.overview.publishBaselineNothing}
-                </p>
+                view.baselineHandoffBlockers ? (
+                  <div className="mt-4 space-y-1 text-xs text-amber-800">
+                    <p className="font-medium">{projectCeoRu.workspace.overview.handoffBlockersTitle}</p>
+                    <ul className="list-disc space-y-1 pl-4">
+                      {view.baselineHandoffBlockers.missingPackageIds.map((packageId) => (
+                        <li key={`package-${packageId}`}>
+                          {projectCeoRu.workspace.overview.handoffMissingPackage(
+                            view.packages.find((entry) => entry.id === packageId)?.name ?? packageId,
+                          )}
+                        </li>
+                      ))}
+                      {view.baselineHandoffBlockers.blockedRooms.map((room) => (
+                        <li key={`room-${room.packageId}-${room.roomId}`}>
+                          {projectCeoRu.workspace.overview.handoffBlockedRoom(
+                            room.roomId,
+                            projectCeoRu.workspace.overview.handoffProblems[room.problem]
+                              ?? projectCeoRu.workspace.overview.handoffProblemUnknown,
+                          )}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                ) : (
+                  <p className="mt-4 text-xs text-muted">
+                    {projectCeoRu.workspace.overview.publishBaselineNothing}
+                  </p>
+                )
               ) : null}
 
           {/*

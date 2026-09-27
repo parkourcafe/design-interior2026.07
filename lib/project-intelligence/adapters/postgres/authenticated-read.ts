@@ -5,6 +5,7 @@ import { isDocumentationModuleEnabled } from "../../delivery/projectceo/document
 import type { PostgresRpcClient } from "./contracts";
 import type { ExecutionDeliveryEnvelope } from "./execution";
 import { callRpc } from "./rpc";
+import type { RoomHandoffReadiness } from "../../delivery/projectceo/handoff-refs";
 
 export const AUTHENTICATED_READ_CONTRACT_VERSION =
   "project-ceo-authenticated-read/0.1" as const;
@@ -861,6 +862,39 @@ export class ProjectCeoAuthenticatedReadPostgresAdapter {
     );
     if (response.result.sidecarId.toLowerCase() !== ids.sidecarId.toLowerCase()) throw new Error("sheet_sidecar_read_identity_mismatch");
     return response;
+  }
+
+  /**
+   * DEC-041 §4: готовность комнат к baseline M3 — тот же серверный расчёт
+   * свежести передач, что перепроверяет дверь publish_baseline_atomic.
+   */
+  async getM3RoomHandoffReadiness(projectId: string): Promise<readonly RoomHandoffReadiness[]> {
+    const data = await callRpc(
+      this.client,
+      "projectceo_read_api",
+      "get_m3_room_handoff_readiness",
+      { project_id: projectId },
+    );
+    const rooms = data !== null && typeof data === "object" && !Array.isArray(data)
+      ? (data as { readonly rooms?: unknown }).rooms
+      : null;
+    if (!Array.isArray(rooms)) throw new Error("m3_room_handoff_readiness_invalid");
+    const text = (value: unknown): string | null => (typeof value === "string" && value.length > 0 ? value : null);
+    return rooms.flatMap((value) => {
+      if (value === null || typeof value !== "object" || Array.isArray(value)) return [];
+      const item = value as Readonly<Record<string, unknown>>;
+      const packageId = text(item.packageId);
+      const roomId = text(item.roomId);
+      if (!packageId || !roomId || typeof item.applicable !== "boolean") return [];
+      return [{
+        packageId,
+        roomId,
+        applicable: item.applicable,
+        handoffId: text(item.handoffId),
+        handoffRevisionId: text(item.handoffRevisionId),
+        problem: text(item.problem),
+      }];
+    });
   }
 
   async getProjectWorkspaceRead(input: {

@@ -1,4 +1,4 @@
-import type { BaselineHandoffRef } from "../../delivery/projectceo/handoff-refs";
+import type { BaselineRoomHandoffRef } from "../../delivery/projectceo/handoff-refs";
 import type { ExternalReleaseCandidateRef } from "../../delivery/projectceo/command-contract";
 import type {
   ApprovalPackage,
@@ -410,7 +410,7 @@ export class ProjectBrainHumanPostgresAdapter {
     readonly projectId: string;
     readonly expectedLatestVersionId: string | null;
     readonly previousBaselineId: string | null;
-    readonly handoffRefs: readonly BaselineHandoffRef[];
+    readonly handoffRefs: readonly BaselineRoomHandoffRef[];
     readonly expectedStateRevision: number;
     readonly commandRef: string;
     readonly idempotencyKey: string;

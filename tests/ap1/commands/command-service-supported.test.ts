@@ -309,6 +309,21 @@ function fakeClient(calls: Call[], options: FakeClientOptions = {}): PostgresRpc
         if (name === "projectceo_read_api.get_project_workspace_read_v11") {
           return { data: authenticatedRead(options.readOverrides), error: null };
         }
+        if (name === "projectceo_read_api.get_m3_room_handoff_readiness") {
+          // DEC-041 §4: сервер считает свежесть по комнатам; здесь каждая
+          // опубликованная передача заглушки — свежая комната с утверждённым дизайном.
+          const handoffs = Array.isArray(options.readOverrides?.m2M3Handoffs)
+            ? options.readOverrides.m2M3Handoffs as readonly Record<string, unknown>[]
+            : [];
+          return { data: { rooms: handoffs.map((handoff) => ({
+            packageId: handoff.packageId,
+            roomId: `${String(handoff.id)}-room`,
+            applicable: true,
+            handoffId: handoff.id,
+            handoffRevisionId: handoff.revisionId,
+            problem: null,
+          })) }, error: null };
+        }
         if (name === "projectceo_m4_api.get_execution_delivery") {
           return { data: executionDelivery(), error: null };
         }
@@ -1030,6 +1045,7 @@ describe("AP1 supported human commands", () => {
       previous_baseline_id: "baseline-v2",
       handoff_refs: [{
         packageId,
+        roomId: "handoff-1-room",
         handoffId: "handoff-1",
         handoffRevisionId: "73000000-0000-4000-8000-000000000013",
       }],

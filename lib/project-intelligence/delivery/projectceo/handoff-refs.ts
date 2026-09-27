@@ -1,56 +1,79 @@
-// DEC-042 (4): baseline M3 публикуется только с опубликованной передачей M2→M3
-// по каждому пакету baseline (миграция 20260925100000). Ссылки выводит сервер
-// из того же authenticated-чтения, что и остальной состав baseline (A′):
-// клиент их не присылает и не выдумывает. База перепроверяет каждую ссылку —
-// «последняя опубликованная ревизия передачи этого пакета».
+// DEC-042 (4) и DEC-041 §4: baseline M3 публикуется только с опубликованной
+// передачей M2→M3 по каждой комнате с утверждённым клиентом дизайном и хотя бы
+// с одной передачей в каждом пакете (миграции 20260925100000, 20260928090000).
+// Свежесть комнат считает сервер (projectceo_read_api.get_m3_room_handoff_readiness)
+// тем же расчётом, которым её перепроверяет дверь publish_baseline_atomic:
+// здесь только собираются ссылки из этого ответа. Клиент их не присылает.
 
-export interface HandoffCandidate {
-  readonly id: string;
+export interface RoomHandoffReadiness {
   readonly packageId: string;
-  readonly revisionId: string;
-  readonly revisionNo: number;
-  readonly createdAt: string;
+  readonly roomId: string;
+  /** У комнаты есть утверждённый клиентом дизайн — передача обязательна. */
+  readonly applicable: boolean;
+  readonly handoffId: string | null;
+  readonly handoffRevisionId: string | null;
+  /** null — передача свежая; иначе причина (M2_HANDOFF_MISSING, M2_HANDOFF_STALE, …). */
+  readonly problem: string | null;
 }
 
-export interface BaselineHandoffRef {
+export interface BaselineRoomHandoffRef {
   readonly packageId: string;
+  readonly roomId: string;
   readonly handoffId: string;
   readonly handoffRevisionId: string;
 }
 
-export type BaselineHandoffRefsResult =
-  | { readonly ok: true; readonly refs: readonly BaselineHandoffRef[] }
-  | { readonly ok: false; readonly missingPackageIds: readonly string[] };
+export interface BlockedRoom {
+  readonly packageId: string;
+  readonly roomId: string;
+  readonly problem: string;
+}
 
-export function baselineHandoffRefs(
+export type BaselineHandoffRefsResult =
+  | { readonly ok: true; readonly refs: readonly BaselineRoomHandoffRef[] }
+  | {
+    readonly ok: false;
+    readonly missingPackageIds: readonly string[];
+    readonly blockedRooms: readonly BlockedRoom[];
+  };
+
+export function baselineRoomHandoffRefs(
   packageIds: readonly string[],
-  handoffs: readonly HandoffCandidate[],
+  rooms: readonly RoomHandoffReadiness[],
 ): BaselineHandoffRefsResult {
-  // Последняя ревизия каждой передачи.
-  const latestRevision = new Map<string, HandoffCandidate>();
-  for (const handoff of handoffs) {
-    const current = latestRevision.get(handoff.id);
-    if (!current || handoff.revisionNo > current.revisionNo) latestRevision.set(handoff.id, handoff);
-  }
-  // По пакету — самая свежая передача (при равенстве — детерминированно по id).
-  const byPackage = new Map<string, HandoffCandidate>();
-  for (const handoff of latestRevision.values()) {
-    const current = byPackage.get(handoff.packageId);
-    if (
-      !current
-      || handoff.createdAt > current.createdAt
-      || (handoff.createdAt === current.createdAt && handoff.id > current.id)
-    ) {
-      byPackage.set(handoff.packageId, handoff);
+  const active = new Set(packageIds);
+  const refs: BaselineRoomHandoffRef[] = [];
+  const blockedRooms: BlockedRoom[] = [];
+  for (const room of rooms) {
+    if (!active.has(room.packageId)) continue;
+    const fresh = room.problem === null && room.handoffId !== null && room.handoffRevisionId !== null;
+    if (fresh) {
+      refs.push({
+        packageId: room.packageId,
+        roomId: room.roomId,
+        handoffId: room.handoffId!,
+        handoffRevisionId: room.handoffRevisionId!,
+      });
+    } else if (room.applicable) {
+      // Комната с утверждённым дизайном без свежей передачи блокирует baseline.
+      // Комната без утверждённого дизайна с несвежей передачей в baseline не
+      // обязана входить — её просто не берём.
+      blockedRooms.push({
+        packageId: room.packageId,
+        roomId: room.roomId,
+        problem: room.problem ?? "M2_HANDOFF_MISSING",
+      });
     }
   }
-  const missingPackageIds = packageIds.filter((packageId) => !byPackage.has(packageId));
-  if (missingPackageIds.length > 0) return { ok: false, missingPackageIds };
-  return {
-    ok: true,
-    refs: packageIds.map((packageId) => {
-      const handoff = byPackage.get(packageId)!;
-      return { packageId, handoffId: handoff.id, handoffRevisionId: handoff.revisionId };
-    }),
-  };
+  const covered = new Set(refs.map((ref) => ref.packageId));
+  const missingPackageIds = packageIds.filter((packageId) => !covered.has(packageId));
+  if (missingPackageIds.length > 0 || blockedRooms.length > 0) {
+    return { ok: false, missingPackageIds, blockedRooms };
+  }
+  const order = new Map(packageIds.map((packageId, index) => [packageId, index]));
+  refs.sort((left, right) => (
+    (order.get(left.packageId)! - order.get(right.packageId)!)
+    || (left.roomId < right.roomId ? -1 : left.roomId > right.roomId ? 1 : 0)
+  ));
+  return { ok: true, refs };
 }

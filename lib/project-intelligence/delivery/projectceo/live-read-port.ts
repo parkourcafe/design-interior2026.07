@@ -1,6 +1,6 @@
 import "server-only";
 
-import { baselineHandoffRefs } from "./handoff-refs";
+import { baselineRoomHandoffRefs, type RoomHandoffReadiness } from "./handoff-refs";
 import {
   FoundationPostgresAdapter,
   ProjectCeoPlatformPostgresAdapter,
@@ -49,6 +49,7 @@ import {
   type ProjectPackageView,
   type ProjectSummary,
   type ProjectWorkspaceView,
+  type BaselineHandoffBlockersView,
   type ReleaseSummary,
   type SelectionView,
   type DocumentationView,
@@ -1102,12 +1103,36 @@ function documentationView(input: {
   };
 }
 
+function activePackageIds(delivery: AuthenticatedProjectReadProjection): readonly string[] {
+  return rows(delivery.packages).flatMap((entry) => {
+    const id = nullableText(entry.id);
+    const status = nullableText(entry.status);
+    return id && (status === null || status === "active") ? [id] : [];
+  });
+}
+
+// DEC-041 §4: почему baseline недоступен — пакеты без передачи и комнаты с
+// утверждённым дизайном без свежей передачи. Пусто — передачи готовы.
+function baselineHandoffBlockers(
+  delivery: AuthenticatedProjectReadProjection,
+  readiness: readonly RoomHandoffReadiness[],
+): BaselineHandoffBlockersView | null {
+  if (readiness.length === 0) return null;
+  const result = baselineRoomHandoffRefs(activePackageIds(delivery), readiness);
+  return result.ok ? null : {
+    missingPackageIds: result.missingPackageIds,
+    blockedRooms: result.blockedRooms,
+  };
+}
+
 function operationStates(input: {
   readonly role: ProjectCeoRole;
   readonly hasProjectScope: boolean;
   readonly delivery: AuthenticatedProjectReadProjection;
   readonly m4: readonly ExecutionDeliveryEnvelope[];
   readonly m1: M1WorkspaceView;
+  /** DEC-041 §4: серверный расчёт свежести передач по комнатам. */
+  readonly roomHandoffReadiness?: readonly RoomHandoffReadiness[];
   readonly documentationEnabled?: boolean;
   readonly executionEnabled?: boolean;
   readonly executionV2V3Enabled?: boolean;
@@ -1207,19 +1232,9 @@ function operationStates(input: {
   } catch {
     baselineSnapshotToken = null;
   }
-  const baselineHandoffsReady = baselineHandoffRefs(
-    rows(input.delivery.packages).flatMap((entry) => {
-      const id = nullableText(entry.id);
-      const status = nullableText(entry.status);
-      return id && (status === null || status === "active") ? [id] : [];
-    }),
-    input.delivery.m2M3Handoffs.map((handoff) => ({
-      id: handoff.id,
-      packageId: handoff.packageId,
-      revisionId: handoff.revisionId,
-      revisionNo: handoff.revisionNo,
-      createdAt: handoff.createdAt,
-    })),
+  const baselineHandoffsReady = baselineRoomHandoffRefs(
+    activePackageIds(input.delivery),
+    input.roomHandoffReadiness ?? [],
   ).ok;
   // Снапшот версии пакета: тот же приём, что у baseline, шагом позже. Состав
   // берётся из опубликованного baseline (чтение v9, `20260810090000`), а не из
@@ -1673,6 +1688,13 @@ export class ProjectCeoLiveReadPort implements ProjectCeoUiReadPort {
           })()
         : { facts: [], approvalRequests: [] };
       const packages = projectPackages({ packages: delivery.packages });
+      // DEC-041 §4: готовность комнат к baseline — только тому, кто его
+      // публикует. Недоступное чтение (старая одноразовая база) закрывает
+      // кнопку baseline, а не открывает её.
+      const roomHandoffReadiness: readonly RoomHandoffReadiness[] = hasProjectScope
+        && can(actor.role, "publish_baseline")
+        ? await this.authenticatedRead.getM3RoomHandoffReadiness(input.projectId).catch(() => [])
+        : [];
       const sources = sourceViews(delivery.sources);
       const baseline = baselineFrom(delivery);
       const releases = releaseViews(delivery, packages);
@@ -1765,7 +1787,9 @@ export class ProjectCeoLiveReadPort implements ProjectCeoUiReadPort {
           delivery,
           m4: m4Envelopes,
           m1,
+          roomHandoffReadiness,
         }),
+        baselineHandoffBlockers: baselineHandoffBlockers(delivery, roomHandoffReadiness),
       });
     } catch (error) {
       return failure(input.requestId, errorCode(error));
