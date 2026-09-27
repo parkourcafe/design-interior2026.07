@@ -57,8 +57,8 @@ Baseline публикуется, только если одновременно 
 | `npm run typecheck` | OK |
 | `npm run test` | 260 файлов, 2352 теста — все зелёные |
 | `npm run build` | OK |
-| DB4 PG16 / PG17 | прогон идёт |
-| DB5 PG16 / PG17 | прогон идёт |
+| DB4 PG16 / PG17 | `DB4_PRODUCT_BRAIN_HARNESS_OK` на обоих, 81 и 83 выполнены |
+| DB5 PG16 / PG17 | `DB5_EXECUTION_HARNESS_OK` на обоих |
 | AP5 | NOT_VERIFIED локально (нет стека), засев по комнатам обновлён — проверит CI на PR |
 
 DB4 83 проверяет:
