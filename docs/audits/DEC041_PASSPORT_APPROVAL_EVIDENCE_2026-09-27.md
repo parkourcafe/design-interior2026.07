@@ -36,8 +36,8 @@ PR не создавался. Merge, deploy, GitHub settings и production не 
 | `npm run typecheck` | OK |
 | `npm run test` | 260 файлов, 2349 тестов — все зелёные |
 | `npm run build` | OK |
-| DB4 PG16 / PG17 | прогон идёт |
-| DB5 PG16 / PG17 | прогон идёт |
+| DB4 PG16 / PG17 | `DB4_PRODUCT_BRAIN_HARNESS_OK` на обоих, файл 82 выполнен |
+| DB5 PG16 / PG17 | `DB5_EXECUTION_HARNESS_OK` на обоих |
 | AP5 | NOT_VERIFIED — в этой среде не запускается; прогонит CI на PR |
 
 DB4 82 проверяет:
