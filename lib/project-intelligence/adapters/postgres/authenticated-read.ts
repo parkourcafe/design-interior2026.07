@@ -5,7 +5,7 @@ import { isDocumentationModuleEnabled } from "../../delivery/projectceo/document
 import type { PostgresRpcClient } from "./contracts";
 import type { ExecutionDeliveryEnvelope } from "./execution";
 import { callRpc } from "./rpc";
-import type { RoomHandoffReadiness } from "../../delivery/projectceo/handoff-refs";
+import type { RoomHandoffReadiness, RoomHandoffReadinessReport } from "../../delivery/projectceo/handoff-refs";
 
 export const AUTHENTICATED_READ_CONTRACT_VERSION =
   "project-ceo-authenticated-read/0.1" as const;
@@ -868,19 +868,21 @@ export class ProjectCeoAuthenticatedReadPostgresAdapter {
    * DEC-041 §4: готовность комнат к baseline M3 — тот же серверный расчёт
    * свежести передач, что перепроверяет дверь publish_baseline_atomic.
    */
-  async getM3RoomHandoffReadiness(projectId: string): Promise<readonly RoomHandoffReadiness[]> {
+  async getM3RoomHandoffReadiness(projectId: string): Promise<RoomHandoffReadinessReport> {
     const data = await callRpc(
       this.client,
       "projectceo_read_api",
       "get_m3_room_handoff_readiness",
       { project_id: projectId },
     );
-    const rooms = data !== null && typeof data === "object" && !Array.isArray(data)
-      ? (data as { readonly rooms?: unknown }).rooms
+    const body = data !== null && typeof data === "object" && !Array.isArray(data)
+      ? data as { readonly rooms?: unknown; readonly unboundSelectionRevisionIds?: unknown }
       : null;
-    if (!Array.isArray(rooms)) throw new Error("m3_room_handoff_readiness_invalid");
+    const rooms = body?.rooms;
+    const unbound = body?.unboundSelectionRevisionIds;
+    if (!Array.isArray(rooms) || !Array.isArray(unbound)) throw new Error("m3_room_handoff_readiness_invalid");
     const text = (value: unknown): string | null => (typeof value === "string" && value.length > 0 ? value : null);
-    return rooms.flatMap((value) => {
+    const parsedRooms = rooms.flatMap((value): RoomHandoffReadiness[] => {
       if (value === null || typeof value !== "object" || Array.isArray(value)) return [];
       const item = value as Readonly<Record<string, unknown>>;
       const packageId = text(item.packageId);
@@ -895,6 +897,10 @@ export class ProjectCeoAuthenticatedReadPostgresAdapter {
         problem: text(item.problem),
       }];
     });
+    return {
+      rooms: parsedRooms,
+      unboundSelectionRevisionIds: unbound.filter((value): value is string => typeof value === "string"),
+    };
   }
 
   async getProjectWorkspaceRead(input: {

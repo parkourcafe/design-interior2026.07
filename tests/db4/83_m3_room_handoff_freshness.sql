@@ -114,15 +114,17 @@ returns text language sql as $function$
 $function$;
 
 -- Новая ревизия selection node-selection-db4 (черновик, не утверждена).
-create function pg_temp.append_selection(p_revision_id text, p_key text)
+create function pg_temp.append_selection(
+  p_revision_id text, p_key text, p_node text default 'node-selection-db4'
+)
 returns jsonb language sql as $function$
   select pg_temp.call_as('31111111-1111-4111-8111-111111111111', pg_catalog.format(
     'select projectceo_product_api.append_selection_revision(%L, %L, %L, %L, %L, %L, %L, %L, %L, %L::jsonb, %L::jsonb, %L, %s, %L)',
     '41111111-1111-4111-8111-111111111111', '41111111-1111-4111-8111-111111111111',
-    'node-selection-db4', p_revision_id,
+    p_node, p_revision_id,
     (select revision_id from project_intelligence.graph_node_revisions
      where project_id = '41111111-1111-4111-8111-111111111111'
-       and node_id = 'node-selection-db4'
+       and node_id = p_node
      order by revision_no desc limit 1),
     'human_origin', 'DB4 83 изменённый материал', 'node-area-db4',
     'revision-decision-db4-r1',
@@ -131,7 +133,10 @@ returns jsonb language sql as $function$
 $function$;
 
 -- Утвердить ревизию selection через approval package (создать, подать, одобрить).
-create function pg_temp.approve_selection(p_revision_id text, p_package text)
+create function pg_temp.approve_selection(
+  p_revision_id text, p_package text, p_node text default 'node-selection-db4',
+  p_extra_revision_id text default null
+)
 returns void language plpgsql as $function$
 begin
   perform pg_temp.call_as('31111111-1111-4111-8111-111111111111', pg_catalog.format(
@@ -139,8 +144,12 @@ begin
     '41111111-1111-4111-8111-111111111111', '41111111-1111-4111-8111-111111111111',
     p_package,
     jsonb_build_array(jsonb_build_object(
-      'targetKind', 'selection_revision', 'entityId', 'node-selection-db4',
-      'revisionId', p_revision_id)),
+      'targetKind', 'selection_revision', 'entityId', p_node,
+      'revisionId', p_revision_id))
+    || case when p_extra_revision_id is null then '[]'::jsonb
+       else jsonb_build_array(jsonb_build_object(
+         'targetKind', 'selection_revision', 'entityId', p_node,
+         'revisionId', p_extra_revision_id)) end,
     pg_temp.rev(), p_package || '-create'));
   perform pg_temp.call_as('31111111-1111-4111-8111-111111111111', pg_catalog.format(
     'select projectceo_product_api.submit_approval_package(%L, %L, %L, %s, %L)',
@@ -268,6 +277,49 @@ select pg_temp.expect_publish_error(
   current_setting('db4.t83_refs')::jsonb, 'P1109', 'M2_HANDOFF_SELECTION_SUPERSEDED',
   'newer_approved_selection');
 rollback to savepoint newer_selection;
+
+-- === 4б. Новый материал при неизменном решении комнаты ======================
+-- Новая selection-сущность, связанная с тем же решением, утверждена, но не
+-- вошла ни в одну передачу: клиент получил бы материал, которого не видел.
+
+savepoint unbound_selection;
+select pg_temp.append_selection('revision-selection-db4-83-unseen', 'db4-83-unseen',
+  'node-selection-db4-83-unseen');
+select pg_temp.approve_selection('revision-selection-db4-83-unseen',
+  'approval-db4-83-unseen', 'node-selection-db4-83-unseen');
+do $unbound_visible$
+declare
+  v_unbound jsonb := pg_temp.call_as('31111111-1111-4111-8111-111111111111',
+    'select projectceo_read_api.get_m3_room_handoff_readiness(''41111111-1111-4111-8111-111111111111'')'
+  )->'unboundSelectionRevisionIds';
+begin
+  -- Комнаты свежие, но baseline заблокирован материалом вне передач.
+  if pg_temp.db4_room_problem() is not null
+     or not v_unbound ? 'revision-selection-db4-83-unseen' then
+    raise exception 'DB4_83_UNBOUND_NOT_REPORTED:%/%', pg_temp.db4_room_problem(), v_unbound;
+  end if;
+end
+$unbound_visible$;
+select pg_temp.expect_publish_error(
+  current_setting('db4.t83_refs')::jsonb, 'P1109', 'M2_HANDOFF_UNBOUND_SELECTION',
+  'unbound_selection');
+rollback to savepoint unbound_selection;
+
+-- === 4в. Две версии одного материала в одном утверждении ===================
+
+savepoint ambiguous;
+select pg_temp.append_selection('revision-selection-db4-83a', 'db4-83-ambiguous-a');
+select pg_temp.append_selection('revision-selection-db4-83b', 'db4-83-ambiguous-b');
+select pg_temp.approve_selection('revision-selection-db4-83a', 'approval-db4-83-ambiguous',
+  'node-selection-db4', 'revision-selection-db4-83b');
+do $ambiguous$
+begin
+  if pg_temp.db4_room_problem() is distinct from 'M2_HANDOFF_APPROVAL_AMBIGUOUS' then
+    raise exception 'DB4_83_AMBIGUOUS_NOT_DETECTED:%', pg_temp.db4_room_problem();
+  end if;
+end
+$ambiguous$;
+rollback to savepoint ambiguous;
 
 -- === 5. Позитивный путь: точные ревизии записаны и совпадают с baseline =====
 

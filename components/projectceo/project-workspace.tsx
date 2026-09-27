@@ -390,6 +390,13 @@ function OverviewView({
                           )}
                         </li>
                       ))}
+                      {view.baselineHandoffBlockers.unboundSelectionCount > 0 && (
+                        <li>
+                          {projectCeoRu.workspace.overview.handoffUnboundSelections(
+                            view.baselineHandoffBlockers.unboundSelectionCount,
+                          )}
+                        </li>
+                      )}
                     </ul>
                   </div>
                 ) : (

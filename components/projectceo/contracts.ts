@@ -619,6 +619,8 @@ export interface BaselineHandoffBlockersView {
     readonly roomId: string;
     readonly problem: string;
   }[];
+  /** Утверждённые материалы/спецификации, не вошедшие ни в одну свежую передачу. */
+  readonly unboundSelectionCount: number;
 }
 
 export interface ProjectWorkspaceView {

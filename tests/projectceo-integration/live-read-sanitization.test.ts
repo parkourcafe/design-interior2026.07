@@ -39,7 +39,7 @@ function fakeClient(
         return { data: { requests: platformApprovalRequests }, error: null };
       }
       if (schemaName === "projectceo_read_api" && functionName === "get_m3_room_handoff_readiness") {
-        return { data: { rooms: roomHandoffReadiness }, error: null };
+        return { data: { rooms: roomHandoffReadiness, unboundSelectionRevisionIds: [] }, error: null };
       }
       if (schemaName === "projectceo_read_api" && functionName === "get_project_workspace_read_v11") {
         return { data: {
@@ -1164,6 +1164,7 @@ describe("ProjectCEO live DTO sanitizer", () => {
     expect(staleRoom.data?.baselineHandoffBlockers).toEqual({
       missingPackageIds: [],
       blockedRooms: [{ packageId, roomId: "kitchen", problem: "M2_HANDOFF_SELECTION_SUPERSEDED" }],
+      unboundSelectionCount: 0,
     });
   });
 

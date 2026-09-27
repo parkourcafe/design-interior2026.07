@@ -1,6 +1,6 @@
 import "server-only";
 
-import { baselineRoomHandoffRefs, type RoomHandoffReadiness } from "./handoff-refs";
+import { baselineRoomHandoffRefs, type RoomHandoffReadinessReport } from "./handoff-refs";
 import {
   FoundationPostgresAdapter,
   ProjectCeoPlatformPostgresAdapter,
@@ -1115,13 +1115,14 @@ function activePackageIds(delivery: AuthenticatedProjectReadProjection): readonl
 // утверждённым дизайном без свежей передачи. Пусто — передачи готовы.
 function baselineHandoffBlockers(
   delivery: AuthenticatedProjectReadProjection,
-  readiness: readonly RoomHandoffReadiness[],
+  readiness: RoomHandoffReadinessReport | null,
 ): BaselineHandoffBlockersView | null {
-  if (readiness.length === 0) return null;
+  if (!readiness) return null;
   const result = baselineRoomHandoffRefs(activePackageIds(delivery), readiness);
   return result.ok ? null : {
     missingPackageIds: result.missingPackageIds,
     blockedRooms: result.blockedRooms,
+    unboundSelectionCount: result.unboundSelectionRevisionIds.length,
   };
 }
 
@@ -1132,7 +1133,7 @@ function operationStates(input: {
   readonly m4: readonly ExecutionDeliveryEnvelope[];
   readonly m1: M1WorkspaceView;
   /** DEC-041 §4: серверный расчёт свежести передач по комнатам. */
-  readonly roomHandoffReadiness?: readonly RoomHandoffReadiness[];
+  readonly roomHandoffReadiness?: RoomHandoffReadinessReport | null;
   readonly documentationEnabled?: boolean;
   readonly executionEnabled?: boolean;
   readonly executionV2V3Enabled?: boolean;
@@ -1234,7 +1235,7 @@ function operationStates(input: {
   }
   const baselineHandoffsReady = baselineRoomHandoffRefs(
     activePackageIds(input.delivery),
-    input.roomHandoffReadiness ?? [],
+    input.roomHandoffReadiness ?? { rooms: [], unboundSelectionRevisionIds: [] },
   ).ok;
   // Снапшот версии пакета: тот же приём, что у baseline, шагом позже. Состав
   // берётся из опубликованного baseline (чтение v9, `20260810090000`), а не из
@@ -1691,10 +1692,10 @@ export class ProjectCeoLiveReadPort implements ProjectCeoUiReadPort {
       // DEC-041 §4: готовность комнат к baseline — только тому, кто его
       // публикует. Недоступное чтение (старая одноразовая база) закрывает
       // кнопку baseline, а не открывает её.
-      const roomHandoffReadiness: readonly RoomHandoffReadiness[] = hasProjectScope
+      const roomHandoffReadiness: RoomHandoffReadinessReport | null = hasProjectScope
         && can(actor.role, "publish_baseline")
-        ? await this.authenticatedRead.getM3RoomHandoffReadiness(input.projectId).catch(() => [])
-        : [];
+        ? await this.authenticatedRead.getM3RoomHandoffReadiness(input.projectId).catch(() => null)
+        : null;
       const sources = sourceViews(delivery.sources);
       const baseline = baselineFrom(delivery);
       const releases = releaseViews(delivery, packages);

@@ -29,18 +29,27 @@ export interface BlockedRoom {
   readonly problem: string;
 }
 
+/** Ответ сервера о готовности: комнаты и утверждённые selection вне передач. */
+export interface RoomHandoffReadinessReport {
+  readonly rooms: readonly RoomHandoffReadiness[];
+  readonly unboundSelectionRevisionIds: readonly string[];
+}
+
 export type BaselineHandoffRefsResult =
   | { readonly ok: true; readonly refs: readonly BaselineRoomHandoffRef[] }
   | {
     readonly ok: false;
     readonly missingPackageIds: readonly string[];
     readonly blockedRooms: readonly BlockedRoom[];
+    /** Утверждённые материалы, которых нет ни в одной свежей передаче. */
+    readonly unboundSelectionRevisionIds: readonly string[];
   };
 
 export function baselineRoomHandoffRefs(
   packageIds: readonly string[],
-  rooms: readonly RoomHandoffReadiness[],
+  report: RoomHandoffReadinessReport,
 ): BaselineHandoffRefsResult {
+  const { rooms, unboundSelectionRevisionIds } = report;
   const active = new Set(packageIds);
   const refs: BaselineRoomHandoffRef[] = [];
   const blockedRooms: BlockedRoom[] = [];
@@ -67,8 +76,8 @@ export function baselineRoomHandoffRefs(
   }
   const covered = new Set(refs.map((ref) => ref.packageId));
   const missingPackageIds = packageIds.filter((packageId) => !covered.has(packageId));
-  if (missingPackageIds.length > 0 || blockedRooms.length > 0) {
-    return { ok: false, missingPackageIds, blockedRooms };
+  if (missingPackageIds.length > 0 || blockedRooms.length > 0 || unboundSelectionRevisionIds.length > 0) {
+    return { ok: false, missingPackageIds, blockedRooms, unboundSelectionRevisionIds };
   }
   const order = new Map(packageIds.map((packageId, index) => [packageId, index]));
   refs.sort((left, right) => (

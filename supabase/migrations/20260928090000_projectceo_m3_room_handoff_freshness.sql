@@ -22,6 +22,13 @@
 --         неутверждённые — M2_HANDOFF_*_NOT_APPROVED).
 --     Черновики и неутверждённые ревизии передачу не делают устаревшей: их
 --     нет среди одобренных approval packages.
+--   * Ни одной утверждённой selection мимо передач: каждая selection, которую
+--     заморозит baseline, входит в передачу какой-то комнаты
+--     (M2_HANDOFF_UNBOUND_SELECTION). Иначе клиент получил бы материал,
+--     которого не видел, при неизменном решении комнаты.
+--   * Две ревизии одной сущности в одном одобренном approval package —
+--     неоднозначный «победитель»; такая передача не свежая
+--     (M2_HANDOFF_APPROVAL_AMBIGUOUS).
 --   * После публикации решение и все selection передачи обязаны быть ровно
 --     теми ревизиями, что заморожены в baseline (M2_HANDOFF_NOT_IN_BASELINE).
 --   * Точные идентификаторы (комната, передача, approved commit, решение,
@@ -96,50 +103,120 @@ create function projectceo_product._current_approved_revision(
   p_revision_id text
 )
 returns text
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $function$
+declare
+  v_package text;
+  v_entity text;
+  v_candidates text[];
+begin
+  -- Сущность ревизии — по одобренным approval packages активных пакетов.
+  select item.entity_id into v_entity
+  from projectceo_product.approval_package_items item
+  where item.organization_id = p_organization_id
+    and item.project_id = p_project_id
+    and item.target_kind = p_target_kind
+    and item.revision_id = p_revision_id
+    and projectceo_product._approval_package_is_approved(
+      p_organization_id, p_project_id, item.approval_package_id)
+  limit 1;
+  if v_entity is null then
+    return null;
+  end if;
+  -- Последний одобривший пакет — тот же порядок, что у заморозки baseline.
+  select ap.approval_package_id into v_package
+  from projectceo_product.approval_packages ap
+  where ap.organization_id = p_organization_id
+    and ap.project_id = p_project_id
+    and projectceo_product._approval_package_is_approved(
+      p_organization_id, p_project_id, ap.approval_package_id)
+    and exists (
+      select 1 from projectceo_product.approval_package_items item
+      where item.organization_id = ap.organization_id
+        and item.project_id = ap.project_id
+        and item.approval_package_id = ap.approval_package_id
+        and item.target_kind = p_target_kind
+        and item.entity_id = v_entity
+    )
+  order by ap.created_at desc, ap.approval_package_id collate "C" desc
+  limit 1;
+  select pg_catalog.array_agg(item.revision_id) into v_candidates
+  from projectceo_product.approval_package_items item
+  where item.organization_id = p_organization_id
+    and item.project_id = p_project_id
+    and item.approval_package_id = v_package
+    and item.target_kind = p_target_kind
+    and item.entity_id = v_entity;
+  -- Две ревизии одной сущности в одном пакете: заморозка baseline выбрала
+  -- бы одну из них произвольно — такую передачу считать свежей нельзя.
+  if pg_catalog.cardinality(v_candidates) <> 1 then
+    return '#ambiguous';
+  end if;
+  return v_candidates[1];
+end
+$function$;
+
+create function projectceo_product._approval_package_is_approved(
+  p_organization_id uuid,
+  p_project_id uuid,
+  p_approval_package_id text
+)
+returns boolean
 language sql
 stable
 security definer
 set search_path = ''
 as $function$
-  with approved as (
-    select ap.approval_package_id, ap.created_at
+  select exists (
+    select 1
     from projectceo_product.approval_packages ap
     join projectceo_foundation.project_packages package
       on package.organization_id = ap.organization_id
      and package.project_id = ap.project_id
      and package.id = ap.package_id
      and package.status = 'active'
-    join lateral (
-      select event.to_status
-      from projectceo_product.approval_package_events event
-      where event.organization_id = ap.organization_id
-        and event.project_id = ap.project_id
-        and event.approval_package_id = ap.approval_package_id
-      order by event.sequence_no desc
-      limit 1
-    ) current_event on true
     where ap.organization_id = p_organization_id
       and ap.project_id = p_project_id
-      and current_event.to_status = 'approved'
-  ),
-  entity as (
-    select distinct item.entity_id
-    from projectceo_product.approval_package_items item
-    join approved on approved.approval_package_id = item.approval_package_id
-    where item.organization_id = p_organization_id
-      and item.project_id = p_project_id
-      and item.target_kind = p_target_kind
-      and item.revision_id = p_revision_id
+      and ap.approval_package_id = p_approval_package_id
+      and (
+        select event.to_status
+        from projectceo_product.approval_package_events event
+        where event.organization_id = ap.organization_id
+          and event.project_id = ap.project_id
+          and event.approval_package_id = ap.approval_package_id
+        order by event.sequence_no desc
+        limit 1
+      ) = 'approved'
   )
-  select item.revision_id
+$function$;
+
+-- Утверждённые ревизии selection, которые заморозит baseline: тот же
+-- «победитель» на сущность, что в _publish_baseline_atomic_unchecked.
+create function projectceo_product._approved_selection_winners(
+  p_organization_id uuid,
+  p_project_id uuid
+)
+returns setof text
+language sql
+stable
+security definer
+set search_path = ''
+as $function$
+  select distinct on (item.entity_id) item.revision_id
   from projectceo_product.approval_package_items item
-  join approved on approved.approval_package_id = item.approval_package_id
-  join entity on entity.entity_id = item.entity_id
+  join projectceo_product.approval_packages ap
+    on ap.organization_id = item.organization_id
+   and ap.project_id = item.project_id
+   and ap.approval_package_id = item.approval_package_id
   where item.organization_id = p_organization_id
     and item.project_id = p_project_id
-    and item.target_kind = p_target_kind
-  order by approved.created_at desc, approved.approval_package_id collate "C" desc
-  limit 1
+    and item.target_kind = 'selection_revision'
+    and projectceo_product._approval_package_is_approved(
+      p_organization_id, p_project_id, item.approval_package_id)
+  order by item.entity_id, ap.created_at desc, ap.approval_package_id collate "C" desc
 $function$;
 
 -- Причина, по которой передача комнаты не свежая, или null.
@@ -197,7 +274,9 @@ begin
     p_organization_id, p_project_id, 'decision_revision',
     p_handoff.payload->>'designIntentRevisionId'
   );
-  if v_current is null then
+  if v_current = '#ambiguous' then
+    return 'M2_HANDOFF_APPROVAL_AMBIGUOUS';
+  elsif v_current is null then
     return 'M2_HANDOFF_DECISION_NOT_APPROVED';
   elsif v_current is distinct from p_handoff.payload->>'designIntentRevisionId' then
     return 'M2_HANDOFF_DECISION_SUPERSEDED';
@@ -212,7 +291,9 @@ begin
     v_current := projectceo_product._current_approved_revision(
       p_organization_id, p_project_id, 'selection_revision', v_selection
     );
-    if v_current is null then
+    if v_current = '#ambiguous' then
+      return 'M2_HANDOFF_APPROVAL_AMBIGUOUS';
+    elsif v_current is null then
       return 'M2_HANDOFF_SELECTION_NOT_APPROVED';
     elsif v_current is distinct from v_selection then
       return 'M2_HANDOFF_SELECTION_SUPERSEDED';
@@ -409,16 +490,64 @@ begin
     ));
   end loop;
 
+  -- Ни одного материала мимо передачи: каждая утверждённая selection,
+  -- которую заморозит baseline, входит в передачу какой-то комнаты. Иначе
+  -- клиент получил бы материал, которого не видел, при неизменном решении.
+  select jsonb_agg(winner order by winner collate "C") into v_missing
+  from projectceo_product._approved_selection_winners(
+    v_context.organization_id, project_id
+  ) winner
+  where not exists (
+    select 1
+    from jsonb_array_elements(v_refs) ref
+    cross join lateral jsonb_array_elements_text(ref->'selectionRevisionIds') selection(revision_id)
+    where selection.revision_id = winner
+  );
+  if v_missing is not null then
+    perform projectceo_product._raise(
+      'P1109', 'scope_conflict',
+      jsonb_build_object('reason', 'M2_HANDOFF_UNBOUND_SELECTION',
+                         'selectionRevisionIds', v_missing)
+    );
+  end if;
+
   v_result := projectceo_product._publish_baseline_atomic_unchecked(
     project_id, expected_latest_version_id, previous_baseline_id,
     expected_state_revision, command_ref, idempotency_key
   );
-  -- Replay команды, выполненной до этой миграции: комнатных ссылок у такого
-  -- baseline нет, задним числом они не пришиваются.
   if coalesce((v_result->>'replay')::boolean, false) then
-    perform projectceo_product._raise(
-      'P1111', 'validation_failed', '{"reason":"M2_HANDOFF_REQUIRED"}'::jsonb
-    );
+    -- Параллельный повтор той же команды: первый вызов уже записал ссылки
+    -- под блокировкой проекта — сверяем их и возвращаем прежний результат.
+    -- Replay команды, выполненной до этой миграции, ссылок не имеет: задним
+    -- числом они не пришиваются.
+    select coalesce(jsonb_agg(jsonb_build_object(
+        'packageId', r.package_id::text,
+        'roomId', r.room_id,
+        'handoffId', r.handoff_id,
+        'handoffRevisionId', r.handoff_revision_id
+      ) order by r.package_id, r.room_id collate "C"), '[]'::jsonb)
+      into v_existing
+    from projectceo_product.baseline_room_handoff_refs r
+    where r.organization_id = v_context.organization_id
+      and r.project_id = project_id
+      and r.baseline_id = v_baseline_id;
+    if jsonb_array_length(v_existing) = 0 then
+      perform projectceo_product._raise(
+        'P1111', 'validation_failed', '{"reason":"M2_HANDOFF_REQUIRED"}'::jsonb
+      );
+    end if;
+    if v_existing is distinct from (
+      select jsonb_agg(jsonb_build_object(
+          'packageId', ref->>'packageId', 'roomId', ref->>'roomId',
+          'handoffId', ref->>'handoffId', 'handoffRevisionId', ref->>'handoffRevisionId'
+        ) order by (ref->>'packageId')::uuid, ref->>'roomId' collate "C")
+      from jsonb_array_elements(v_refs) ref
+    ) then
+      perform projectceo_product._raise(
+        'P1110', 'idempotency_conflict', '{"reason":"HANDOFF_REFS_CHANGED"}'::jsonb
+      );
+    end if;
+    return v_result;
   end if;
 
   -- Каждый пакет baseline — хотя бы с одной передачей; ссылка — только на
@@ -505,6 +634,24 @@ begin
     );
   end if;
 
+  if exists (
+    select 1 from projectceo_product.project_baseline_refs br
+    where br.organization_id = v_context.organization_id
+      and br.project_id = project_id
+      and br.baseline_id = v_baseline_id
+      and br.target_kind = 'selection_revision'
+      and not exists (
+        select 1
+        from jsonb_array_elements(v_refs) ref
+        cross join lateral jsonb_array_elements_text(ref->'selectionRevisionIds') selection(revision_id)
+        where selection.revision_id = br.revision_id
+      )
+  ) then
+    perform projectceo_product._raise(
+      'P1109', 'scope_conflict', '{"reason":"M2_HANDOFF_UNBOUND_SELECTION"}'::jsonb
+    );
+  end if;
+
   insert into projectceo_product.baseline_room_handoff_refs (
     organization_id, project_id, baseline_id, package_id, room_id,
     handoff_id, handoff_revision_id, approved_commit_revision_id,
@@ -585,6 +732,14 @@ alter function projectceo_product._room_handoff_problem(
 ) owner to pi_table_owner;
 alter function projectceo_product._package_applicable_rooms(uuid, uuid, uuid)
   owner to pi_table_owner;
+alter function projectceo_product._approval_package_is_approved(uuid, uuid, text)
+  owner to pi_table_owner;
+alter function projectceo_product._approved_selection_winners(uuid, uuid)
+  owner to pi_table_owner;
+revoke all on function projectceo_product._approval_package_is_approved(uuid, uuid, text)
+  from public, anon, authenticated, service_role, pi_human_executor, pi_worker_executor;
+revoke all on function projectceo_product._approved_selection_winners(uuid, uuid)
+  from public, anon, authenticated, service_role, pi_human_executor, pi_worker_executor;
 revoke all on function projectceo_product._current_approved_revision(uuid, uuid, text, text)
   from public, anon, authenticated, service_role, pi_human_executor, pi_worker_executor;
 revoke all on function projectceo_product._room_handoff_problem(

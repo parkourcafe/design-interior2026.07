@@ -8,6 +8,10 @@ import { baselineRoomHandoffRefs } from "../../lib/project-intelligence/delivery
 // пакете (миграции 20260925100000, 20260928090000; DB4 81, 83). Свежесть
 // считает сервер — здесь проверяется только сборка ссылок из его ответа.
 
+const report = (
+  rooms: readonly ReturnType<typeof room>[], unboundSelectionRevisionIds: readonly string[] = [],
+) => ({ rooms, unboundSelectionRevisionIds });
+
 const room = (
   packageId: string, roomId: string, problem: string | null, applicable = true,
   handoff: string | null = `h-${roomId}`,
@@ -18,11 +22,11 @@ const room = (
 
 describe("baselineRoomHandoffRefs", () => {
   it("binds every fresh room, ordered by package and room", () => {
-    expect(baselineRoomHandoffRefs(["p1", "p2"], [
+    expect(baselineRoomHandoffRefs(["p1", "p2"], report([
       room("p2", "kitchen", null),
       room("p1", "living", null),
       room("p1", "bath", null),
-    ])).toEqual({
+    ]))).toEqual({
       ok: true,
       refs: [
         { packageId: "p1", roomId: "bath", handoffId: "h-bath", handoffRevisionId: "h-bath@1" },
@@ -33,35 +37,44 @@ describe("baselineRoomHandoffRefs", () => {
   });
 
   it("blocks when a room with an approved design has no fresh handoff", () => {
-    expect(baselineRoomHandoffRefs(["p1"], [
+    expect(baselineRoomHandoffRefs(["p1"], report([
       room("p1", "living", null),
       room("p1", "kitchen", "M2_HANDOFF_SELECTION_SUPERSEDED"),
       room("p1", "bath", "M2_HANDOFF_MISSING", true, null),
-    ])).toEqual({
+    ]))).toEqual({
       ok: false,
       missingPackageIds: [],
       blockedRooms: [
         { packageId: "p1", roomId: "kitchen", problem: "M2_HANDOFF_SELECTION_SUPERSEDED" },
         { packageId: "p1", roomId: "bath", problem: "M2_HANDOFF_MISSING" },
       ],
+      unboundSelectionRevisionIds: [],
     });
   });
 
   it("skips a stale handoff of a room without an approved design", () => {
-    expect(baselineRoomHandoffRefs(["p1"], [
+    expect(baselineRoomHandoffRefs(["p1"], report([
       room("p1", "living", null),
       room("p1", "draft-room", "M2_HANDOFF_STALE", false),
-    ])).toEqual({
+    ]))).toEqual({
       ok: true,
       refs: [{ packageId: "p1", roomId: "living", handoffId: "h-living", handoffRevisionId: "h-living@1" }],
     });
   });
 
+  it("blocks when an approved material is outside every fresh handoff (DEC-041 §4)", () => {
+    expect(baselineRoomHandoffRefs(["p1"], report([room("p1", "living", null)], ["selection-unseen@1"])))
+      .toEqual({
+        ok: false, missingPackageIds: [], blockedRooms: [],
+        unboundSelectionRevisionIds: ["selection-unseen@1"],
+      });
+  });
+
   it("refuses when an active package has no handoff at all", () => {
-    expect(baselineRoomHandoffRefs(["p1", "p2"], [room("p1", "living", null)]))
-      .toEqual({ ok: false, missingPackageIds: ["p2"], blockedRooms: [] });
-    expect(baselineRoomHandoffRefs(["p1"], []))
-      .toEqual({ ok: false, missingPackageIds: ["p1"], blockedRooms: [] });
+    expect(baselineRoomHandoffRefs(["p1", "p2"], report([room("p1", "living", null)])))
+      .toEqual({ ok: false, missingPackageIds: ["p2"], blockedRooms: [], unboundSelectionRevisionIds: [] });
+    expect(baselineRoomHandoffRefs(["p1"], report([])))
+      .toEqual({ ok: false, missingPackageIds: ["p1"], blockedRooms: [], unboundSelectionRevisionIds: [] });
   });
 });
 

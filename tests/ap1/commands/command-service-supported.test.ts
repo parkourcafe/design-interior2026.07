@@ -322,7 +322,7 @@ function fakeClient(calls: Call[], options: FakeClientOptions = {}): PostgresRpc
             handoffId: handoff.id,
             handoffRevisionId: handoff.revisionId,
             problem: null,
-          })) }, error: null };
+          })), unboundSelectionRevisionIds: [] }, error: null };
         }
         if (name === "projectceo_m4_api.get_execution_delivery") {
           return { data: executionDelivery(), error: null };

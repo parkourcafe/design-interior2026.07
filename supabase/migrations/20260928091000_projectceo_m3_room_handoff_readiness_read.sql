@@ -11,6 +11,9 @@
 --   applicable — у комнаты есть утверждённый клиентом дизайн;
 --   problem — null (передача свежая), M2_HANDOFF_MISSING (передачи нет) или
 --   причина из _room_handoff_problem.
+-- unboundSelectionRevisionIds: утверждённые selection, которые заморозит
+-- baseline, но которых нет ни в одной свежей передаче комнаты — дверь
+-- откажет M2_HANDOFF_UNBOUND_SELECTION.
 
 begin;
 set local check_function_bodies = on;
@@ -26,6 +29,7 @@ as $function$
 declare
   v_organization_id uuid;
   v_rooms jsonb;
+  v_unbound jsonb;
 begin
   select context.organization_id into v_organization_id
   from projectceo_foundation._authorize_project_human(project_id, 'view_project') context;
@@ -84,7 +88,23 @@ begin
     on handoff_rooms.package_id = rooms.package_id
    and handoff_rooms.room_id = rooms.room_id;
 
-  return jsonb_build_object('rooms', v_rooms);
+  select coalesce(jsonb_agg(winner order by winner collate "C"), '[]'::jsonb)
+    into v_unbound
+  from projectceo_product._approved_selection_winners(v_organization_id, project_id) winner
+  where not exists (
+    select 1
+    from jsonb_array_elements(v_rooms) room
+    join projectceo_product.m2_workspace_revisions revision
+      on revision.organization_id = v_organization_id
+     and revision.project_id = project_id
+     and revision.entity_kind = 'm2_m3_handoff'
+     and revision.revision_id = room->>'handoffRevisionId'
+    cross join lateral jsonb_array_elements_text(revision.payload->'selectionRevisionIds') selection(revision_id)
+    where room->>'problem' is null
+      and selection.revision_id = winner
+  );
+
+  return jsonb_build_object('rooms', v_rooms, 'unboundSelectionRevisionIds', v_unbound);
 end
 $function$;
 
