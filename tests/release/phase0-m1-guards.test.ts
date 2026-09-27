@@ -2,7 +2,7 @@ import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";
 import { join } from "node:path";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-// Фаза 0 (DEC-040, финальный аудит 25.09.2026): публичная ссылка-бриф /b/
+// Фаза 0 (DEC-042, финальный аудит 25.09.2026): публичная ссылка-бриф /b/
 // закрыта, бриф не принимается повторно, выданное КП не редактируется и не
 // откатывается приложением. Та же граница КП закреплена базой — см.
 // tests/db4/79_m1_proposal_lifecycle_guard.sql.
@@ -165,7 +165,7 @@ describe("issued proposals are immutable in the application (BUG-03/BUG-04)", ()
   });
 });
 
-describe("public brief link /b/ is closed (DEC-040)", () => {
+describe("public brief link /b/ is closed (DEC-042)", () => {
   const root = process.cwd();
 
   function sourceFiles(dir: string): string[] {

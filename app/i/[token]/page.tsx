@@ -24,7 +24,7 @@ export default async function IntakePage({ params }: { params: Promise<{ token: 
   const completed = !isIntakeOpen(project.status);
 
   if (completed) {
-    // Клиентский бриф: ссылка для рассылки дизайнерам закрыта (DEC-040) до
+    // Клиентский бриф: ссылка для рассылки дизайнерам закрыта (DEC-042) до
     // безопасного подтверждения личности — показываем только подтверждение.
     if (selfServe) {
       return (

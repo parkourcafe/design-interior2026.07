@@ -1,7 +1,9 @@
 # Фаза 0 — evidence (25.09.2026)
 
-**Основание:** DEC-040 (решения владельца по `REMHAOS_FINAL_AUDIT_2026-09-25.md` §7),
+**Основание:** DEC-042 (решения владельца по `REMHAOS_FINAL_AUDIT_2026-09-25.md` §7),
 `REMHAOS_LAUNCH_PLAN_2026-09-25.md` Фаза 0.
+> 27.09.2026: при записи решение называлось DEC-040. По DEC-043 номер DEC-040 закреплён
+> за решением о 90-дневном сроке от 23.09, а это решение получило номер DEC-042.
 **Ветка:** `claude/phase-0-kg4xd8` (от `claude/final-audit-kg4xd8` = `5242a41`, который отличается от
 `main` `737795d` только файлами `docs/audits/`). PR не создавался, merge/deploy не выполнялись.
 **Код Фазы 0 (проверенный HEAD):** `eb98060faf1860fc1be66d5c053ea18c7522dc97`. Этот документ добавлен
@@ -13,7 +15,7 @@ R1-тесты (`git diff 5242a41 eb98060 --name-only | grep -i r1_` — пуст
 
 ## 1. Что сделано
 
-| Решение DEC-040 | Изменение | Доказательство |
+| Решение DEC-042 | Изменение | Доказательство |
 |---|---|---|
 | (3) `/b/` закрыт до подтверждения личности | Удалены `app/b/[token]/page.tsx` и `components/share-brief.tsx`; цель `public-brief` убрана из обоих allowlist service-role (`lib/supabase/token-scoped.ts`, `regional-admin.ts`); экраны «готово» самостоятельного брифа больше не выдают ссылку (`app/i/[token]/page.tsx`, `wizard.tsx`), тексты — `lib/i18n/ru.ts`; service worker сменил кэш на `remhaos-v2` (старый кэш с копиями `/b/` удаляется при activate) и не кладёт в Cache Storage страницы по токену и кабинет (`public/sw.js`) | `tests/release/phase0-m1-guards.test.ts` («/b/ is closed»: нет маршрута, нет `/b/` ни в какой форме в `app`/`components`/`lib`, кроме списков noindex; SW не кэширует токен-страницы) |
 | BUG-02 повторная отправка брифа | `lib/intake-status.ts` (открытые статусы: created/brief_sent/brief_in_progress); `/api/intake/submit` → 409 `already_submitted` вне открытого статуса, переход проекта условный (`.in("status", …)`), проигравший параллельный запрос не трогает карточки рисков; ответы пишутся до перехода (сбой после перехода не теряет ответы); `/api/intake/upload` → 409 после отправки; визард показывает «готово» на 409 | `phase0-m1-guards.test.ts` (4 статуса → 409 без единой записи; проигранная гонка не доходит до `risk_cards`; вложения закрыты) |
@@ -21,7 +23,7 @@ R1-тесты (`git diff 5242a41 eb98060 --name-only | grep -i r1_` — пуст
 | BUG-04 approval только в server action | Миграция `20260925090000_legacy_m1_proposal_lifecycle_guard.sql`: триггер `proposals_lifecycle_guard` (SECURITY INVOKER). Для конечного пользователя: вставка только черновиком; draft→sent только при утверждённом `project_passport` approval (читается тем же request-bound RPC, что и в приложении); удаление выданного КП запрещено. Для всех ролей: содержимое не-черновика неизменяемо; разрешены лишь draft→sent и sent→accepted (последний — только серверный путь ответа клиента). `sendProposal` больше не откатывает accepted→sent и двигает проект только вперёд | DB4 79: без approval → `PROPOSAL_APPROVAL_REQUIRED`; вставка `sent` → `PROPOSAL_INSERT_MUST_BE_DRAFT`; с approval (create→submit→decide через RPC) → sent, `sent_at` проставлен; accept/to_draft/delete конечным пользователем — каждый своим отказом; service role: sent→accepted проходит, draft→accepted и sent→draft/accepted→sent отклонены; черновик редактируется. `tests/projectceo-integration/m1-proposal-approval.test.ts` проверяет фильтры |
 | (2) пакетный architect — 6 прав; отзыв; аудит прав | Миграция `20260925091000_projectceo_package_capability_template_ledger.sql`: триггер-clamp на `package_member_capabilities` для продуктовых путей (SECURITY DEFINER-функции `pi_table_owner`: enrollment, приглашение) — только `_package_role_capabilities(role)`, отказ пишется в журнал как `denied_by_template`; append-only `capability_grant_ledger` (baseline/granted/revoked/denied_by_template, причина, actor) на обеих таблицах прав; `verify_capability_grants()` (право вне шаблона; расхождение состояния с журналом; проектное членство не-владельца без принятого проектного приглашения); `_revoke_legacy_capability_grants()` — отзывает пакетные права вне шаблона и проектный доступ участников enrollment без приглашения (членство → inactive), дополняет активное пакетное членство шаблоном роли; миграция вызывает её глобально, пишет baseline и падает, если сверка не пуста. Поверхность журнала закрыта от API-ролей. UI: `capabilitiesForScope`/`canInScope` в `components/projectceo/role-policy.ts`, `live-read-port.ts` не предлагает пакетному участнику операции вне шаблона. Внешний поток AP6 (`tests/ap1/e2e/provision-kora.ts`) переведён на владельца для decision/selection/price | DB4 80: пакетный architect после enrollment — ровно 6 прав; `publish_release`/`publish_baseline`/`manage_budget` → `denied_by_template` в журнале и P1103 на `_authorize_package_human`; унаследованное состояние обнаруживается сверкой, отзыв даёт точные счётчики, отозванный участник теряет проектный доступ (P1103) и сохраняет 6 пакетных прав, приглашённый проектный architect не затронут, журнал неизменяем (55000). `tests/projectceo-ui/roles.test.ts` (паритет UI-зеркала с `_package_role_capabilities` по миграции); `tests/ap1/e2e/provision-kora-enrollment.test.ts` |
 | (7) CI на каждом PR | `.github/workflows/ci.yml`: возвращён `pull_request: [opened, synchronize, reopened]` (как до `07e186d`); blocking jobs (`scope`, `gates`, `database`, `execution_database`, `ap5`) без event-зависимых job-level `if` | `tests/release/ci-pull-request-trigger.test.ts` — проверено, что тест падает на `ci.yml` до правки |
-| Журнал | DEC-040 добавлен в `REMHAOS_DECISION_LOG_v1.md` с исполненной и неисполненной частью | — |
+| Журнал | DEC-042 добавлен в `REMHAOS_DECISION_LOG_v1.md` с исполненной и неисполненной частью | — |
 
 ## 2. Прогоны (точный HEAD, чистое дерево)
 
@@ -67,14 +69,14 @@ R1-тесты (`git diff 5242a41 eb98060 --name-only | grep -i r1_` — пуст
 * Clamp пакетных прав срабатывает для продуктовых путей (`current_user = pi_table_owner`). Прямой
   привилегированный SQL (оператор, R1-фикстуры) не блокируется, но журналируется и виден
   `verify_capability_grants()` как `package_capability_outside_template`. Глобальная сверка в DB4 не
-  требуется пустой из-за R1-фикстур (R1 не менялся по DEC-040).
+  требуется пустой из-за R1-фикстур (R1 не менялся по DEC-042).
 * Отозванному участнику повторное проектное приглашение сейчас отклоняется `RECIPIENT_ALREADY_HAS_SCOPE`
   (членство inactive, на него ссылаются FK). Восстановление проектного доступа — отдельный аудируемый
-  путь (записано в DEC-040).
+  путь (записано в DEC-042).
 * Если запись карточек или события упадёт после перехода статуса, повтор получит 409, событие
   `brief_completed` не восстановится автоматически (ответы и паспорт сохранены). Полное решение — одна
   RPC-транзакция для паспорта, статуса и ответов.
-* Не исполнено этой фазой по DEC-040: (4) гейт persisted handoff для baseline/release M3; (6) описание
+* Не исполнено этой фазой по DEC-042: (4) гейт persisted handoff для baseline/release M3; (6) описание
   контуров Telegram; required status check в branch protection.
 
 ## 5. Нужно от владельца
@@ -90,7 +92,7 @@ R1-тесты (`git diff 5242a41 eb98060 --name-only | grep -i r1_` — пуст
 
 ---
 
-# Фаза 0b — DEC-040 (4) и (6) (26.09.2026)
+# Фаза 0b — DEC-042 (4) и (6) (26.09.2026)
 
 **Проверенный HEAD:** `5ad43cdea44c2f7119f9d859fbe3d35bf3b4ee2e` (ветка `claude/phase-0-kg4xd8`), дерево
 чистое до и после прогона; ledger миграций 130/130 OK. Выбор владельца: явная ссылка на передачу, гейт для

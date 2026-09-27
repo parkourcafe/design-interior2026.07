@@ -977,7 +977,7 @@ export class ProjectCeoCommandService {
         }, command.payload.snapshotToken);
         if (!confirmation.ok) return failure(requestId, "error", "stale_state");
 
-        // DEC-040 (4): передача M2→M3 по каждому пакету baseline. Ссылки
+        // DEC-042 (4): передача M2→M3 по каждому пакету baseline. Ссылки
         // выводятся из того же серверного чтения; без передачи хотя бы одного
         // пакета публикация не предлагается и не исполняется.
         // Состав baseline — активные пакеты (так же выводит его база).

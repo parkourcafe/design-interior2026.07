@@ -25,7 +25,7 @@ describe("Kora disposable enrollment", () => {
     expect(snapshot).not.toContain('architectClient, "projectceo_api", "publish_source_snapshot"');
   });
 
-  it("never asks the package-enrolled architect for operations outside the package template (DEC-040)", () => {
+  it("never asks the package-enrolled architect for operations outside the package template (DEC-042)", () => {
     const provision = source();
     const external = provision.slice(
       provision.indexOf("async function provisionExternalPackage"),

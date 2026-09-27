@@ -90,7 +90,7 @@ run_sql() {
 # These accepted SQL scenarios construct the exact source/evidence, baseline,
 # release, change-impact, photo, milestone and handover chain. They run only in
 # the disposable local database and are followed by real GoTrue user sessions.
-# DEC-040 (4): baseline M3 требует опубликованную передачу M2→M3 по каждому
+# DEC-042 (4): baseline M3 требует опубликованную передачу M2→M3 по каждому
 # пакету. Путь M2 (планировки → ревью клиента → approved commit → передача)
 # доказывают DB4 33 и внешний раннер AP6; здесь — фикстура одноразовой базы с
 # design intent, который войдёт в baseline.

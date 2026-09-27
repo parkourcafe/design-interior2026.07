@@ -41,7 +41,7 @@ function packageCapabilitiesFromMigration(dbRole: string): string[] {
   return [...match[1].matchAll(/'([^']+)'/g)].map(([ , capability ]) => capability!);
 }
 
-describe("ProjectCEO package-scoped capability template (DEC-040)", () => {
+describe("ProjectCEO package-scoped capability template (DEC-042)", () => {
   it("mirrors _package_role_capabilities exactly for every package role", () => {
     const roleMap = { architect: "architect", builder: "builder", client: "client_approver" } as const;
     for (const [uiRole, dbRole] of Object.entries(roleMap) as Array<[

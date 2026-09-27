@@ -420,7 +420,7 @@ export class ProjectBrainHumanPostgresAdapter {
         project_id: input.projectId,
         expected_latest_version_id: input.expectedLatestVersionId,
         previous_baseline_id: input.previousBaselineId,
-        // DEC-040 (4): опубликованная передача M2→M3 по каждому пакету.
+        // DEC-042 (4): опубликованная передача M2→M3 по каждому пакету.
         handoff_refs: input.handoffRefs,
         expected_state_revision: input.expectedStateRevision,
         command_ref: input.commandRef,

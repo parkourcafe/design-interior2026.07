@@ -1041,7 +1041,7 @@ describe("ProjectCEO live DTO sanitizer", () => {
         revisionId: "decision-r1",
       }],
     }];
-    // DEC-040 (4): у пакета есть опубликованная передача M2→M3.
+    // DEC-042 (4): у пакета есть опубликованная передача M2→M3.
     const m2M3Handoffs = [{
       id: "handoff-1", packageId: packageId, revisionId: "73000000-0000-4000-8000-000000000013",
       revisionNo: 1, status: "published", approvedCommitId: "commit-1",

@@ -256,7 +256,7 @@ on conflict (id) do update set client_name = excluded.client_name, passport = ex
     sourceRevisionId: `tashkent-source-${suffix}-r1`,
     fragmentId: `tashkent-fragment-${suffix}`,
   });
-  // DEC-040: пакетный architect (доступ только через enrollment) держит шесть
+  // DEC-042: пакетный architect (доступ только через enrollment) держит шесть
   // минимальных прав пакетного шаблона — без revise_decision/create_selection.
   // Решение, выборы и цены внешнего пакета готовит владелец с проектной
   // областью; architect остаётся участником пакета для приёмки выпуска.

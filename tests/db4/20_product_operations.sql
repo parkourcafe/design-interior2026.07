@@ -491,7 +491,7 @@ select jsonb_build_object(
 ) as baseline_descriptor
 \gset db4_
 
--- DEC-040 (4): baseline требует опубликованную передачу по каждому пакету.
+-- DEC-042 (4): baseline требует опубликованную передачу по каждому пакету.
 select pi_test_fixture.seed_handoff(
   '41111111-1111-4111-8111-111111111111', '41111111-1111-4111-8111-111111111111',
   'handoff-db4-root', 'revision-decision-db4-r1', array['revision-selection-db4-r1'],

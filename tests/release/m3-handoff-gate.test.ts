@@ -3,7 +3,7 @@ import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { baselineHandoffRefs } from "../../lib/project-intelligence/delivery/projectceo/handoff-refs";
 
-// DEC-040 (4): baseline и выпуск M3 требуют опубликованную передачу M2→M3 по
+// DEC-042 (4): baseline и выпуск M3 требуют опубликованную передачу M2→M3 по
 // каждому пакету (миграция 20260925100000, DB4 81).
 
 const handoff = (id: string, packageId: string, revisionNo: number, createdAt: string) => ({

@@ -77,7 +77,7 @@ const ROLE_CAPABILITIES: Readonly<Record<ProjectCeoRole, readonly ProjectCeoCapa
 /**
  * Зеркало `projectceo_foundation._package_role_capabilities` (миграция
  * `20260802090000`). Пакетный участник получает ровно этот шаблон: так
- * решил владелец (DEC-040), и с миграции `20260925091000` база обрезает
+ * решил владелец (DEC-042), и с миграции `20260925091000` база обрезает
  * любую продуктовую выдачу пакетных прав до него. Пакетный architect —
  * шесть минимальных прав, без publish_baseline/publish_release/manage_budget.
  */

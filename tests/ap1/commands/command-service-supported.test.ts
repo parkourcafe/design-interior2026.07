@@ -986,7 +986,7 @@ describe("AP1 supported human commands", () => {
       previousBaselineId: "baseline-v2",
     });
 
-    // DEC-040 (4): без опубликованной передачи пакета публикация не
+    // DEC-042 (4): без опубликованной передачи пакета публикация не
     // исполняется — ни одного вызова baseline-двери.
     const refused: Call[] = [];
     const withoutHandoff = await service(refused, {

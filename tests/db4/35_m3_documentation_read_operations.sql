@@ -15,7 +15,7 @@ declare v_read jsonb; v_sheet jsonb; v_handoffs jsonb; v_doc_handoffs jsonb;
 begin
   select projectceo_read_api.get_project_workspace_read_v7(
     '41111111-1111-4111-8111-111111111111',null) into v_read;
-  -- DEC-040 (4): позитивные цепочки M3 засевают свои передачи
+  -- DEC-042 (4): позитивные цепочки M3 засевают свои передачи
   -- (tests/fixtures/sql/m3_handoff_fixture.sql); предмет этого теста —
   -- передача cycle6 из tests/db4/33, поэтому проверяем именно её.
   select coalesce(jsonb_agg(h), '[]'::jsonb) into v_handoffs

@@ -194,7 +194,7 @@ function actorFor(
     displayName: identity.displayName,
     projectId: entry.projectId,
     packageId: entry.accessScope === "package" ? entry.packageId ?? null : null,
-    // Пакетный участник получает только пакетный шаблон прав (DEC-040).
+    // Пакетный участник получает только пакетный шаблон прав (DEC-042).
     capabilities: capabilitiesForScope(role, entry.accessScope === "package" ? "package" : "project"),
   };
 }
@@ -1114,7 +1114,7 @@ function operationStates(input: {
     ?? isDocumentationModuleEnabled();
   const executionEnabled = input.executionEnabled ?? isExecutionModuleEnabled();
   const executionV2V3Enabled = input.executionV2V3Enabled ?? isExecutionV2V3Enabled();
-  // База выдаёт пакетному участнику только пакетный шаблон (DEC-040): без
+  // База выдаёт пакетному участнику только пакетный шаблон (DEC-042): без
   // этого поверхность предлагала бы пакетному architect publish_release, а
   // база отклоняла бы P1103.
   const allowed = (capability: Parameters<typeof can>[1]): boolean => canInScope(
@@ -1399,7 +1399,7 @@ function operationStates(input: {
     // Выход модуля 3 закрыт его же флагом (A5 §4.2.2). До 11.08 закрыт был
     // только приём, и публикация оставалась предложенной при выключенном
     // модуле — сильнейшая операция мимо собственного выключателя.
-    // DEC-040 (4): без опубликованной передачи M2→M3 по каждому пакету
+    // DEC-042 (4): без опубликованной передачи M2→M3 по каждому пакету
     // baseline база публикацию отклонит — кнопку не предлагаем.
     publish_baseline: !documentationEnabled
       ? unavailable("module_disabled")

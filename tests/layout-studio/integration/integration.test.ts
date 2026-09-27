@@ -393,11 +393,11 @@ describe("Layout Studio delivery/UI slice", () => {
       // Enrollment repair narrows supplied users to package capabilities only.
       "20260922183823_projectceo_package_scoped_enrollment.sql",
       "20260922185630_projectceo_package_bound_approval_review.sql",
-      // DEC-040 / Фаза 0: граница жизненного цикла КП в базе и пакетный
+      // DEC-042 / Фаза 0: граница жизненного цикла КП в базе и пакетный
       // шаблон прав с журналом выдачи; Layout Studio не затрагивают.
       "20260925090000_legacy_m1_proposal_lifecycle_guard.sql",
       "20260925091000_projectceo_package_capability_template_ledger.sql",
-      // DEC-040 (4): гейт передачи M2→M3 для baseline/выпуска M3.
+      // DEC-042 (4): гейт передачи M2→M3 для baseline/выпуска M3.
       "20260925100000_projectceo_m3_handoff_gate.sql",
     ];
     const actual = readdirSync(join(repoRoot, "supabase/migrations"), { withFileTypes: true })

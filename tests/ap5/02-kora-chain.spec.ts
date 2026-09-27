@@ -370,7 +370,7 @@ test.describe("AP5 — цепочка Kora на живом стеке", () => {
     });
     expect(approved.status, commandDiagnostic(approved)).toBe(200);
 
-    // DEC-040 (4): передача M2→M3 по каждому пакету — до baseline.
+    // DEC-042 (4): передача M2→M3 по каждому пакету — до baseline.
     seedM3HandoffsForBaseline({
       projectId: handoff().projectId,
       designIntentRevisionId: AP5_DECISION_REVISION_ID,
