@@ -28,7 +28,7 @@ export function seedM3HandoffsForBaseline(input: {
   const fixture = resolve(process.cwd(), "tests/fixtures/sql/m3_handoff_fixture.sql");
   const seedSql = `select pi_test_fixture.seed_handoff(
       package.project_id, package.id, 'ap5-handoff-' || package.stable_key,
-      '${input.designIntentRevisionId}', array['ap5-handoff-selection'],
+      '${input.designIntentRevisionId}', array[]::text[],
       (select designer_id from public.projects where id = package.project_id))
     from projectceo_foundation.project_packages package
     where package.project_id = '${input.projectId}'::uuid and package.status = 'active'`;

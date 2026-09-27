@@ -21,7 +21,8 @@ create or replace function pi_test_fixture.seed_handoff(
   p_handoff_id text,
   p_design_intent_revision_id text,
   p_selection_revision_ids text[],
-  p_actor_user_id uuid
+  p_actor_user_id uuid,
+  p_room_id text default null
 )
 returns text
 language plpgsql
@@ -31,6 +32,8 @@ declare
   v_previous record;
   v_revision_no bigint;
   v_revision_id text;
+  v_room_id text := coalesce(p_room_id, p_handoff_id || '-room');
+  v_commit_revision_id text;
 begin
   select organization_id into v_org
   from project_intelligence.project_workflows
@@ -42,6 +45,17 @@ begin
   order by revision_no desc
   limit 1;
   v_revision_no := coalesce(v_previous.revision_no, 0) + 1;
+  -- DEC-041 §4: передача комнаты с утверждённым дизайном ссылается на его
+  -- последнюю ревизию (иначе гейт вернёт M2_HANDOFF_COMMIT_SUPERSEDED).
+  select revision.revision_id into v_commit_revision_id
+  from projectceo_product.m2_workspace_revisions revision
+  where revision.organization_id = v_org and revision.project_id = p_project_id
+    and revision.package_id = p_package_id
+    and revision.entity_kind = 'approved_commit' and revision.status = 'approved'
+    and revision.payload->>'roomId' = v_room_id
+  order by revision.created_at desc, revision.revision_no desc,
+    revision.revision_id collate "C" desc
+  limit 1;
   -- UUID-идентификаторы — как у настоящей двери: authenticated-чтение (TS)
   -- строго валидирует форму передачи.
   v_revision_id := extensions.gen_random_uuid()::text;
@@ -54,8 +68,8 @@ begin
     v_revision_no, v_previous.revision_id, 'published',
     jsonb_build_object(
       'approvedCommitId', p_handoff_id || '-commit',
-      'approvedCommitRevisionId', extensions.gen_random_uuid()::text,
-      'roomId', p_handoff_id || '-room',
+      'approvedCommitRevisionId', coalesce(v_commit_revision_id, extensions.gen_random_uuid()::text),
+      'roomId', v_room_id,
       'designIntentRevisionId', p_design_intent_revision_id,
       'chosenVariant', jsonb_build_object(
         'variantId', p_handoff_id || '-variant',
@@ -79,6 +93,6 @@ begin
   return v_revision_id;
 end
 $function$;
-revoke all on function pi_test_fixture.seed_handoff(uuid, uuid, text, text, text[], uuid)
+revoke all on function pi_test_fixture.seed_handoff(uuid, uuid, text, text, text[], uuid, text)
   from public, anon, authenticated, service_role;
 

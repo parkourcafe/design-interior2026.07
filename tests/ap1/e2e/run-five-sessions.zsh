@@ -98,7 +98,7 @@ seed_m3_handoffs() {
   local design_intent=$1
   [[ ${design_intent} =~ '^[A-Za-z0-9._:@-]{1,160}$' ]] || { print -u2 -r -- "AP1_HANDOFF_SEED_INVALID"; exit 1; }
   { cat tests/fixtures/sql/m3_handoff_fixture.sql
-    print -r -- "select pi_test_fixture.seed_handoff(package.project_id, package.id, 'ap1-handoff-' || package.stable_key, '${design_intent}', array['ap1-handoff-selection'], (select designer_id from public.projects where id = package.project_id)) from projectceo_foundation.project_packages package where package.project_id = '${project_id}'::uuid and package.status = 'active';"
+    print -r -- "select pi_test_fixture.seed_handoff(package.project_id, package.id, 'ap1-handoff-' || package.stable_key, '${design_intent}', array[]::text[], (select designer_id from public.projects where id = package.project_id)) from projectceo_foundation.project_packages package where package.project_id = '${project_id}'::uuid and package.status = 'active';"
   } | docker exec -i "${db_container}" \
     psql -X --set ON_ERROR_STOP=1 --username "${db_psql_user}" --dbname postgres \
     > "${evidence_dir}/m3-handoff-seed-${design_intent}.log"

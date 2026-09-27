@@ -2,12 +2,13 @@
 
 -- Только для DB4/DB5 (одноразовые контейнеры харнесса): вызовы
 -- publish_baseline_atomic от authenticated берут ссылки «последняя передача
--- по каждому активному пакету» отсюда. На стенды AP1/AP5 этот файл не
+-- по каждой комнате активного пакета» отсюда. На стенды AP1/AP5 этот файл не
 -- применяется — там ссылки выводит сервер приложения из чтения.
 
 grant usage on schema pi_test_fixture to authenticated;
 
--- Последняя опубликованная передача по каждому активному пакету проекта.
+-- Последняя опубликованная передача по каждой комнате каждого активного
+-- пакета проекта (DEC-041 §4, миграция 20260928090000).
 create or replace function pi_test_fixture.handoff_refs(p_project_id uuid)
 returns jsonb
 language sql
@@ -17,12 +18,14 @@ set search_path = ''
 as $function$
   select coalesce(jsonb_agg(jsonb_build_object(
       'packageId', latest.package_id::text,
+      'roomId', latest.room_id,
       'handoffId', latest.entity_id,
       'handoffRevisionId', latest.revision_id
-    ) order by latest.package_id), '[]'::jsonb)
+    ) order by latest.package_id, latest.room_id collate "C"), '[]'::jsonb)
   from (
-    select distinct on (revision.package_id)
-      revision.package_id, revision.entity_id, revision.revision_id
+    select distinct on (revision.package_id, revision.payload->>'roomId')
+      revision.package_id, revision.payload->>'roomId' as room_id,
+      revision.entity_id, revision.revision_id
     from projectceo_product.m2_workspace_revisions revision
     join projectceo_foundation.project_packages package
       on package.organization_id = revision.organization_id
@@ -32,15 +35,9 @@ as $function$
     where revision.project_id = p_project_id
       and revision.entity_kind = 'm2_m3_handoff'
       and revision.status = 'published'
-      and revision.revision_no = (
-        select max(other.revision_no)
-        from projectceo_product.m2_workspace_revisions other
-        where other.organization_id = revision.organization_id
-          and other.project_id = revision.project_id
-          and other.entity_kind = 'm2_m3_handoff'
-          and other.entity_id = revision.entity_id
-      )
-    order by revision.package_id, revision.created_at desc, revision.entity_id desc
+    order by revision.package_id, revision.payload->>'roomId',
+      revision.created_at desc, revision.revision_no desc,
+      revision.revision_id collate "C" desc
   ) latest
 $function$;
 revoke all on function pi_test_fixture.handoff_refs(uuid) from public, anon, service_role;

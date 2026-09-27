@@ -41,6 +41,14 @@ select set_config('db4.door_latest_version_id', :'door_latest_version_id', false
 select set_config('db4.door_previous_baseline_id', :'door_previous_baseline_id', false);
 select set_config('db4.door_state_revision', :'door_state_revision', false);
 
+-- DEC-041 §4: комната db4-room получила утверждённый дизайн в DB4 31, а
+-- передачу по ней никто не публиковал — baseline без неё не выпускается.
+-- Засев передачи этой комнаты (полную дверь публикации доказывает DB4 33).
+select pi_test_fixture.seed_handoff(
+  '41111111-1111-4111-8111-111111111111', '41111111-1111-4111-8111-111111111111',
+  'handoff-db4-room', 'revision-decision-db4-r1', array['revision-selection-db4-r1'],
+  '31111111-1111-4111-8111-111111111111', 'db4-room');
+
 -- Т1. Успешная публикация: версия + baseline одной транзакцией, состав
 -- выведен сервером и самосогласован.
 begin;

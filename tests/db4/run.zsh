@@ -98,6 +98,7 @@ for sql in \
   "${repo_root}/tests/db4/50_released_archive_read.sql" \
   "${repo_root}/tests/db4/51_publish_baseline_door.sql" \
   "${repo_root}/tests/db4/81_m3_handoff_gate.sql" \
+  "${repo_root}/tests/db4/83_m3_room_handoff_freshness.sql" \
   "${repo_root}/tests/db4/52_source_ingest_worker.sql" \
   "${repo_root}/tests/db4/53_m3_read_gate.sql" \
   "${repo_root}/tests/db4/54_workspace_read_superseded_approvals.sql" \

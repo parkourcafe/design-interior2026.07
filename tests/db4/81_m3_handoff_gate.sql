@@ -1,8 +1,10 @@
 \set ON_ERROR_STOP on
 
 -- DB4: DEC-042 (4) — baseline и выпуск M3 требуют опубликованную точную
--- передачу M2→M3 по каждому пакету (миграция 20260925100000). Всё — внутри
--- откатываемой транзакции поверх состояния проекта 41111111 после 20–78.
+-- передачу M2→M3 (миграция 20260925100000); с DEC-041 §4 (20260928090000)
+-- ссылки — по комнатам. Всё — внутри откатываемой транзакции поверх
+-- состояния проекта 41111111 после 20–78. Свежесть по утверждённым
+-- ревизиям — tests/db4/83_m3_room_handoff_freshness.sql.
 
 do $schema_contract$
 begin
@@ -21,7 +23,7 @@ begin
           = any(projectceo_platform._module_signatures('m3'))) then
     raise exception 'DB4_81_M3_MODULE_SIGNATURE_MISSING';
   end if;
-  if pg_catalog.has_table_privilege('authenticated', 'projectceo_product.baseline_handoff_refs', 'SELECT') then
+  if pg_catalog.has_table_privilege('authenticated', 'projectceo_product.baseline_room_handoff_refs', 'SELECT') then
     raise exception 'DB4_81_HANDOFF_REFS_EXPOSED';
   end if;
   -- Каждый опубликованный через дверь baseline несёт ссылки на все свои пакеты.
@@ -33,7 +35,7 @@ begin
      and b.baseline_id = bp.baseline_id
     where bp.project_id = '41111111-1111-4111-8111-111111111111'
       and not exists (
-        select 1 from projectceo_product.baseline_handoff_refs r
+        select 1 from projectceo_product.baseline_room_handoff_refs r
         where r.organization_id = bp.organization_id and r.project_id = bp.project_id
           and r.baseline_id = bp.baseline_id and r.package_id = bp.package_id
       )
@@ -116,30 +118,37 @@ set local request.jwt.claim.sub = '31111111-1111-4111-8111-111111111111';
 
 do $refusals$
 declare
+  -- Все комнаты корневого пакета (DEC-041 §4) и одна из них для подмены пакета.
+  v_root_refs jsonb := (
+    select jsonb_agg(ref) from jsonb_array_elements(current_setting('db4.gate_refs')::jsonb) ref
+    where ref->>'packageId' = '41111111-1111-4111-8111-111111111111'
+  );
   v_root jsonb := (
     select ref from jsonb_array_elements(current_setting('db4.gate_refs')::jsonb) ref
     where ref->>'packageId' = '41111111-1111-4111-8111-111111111111'
+    order by ref->>'roomId' limit 1
   );
 begin
   -- 1. Без ссылок.
   perform pi_test_fixture.expect_baseline_refusal('[]'::jsonb, 'P1111', 'M2_HANDOFF_REQUIRED', 'empty');
   -- 2. Пакет baseline без передачи (только корневой).
-  perform pi_test_fixture.expect_baseline_refusal(jsonb_build_array(v_root), 'P1111', 'M2_HANDOFF_REQUIRED', 'missing_package');
+  perform pi_test_fixture.expect_baseline_refusal(v_root_refs, 'P1111', 'M2_HANDOFF_REQUIRED', 'missing_package');
   -- 3. Устаревшая ревизия передачи.
-  perform pi_test_fixture.expect_baseline_refusal(jsonb_build_array(v_root, jsonb_build_object(
-    'packageId', '49999999-9999-4999-8999-999999999999',
+  perform pi_test_fixture.expect_baseline_refusal(v_root_refs || jsonb_build_array(jsonb_build_object(
+    'packageId', '49999999-9999-4999-8999-999999999999', 'roomId', 'handoff-db4-81-stale-room',
     'handoffId', 'handoff-db4-81-stale', 'handoffRevisionId', current_setting('db4.gate_stale_r1')
   )), 'P1109', 'M2_HANDOFF_STALE', 'stale');
   -- 4. Передача, которой нет у пакета (чужой пакет).
-  perform pi_test_fixture.expect_baseline_refusal(jsonb_build_array(v_root, jsonb_build_object(
-    'packageId', '49999999-9999-4999-8999-999999999999',
+  perform pi_test_fixture.expect_baseline_refusal(v_root_refs || jsonb_build_array(jsonb_build_object(
+    'packageId', '49999999-9999-4999-8999-999999999999', 'roomId', v_root->>'roomId',
     'handoffId', v_root->>'handoffId', 'handoffRevisionId', v_root->>'handoffRevisionId'
   )), 'P1111', 'M2_HANDOFF_REQUIRED', 'wrong_package');
-  -- 5. Содержание передачи не вошло в baseline.
-  perform pi_test_fixture.expect_baseline_refusal(jsonb_build_array(v_root, jsonb_build_object(
-    'packageId', '49999999-9999-4999-8999-999999999999',
+  -- 5. Решение передачи не утверждено (его нет ни в одном одобренном
+  --    approval package) — передача не свежая ещё до публикации.
+  perform pi_test_fixture.expect_baseline_refusal(v_root_refs || jsonb_build_array(jsonb_build_object(
+    'packageId', '49999999-9999-4999-8999-999999999999', 'roomId', 'handoff-db4-81-foreign-room',
     'handoffId', 'handoff-db4-81-foreign', 'handoffRevisionId', current_setting('db4.gate_foreign_r1')
-  )), 'P1111', 'M2_HANDOFF_NOT_IN_BASELINE', 'not_in_baseline');
+  )), 'P1109', 'M2_HANDOFF_DECISION_NOT_APPROVED', 'decision_not_approved');
 end
 $refusals$;
 
@@ -176,7 +185,7 @@ begin
       current_setting('db4.gate_latest_version_id'),
       current_setting('db4.gate_previous_baseline_id'),
       (select jsonb_agg(case when ref->>'packageId' = '49999999-9999-4999-8999-999999999999'
-          then jsonb_build_object('packageId', ref->>'packageId',
+          then jsonb_build_object('packageId', ref->>'packageId', 'roomId', 'handoff-db4-81-stale-room',
             'handoffId', 'handoff-db4-81-stale', 'handoffRevisionId', current_setting('db4.gate_stale_r2'))
           else ref end)
        from jsonb_array_elements(v_refs) ref),
@@ -196,13 +205,14 @@ reset role;
 
 do $refs_persisted$
 begin
-  if (select count(*) from projectceo_product.baseline_handoff_refs
+  if (select count(*) from projectceo_product.baseline_room_handoff_refs
       where project_id = '41111111-1111-4111-8111-111111111111'
-        and baseline_id = 'baseline:db4-gate-positive') <> 2 then
+        and baseline_id = 'baseline:db4-gate-positive')
+     <> jsonb_array_length(current_setting('db4.gate_refs')::jsonb) then
     raise exception 'DB4_81_REFS_NOT_PERSISTED';
   end if;
   begin
-    update projectceo_product.baseline_handoff_refs set handoff_id = 'tampered'
+    update projectceo_product.baseline_room_handoff_refs set handoff_id = 'tampered'
     where baseline_id = 'baseline:db4-gate-positive';
     raise exception 'DB4_81_REFS_MUTABLE';
   exception when sqlstate '55000' then null;
@@ -210,33 +220,13 @@ begin
 end
 $refs_persisted$;
 
--- 7. Выпуск: продуктовый путь (pi_table_owner) без ссылки пакета в baseline
---    отклоняется триггером таблицы выпусков.
-do $release_requires_handoff$
-declare v_detail text;
-begin
-  begin
-    perform projectceo_product._require_baseline_package_handoff(
-      (select organization_id from project_intelligence.project_workflows
-       where project_id = '41111111-1111-4111-8111-111111111111'),
-      '41111111-1111-4111-8111-111111111111',
-      'baseline:db4-gate-positive',
-      '00000000-0000-4000-8000-000000000081');
-    raise exception 'DB4_81_RELEASE_WITHOUT_HANDOFF_ACCEPTED';
-  exception when sqlstate 'P1111' then
-    get stacked diagnostics v_detail = pg_exception_detail;
-    if v_detail::jsonb->>'reason' <> 'M2_HANDOFF_REQUIRED' then raise; end if;
-  end;
-end
-$release_requires_handoff$;
-
--- 8. У baseline нет ссылки на передачу пакета (строку снимаем в
+-- 7. У baseline нет ссылки на передачу пакета (строку снимаем в
 --    откатываемой транзакции, выключив append-only).
-alter table projectceo_product.baseline_handoff_refs disable trigger baseline_handoff_refs_append_only;
-delete from projectceo_product.baseline_handoff_refs
+alter table projectceo_product.baseline_room_handoff_refs disable trigger baseline_room_handoff_refs_append_only;
+delete from projectceo_product.baseline_room_handoff_refs
 where baseline_id = 'baseline:db4-gate-positive'
   and package_id = '49999999-9999-4999-8999-999999999999';
-alter table projectceo_product.baseline_handoff_refs enable trigger baseline_handoff_refs_append_only;
+alter table projectceo_product.baseline_room_handoff_refs enable trigger baseline_room_handoff_refs_append_only;
 
 -- Продуктовый путь выпуска пишет production_package_versions от имени
 -- владельца дверей (pi_table_owner). Та же запись для пакета без ссылки в
