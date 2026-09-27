@@ -36,7 +36,7 @@ create table remhaos_channel.bridge_scope_flags (
   enabled boolean not null default false,
   changed_by_user_id uuid not null,
   changed_at timestamptz not null default statement_timestamp(),
-  primary key (organization_id, project_id, flag),
+  constraint bridge_scope_flags_pkey primary key (organization_id, project_id, flag),
   constraint bridge_scope_flags_project_fkey
     foreign key (organization_id, project_id)
     references project_intelligence.project_workflows (organization_id, project_id)
@@ -102,7 +102,9 @@ begin
   ) values (
     v_context.organization_id, project_id, flag, enabled, v_context.actor_user_id
   )
-  on conflict (organization_id, project_id, flag) do update
+  -- Цель конфликта — ИМЯ ограничения: при `use_variable` список колонок
+  -- разрешился бы в одноимённые параметры (`project_id`, `flag`).
+  on conflict on constraint bridge_scope_flags_pkey do update
     set enabled = excluded.enabled,
         changed_by_user_id = excluded.changed_by_user_id,
         changed_at = statement_timestamp();
@@ -528,7 +530,7 @@ begin
         then (v_item->>'claimedSizeBytes')::bigint end,
       nullif(left(coalesce(v_item->>'claimedMediaType', ''), 200), '')
     )
-    on conflict (event_id, external_file_unique_id) do nothing;
+    on conflict on constraint channel_attachments_file_key do nothing;
     if found then v_recorded := v_recorded + 1; end if;
   end loop;
   return remhaos_channel._envelope(jsonb_build_object('recorded', v_recorded));
@@ -770,7 +772,21 @@ begin
       v_signature);
   end loop;
 
-  -- Системные (webhook и фоновые процессы): только service_role.
+  -- Человеческие двери: интерфейс настройки моста, только authenticated.
+  -- Порядок «человеческие, затем системные» — соглашение сверки матрицы
+  -- (tests/projectceo-integration/telegram-bridge-surface.test.ts).
+  foreach v_signature in array array[
+    'remhaos_channel_api.set_bridge_flag(uuid, text, boolean, text)',
+    'remhaos_channel_api.list_bridge_flags(uuid)'
+  ] loop
+    execute pg_catalog.format('alter function %s owner to pi_table_owner', v_signature);
+    execute pg_catalog.format(
+      'revoke all on function %s from public, anon, authenticated, service_role, pi_human_executor, pi_worker_executor',
+      v_signature);
+    execute pg_catalog.format('grant execute on function %s to authenticated', v_signature);
+  end loop;
+
+  -- Системные двери: webhook и фоновые процессы, только service_role.
   foreach v_signature in array array[
     'remhaos_channel_api.migrate_channel_binding(text, bigint, bigint, bigint)',
     'remhaos_channel_api.record_channel_attachments(uuid, jsonb)',
@@ -782,18 +798,6 @@ begin
       'revoke all on function %s from public, anon, authenticated, service_role, pi_human_executor, pi_worker_executor',
       v_signature);
     execute pg_catalog.format('grant execute on function %s to service_role', v_signature);
-  end loop;
-
-  -- Человеческие (интерфейс настройки моста): только authenticated.
-  foreach v_signature in array array[
-    'remhaos_channel_api.set_bridge_flag(uuid, text, boolean, text)',
-    'remhaos_channel_api.list_bridge_flags(uuid)'
-  ] loop
-    execute pg_catalog.format('alter function %s owner to pi_table_owner', v_signature);
-    execute pg_catalog.format(
-      'revoke all on function %s from public, anon, authenticated, service_role, pi_human_executor, pi_worker_executor',
-      v_signature);
-    execute pg_catalog.format('grant execute on function %s to authenticated', v_signature);
   end loop;
 end
 $own$;

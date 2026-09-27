@@ -40,6 +40,10 @@ const messageSchema = z.object({
   reply_to_message: z.object({ message_id: z.number().int() }).optional(),
   // Форма источника пересылки нам нужна, содержимое — нет.
   forward_origin: z.object({ type: z.string().min(1).max(40) }).optional(),
+  // Служебные сообщения о переходе группы в супергруппу (смена chat id):
+  // в старом чате — migrate_to_chat_id, в новом — migrate_from_chat_id.
+  migrate_to_chat_id: z.number().int().optional(),
+  migrate_from_chat_id: z.number().int().optional(),
   photo: z.array(z.object({
     file_id: z.string().min(1),
     file_unique_id: z.string().min(1),
@@ -120,6 +124,11 @@ export interface NormalizedChannelUpdate {
   readonly startPayload: string | null;
   /** Для `my_chat_member`: бот больше не участник. */
   readonly botRemoved: boolean;
+  /**
+   * DEC-043 (c): группа стала супергруппой — старый и новый chat id. Только
+   * числовые идентификаторы Telegram; название и участники не используются.
+   */
+  readonly chatMigration: { readonly oldChatId: number; readonly newChatId: number } | null;
 }
 
 const REMOVED_STATUSES = new Set(["left", "kicked", "banned"]);
@@ -195,6 +204,11 @@ function fromMessage(
     attachments: attachmentsOf(message),
     startPayload: startPayloadOf(text),
     botRemoved: false,
+    chatMigration: typeof message.migrate_to_chat_id === "number"
+      ? { oldChatId: message.chat.id, newChatId: message.migrate_to_chat_id }
+      : typeof message.migrate_from_chat_id === "number"
+        ? { oldChatId: message.migrate_from_chat_id, newChatId: message.chat.id }
+        : null,
   };
 }
 
@@ -230,6 +244,7 @@ export function normalizeTelegramUpdate(
       attachments: [],
       startPayload: null,
       botRemoved: REMOVED_STATUSES.has(status),
+      chatMigration: null,
     };
   }
 

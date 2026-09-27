@@ -29,7 +29,8 @@
     "worker:change-impact": "tsx scripts/run-change-impact-worker.ts",
     "worker:ingest-source-graph": "tsx scripts/run-ingest-source-graph-worker.ts",
     "bridge:telegram-notifications": "tsx scripts/run-telegram-notifications.ts",
-    "bridge:telegram-workers": "tsx scripts/run-telegram-bridge-workers.ts"
+    "bridge:telegram-workers": "tsx scripts/run-telegram-bridge-workers.ts",
+    "bridge:telegram-attachments": "tsx scripts/run-telegram-attachments.ts"
   },
   "dependencies": {
     "@capacitor/core": "^8.4.2",

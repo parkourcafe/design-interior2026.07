@@ -32,6 +32,8 @@ export type TelegramBridgeOutcome =
   | "binding_notice_pending"
   | "binding_rejected"
   | "binding_suspended"
+  | "chat_migrated"
+  | "chat_migration_ignored"
   | "identity_linked"
   | "identity_rejected"
   | "stored"

@@ -98,6 +98,28 @@ const claimedNotificationSchema = z.object({
 
 export type ClaimedNotification = z.infer<typeof claimedNotificationSchema>;
 
+const chatMigrationResultSchema = z.object({
+  migrated: z.boolean(),
+  duplicate: z.boolean().optional(),
+  reason: z.string().optional(),
+  bindingId: z.string().optional(),
+});
+
+/** Форма `claim_channel_attachments` (TG2, миграция 20260928110000). */
+const claimedAttachmentSchema = z.object({
+  attachmentId: z.string(),
+  projectId: z.string(),
+  kind: z.enum(["photo", "document", "voice", "video", "other"]),
+  fileId: z.string(),
+  fileUniqueId: z.string(),
+  claimedSizeBytes: z.number().nullable(),
+  claimedMediaType: z.string().nullable(),
+  attemptCount: z.number().int(),
+  leaseToken: z.string(),
+});
+
+export type ClaimedAttachment = z.infer<typeof claimedAttachmentSchema>;
+
 /**
  * Ответ поиска ожидающей связи. Union, а не объект с необязательными полями:
  * «связь есть» и «связи нет» несут разные наборы данных, и схема, принимающая
@@ -322,6 +344,80 @@ export class TelegramSystemPort {
     return parsed.data;
   }
 
+  /** DEC-043 (c): автоматический перенос привязки при смене chat id. */
+  async migrateChannelBinding(input: {
+    readonly botInstanceId: string;
+    readonly updateId: number;
+    readonly oldChatId: number;
+    readonly newChatId: number;
+  }): Promise<z.infer<typeof chatMigrationResultSchema>> {
+    const data = await callChannelRpc(this.client, "migrate_channel_binding", {
+      bot_instance_id: input.botInstanceId,
+      update_id: input.updateId,
+      old_chat_id: input.oldChatId,
+      new_chat_id: input.newChatId,
+    });
+    const parsed = chatMigrationResultSchema.safeParse(data);
+    if (!parsed.success) throw new TelegramChannelRpcError("migrate_channel_binding", "shape_invalid");
+    return parsed.data;
+  }
+
+  /** DEC-044 (b): webhook записывает только метаданные вложений. */
+  async recordChannelAttachments(input: {
+    readonly eventId: string;
+    readonly attachments: readonly {
+      readonly kind: string;
+      readonly fileId: string;
+      readonly fileUniqueId: string;
+      readonly claimedSizeBytes: number | null;
+      readonly claimedMediaType: string | null;
+    }[];
+  }): Promise<{ readonly recorded: number; readonly reason?: string }> {
+    const data = await callChannelRpc(this.client, "record_channel_attachments", {
+      event_id: input.eventId,
+      attachments: input.attachments,
+    });
+    const parsed = z.object({ recorded: z.number().int(), reason: z.string().optional() }).safeParse(data);
+    if (!parsed.success) throw new TelegramChannelRpcError("record_channel_attachments", "shape_invalid");
+    return parsed.data;
+  }
+
+  async claimChannelAttachments(input: {
+    readonly maxRows: number;
+    readonly leaseSeconds: number;
+  }): Promise<readonly ClaimedAttachment[]> {
+    const data = await callChannelRpc(this.client, "claim_channel_attachments", {
+      max_rows: input.maxRows,
+      lease_seconds: input.leaseSeconds,
+    });
+    const parsed = z.array(claimedAttachmentSchema).safeParse(data);
+    if (!parsed.success) throw new TelegramChannelRpcError("claim_channel_attachments", "shape_invalid");
+    return parsed.data;
+  }
+
+  async completeChannelAttachment(input: {
+    readonly attachmentId: string;
+    readonly leaseToken: string;
+    readonly outcome: "scan_pending" | "rejected" | "retry";
+    readonly fileIntakeId?: string | null;
+    readonly serverSha256Hex?: string | null;
+    readonly storageLocator?: string | null;
+    readonly rejectionCode?: string | null;
+  }): Promise<{ readonly completed: boolean; readonly reason?: string }> {
+    const data = await callChannelRpc(this.client, "complete_channel_attachment", {
+      attachment_id: input.attachmentId,
+      lease_token: input.leaseToken,
+      outcome: input.outcome,
+      file_intake_id: input.fileIntakeId ?? null,
+      server_sha256_hex: input.serverSha256Hex ?? null,
+      storage_locator: input.storageLocator ?? null,
+      rejection_code: input.rejectionCode ?? null,
+    });
+    const parsed = z.object({ completed: z.boolean(), reason: z.string().optional() }).safeParse(data);
+    if (!parsed.success) throw new TelegramChannelRpcError("complete_channel_attachment", "shape_invalid");
+    return parsed.data;
+  }
+
   async enqueueNotification(input: {
     readonly projectId: string;
     readonly sourceKind: string;
@@ -522,6 +618,34 @@ export class TelegramHumanPort {
     if (!parsed.success) {
       throw new TelegramChannelRpcError("get_project_channel_state", "shape_invalid");
     }
+    return parsed.data;
+  }
+
+  /** DEC-044 (c): флаги моста проекта (по умолчанию выключены). */
+  async setBridgeFlag(input: {
+    readonly projectId: string;
+    readonly flag: "bridge" | "attachments" | "notifications";
+    readonly enabled: boolean;
+    readonly reason: string;
+  }): Promise<void> {
+    await callChannelRpc(this.client, "set_bridge_flag", {
+      project_id: input.projectId,
+      flag: input.flag,
+      enabled: input.enabled,
+      reason: input.reason,
+    });
+  }
+
+  async listBridgeFlags(projectId: string): Promise<{
+    readonly bridge: boolean;
+    readonly attachments: boolean;
+    readonly notifications: boolean;
+  }> {
+    const data = await callChannelRpc(this.client, "list_bridge_flags", { project_id: projectId });
+    const parsed = z.object({
+      bridge: z.boolean(), attachments: z.boolean(), notifications: z.boolean(),
+    }).safeParse(data);
+    if (!parsed.success) throw new TelegramChannelRpcError("list_bridge_flags", "shape_invalid");
     return parsed.data;
   }
 

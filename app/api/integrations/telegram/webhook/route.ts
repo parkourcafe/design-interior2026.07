@@ -1,5 +1,4 @@
 import { NextResponse } from "next/server";
-import { postTelegramIntegrationWebhook } from "@/lib/integration-gateway/telegram/webhook";
 
 import { createScopedServiceClient } from "@/lib/supabase/token-scoped";
 import {
@@ -451,10 +450,9 @@ async function handleGroupHandshake(
 }
 
 export async function POST(request: Request) {
-  if (process.env.REMHAOS_INTEGRATIONS_ENABLED === "true") {
-    return postTelegramIntegrationWebhook(request);
-  }
-
+  // DEC-044 (d): весь Telegram идёт в мост A7. Второй контур («интеграция»)
+  // для Telegram заморожен: общий переключатель интеграций больше не
+  // перехватывает этот маршрут и не выключает мост молча.
   const requestId = crypto.randomUUID();
 
   if (!isTelegramBridgeEnabled()) {
@@ -513,6 +511,22 @@ export async function POST(request: Request) {
         reason: "bot_removed_from_chat",
       });
       return ack("binding_suspended", requestId, {
+        updateId: event.updateId,
+        chatId: event.chatId,
+      });
+    }
+
+    if (event.chatMigration !== null) {
+      // DEC-043 (c): группа стала супергруппой. Привязка переносится
+      // автоматически по числовым chat id, идемпотентно по update_id и с
+      // записью в журнал привязки. Служебное сообщение в инбокс не пишется.
+      const migration = await port.migrateChannelBinding({
+        botInstanceId,
+        updateId: event.updateId,
+        oldChatId: event.chatMigration.oldChatId,
+        newChatId: event.chatMigration.newChatId,
+      });
+      return ack(migration.migrated ? "chat_migrated" : "chat_migration_ignored", requestId, {
         updateId: event.updateId,
         chatId: event.chatId,
       });
@@ -587,6 +601,15 @@ export async function POST(request: Request) {
       return ack("ignored_chat_not_bound", requestId, {
         updateId: event.updateId,
         chatId: event.chatId,
+      });
+    }
+    // DEC-044 (b): метаданные вложений (file_id) — сразу, сами файлы скачивает
+    // фоновый процесс. Повтор доставки идемпотентен (уникальность по событию и
+    // file_unique_id); выключенный флаг «файлы» проекта — ничего не пишется.
+    if (event.attachments.length > 0 && result.eventId) {
+      await port.recordChannelAttachments({
+        eventId: result.eventId,
+        attachments: event.attachments,
       });
     }
     return ack(result.duplicate === true ? "duplicate" : "stored", requestId, {

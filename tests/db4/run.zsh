@@ -90,6 +90,7 @@ for sql in \
   "${repo_root}/tests/db4/43_telegram_inbox_vertical.sql" \
   "${repo_root}/tests/db4/44_telegram_bridge_correction.sql" \
   "${repo_root}/tests/db4/47_telegram_pending_ambiguity.sql" \
+  "${repo_root}/tests/db4/85_telegram_tg2.sql" \
   "${repo_root}/tests/db4/49_platform_facts_operations.sql" \
   "${repo_root}/tests/db4/50_platform_ai_calls_operations.sql" \
   "${repo_root}/tests/db4/51_platform_approval_requests_operations.sql" \

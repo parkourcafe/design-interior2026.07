@@ -47,6 +47,12 @@ const actionSchema = z.discriminatedUnion("action", [
   z.object({ action: z.literal("link_identity") }),
   z.object({ action: z.literal("connect"), projectId: z.string().uuid() }),
   z.object({
+    action: z.literal("set_flag"),
+    projectId: z.string().uuid(),
+    flag: z.enum(["bridge", "attachments", "notifications"]),
+    enabled: z.boolean(),
+  }),
+  z.object({
     action: z.literal("disconnect"),
     projectId: z.string().uuid(),
     reason: z.string().min(1).max(200).default("disconnected_by_owner"),
@@ -103,7 +109,10 @@ export async function GET(request: Request) {
   try {
     const context = await createProjectCeoRequestContext();
     const port = new TelegramHumanPort(context.client);
-    return ok({ state: await port.getProjectChannelState(projectId) });
+    const state = await port.getProjectChannelState(projectId);
+    // Флаги видит тот же, кто ими управляет (manage_project_integrations).
+    const flags = state.canManage ? await port.listBridgeFlags(projectId) : null;
+    return ok({ state, flags });
   } catch (error) {
     if (error instanceof ProjectCeoAuthenticationError) return fail("unauthenticated");
     return fail(codeFromRpcError(error));
@@ -114,18 +123,36 @@ export async function POST(request: Request) {
   if (!isTelegramBridgeEnabled()) return fail(TELEGRAM_BRIDGE_DISABLED_REASON);
   if (!isSameOriginMutation(request)) return fail("forbidden");
 
-  const credentials = readTelegramCredentials();
-  if (!credentials.ok) {
-    // Без учётных данных ссылка была бы недействующей. Показать её значило бы
-    // отправить человека кликать по заведомо мёртвому адресу.
-    return fail("bridge_disabled");
-  }
-
   let parsedBody: z.infer<typeof actionSchema>;
   try {
     parsedBody = actionSchema.parse(await request.json());
   } catch {
     return fail("validation_failed");
+  }
+
+  // Флаги — настройка проекта, а не выпуск ссылки: учётные данные бота им не
+  // нужны. DEC-044 (c): каждое изменение пишется в журнал с автором.
+  if (parsedBody.action === "set_flag") {
+    try {
+      const context = await createProjectCeoRequestContext();
+      await new TelegramHumanPort(context.client).setBridgeFlag({
+        projectId: parsedBody.projectId,
+        flag: parsedBody.flag,
+        enabled: parsedBody.enabled,
+        reason: parsedBody.enabled ? "enabled_by_owner" : "disabled_by_owner",
+      });
+      return ok({ flag: parsedBody.flag, enabled: parsedBody.enabled });
+    } catch (error) {
+      if (error instanceof ProjectCeoAuthenticationError) return fail("unauthenticated");
+      return fail(codeFromRpcError(error));
+    }
+  }
+
+  const credentials = readTelegramCredentials();
+  if (!credentials.ok) {
+    // Без учётных данных ссылка была бы недействующей. Показать её значило бы
+    // отправить человека кликать по заведомо мёртвому адресу.
+    return fail("bridge_disabled");
   }
 
   try {
