@@ -402,6 +402,7 @@ describe("Layout Studio delivery/UI slice", () => {
       "20260927090000_projectceo_passport_approval_authority.sql",
       "20260928090000_projectceo_m3_room_handoff_freshness.sql",
       "20260928091000_projectceo_m3_room_handoff_readiness_read.sql",
+      "20260928100000_account_retention_cases.sql",
     ];
     const actual = readdirSync(join(repoRoot, "supabase/migrations"), { withFileTypes: true })
       // Предмет проверки — миграции, а не всё содержимое папки. Рядом с ними
