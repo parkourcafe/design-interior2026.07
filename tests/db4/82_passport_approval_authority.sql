@@ -210,6 +210,44 @@ select pg_temp.expect_error(
     '82111111-1111-4111-8111-111111111111', 'db4-82-grant-builder'),
   'P1110', 'PASSPORT_APPROVAL_TARGET_NOT_ARCHITECT', 'grant_to_builder');
 
+-- Даже с manage_access архитектор не владелец: выдача и отзыв — только владельцу.
+do $manage_access_not_owner$
+declare
+  v_org uuid;
+begin
+  select organization_id into v_org from project_intelligence.project_workflows
+  where project_id = '41111111-1111-4111-8111-111111111111';
+  insert into projectceo_foundation.project_member_capabilities
+    (organization_id, project_id, user_id, capability)
+  values (v_org, '41111111-1111-4111-8111-111111111111',
+          '82333333-3333-4333-8333-333333333333', 'manage_access');
+end
+$manage_access_not_owner$;
+select pg_temp.expect_error(
+  '82333333-3333-4333-8333-333333333333',
+  pg_temp.access_sql('grant_passport_approval',
+    '82333333-3333-4333-8333-333333333333', 'db4-82-architect-grant-with-access'),
+  'P1103', 'PROJECT_OWNER_REQUIRED', 'architect_grant_with_manage_access');
+select pg_temp.expect_error(
+  '82333333-3333-4333-8333-333333333333',
+  pg_temp.access_sql('revoke_passport_approval',
+    '82333333-3333-4333-8333-333333333333', 'db4-82-architect-revoke-with-access'),
+  'P1103', 'PROJECT_OWNER_REQUIRED', 'architect_revoke_with_manage_access');
+delete from projectceo_foundation.project_member_capabilities
+where project_id = '41111111-1111-4111-8111-111111111111'
+  and user_id = '82333333-3333-4333-8333-333333333333'
+  and capability = 'manage_access';
+
+-- Причина длиннее 90 символов не помещается в журнал прав — отказ валидации,
+-- а не сырая ошибка ограничения.
+select pg_temp.expect_error(
+  '31111111-1111-4111-8111-111111111111',
+  pg_catalog.format(
+    'select projectceo_platform_api.grant_passport_approval(%L, %L, %L, %s, %L)',
+    '41111111-1111-4111-8111-111111111111', '82333333-3333-4333-8333-333333333333',
+    pg_catalog.repeat('д', 91), pg_temp.rev(), 'db4-82-long-reason'),
+  'P1111', 'reason', 'grant_long_reason');
+
 -- === 3. Владелец выдаёт право архитектору; выдача в журнале ================
 
 do $grant$
@@ -241,6 +279,25 @@ begin
   end if;
 end
 $grant$;
+
+-- Архитектор с правом не одобряет собственную заявку: самоодобрение — только
+-- у владельца, который одобряет один.
+do $architect_own_request$
+declare
+  v_request uuid;
+begin
+  v_request := pg_temp.create_req(
+    '82333333-3333-4333-8333-333333333333', 'db4-82-architect-create', 'view_project');
+  perform pg_temp.submit_req(
+    '82333333-3333-4333-8333-333333333333', v_request, 'db4-82-architect-submit');
+  perform set_config('projectceo.db4_82_architect_req', v_request::text, true);
+end
+$architect_own_request$;
+select pg_temp.expect_error(
+  '82333333-3333-4333-8333-333333333333',
+  pg_temp.decide_sql(current_setting('projectceo.db4_82_architect_req')::uuid,
+    'approved', 'db4-82-architect-self'),
+  'P1103', 'SELF_APPROVAL_REQUIRES_SOLE_OWNER', 'architect_self_approval');
 
 -- === 4. При втором одобряющем владелец не одобряет сам себя ================
 
@@ -358,6 +415,43 @@ select pg_temp.expect_error(
     '41111111-1111-4111-8111-111111111111',
     current_setting('projectceo.db4_82_stale_req'), pg_temp.rev(), 'db4-82-stale-submit'),
   'P1110', 'PASSPORT_REVISION_STALE', 'submit_stale_request');
+
+-- Поданная заявка, чей паспорт изменился после подачи, не одобряется, но
+-- отклоняется (иначе она осталась бы висеть).
+do $stale_submitted$
+declare
+  v_request uuid;
+begin
+  v_request := pg_temp.create_req(
+    '31111111-1111-4111-8111-111111111111', 'db4-82-stale2-create', 'view_project');
+  perform pg_temp.submit_req(
+    '31111111-1111-4111-8111-111111111111', v_request, 'db4-82-stale2-submit');
+  perform set_config('projectceo.db4_82_stale2_req', v_request::text, true);
+  update public.projects
+  set passport = '{"object":{"type":"flat","area_m2":64,"city":"db4-82"}}'::jsonb,
+      passport_revision_llm_ok = true
+  where id = '41111111-1111-4111-8111-111111111111';
+end
+$stale_submitted$;
+select pg_temp.expect_error(
+  '82333333-3333-4333-8333-333333333333',
+  pg_temp.decide_sql(current_setting('projectceo.db4_82_stale2_req')::uuid,
+    'approved', 'db4-82-stale2-approve'),
+  'P1110', 'PASSPORT_REVISION_STALE', 'approve_stale_submitted');
+do $stale_rejectable$
+declare
+  v_status text;
+begin
+  perform pg_temp.call_as('82333333-3333-4333-8333-333333333333',
+    pg_temp.decide_sql(current_setting('projectceo.db4_82_stale2_req')::uuid,
+      'rejected', 'db4-82-stale2-reject'));
+  select status into v_status from projectceo_platform.approval_requests
+  where request_id = current_setting('projectceo.db4_82_stale2_req')::uuid;
+  if v_status <> 'rejected' then
+    raise exception 'DB4_82_STALE_NOT_REJECTABLE:%', v_status;
+  end if;
+end
+$stale_rejectable$;
 
 -- === 7. Отзыв права: архитектор больше не одобряет, владелец снова один ====
 

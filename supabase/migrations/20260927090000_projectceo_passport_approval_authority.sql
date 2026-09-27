@@ -43,6 +43,8 @@ do $allowlists$
 declare
   v_def text;
   v_values text[];
+  v_matches integer;
+  v_literals integer;
 begin
   select pg_catalog.pg_get_constraintdef(c.oid) into v_def
   from pg_catalog.pg_constraint c
@@ -50,7 +52,14 @@ begin
     and c.conname = 'project_member_capabilities_capability_check';
   select pg_catalog.array_agg(distinct m[1]) into v_values
   from pg_catalog.regexp_matches(v_def, '''([a-z0-9_]+)''', 'g') m;
-  if v_values is null or pg_catalog.cardinality(v_values) < 10 then
+  -- Каждый литерал списка обязан прочитаться регуляркой: значение с
+  -- непредусмотренными символами не должно молча выпасть из нового списка.
+  select pg_catalog.count(*) into v_matches
+  from pg_catalog.regexp_matches(v_def, '''([a-z0-9_]+)''', 'g') m;
+  v_literals := (pg_catalog.length(v_def)
+    - pg_catalog.length(pg_catalog.replace(v_def, '::text', ''))) / 6;
+  if v_values is null or pg_catalog.cardinality(v_values) < 10
+    or v_matches <> v_literals then
     raise exception 'PASSPORT_APPROVAL_CAPABILITY_ALLOWLIST_UNREADABLE';
   end if;
   v_values := (select pg_catalog.array_agg(distinct v order by v)
@@ -68,7 +77,14 @@ begin
     and c.conname = 'command_records_operation_check';
   select pg_catalog.array_agg(distinct m[1]) into v_values
   from pg_catalog.regexp_matches(v_def, '''([a-z0-9_]+)''', 'g') m;
-  if v_values is null or pg_catalog.cardinality(v_values) < 10 then
+  -- Каждый литерал списка обязан прочитаться регуляркой: значение с
+  -- непредусмотренными символами не должно молча выпасть из нового списка.
+  select pg_catalog.count(*) into v_matches
+  from pg_catalog.regexp_matches(v_def, '''([a-z0-9_]+)''', 'g') m;
+  v_literals := (pg_catalog.length(v_def)
+    - pg_catalog.length(pg_catalog.replace(v_def, '::text', ''))) / 6;
+  if v_values is null or pg_catalog.cardinality(v_values) < 10
+    or v_matches <> v_literals then
     raise exception 'PASSPORT_APPROVAL_OPERATION_ALLOWLIST_UNREADABLE';
   end if;
   v_values := (select pg_catalog.array_agg(distinct v order by v)
@@ -88,7 +104,14 @@ begin
     and c.conname = 'audit_events_event_type_check';
   select pg_catalog.array_agg(distinct m[1]) into v_values
   from pg_catalog.regexp_matches(v_def, '''([a-z0-9_]+)''', 'g') m;
-  if v_values is null or pg_catalog.cardinality(v_values) < 10 then
+  -- Каждый литерал списка обязан прочитаться регуляркой: значение с
+  -- непредусмотренными символами не должно молча выпасть из нового списка.
+  select pg_catalog.count(*) into v_matches
+  from pg_catalog.regexp_matches(v_def, '''([a-z0-9_]+)''', 'g') m;
+  v_literals := (pg_catalog.length(v_def)
+    - pg_catalog.length(pg_catalog.replace(v_def, '::text', ''))) / 6;
+  if v_values is null or pg_catalog.cardinality(v_values) < 10
+    or v_matches <> v_literals then
     raise exception 'PASSPORT_APPROVAL_EVENT_ALLOWLIST_UNREADABLE';
   end if;
   v_values := (select pg_catalog.array_agg(distinct v order by v)
@@ -613,8 +636,10 @@ begin
     perform projectceo_product._raise(
       'P1111', 'validation_failed', '{"field":"userId"}'::jsonb);
   end if;
+  -- Причина попадает в capability_grant_ledger.reason (1–120 символов)
+  -- вместе с префиксом операции.
   if p_reason is null or btrim(p_reason) = ''
-    or char_length(btrim(p_reason)) > 2000 then
+    or char_length(btrim(p_reason)) > 90 then
     perform projectceo_product._raise(
       'P1111', 'validation_failed', '{"field":"reason"}'::jsonb);
   end if;
@@ -701,8 +726,10 @@ begin
     perform projectceo_product._raise(
       'P1111', 'validation_failed', '{"field":"userId"}'::jsonb);
   end if;
+  -- Причина попадает в capability_grant_ledger.reason (1–120 символов)
+  -- вместе с префиксом операции.
   if p_reason is null or btrim(p_reason) = ''
-    or char_length(btrim(p_reason)) > 2000 then
+    or char_length(btrim(p_reason)) > 90 then
     perform projectceo_product._raise(
       'P1111', 'validation_failed', '{"field":"reason"}'::jsonb);
   end if;

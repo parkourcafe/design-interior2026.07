@@ -1172,10 +1172,16 @@ function operationStates(input: {
       && source.reviewTargetRevisionId !== null
     ))?.reviewTargetRevisionId,
   );
-  const draftApprovalRequest = input.m1.approvalRequests.find((request) => (
+  // DEC-041 §3: заявка на прежнюю ревизию паспорта (и заявка без ревизии,
+  // созданная до миграции 20260927090000) не подаётся и не решается — она не
+  // должна занимать кнопку и заслонять актуальную заявку.
+  const actionableApprovalRequests = input.m1.approvalRequests.filter((request) => (
+    request.subjectKind !== "project_passport" || request.subjectRevisionCurrent === true
+  ));
+  const draftApprovalRequest = actionableApprovalRequests.find((request) => (
     request.status === "draft" && request.requestedByCurrentActor
   ));
-  const submittedApprovalRequest = input.m1.approvalRequests.find((request) => request.status === "submitted");
+  const submittedApprovalRequest = actionableApprovalRequests.find((request) => request.status === "submitted");
   const m1InternalRole = input.hasProjectScope && (input.role === "owner" || input.role === "architect");
   // Снапшот состава baseline: то же правило полноты, что применит команда, и
   // тот же токен, который она потребует назад.

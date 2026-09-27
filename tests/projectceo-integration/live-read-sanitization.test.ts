@@ -402,7 +402,8 @@ describe("ProjectCEO live DTO sanitizer", () => {
           requestId: foreignRequest,
           subjectKind: "project_passport",
           subjectId: projectId,
-          approverCapability: "review_claim",
+          subjectRevisionCurrent: true,
+          approverCapability: "approve_passport",
           status: "draft",
           requestedByCurrentActor: false,
           requestedReason: "Чужой черновик",
@@ -415,7 +416,8 @@ describe("ProjectCEO live DTO sanitizer", () => {
           requestId: ownRequest,
           subjectKind: "project_passport",
           subjectId: projectId,
-          approverCapability: "review_claim",
+          subjectRevisionCurrent: true,
+          approverCapability: "approve_passport",
           status: "draft",
           requestedByCurrentActor: true,
           requestedReason: "Мой черновик",
@@ -438,6 +440,55 @@ describe("ProjectCEO live DTO sanitizer", () => {
     });
     expect(result.data?.m1.approvalRequests.map((request) => request.requestedByCurrentActor))
       .toEqual([false, true]);
+  });
+
+  it("skips the actor's draft for an earlier passport revision (DEC-041 §3)", async () => {
+    const ownRequest = "88888888-8888-4888-8888-888888888881";
+    const staleRequest = "88888888-8888-4888-8888-888888888882";
+    const result = await new ProjectCeoLiveReadPort(
+      fakeClient({}, defaultProjectEntries, [
+        {
+          requestId: staleRequest,
+          subjectKind: "project_passport",
+          subjectId: projectId,
+          subjectRevisionCurrent: false,
+          approverCapability: "approve_passport",
+          status: "draft",
+          requestedByCurrentActor: true,
+          requestedReason: "Черновик на прежнюю ревизию",
+          selfApproved: false,
+          decidedBy: null,
+          decisionReason: null,
+          createdAt: "2026-08-31T00:00:00Z",
+        },
+        {
+          requestId: ownRequest,
+          subjectKind: "project_passport",
+          subjectId: projectId,
+          subjectRevisionCurrent: true,
+          approverCapability: "approve_passport",
+          status: "draft",
+          requestedByCurrentActor: true,
+          requestedReason: "Мой черновик",
+          selfApproved: false,
+          decidedBy: null,
+          decisionReason: null,
+          createdAt: "2026-08-31T00:01:00Z",
+        },
+      ]),
+      {
+        userId: "66666666-6666-4666-8666-666666666666",
+        displayName: "Controlled user",
+      },
+    ).getProjectWorkspace({ projectId, requestId: "m1-draft-stale" });
+
+    expect(result.error).toBeNull();
+    expect(result.data?.operations.submit_approval_request).toEqual({
+      status: "available",
+      commandTargetId: ownRequest,
+    });
+    expect(result.data?.m1.approvalRequests.map((request) => request.requestedByCurrentActor))
+      .toEqual([true, true]);
   });
 
   // Guardrail модуля 4 (10.08.2026) закрыт по умолчанию, а проверки ниже
