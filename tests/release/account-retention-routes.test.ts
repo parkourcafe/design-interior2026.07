@@ -58,6 +58,8 @@ vi.mock("@/lib/supabase/server", () => ({
         eq: (column: string, value: unknown) => { filter = `${column}=${String(value)}`; state.filters.push(`${table}:${filter}`); return query; },
         in: (column: string, values: unknown[]) => { filter = `${column} in ${values.join("|")}`; state.filters.push(`${table}:${filter}`); return query; },
         maybeSingle: () => query,
+        range: () => query,
+        is: () => query,
         then: (resolve: (value: { data: unknown; error: null }) => unknown) => Promise.resolve({
           data: table === "designers" ? { id: "designer-1", name: "Студия" } : state.tables[table] ?? [],
           error: null,
@@ -82,6 +84,8 @@ beforeEach(() => {
     projects: [{ id: "project-1", designer_id: "designer-1", intake_token: "secret-intake", client_name: "Клиент" }],
     proposals: [{ id: "proposal-1", project_id: "project-1", version: 1, public_token: "secret-link", status: "sent" }],
     answers: [{ project_id: "project-1", question_id: "object", value: "flat" }],
+    project_rooms: [{ id: "room-1", project_id: "project-1" }],
+    project_participants: [{ id: "participant-1", room_id: "room-1", access_token: "secret-room" }],
   };
 });
 
@@ -103,13 +107,15 @@ describe("full account export", () => {
     expect(response.status).toBe(200);
     expect(response.headers.get("content-disposition")).toContain("attachment");
     const body = JSON.parse(await response.text());
-    expect(body.exportVersion).toBe("remhaos-account-export/1");
+    expect(body.exportVersion).toBe("remhaos-account-export/2");
     expect(body.projects).toHaveLength(1);
     const [project] = body.projects;
     expect(project.intake_token).toBeUndefined();
     expect(project.proposals[0].public_token).toBeUndefined();
     expect(project.answers).toEqual([{ project_id: "project-1", question_id: "object", value: "flat" }]);
     expect(project.passportRevisions).toHaveLength(1);
+    expect(project.rooms).toEqual([{ id: "room-1", project_id: "project-1" }]);
+    expect(project.participants).toEqual([{ id: "participant-1", room_id: "room-1" }]);
     expect(state.filters).toContain("projects:designer_id=designer-1");
   });
 

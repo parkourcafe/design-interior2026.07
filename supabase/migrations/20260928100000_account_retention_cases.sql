@@ -52,6 +52,18 @@ create table public.account_retention_events (
   created_at timestamptz not null default statement_timestamp()
 );
 
+-- Снимок проектов дизайнера на момент запроса. «Только чтение» опирается на
+-- него, а не на то, что вызывающий видит через RLS: иначе проект можно было
+-- бы переписать на другого владельца и вывести из-под заявки. Новые проекты в
+-- срок не создаются (запрет вставки для дизайнера в сроке).
+create table public.account_retention_projects (
+  case_id uuid not null references public.account_retention_cases (case_id) on delete restrict,
+  project_id uuid not null,
+  primary key (case_id, project_id)
+);
+create index account_retention_projects_project_idx
+  on public.account_retention_projects (project_id);
+
 create function public.reject_account_retention_event_mutation()
 returns trigger
 language plpgsql
@@ -90,6 +102,13 @@ create trigger account_retention_cases_guard
 
 alter table public.account_retention_cases owner to pi_table_owner;
 alter table public.account_retention_events owner to pi_table_owner;
+alter table public.account_retention_projects owner to pi_table_owner;
+alter table public.account_retention_projects enable row level security;
+alter table public.account_retention_projects force row level security;
+revoke all on table public.account_retention_projects
+  from public, anon, authenticated, service_role, pi_human_executor, pi_worker_executor;
+create policy account_retention_projects_internal_owner on public.account_retention_projects
+  for all to pi_table_owner using (true) with check (true);
 alter table public.account_retention_cases enable row level security;
 alter table public.account_retention_cases force row level security;
 alter table public.account_retention_events enable row level security;
@@ -143,7 +162,7 @@ as $function$
     'purgeAfter', p_case.purge_after,
     'legalHold', p_case.legal_hold,
     'paidArchiveUntil', p_case.paid_archive_until,
-    'cancellable', p_case.status = 'requested' and not p_case.legal_hold
+    'cancellable', p_case.status = 'requested'
       and statement_timestamp() < p_case.purge_after
   ) end
 $function$;
@@ -181,6 +200,10 @@ begin
   insert into public.account_retention_cases (designer_id, requested_at, purge_after)
   values (v_user, v_now, v_now + interval '90 days')
   returning * into v_case;
+  -- Политика projects_projectceo_enrollment_select открывает pi_table_owner
+  -- ровно проекты запрашивающего (request user = дизайнер).
+  insert into public.account_retention_projects (case_id, project_id)
+  select v_case.case_id, p.id from public.projects p where p.designer_id = v_user;
   insert into public.account_retention_events (case_id, event_type, actor, actor_user_id, reason)
   values (v_case.case_id, 'requested', 'designer', v_user, nullif(btrim(p_reason), ''));
   return public._retention_status_json(v_case) || jsonb_build_object('replay', false);
@@ -206,9 +229,8 @@ begin
   if v_case.case_id is null then
     raise exception using errcode = 'P0002', message = 'ACCOUNT_RETENTION_NO_ACTIVE_CASE';
   end if;
-  if v_case.legal_hold then
-    raise exception using errcode = '42501', message = 'ACCOUNT_RETENTION_LEGAL_HOLD';
-  end if;
+  -- Legal hold отмене не мешает: отмена сохраняет данные, а hold запрещает
+  -- именно их удаление.
   if statement_timestamp() >= v_case.purge_after then
     raise exception using errcode = '42501', message = 'ACCOUNT_RETENTION_WINDOW_CLOSED';
   end if;
@@ -247,13 +269,14 @@ begin
   if p_reason is null or char_length(btrim(p_reason)) not between 1 and 500 then
     raise exception using errcode = '22023', message = 'ACCOUNT_RETENTION_REASON_REQUIRED';
   end if;
+  perform pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtextextended('account-retention:' || p_designer_id::text, 0));
   v_case := public._active_retention_case(p_designer_id);
   if v_case.case_id is null then
     raise exception using errcode = 'P0002', message = 'ACCOUNT_RETENTION_NO_ACTIVE_CASE';
   end if;
   if v_case.legal_hold is distinct from p_hold then
     update public.account_retention_cases set legal_hold = p_hold
-    where case_id = v_case.case_id returning * into v_case;
+    where case_id = v_case.case_id and status = 'requested' returning * into v_case;
     insert into public.account_retention_events (case_id, event_type, actor, reason)
     values (v_case.case_id,
       case when p_hold then 'legal_hold_set' else 'legal_hold_cleared' end,
@@ -276,12 +299,16 @@ begin
   if p_reason is null or char_length(btrim(p_reason)) not between 1 and 500 then
     raise exception using errcode = '22023', message = 'ACCOUNT_RETENTION_REASON_REQUIRED';
   end if;
+  if p_until is null or p_until < current_date then
+    raise exception using errcode = '22023', message = 'ACCOUNT_RETENTION_ARCHIVE_DATE_INVALID';
+  end if;
+  perform pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtextextended('account-retention:' || p_designer_id::text, 0));
   v_case := public._active_retention_case(p_designer_id);
   if v_case.case_id is null then
     raise exception using errcode = 'P0002', message = 'ACCOUNT_RETENTION_NO_ACTIVE_CASE';
   end if;
   update public.account_retention_cases set paid_archive_until = p_until
-  where case_id = v_case.case_id returning * into v_case;
+  where case_id = v_case.case_id and status = 'requested' returning * into v_case;
   insert into public.account_retention_events (case_id, event_type, actor, reason, detail)
   values (v_case.case_id, 'paid_archive_set', 'operator', btrim(p_reason),
     jsonb_build_object('paidArchiveUntil', p_until));
@@ -390,6 +417,21 @@ as $function$
   )
 $function$;
 
+create function public._project_in_retention(p_project_id uuid)
+returns boolean
+language sql
+stable
+security definer
+set search_path = ''
+as $function$
+  select p_project_id is not null and exists (
+    select 1
+    from public.account_retention_projects rp
+    join public.account_retention_cases c on c.case_id = rp.case_id
+    where rp.project_id = p_project_id and c.status = 'requested'
+  )
+$function$;
+
 create function public.guard_account_retention_read_only()
 returns trigger
 language plpgsql
@@ -397,23 +439,56 @@ security invoker
 set search_path = ''
 as $function$
 declare
-  v_designer uuid;
+  v_old jsonb := case when tg_op in ('UPDATE', 'DELETE') then to_jsonb(old) end;
+  v_new jsonb := case when tg_op in ('INSERT', 'UPDATE') then to_jsonb(new) end;
+  v_row jsonb;
+  v_project uuid;
 begin
-  -- Ограничиваются API-роли: сам дизайнер, публичные ссылки и service_role
-  -- серверных маршрутов (ответ клиента на КП, приём брифа). Внутренние роли
-  -- базы (миграции, операторские функции) не ограничиваются.
+  -- Ограничиваются API-роли: сам дизайнер, участники студии, публичные
+  -- ссылки и service_role серверных маршрутов (ответ клиента на КП, приём
+  -- брифа, комната проекта). Внутренние роли базы (миграции, операторские
+  -- функции) не ограничиваются; ProjectCEO и интеграции закрыты отдельно —
+  -- на своих журналах команд (ниже).
   if current_user not in ('authenticated', 'anon', 'service_role') then
     return coalesce(new, old);
   end if;
-  if tg_table_name = 'projects' then
-    v_designer := coalesce(new.designer_id, old.designer_id);
-  else
-    select p.designer_id into v_designer from public.projects p
-    where p.id = case when tg_op = 'DELETE' then old.project_id else new.project_id end;
-  end if;
-  if v_designer is not null and public._designer_in_retention(v_designer) then
-    raise exception using errcode = '42501', message = 'ACCOUNT_IN_RETENTION_READ_ONLY';
-  end if;
+  -- Проверяются и старое, и новое состояние строки: перенос проекта или
+  -- строки на другого владельца/проект из срока не выводит.
+  foreach v_row in array array_remove(array[v_old, v_new], null) loop
+    v_project := null;
+    if tg_table_name = 'projects' then
+      if public._designer_in_retention((v_row->>'designer_id')::uuid)
+         or public._project_in_retention((v_row->>'id')::uuid) then
+        raise exception using errcode = '42501', message = 'ACCOUNT_IN_RETENTION_READ_ONLY';
+      end if;
+    elsif tg_table_name = 'designers' then
+      if public._designer_in_retention((v_row->>'id')::uuid) then
+        raise exception using errcode = '42501', message = 'ACCOUNT_IN_RETENTION_READ_ONLY';
+      end if;
+    elsif tg_table_name = 'studio_members' then
+      if public._designer_in_retention((v_row->>'owner_id')::uuid)
+         or public._designer_in_retention((v_row->>'member_id')::uuid) then
+        raise exception using errcode = '42501', message = 'ACCOUNT_IN_RETENTION_READ_ONLY';
+      end if;
+    else
+      if tg_table_name = 'events' and public._designer_in_retention((v_row->>'designer_id')::uuid) then
+        raise exception using errcode = '42501', message = 'ACCOUNT_IN_RETENTION_READ_ONLY';
+      end if;
+      if tg_table_name in ('project_participants', 'project_tasks', 'project_task_events') then
+        -- Строка комнаты: проект — через комнату (её видит тот, кто в неё пишет).
+        select r.project_id into v_project from public.project_rooms r
+        where r.id = (v_row->>'room_id')::uuid;
+      elsif tg_table_name = 'layout_checkpoints' then
+        select d.project_id into v_project from public.layout_documents d
+        where d.id = (v_row->>'layout_document_id')::uuid;
+      else
+        v_project := (v_row->>'project_id')::uuid;
+      end if;
+      if public._project_in_retention(v_project) then
+        raise exception using errcode = '42501', message = 'ACCOUNT_IN_RETENTION_READ_ONLY';
+      end if;
+    end if;
+  end loop;
   return coalesce(new, old);
 end
 $function$;
@@ -423,7 +498,10 @@ declare
   v_table text;
 begin
   foreach v_table in array array['projects', 'proposals', 'answers', 'risk_cards',
-                                 'project_rooms', 'contract_documents'] loop
+                                 'project_rooms', 'contract_documents', 'designers',
+                                 'studio_members', 'events', 'layout_documents',
+                                 'layout_checkpoints', 'project_participants',
+                                 'project_tasks', 'project_task_events'] loop
     execute pg_catalog.format(
       'create trigger %I before insert or update or delete on public.%I '
       'for each row execute function public.guard_account_retention_read_only()',
@@ -431,6 +509,33 @@ begin
   end loop;
 end
 $triggers$;
+
+-- ProjectCEO и интеграции пишут через SECURITY DEFINER-функции, поэтому
+-- ограничение ставится на их журналы команд: ни одна команда по проекту
+-- дизайнера в сроке не завершается (включая команды других участников).
+create function public.guard_account_retention_command()
+returns trigger
+language plpgsql
+security definer
+set search_path = ''
+as $function$
+begin
+  if public._project_in_retention(new.project_id) then
+    raise exception using errcode = '42501', message = 'ACCOUNT_IN_RETENTION_READ_ONLY';
+  end if;
+  return new;
+end
+$function$;
+
+create trigger command_records_account_retention_read_only
+  before insert on project_intelligence.command_records
+  for each row execute function public.guard_account_retention_command();
+create trigger command_records_account_retention_read_only
+  before insert on projectceo_product.command_records
+  for each row execute function public.guard_account_retention_command();
+create trigger command_records_account_retention_read_only
+  before insert on remhaos_integration.command_records
+  for each row execute function public.guard_account_retention_command();
 
 -- === Владение и гранты ======================================================
 
@@ -442,6 +547,8 @@ begin
     'public._active_retention_case(uuid)',
     'public.account_retention_active(uuid)',
     'public._designer_in_retention(uuid)',
+    'public._project_in_retention(uuid)',
+    'public.guard_account_retention_command()',
     'public._retention_status_json(public.account_retention_cases)',
     'public.request_account_deletion(text)',
     'public.cancel_account_deletion(text)',
@@ -470,6 +577,7 @@ grant execute on function public.get_account_retention_status() to authenticated
 grant execute on function public.export_passport_revisions() to authenticated;
 grant execute on function public.account_retention_active(uuid) to service_role;
 grant execute on function public._designer_in_retention(uuid) to authenticated, anon, service_role;
+grant execute on function public._project_in_retention(uuid) to authenticated, anon, service_role;
 grant execute on function public.guard_account_retention_read_only() to authenticated, anon, service_role;
 grant execute on function public.set_account_legal_hold(uuid, boolean, text) to service_role;
 grant execute on function public.mark_account_paid_archive(uuid, date, text) to service_role;

@@ -124,6 +124,41 @@ select pg_temp.expect_error('service_role', null,
     where id = '84a00000-0000-4000-8000-000000000001' returning 1) select to_jsonb(count(*)) from u $sql$,
   '42501', 'ACCOUNT_IN_RETENTION_READ_ONLY', 'client_response_update');
 
+-- Ревью: проект нельзя вывести из срока, переписав его на другого владельца
+-- (ни самим дизайнером, ни серверным маршрутом).
+select pg_temp.expect_error('authenticated', '31111111-1111-4111-8111-111111111111',
+  $sql$ with u as (update public.projects set designer_id = '33333333-3333-4333-8333-333333333333'
+    where id = '41111111-1111-4111-8111-111111111111' returning 1) select to_jsonb(count(*)) from u $sql$,
+  '42501', 'ACCOUNT_IN_RETENTION_READ_ONLY', 'reassign_project_by_designer');
+select pg_temp.expect_error('service_role', null,
+  $sql$ with u as (update public.projects set designer_id = '33333333-3333-4333-8333-333333333333'
+    where id = '41111111-1111-4111-8111-111111111111' returning 1) select to_jsonb(count(*)) from u $sql$,
+  '42501', 'ACCOUNT_IN_RETENTION_READ_ONLY', 'reassign_project_by_server');
+-- Профиль, команда студии и события дизайнера — тоже только для чтения.
+select pg_temp.expect_error('service_role', null,
+  $sql$ with u as (update public.designers set name = name
+    where id = '31111111-1111-4111-8111-111111111111' returning 1) select to_jsonb(count(*)) from u $sql$,
+  '42501', 'ACCOUNT_IN_RETENTION_READ_ONLY', 'designer_profile_update');
+select pg_temp.expect_error('service_role', null,
+  $sql$ with i as (insert into public.studio_members (owner_id, email, role)
+    values ('31111111-1111-4111-8111-111111111111', 'new-member-84@example.invalid', 'member') returning 1)
+    select to_jsonb(count(*)) from i $sql$,
+  '42501', 'ACCOUNT_IN_RETENTION_READ_ONLY', 'studio_member_insert');
+select pg_temp.expect_error('service_role', null,
+  $sql$ with i as (insert into public.events (designer_id, project_id, type)
+    values ('31111111-1111-4111-8111-111111111111', '41111111-1111-4111-8111-111111111111', 'db4_84_probe') returning 1)
+    select to_jsonb(count(*)) from i $sql$,
+  '42501', 'ACCOUNT_IN_RETENTION_READ_ONLY', 'event_insert');
+-- Команда ProjectCEO по проекту в сроке не завершается (журнал команд).
+select pg_temp.expect_error('authenticated', '31111111-1111-4111-8111-111111111111',
+  pg_catalog.format(
+    'select projectceo_platform_api.create_approval_request(%L, %L, %L, %L, %L, %s, %L)',
+    '41111111-1111-4111-8111-111111111111', 'project_passport',
+    '41111111-1111-4111-8111-111111111111', 'approve_passport', 'db4-84',
+    (select state_revision from project_intelligence.project_workflows
+     where project_id = '41111111-1111-4111-8111-111111111111'), 'db4-84-command'),
+  '42501', 'ACCOUNT_IN_RETENTION_READ_ONLY', 'projectceo_command');
+
 do $other_designer_writable$
 begin
   if public._designer_in_retention('33333333-3333-4333-8333-333333333333') then
@@ -179,8 +214,19 @@ begin
 end
 $hold$;
 
-select pg_temp.expect_error('authenticated', '31111111-1111-4111-8111-111111111111',
-  'select public.cancel_account_deletion(null)', '42501', 'ACCOUNT_RETENTION_LEGAL_HOLD', 'cancel_under_hold');
+-- Legal hold отмене не мешает: отмена сохраняет данные.
+do $hold_keeps_cancel$
+begin
+  if not (pg_temp.call_as('authenticated', '31111111-1111-4111-8111-111111111111',
+      'select public.get_account_retention_status()')->>'cancellable')::boolean then
+    raise exception 'DB4_84_HOLD_BLOCKS_CANCEL';
+  end if;
+end
+$hold_keeps_cancel$;
+select pg_temp.expect_error('service_role', null,
+  $sql$ select public.mark_account_paid_archive('31111111-1111-4111-8111-111111111111',
+    current_date - 1, 'Прошлая дата') $sql$,
+  '22023', 'ACCOUNT_RETENTION_ARCHIVE_DATE_INVALID', 'paid_archive_past_date');
 select pg_temp.expect_error('service_role', null,
   $sql$ select to_jsonb(public.record_account_purge_plan('31111111-1111-4111-8111-111111111111',
     '{"destructive": true}'::jsonb)) $sql$,

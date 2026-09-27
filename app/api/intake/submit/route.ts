@@ -26,6 +26,9 @@ export async function POST(request: Request) {
   };
   const project = await getProjectByIntakeToken(body.token ?? "");
   if (!project) return NextResponse.json({ error: "not_found" }, { status: 404 });
+  // DEC-044 (a): студия закрывает аккаунт — бриф только для чтения. Отказ до
+  // любой записи (в том числе до загрузки файла в хранилище).
+  if (project.archived) return NextResponse.json({ error: "brief_closed" }, { status: 409 });
   // Повторная отправка после завершения брифа запрещена: иначе она откатывает
   // статус проекта и затирает принятые дизайнером карточки рисков.
   if (!isIntakeOpen(project.status)) {

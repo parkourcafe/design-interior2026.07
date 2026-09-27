@@ -20,6 +20,16 @@ export default async function IntakePage({ params }: { params: Promise<{ token: 
   const designer: DesignerPublic | null = project.designer_id
     ? await getDesignerPublic(project.designer_id)
     : null;
+  // DEC-044 (a): студия закрывает аккаунт — бриф больше не принимается.
+  if (project.archived) {
+    return (
+      <main className="mx-auto flex min-h-screen max-w-lg flex-col justify-center px-6 text-center">
+        <h1 className="text-2xl font-semibold">{ru.brief.closed.title}</h1>
+        <p className="mt-2 text-muted">{ru.brief.closed.subtitle}</p>
+      </main>
+    );
+  }
+
   // Любой статус после заполнения брифа — экран «готово», не визард.
   const completed = !isIntakeOpen(project.status);
 

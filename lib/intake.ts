@@ -9,6 +9,8 @@ export interface IntakeProject {
   status: string;
   custom_questions: CustomBriefQuestion[]; // свои вопросы дизайнера
   cellCode: DataCellId;
+  /** DEC-044 (a): аккаунт дизайнера в сроке удаления — бриф закрыт для записи. */
+  archived: boolean;
 }
 
 const opaqueToken = /^[A-Za-z0-9_-]{20,}$/;
@@ -41,8 +43,16 @@ export async function getProjectByIntakeToken(token: string): Promise<IntakeProj
     .or("intake_expires_at.is.null,intake_expires_at.gt.now()")
     .maybeSingle();
   if (!data) return null;
+  const designerId = (data as { designer_id?: string | null }).designer_id ?? null;
+  let archived = false;
+  if (designerId) {
+    const { data: inRetention, error } = await admin.rpc("account_retention_active", { p_designer_id: designerId });
+    // Не удалось проверить — бриф не принимается (закрыто, а не открыто).
+    archived = Boolean(error) || inRetention === true;
+  }
   return {
-    ...(data as Omit<IntakeProject, "cellCode">),
+    ...(data as Omit<IntakeProject, "cellCode" | "archived">),
+    archived,
     custom_questions: normalizeCustomQuestions((data as { custom_questions?: unknown }).custom_questions),
     cellCode: routed.cellCode,
   };

@@ -85,6 +85,7 @@ for sql in \
   "${repo_root}/tests/db4/39_publish_version_door.sql" \
   "${repo_root}/tests/db4/40_baseline_refs_read.sql" \
   "${repo_root}/tests/db4/41_release_artifact_backlog.sql" \
+  "${repo_root}/tests/fixtures/sql/telegram_bridge_flags_fixture.sql" \
   "${repo_root}/tests/db4/42_telegram_bridge_boundary.sql" \
   "${repo_root}/tests/db4/43_telegram_inbox_vertical.sql" \
   "${repo_root}/tests/db4/44_telegram_bridge_correction.sql" \

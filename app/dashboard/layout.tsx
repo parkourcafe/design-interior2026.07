@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { getStudio } from "@/lib/studio";
+import { createClient } from "@/lib/supabase/server";
 import { ru } from "@/lib/i18n/ru";
 import SignOutButton from "./sign-out-button";
 
@@ -19,6 +20,22 @@ export default async function DashboardLayout({ children }: { children: React.Re
   if (process.env.SUPABASE_SERVICE_ROLE_KEY) {
     const studio = await getStudio();
     if (!studio) redirect("/login");
+  }
+
+  // DEC-044 (a): в срок удаления аккаунта кабинет только для чтения — об этом
+  // говорит баннер на каждой странице, а не ошибки отдельных действий.
+  let retentionUntil: string | null = null;
+  try {
+    const supabase = await createClient();
+    const { data } = await supabase.rpc("get_account_retention_status");
+    const retention = data as { status?: string; purgeAfter?: string } | null;
+    if (retention?.status === "requested" && retention.purgeAfter) {
+      retentionUntil = new Date(retention.purgeAfter).toLocaleDateString("ru-RU", {
+        day: "numeric", month: "long", year: "numeric",
+      });
+    }
+  } catch {
+    retentionUntil = null;
   }
 
   return (
@@ -43,6 +60,11 @@ export default async function DashboardLayout({ children }: { children: React.Re
           </nav>
         </div>
       </header>
+      {retentionUntil ? (
+        <div role="status" className="border-b border-red-200 bg-red-50">
+          <p className="mx-auto max-w-5xl px-6 py-2 text-sm text-red-800">{ru.retention.banner(retentionUntil)}</p>
+        </div>
+      ) : null}
       <main className="mx-auto max-w-5xl px-6 py-8">{children}</main>
     </div>
   );

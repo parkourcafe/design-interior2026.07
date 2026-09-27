@@ -15,6 +15,9 @@ export async function POST(request: Request) {
   const file = form.get("file");
   const project = await getProjectByIntakeToken(token);
   if (!project) return NextResponse.json({ error: "not_found" }, { status: 404 });
+  // DEC-044 (a): студия закрывает аккаунт — бриф только для чтения. Отказ до
+  // любой записи (в том числе до загрузки файла в хранилище).
+  if (project.archived) return NextResponse.json({ error: "brief_closed" }, { status: 409 });
   // После отправки брифа intake-токен больше не пишет в проект: вложения
   // принимаются только пока бриф открыт (как и сама отправка).
   if (!isIntakeOpen(project.status)) {

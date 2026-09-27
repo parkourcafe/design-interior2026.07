@@ -104,6 +104,23 @@ export default async function ProposalPage({ params }: { params: Promise<{ id: s
   // Обеспечить наличие черновика КП (public_token + событие proposal_created).
   const existing = await getLatestProposal(supabase, p.id);
 
+  // DEC-044 (a): аккаунт в сроке удаления — только чтение. Страница не
+  // создаёт и не пересобирает черновик; выданное КП открывается по ссылке.
+  const { data: retention } = await supabase.rpc("get_account_retention_status");
+  if ((retention as { status?: string } | null)?.status === "requested") {
+    const issuedToken = existing && (existing.status === "sent" || existing.status === "accepted")
+      ? existing.public_token as string
+      : null;
+    return (
+      <div className="card space-y-2">
+        <p className="text-sm text-muted">{ru.retention.readOnlyProposal}</p>
+        {issuedToken ? (
+          <a className="text-sm underline" href={`/p/${issuedToken}`}>{ru.retention.openIssuedProposal}</a>
+        ) : null}
+      </div>
+    );
+  }
+
   let sections: ProposalSection[];
   let publicToken: string;
   let sent = false;
