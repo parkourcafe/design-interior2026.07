@@ -500,9 +500,104 @@ end
 $tg2_attachment_state$;
 
 -- ─────────────────────────────────────────────────────────────────────────────
--- 7. Уведомления: выключенный флаг проекта не выдаёт очередь
+-- 7. Аренда: исчерпанные попытки и возврат без списания (ревью TG2)
 -- ─────────────────────────────────────────────────────────────────────────────
 
+begin;
+set local role service_role;
+select remhaos_channel_api.record_channel_attachments(
+  current_setting('db4.tg2_event')::uuid,
+  '[{"kind":"document","fileId":"db4-file-3","fileUniqueId":"db4-uniq-3"},
+    {"kind":"document","fileId":"db4-file-4","fileUniqueId":"db4-uniq-4"}]'::jsonb
+);
+commit;
+
+-- Пятая попытка, чья аренда истекла без итога (воркер упал).
+update remhaos_channel.channel_attachments
+set attempt_count = 5,
+    lease_token = '00000000-0000-4000-8000-0000000000bb',
+    lease_expires_at = statement_timestamp() - interval '1 minute'
+where external_file_unique_id = 'db4-uniq-3';
+
+begin;
+set local role service_role;
+do $tg2_lease_rules$
+declare
+  v_claim jsonb;
+  v_item jsonb;
+  v_release jsonb;
+begin
+  v_claim := remhaos_channel_api.claim_channel_attachments(10, 120) -> 'data';
+  if jsonb_array_length(v_claim) <> 1 or v_claim -> 0 ->> 'fileUniqueId' <> 'db4-uniq-4' then
+    raise exception 'DB4_TG2_CLAIM_AFTER_SWEEP:%', v_claim;
+  end if;
+  v_item := v_claim -> 0;
+  v_release := remhaos_channel_api.complete_channel_attachment(
+    (v_item ->> 'attachmentId')::uuid, (v_item ->> 'leaseToken')::uuid,
+    'release', null, null, null, null
+  ) -> 'data';
+  if not (v_release ->> 'completed')::boolean then
+    raise exception 'DB4_TG2_RELEASE:%', v_release;
+  end if;
+end
+$tg2_lease_rules$;
+commit;
+
+do $tg2_lease_state$
+declare
+  v_exhausted remhaos_channel.channel_attachments;
+  v_released remhaos_channel.channel_attachments;
+begin
+  select * into v_exhausted from remhaos_channel.channel_attachments where external_file_unique_id = 'db4-uniq-3';
+  select * into v_released from remhaos_channel.channel_attachments where external_file_unique_id = 'db4-uniq-4';
+  if v_exhausted.scan_status <> 'rejected' or v_exhausted.rejection_code <> 'attempts_exhausted' then
+    raise exception 'DB4_TG2_EXHAUSTED_STUCK:%/%', v_exhausted.scan_status, v_exhausted.rejection_code;
+  end if;
+  if v_released.scan_status <> 'pending' or v_released.attempt_count <> 0 or v_released.lease_token is not null then
+    raise exception 'DB4_TG2_RELEASE_BURNED_ATTEMPT:%', v_released.attempt_count;
+  end if;
+end
+$tg2_lease_state$;
+
+-- Проверка без итога не проходит: NULL-хеш — ошибка, а не `scanning`.
+begin;
+set local role service_role;
+do $tg2_null_hash$
+declare
+  v_item jsonb;
+begin
+  v_item := (remhaos_channel_api.claim_channel_attachments(10, 120) -> 'data') -> 0;
+  begin
+    perform remhaos_channel_api.complete_channel_attachment(
+      (v_item ->> 'attachmentId')::uuid, (v_item ->> 'leaseToken')::uuid,
+      'scan_pending', '00000000-0000-4000-8000-0000000000cc'::uuid, null, 'quarantine/x', null);
+    raise exception 'DB4_TG2_NULL_HASH_ACCEPTED';
+  exception when sqlstate 'P1111' then null;
+  end;
+  begin
+    perform remhaos_channel_api.record_channel_attachments(
+      current_setting('db4.tg2_event')::uuid, '[{"kind":"document","fileUniqueId":"no-file-id"}]'::jsonb);
+    raise exception 'DB4_TG2_MISSING_FILE_ID_ACCEPTED';
+  exception when sqlstate 'P1111' then null;
+  end;
+end
+$tg2_null_hash$;
+commit;
+
+-- ─────────────────────────────────────────────────────────────────────────────
+-- 8. Уведомления: флаг закрывает и очередь, и выдачу
+-- ─────────────────────────────────────────────────────────────────────────────
+
+begin;
+set local role service_role;
+select remhaos_channel_api.enqueue_notification(
+  :'project_a'::uuid, 'db4_tg2', 'db4-tg2-source-1', 'telegram-notice/1',
+  '{"kind":"release_distributed","projectId":"41111111-1111-4111-8111-111111111111"}'::jsonb,
+  'db4-tg2-notification-1'
+);
+commit;
+
+-- Выключение снимает неотправленное: после включения старое не уйдёт.
 begin;
 set local role authenticated;
 set local request.jwt.claim.sub = :'owner_a';
@@ -511,24 +606,39 @@ commit;
 
 begin;
 set local role service_role;
-select remhaos_channel_api.enqueue_notification(
-  :'project_a'::uuid, 'db4_tg2', 'db4-tg2-source', 'distribution-issued/1',
-  '{"projectId":"41111111-1111-4111-8111-111111111111"}'::jsonb, 'db4-tg2-notification'
-);
 do $tg2_quiet$
 declare
+  v_enqueue jsonb;
   v_batch jsonb;
 begin
+  v_enqueue := remhaos_channel_api.enqueue_notification(
+    '41111111-1111-4111-8111-111111111111', 'db4_tg2', 'db4-tg2-source-2', 'telegram-notice/1',
+    '{"kind":"release_distributed","projectId":"41111111-1111-4111-8111-111111111111"}'::jsonb,
+    'db4-tg2-notification-2'
+  ) -> 'data';
+  if (v_enqueue ->> 'queued')::boolean or v_enqueue ->> 'reason' <> 'notifications_disabled_for_project' then
+    raise exception 'DB4_TG2_QUEUED_WHILE_OFF:%', v_enqueue;
+  end if;
   v_batch := remhaos_channel_api.claim_notification_batch(50, 60) -> 'data';
-  if exists (
-    select 1 from jsonb_array_elements(v_batch) item
-    where (item ->> 'externalChatId')::bigint = -1008500
-  ) then
+  if exists (select 1 from jsonb_array_elements(v_batch) item
+             where (item ->> 'externalChatId')::bigint = -1008500) then
     raise exception 'DB4_TG2_NOTIFICATION_CLAIMED_WHILE_OFF';
   end if;
 end
 $tg2_quiet$;
 commit;
+
+do $tg2_backlog_cancelled$
+begin
+  if not exists (
+    select 1 from remhaos_channel.notification_outbox
+    where idempotency_key = 'db4-tg2-notification-1' and state = 'cancelled'
+      and failure_code = 'notifications_disabled'
+  ) then
+    raise exception 'DB4_TG2_BACKLOG_NOT_CANCELLED';
+  end if;
+end
+$tg2_backlog_cancelled$;
 
 begin;
 set local role authenticated;
@@ -538,20 +648,41 @@ commit;
 
 begin;
 set local role service_role;
+select remhaos_channel_api.enqueue_notification(
+  :'project_a'::uuid, 'db4_tg2', 'db4-tg2-source-3', 'telegram-notice/1',
+  '{"kind":"release_distributed","projectId":"41111111-1111-4111-8111-111111111111"}'::jsonb,
+  'db4-tg2-notification-3'
+);
 do $tg2_loud$
 declare
   v_batch jsonb;
 begin
   v_batch := remhaos_channel_api.claim_notification_batch(50, 60) -> 'data';
-  if not exists (
-    select 1 from jsonb_array_elements(v_batch) item
-    where (item ->> 'externalChatId')::bigint = -1008500
-  ) then
-    raise exception 'DB4_TG2_NOTIFICATION_NOT_CLAIMED_WHEN_ON:%', v_batch;
+  if (select count(*) from jsonb_array_elements(v_batch) item
+      where (item ->> 'externalChatId')::bigint = -1008500) <> 1 then
+    raise exception 'DB4_TG2_NOTIFICATION_CLAIM_WHEN_ON:%', v_batch;
   end if;
 end
 $tg2_loud$;
 commit;
+
+-- Журнал флагов append-only.
+do $tg2_flag_journal_immutable$
+begin
+  begin
+    update remhaos_channel.bridge_scope_flag_events set reason = 'tampered'
+    where project_id = '41111111-1111-4111-8111-111111111111';
+    raise exception 'DB4_TG2_FLAG_JOURNAL_MUTABLE';
+  exception when sqlstate '55000' then null;
+  end;
+  begin
+    delete from remhaos_channel.bridge_scope_flag_events
+    where project_id = '41111111-1111-4111-8111-111111111111';
+    raise exception 'DB4_TG2_FLAG_JOURNAL_DELETABLE';
+  exception when sqlstate '55000' then null;
+  end;
+end
+$tg2_flag_journal_immutable$;
 
 -- Сценарий оставляет проект A без живой связи, как и нашёл предыдущие.
 begin;

@@ -526,7 +526,12 @@ export async function POST(request: Request) {
         oldChatId: event.chatMigration.oldChatId,
         newChatId: event.chatMigration.newChatId,
       });
-      return ack(migration.migrated ? "chat_migrated" : "chat_migration_ignored", requestId, {
+      const outcome = migration.migrated
+        ? "chat_migrated"
+        : migration.reason === "target_chat_bound"
+          ? "chat_migration_target_bound"
+          : "chat_migration_ignored";
+      return ack(outcome, requestId, {
         updateId: event.updateId,
         chatId: event.chatId,
       });

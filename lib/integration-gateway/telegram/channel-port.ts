@@ -398,7 +398,7 @@ export class TelegramSystemPort {
   async completeChannelAttachment(input: {
     readonly attachmentId: string;
     readonly leaseToken: string;
-    readonly outcome: "scan_pending" | "rejected" | "retry";
+    readonly outcome: "scan_pending" | "rejected" | "retry" | "release";
     readonly fileIntakeId?: string | null;
     readonly serverSha256Hex?: string | null;
     readonly storageLocator?: string | null;

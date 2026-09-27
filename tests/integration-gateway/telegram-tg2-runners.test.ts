@@ -192,7 +192,7 @@ describe("Telegram attachment runner (DEC-044 (b))", () => {
 
     const result = await runTelegramAttachmentBatch(new TelegramSystemPort(db.client), bot(), quarantine);
 
-    expect(result).toEqual({ claimed: 1, quarantined: 1, rejected: 0, retried: 0, leaseLost: 0 });
+    expect(result).toEqual({ claimed: 1, quarantined: 1, rejected: 0, retried: 0, released: 0, leaseLost: 0 });
     const sha = createHash("sha256").update(PDF).digest("hex");
     expect(quarantine.calls).toEqual([{
       projectId: "41111111-1111-4111-8111-111111111111",
@@ -286,7 +286,8 @@ describe("Telegram attachment runner (DEC-044 (b))", () => {
     const outcomes = db.calls
       .filter((call) => call.name === "complete_channel_attachment")
       .map((call) => call.args.outcome);
-    expect(outcomes).toEqual(["retry", "retry"]);
+    // Попытки не списываются: неверная настройка не отклоняет файлы.
+    expect(outcomes).toEqual(["release", "release"]);
   });
 
   it("names the file from our identifier, never from what the sender typed", () => {

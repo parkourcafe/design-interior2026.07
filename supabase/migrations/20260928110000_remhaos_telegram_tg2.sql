@@ -34,7 +34,8 @@ create table remhaos_channel.bridge_scope_flags (
   project_id uuid not null,
   flag text not null check (flag in ('bridge', 'attachments', 'notifications')),
   enabled boolean not null default false,
-  changed_by_user_id uuid not null,
+  -- NULL — только перенос при установке миграции (системный автор, см. журнал).
+  changed_by_user_id uuid,
   changed_at timestamptz not null default statement_timestamp(),
   constraint bridge_scope_flags_pkey primary key (organization_id, project_id, flag),
   constraint bridge_scope_flags_project_fkey
@@ -49,10 +50,30 @@ create table remhaos_channel.bridge_scope_flag_events (
   project_id uuid not null,
   flag text not null,
   enabled boolean not null,
-  changed_by_user_id uuid not null,
+  changed_by_user_id uuid,
+  actor text not null default 'human' check (actor in ('human', 'system:migration')),
   reason text not null check (char_length(reason) between 1 and 500),
-  created_at timestamptz not null default statement_timestamp()
+  created_at timestamptz not null default statement_timestamp(),
+  -- Человек всегда назван; безымянное изменение — только системный перенос.
+  constraint bridge_scope_flag_events_author_check check (
+    (actor = 'human' and changed_by_user_id is not null)
+    or (actor = 'system:migration' and changed_by_user_id is null)
+  )
 );
+
+-- F8: журнал флагов append-only, как журнал привязки.
+create function remhaos_channel._reject_flag_event_mutation()
+returns trigger
+language plpgsql
+as $function$
+begin
+  raise exception using errcode = '55000', message = 'FLAG_EVENT_IMMUTABLE';
+end
+$function$;
+
+create trigger bridge_scope_flag_events_append_only
+  before update or delete on remhaos_channel.bridge_scope_flag_events
+  for each row execute function remhaos_channel._reject_flag_event_mutation();
 
 create function remhaos_channel._bridge_flag_enabled(
   p_organization_id uuid, p_project_id uuid, p_flag text
@@ -113,6 +134,15 @@ begin
   ) values (
     v_context.organization_id, project_id, flag, enabled, v_context.actor_user_id, btrim(reason)
   );
+  -- Выключение уведомлений снимает ещё не отправленное: после повторного
+  -- включения в группу не уходит то, что копилось до выключения.
+  if flag = 'notifications' and not enabled then
+    update remhaos_channel.notification_outbox o
+    set state = 'cancelled', failure_code = 'notifications_disabled', lease_expires_at = null
+    where o.organization_id = v_context.organization_id
+      and o.project_id = project_id
+      and o.state in ('pending', 'retry');
+  end if;
   return remhaos_channel._envelope(jsonb_build_object(
     'projectId', project_id, 'flag', flag, 'enabled', enabled
   ));
@@ -360,6 +390,8 @@ begin
       old.external_chat_id, new.external_chat_id, new.status_reason
     );
   end if;
+  -- Единственный писатель номера чата — migrate_channel_binding: он и ставит
+  -- update_id. Иной путь смены номера сюда тоже попадёт, но без update_id.
   if new.external_chat_id is distinct from old.external_chat_id then
     insert into remhaos_channel.project_channel_binding_events (
       binding_id, event_type, from_status, to_status, from_chat_id, to_chat_id,
@@ -516,7 +548,8 @@ begin
     ));
   end if;
   for v_item in select value from jsonb_array_elements(attachments) loop
-    if jsonb_typeof(v_item->'fileId') <> 'string' or jsonb_typeof(v_item->'fileUniqueId') <> 'string'
+    if jsonb_typeof(v_item->'fileId') is distinct from 'string'
+       or jsonb_typeof(v_item->'fileUniqueId') is distinct from 'string'
        or coalesce(v_item->>'kind', '') not in ('photo', 'document', 'voice', 'video') then
       perform projectceo_foundation._raise('P1111', 'validation_failed', '{"field":"attachments.item"}'::jsonb);
     end if;
@@ -554,12 +587,17 @@ begin
   if max_rows is null or max_rows < 1 or max_rows > 50 then
     perform projectceo_foundation._raise('P1111', 'validation_failed', '{"field":"maxRows"}'::jsonb);
   end if;
+  -- Пятая попытка, чья аренда истекла без итога (воркер упал), больше не
+  -- выдаётся — и не должна висеть в `pending` вечно: отказ с кодом.
+  update remhaos_channel.channel_attachments a
+  set scan_status = 'rejected', rejection_code = 'attempts_exhausted',
+      scan_completed_at = statement_timestamp(), lease_token = null, lease_expires_at = null
+  where a.scan_status = 'pending' and a.attempt_count >= 5
+    and (a.lease_token is null or a.lease_expires_at <= statement_timestamp());
   with due as (
     select a.attachment_id
     from remhaos_channel.channel_attachments a
-    where (a.scan_status = 'pending'
-           or (a.lease_token is not null and a.lease_expires_at <= statement_timestamp()
-               and a.scan_status = 'pending'))
+    where a.scan_status = 'pending'
       and (a.lease_token is null or a.lease_expires_at <= statement_timestamp())
       and a.attempt_count < 5
       and remhaos_channel._bridge_flag_enabled(a.organization_id, a.project_id, 'attachments')
@@ -619,7 +657,7 @@ begin
     return remhaos_channel._envelope(jsonb_build_object('completed', false, 'reason', 'lease_lost'));
   end if;
   if outcome = 'scan_pending' then
-    if file_intake_id is null or server_sha256_hex !~ '^[0-9a-f]{64}$'
+    if file_intake_id is null or coalesce(server_sha256_hex !~ '^[0-9a-f]{64}$', true)
        or storage_locator is null or char_length(storage_locator) not between 1 and 400 then
       perform projectceo_foundation._raise('P1111', 'validation_failed', '{"field":"quarantine"}'::jsonb);
     end if;
@@ -629,12 +667,19 @@ begin
         lease_token = null, lease_expires_at = null
     where a.attachment_id = v_row.attachment_id;
   elsif outcome = 'rejected' then
-    if rejection_code is null or rejection_code !~ '^[a-z0-9_]{1,80}$' then
+    if coalesce(rejection_code !~ '^[a-z0-9_]{1,80}$', true) then
       perform projectceo_foundation._raise('P1111', 'validation_failed', '{"field":"rejectionCode"}'::jsonb);
     end if;
     update remhaos_channel.channel_attachments a
     set scan_status = 'rejected', rejection_code = rejection_code,
         scan_completed_at = statement_timestamp(), lease_token = null, lease_expires_at = null
+    where a.attachment_id = v_row.attachment_id;
+  elsif outcome = 'release' then
+    -- Работа не выполнялась (сбой инфраструктуры, остановка прохода):
+    -- попытка возвращается, файл не приближается к отказу.
+    update remhaos_channel.channel_attachments a
+    set lease_token = null, lease_expires_at = null,
+        attempt_count = greatest(a.attempt_count - 1, 0)
     where a.attachment_id = v_row.attachment_id;
   elsif outcome = 'retry' then
     update remhaos_channel.channel_attachments a
@@ -717,6 +762,77 @@ begin
 end
 $function$;
 
+-- Постановка в очередь: прежний контракт (20260811050000) + флаг «уведомления».
+create or replace function remhaos_channel_api.enqueue_notification(
+  project_id uuid,
+  source_kind text,
+  source_id text,
+  template_version text,
+  payload jsonb,
+  idempotency_key text
+)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $function$
+#variable_conflict use_variable
+declare
+  v_organization_id uuid;
+  v_binding_id uuid;
+  v_notification_id uuid;
+begin
+  v_organization_id := remhaos_channel._system_project_context(project_id);
+
+  select b.binding_id into v_binding_id
+  from remhaos_channel.project_channel_bindings b
+  where b.project_id = project_id and b.status = 'active';
+
+  if v_binding_id is null then
+    -- Чат не подключён — уведомлять некуда, и это не ошибка выпуска.
+    return remhaos_channel._envelope(jsonb_build_object(
+      'queued', false, 'reason', 'no_active_binding'
+    ));
+  end if;
+
+  -- DEC-044 (c): при выключенных уведомлениях очередь не копится — иначе
+  -- включение флага вывалило бы в группу накопленные устаревшие сообщения.
+  if not remhaos_channel._bridge_flag_enabled(v_organization_id, project_id, 'notifications') then
+    return remhaos_channel._envelope(jsonb_build_object(
+      'queued', false, 'reason', 'notifications_disabled_for_project'
+    ));
+  end if;
+
+  insert into remhaos_channel.notification_outbox (
+    organization_id, project_id, binding_id, source_kind, source_id,
+    template_version, payload, idempotency_key
+  )
+  values (
+    v_organization_id, project_id, v_binding_id, source_kind, source_id,
+    template_version, payload, idempotency_key
+  )
+  -- Цель конфликта названа ИМЕНЕМ ОГРАНИЧЕНИЯ, а не списком колонок. При
+  -- `#variable_conflict use_variable` идентификатор `idempotency_key` в списке
+  -- колонок разрешается в одноимённый параметр функции, спецификация выводится
+  -- по выражению и не совпадает ни с одним индексом — первая редакция падала
+  -- ровно так («there is no unique or exclusion constraint matching the ON
+  -- CONFLICT specification»). Имя ограничения от переименования параметров не
+  -- зависит.
+  on conflict on constraint notification_outbox_idempotency_key do nothing
+  returning notification_id into v_notification_id;
+
+  return remhaos_channel._envelope(jsonb_build_object(
+    'queued', v_notification_id is not null,
+    'notificationId', coalesce(
+      v_notification_id,
+      (select o.notification_id
+       from remhaos_channel.notification_outbox o
+       where o.binding_id = v_binding_id and o.idempotency_key = idempotency_key)
+    )
+  ));
+end
+$function$;
+
 -- === Перенос текущего поведения ============================================
 -- Привязки, живые на момент миграции, до неё работали под глобальным env-флагом.
 -- Им включаются «мост» и «уведомления» — с записью в журнал флагов, чтобы
@@ -726,17 +842,19 @@ insert into remhaos_channel.bridge_scope_flags (
   organization_id, project_id, flag, enabled, changed_by_user_id
 )
 select distinct on (b.organization_id, b.project_id, flag.name)
-  b.organization_id, b.project_id, flag.name, true, b.initiated_by_user_id
+  b.organization_id, b.project_id, flag.name, true, null::uuid
 from remhaos_channel.project_channel_bindings b
 cross join (values ('bridge'), ('notifications')) flag(name)
 where b.status in ('pending', 'notice_pending', 'active')
 order by b.organization_id, b.project_id, flag.name, b.created_at desc
 on conflict (organization_id, project_id, flag) do nothing;
 
+-- Автор — система (перенос), а не инициатор связи: он этого решения не
+-- принимал. Владелец может выключить флаги штатно, и это будет в журнале.
 insert into remhaos_channel.bridge_scope_flag_events (
-  organization_id, project_id, flag, enabled, changed_by_user_id, reason
+  organization_id, project_id, flag, enabled, changed_by_user_id, actor, reason
 )
-select f.organization_id, f.project_id, f.flag, f.enabled, f.changed_by_user_id,
+select f.organization_id, f.project_id, f.flag, f.enabled, null, 'system:migration',
   'migration_backfill_existing_binding'
 from remhaos_channel.bridge_scope_flags f;
 
@@ -764,7 +882,8 @@ begin
     'remhaos_channel._bridge_flag_enabled(uuid, uuid, text)',
     'remhaos_channel._attribute_sender(uuid, uuid, bigint)',
     'remhaos_channel._record_binding_change()',
-    'remhaos_channel._reject_binding_event_mutation()'
+    'remhaos_channel._reject_binding_event_mutation()',
+    'remhaos_channel._reject_flag_event_mutation()'
   ] loop
     execute pg_catalog.format('alter function %s owner to pi_table_owner', v_signature);
     execute pg_catalog.format(

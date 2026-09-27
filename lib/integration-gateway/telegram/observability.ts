@@ -34,6 +34,9 @@ export type TelegramBridgeOutcome =
   | "binding_suspended"
   | "chat_migrated"
   | "chat_migration_ignored"
+  // Новый номер уже занят другой живой связью: перенос не выполнен, старая
+  // связь осталась на номере, которого больше нет. Нужен оператор.
+  | "chat_migration_target_bound"
   | "identity_linked"
   | "identity_rejected"
   | "stored"

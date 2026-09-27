@@ -43,7 +43,7 @@ export interface AttachmentQueuePort {
   completeChannelAttachment(input: {
     readonly attachmentId: string;
     readonly leaseToken: string;
-    readonly outcome: "scan_pending" | "rejected" | "retry";
+    readonly outcome: "scan_pending" | "rejected" | "retry" | "release";
     readonly fileIntakeId?: string | null;
     readonly serverSha256Hex?: string | null;
     readonly storageLocator?: string | null;
@@ -65,6 +65,8 @@ export interface AttachmentRunResult {
   readonly quarantined: number;
   readonly rejected: number;
   readonly retried: number;
+  /** Возвращены без попытки (проход остановлен сбоем инфраструктуры). */
+  readonly released: number;
   readonly leaseLost: number;
 }
 
@@ -84,7 +86,9 @@ const quarantineSchema = z.object({
 type Outcome =
   | { readonly outcome: "scan_pending"; readonly intakeId: string; readonly sha256: string; readonly locator: string }
   | { readonly outcome: "rejected"; readonly code: string }
-  | { readonly outcome: "retry" };
+  | { readonly outcome: "retry" }
+  /** Работа не выполнялась: попытка возвращается и не приближает отказ. */
+  | { readonly outcome: "release" };
 
 /** Имя файла — из нашего идентификатора, а не из присланного названия. */
 export function attachmentFilename(attachment: ClaimedAttachment, filePath: string): string {
@@ -162,18 +166,21 @@ export async function runTelegramAttachmentBatch(
   let rejected = 0;
   let retried = 0;
   let leaseLost = 0;
+  let released = 0;
 
   let failure: unknown = null;
   for (const attachment of claimed) {
-    let outcome: Outcome = { outcome: "retry" };
+    let outcome: Outcome = { outcome: "release" };
     if (failure === null) {
       try {
         outcome = await processOne(attachment, files, quarantine);
       } catch (error) {
         // Сбой хранилища или базы не делает файл плохим. Проход
-        // останавливается: остальные вложения возвращаются в очередь, ошибка
-        // уходит оператору — иначе неверная настройка тихо сжигала бы попытки.
+        // останавливается: это и остальные вложения возвращаются в очередь
+        // БЕЗ списания попытки (`release`), ошибка уходит оператору — иначе
+        // неверная настройка за пять прогонов отклонила бы все файлы.
         failure = error;
+        outcome = { outcome: "release" };
       }
     }
     const completed = await queue.completeChannelAttachment(
@@ -193,14 +200,15 @@ export async function runTelegramAttachmentBatch(
               outcome: "rejected",
               rejectionCode: outcome.code,
             }
-          : { attachmentId: attachment.attachmentId, leaseToken: attachment.leaseToken, outcome: "retry" },
+          : { attachmentId: attachment.attachmentId, leaseToken: attachment.leaseToken, outcome: outcome.outcome },
     );
     if (!completed.completed) leaseLost += 1;
     else if (outcome.outcome === "scan_pending") quarantined += 1;
     else if (outcome.outcome === "rejected") rejected += 1;
-    else retried += 1;
+    else if (outcome.outcome === "retry") retried += 1;
+    else released += 1;
   }
 
   if (failure !== null) throw failure;
-  return { claimed: claimed.length, quarantined, rejected, retried, leaseLost };
+  return { claimed: claimed.length, quarantined, rejected, retried, released, leaseLost };
 }

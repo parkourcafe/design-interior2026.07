@@ -236,4 +236,32 @@ begin
 end
 $chain_still_works$;
 
+-- TG2 (20260928110000): живые связи сохраняют мост и уведомления, но автор
+-- переноса — система, а не инициатор связи (ревью TG2, находка 4).
+do $tg2_backfill_actor$
+begin
+  if not exists (
+    select 1 from remhaos_channel.bridge_scope_flags f
+    join remhaos_channel.project_channel_bindings b
+      on b.organization_id = f.organization_id and b.project_id = f.project_id
+    where b.status in ('pending', 'notice_pending', 'active') and f.flag = 'bridge' and f.enabled
+  ) then
+    raise exception 'DB4_TGU_TG2_LIVE_BINDING_LOST_BRIDGE';
+  end if;
+  if exists (select 1 from remhaos_channel.bridge_scope_flags where flag = 'attachments' and enabled) then
+    raise exception 'DB4_TGU_TG2_ATTACHMENTS_BACKFILLED';
+  end if;
+  if exists (
+    select 1 from remhaos_channel.bridge_scope_flag_events
+    where reason = 'migration_backfill_existing_binding'
+      and (actor <> 'system:migration' or changed_by_user_id is not null)
+  ) or not exists (
+    select 1 from remhaos_channel.bridge_scope_flag_events
+    where reason = 'migration_backfill_existing_binding'
+  ) then
+    raise exception 'DB4_TGU_TG2_BACKFILL_ACTOR';
+  end if;
+end
+$tg2_backfill_actor$;
+
 \echo DB4_TELEGRAM_UPGRADE_OK
