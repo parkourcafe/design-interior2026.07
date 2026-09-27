@@ -40,6 +40,15 @@ export default async function PublicProposalPage({
     .eq("id", projectId)
     .maybeSingle();
 
+  const designerId = (project as { designer_id?: string | null } | null)?.designer_id ?? null;
+  // DEC-044 (a): аккаунт дизайнера в сроке удаления — КП открывается, но
+  // ничего не записывается: ни просмотр, ни ответ клиента.
+  let archived = false;
+  if (designerId) {
+    const { data: inRetention } = await admin.rpc("account_retention_active", { p_designer_id: designerId });
+    archived = inRetention === true;
+  }
+
   const sections = (proposal.sections ?? []) as ProposalSection[];
   const clientName = (project as { client_name?: string } | null)?.client_name ?? "";
 
@@ -51,7 +60,7 @@ export default async function PublicProposalPage({
     .in("type", [...RESPONSE_TYPES, "proposal_viewed"]);
   const seen = new Set((pastEvents ?? []).map((e) => (e as { type: string }).type));
   const response = RESPONSE_TYPES.find((t) => seen.has(t)) ?? null;
-  if (!seen.has("proposal_viewed")) {
+  if (!archived && !seen.has("proposal_viewed")) {
     await admin.from("events").insert({
       designer_id: (project as { designer_id?: string | null } | null)?.designer_id ?? null,
       project_id: projectId,
@@ -79,7 +88,7 @@ export default async function PublicProposalPage({
       </article>
 
       {/* Решение клиента: принять / обсудить / запросить правки (audit S3). */}
-      <ProposalRespond token={public_token} initialResponse={response} />
+      <ProposalRespond token={public_token} initialResponse={response} archived={archived} />
     </main>
   );
 }

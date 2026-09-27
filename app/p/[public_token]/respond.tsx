@@ -24,9 +24,12 @@ const DONE_MSG: Record<string, string> = {
 export default function ProposalRespond({
   token,
   initialResponse,
+  archived = false,
 }: {
   token: string;
   initialResponse: string | null;
+  /** Аккаунт дизайнера в сроке удаления: ответ невозможен (DEC-044 (a)). */
+  archived?: boolean;
 }) {
   const [response, setResponse] = useState<string | null>(initialResponse);
   const [justResponded, setJustResponded] = useState(false);
@@ -58,7 +61,9 @@ export default function ProposalRespond({
   return (
     <section className="no-print card mt-2 border-clientaccent/25 bg-[#faf6f8]">
       <h2 className="mb-1 font-display text-2xl font-semibold">{r.title}</h2>
-      {!response ? (
+      {archived && !response ? (
+        <p className="mt-2 text-sm text-muted">{r.archived}</p>
+      ) : !response ? (
         <>
           <p className="mb-4 text-sm text-muted">{r.sub}</p>
           <div className="flex flex-col gap-2.5 sm:flex-row">

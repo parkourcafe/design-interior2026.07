@@ -36,6 +36,16 @@ export async function POST(request: Request) {
   const { data: project, error: projectError } = await admin.from("projects").select("designer_id, status").eq("id", projectId).maybeSingle();
   if (projectError || !project) return NextResponse.json({ error: "proposal_respond_failed" }, { status: 500 });
   const designerId = (project as { designer_id: string | null }).designer_id;
+  // DEC-044 (a): аккаунт дизайнера в сроке удаления — КП только для чтения.
+  // Проверка до записи события: база и так отклонит смену статуса КП, но
+  // событие ответа не должно появиться вовсе.
+  if (designerId) {
+    const { data: inRetention, error: retentionError } = await admin.rpc("account_retention_active", {
+      p_designer_id: designerId,
+    });
+    if (retentionError) return NextResponse.json({ error: "proposal_respond_failed" }, { status: 500 });
+    if (inRetention === true) return NextResponse.json({ error: "proposal_archived" }, { status: 409 });
+  }
   async function reconcileAcceptedState() {
     if ((proposal as { status?: string }).status === "sent") {
       const proposalUpdate = await admin.from("proposals").update({ status: "accepted" })
