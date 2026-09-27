@@ -25,6 +25,11 @@ vi.mock("@/lib/llm/provider", () => ({
 
 type Row = Record<string, unknown>;
 const db = vi.hoisted(() => ({ tables: {} as Record<string, Row[]> }));
+function row(table: "proposals" | "projects"): Row {
+  const found = db.tables[table]?.[0];
+  if (!found) throw new Error(`no ${table} row seeded`);
+  return found;
+}
 
 function fakeClient() {
   return {
@@ -194,19 +199,19 @@ describe("M1 chain: client response on the public proposal", () => {
     seed("sent", sections);
     const first = await post("accept");
     expect(await first.json()).toEqual({ ok: true, response: "proposal_accepted" });
-    expect(db.tables.proposals[0].status).toBe("accepted");
-    expect(db.tables.projects[0].status).toBe("proposal_accepted");
+    expect(row("proposals").status).toBe("accepted");
+    expect(row("projects").status).toBe("proposal_accepted");
 
     const second = await post("changes");
     expect(await second.json()).toEqual({ ok: true, response: "proposal_accepted" });
-    expect(db.tables.events.filter((e) => String(e.type).startsWith("proposal_"))).toHaveLength(1);
+    expect((db.tables.events ?? []).filter((e) => String(e.type).startsWith("proposal_"))).toHaveLength(1);
   });
 
   it("a change request keeps the proposal sent and the project unaccepted", async () => {
     seed("sent", []);
     expect(await (await post("changes")).json()).toEqual({ ok: true, response: "proposal_changes_requested" });
-    expect(db.tables.proposals[0].status).toBe("sent");
-    expect(db.tables.projects[0].status).toBe("proposal_sent");
+    expect(row("proposals").status).toBe("sent");
+    expect(row("projects").status).toBe("proposal_sent");
   });
 });
 
@@ -217,24 +222,24 @@ describe("M1 chain: a sent or accepted proposal is not rewritten behind the clie
     expect(await saveProposal("project-1", [{ id: "price", title: "Стоимость", body: "от 1 ₽" }]))
       .toEqual({ ok: false, reason: "sent" });
     expect(await rebuildProposal("project-1")).toEqual({ ok: false, reason: "sent" });
-    expect(db.tables.proposals[0].sections).toEqual(original);
+    expect(row("proposals").sections).toEqual(original);
   });
 
   it("re-sending an accepted proposal does not roll the acceptance back", async () => {
     seed("accepted", []);
-    db.tables.projects[0].status = "proposal_accepted";
+    row("projects").status = "proposal_accepted";
     expect((await sendProposal("project-1")).ok).toBe(false);
-    expect(db.tables.proposals[0].status).toBe("accepted");
-    expect(db.tables.projects[0].status).toBe("proposal_accepted");
+    expect(row("proposals").status).toBe("accepted");
+    expect(row("projects").status).toBe("proposal_accepted");
   });
 
   it("a draft proposal can still be edited and sent", async () => {
     seed("draft", []);
     const edited = [{ id: "task", title: "Задача клиента", body: "правка дизайнера" }];
     expect(await saveProposal("project-1", edited)).toEqual({ ok: true });
-    expect(db.tables.proposals[0].sections).toEqual(edited);
+    expect(row("proposals").sections).toEqual(edited);
     expect(await sendProposal("project-1")).toEqual({ ok: true });
-    expect(db.tables.proposals[0].status).toBe("sent");
-    expect(db.tables.projects[0].status).toBe("proposal_sent");
+    expect(row("proposals").status).toBe("sent");
+    expect(row("projects").status).toBe("proposal_sent");
   });
 });
