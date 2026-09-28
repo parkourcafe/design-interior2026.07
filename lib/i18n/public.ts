@@ -85,6 +85,8 @@ const en = {
     support: "Support",
     pilotNote: "Version 1.0 is free: no payments, subscriptions or external purchase methods.",
     rights: "International preview · English interface",
+    guidesClients: "For clients: guides (RU)",
+    guidesPros: "For designers: guides (RU)",
   },
 };
 
@@ -164,6 +166,8 @@ const id = {
     support: "Dukungan",
     pilotNote: "Versi 1.0 gratis: tanpa pembayaran, langganan, atau metode pembelian eksternal.",
     rights: "Pratinjau Indonesia · antarmuka Bahasa Indonesia",
+    guidesClients: "Untuk klien: panduan (RU)",
+    guidesPros: "Untuk desainer: panduan (RU)",
   },
 };
 
