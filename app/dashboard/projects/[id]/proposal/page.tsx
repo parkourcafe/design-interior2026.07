@@ -107,7 +107,8 @@ export default async function ProposalPage({ params }: { params: Promise<{ id: s
   // DEC-044 (a): аккаунт в сроке удаления — только чтение. Страница не
   // создаёт и не пересобирает черновик; выданное КП открывается по ссылке.
   const { data: retention } = await supabase.rpc("get_account_retention_status");
-  if ((retention as { status?: string } | null)?.status === "requested") {
+  const retentionStatus = (retention as { status?: string } | null)?.status;
+  if (retentionStatus === "requested" || retentionStatus === "expired") {
     const issuedToken = existing && (existing.status === "sent" || existing.status === "accepted")
       ? existing.public_token as string
       : null;

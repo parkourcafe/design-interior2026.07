@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { ru } from "@/lib/i18n/ru";
 
 export const dynamic = "force-dynamic";
 
@@ -52,6 +53,12 @@ export async function GET() {
     data: { user },
   } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: "Не авторизован." }, { status: 401 });
+
+  // DEC-045 (a): после срока аккаунт закрыт — экспорт тоже.
+  const status = await supabase.rpc("get_account_retention_status");
+  if ((status.data as { status?: string } | null)?.status === "expired") {
+    return NextResponse.json({ error: "account_closed", message: ru.retention.closedExport }, { status: 403 });
+  }
 
   try {
     const designer = await supabase.from("designers").select("*").eq("id", user.id).maybeSingle();

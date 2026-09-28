@@ -11,6 +11,7 @@ const state = vi.hoisted(() => ({
   cancelError: null as { message: string } | null,
   tables: {} as Record<string, Record<string, unknown>[]>,
   filters: [] as string[],
+  retentionStatus: null as { status: string } | null,
 }));
 
 vi.mock("@/lib/rate-limit", () => ({ checkRateLimit: async () => true, clientIp: () => "test" }));
@@ -48,7 +49,7 @@ vi.mock("@/lib/supabase/server", () => ({
       if (name === "export_passport_revisions") {
         return { data: [{ project_id: "project-1", revision_no: 1, passport: { contact: "x" } }], error: null };
       }
-      if (name === "get_account_retention_status") return { data: null, error: null };
+      if (name === "get_account_retention_status") return { data: state.retentionStatus, error: null };
       return { data: null, error: null };
     },
     from: (table: string) => {
@@ -80,6 +81,7 @@ beforeEach(() => {
   state.user = { id: "designer-1" };
   state.cancelError = null;
   state.filters = [];
+  state.retentionStatus = null;
   state.tables = {
     projects: [{ id: "project-1", designer_id: "designer-1", intake_token: "secret-intake", client_name: "Клиент" }],
     proposals: [{ id: "proposal-1", project_id: "project-1", version: 1, public_token: "secret-link", status: "sent" }],
@@ -117,6 +119,19 @@ describe("full account export", () => {
     expect(project.rooms).toEqual([{ id: "room-1", project_id: "project-1" }]);
     expect(project.participants).toEqual([{ id: "participant-1", room_id: "room-1" }]);
     expect(state.filters).toContain("projects:designer_id=designer-1");
+  });
+
+  it("is closed after the retention window (DEC-045 (a))", async () => {
+    state.retentionStatus = { status: "expired" };
+    const response = await exportAccount();
+    expect(response.status).toBe(403);
+    expect(await response.json()).toMatchObject({ error: "account_closed" });
+    expect(state.filters).toEqual([]);
+  });
+
+  it("stays open during the window", async () => {
+    state.retentionStatus = { status: "requested" };
+    expect((await exportAccount()).status).toBe(200);
   });
 
   it("rejects unauthenticated export", async () => {

@@ -4,6 +4,7 @@ import { redirect } from "next/navigation";
 import { getStudio } from "@/lib/studio";
 import { createClient } from "@/lib/supabase/server";
 import { ru } from "@/lib/i18n/ru";
+import { supportEmail } from "@/lib/env";
 import SignOutButton from "./sign-out-button";
 
 export const dynamic = "force-dynamic";
@@ -24,18 +25,39 @@ export default async function DashboardLayout({ children }: { children: React.Re
 
   // DEC-044 (a): в срок удаления аккаунта кабинет только для чтения — об этом
   // говорит баннер на каждой странице, а не ошибки отдельных действий.
+  // DEC-045 (a): после срока кабинет закрыт целиком — вместо страниц экран
+  // «Аккаунт закрыт» с контактом поддержки.
   let retentionUntil: string | null = null;
+  let closedSince: string | null = null;
   try {
     const supabase = await createClient();
     const { data } = await supabase.rpc("get_account_retention_status");
     const retention = data as { status?: string; purgeAfter?: string } | null;
-    if (retention?.status === "requested" && retention.purgeAfter) {
-      retentionUntil = new Date(retention.purgeAfter).toLocaleDateString("ru-RU", {
-        day: "numeric", month: "long", year: "numeric",
-      });
-    }
+    const date = retention?.purgeAfter
+      ? new Date(retention.purgeAfter).toLocaleDateString("ru-RU", {
+          day: "numeric", month: "long", year: "numeric",
+        })
+      : null;
+    if (retention?.status === "expired" && date) closedSince = date;
+    else if (retention?.status === "requested" && date) retentionUntil = date;
   } catch {
     retentionUntil = null;
+  }
+
+  if (closedSince) {
+    return (
+      <div className="min-h-screen">
+        <main className="mx-auto max-w-xl px-6 py-16">
+          <h1 className="font-display text-2xl font-semibold">{ru.retention.closedTitle}</h1>
+          <p className="mt-4 text-sm leading-relaxed">{ru.retention.closedBody(closedSince)}</p>
+          <p className="mt-4 text-sm">
+            {ru.retention.closedSupport}{" "}
+            <a className="underline" href={`mailto:${supportEmail()}`}>{supportEmail()}</a>
+          </p>
+          <div className="mt-6"><SignOutButton /></div>
+        </main>
+      </div>
+    );
   }
 
   return (

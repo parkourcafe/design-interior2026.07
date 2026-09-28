@@ -22,6 +22,7 @@ const callers: Readonly<Record<string, string>> = {
   "lib/llm/recording.ts": "system-ai-recording",
   "app/api/integrations/telegram/webhook/route.ts": "system-telegram-webhook",
   "scripts/plan-account-purge.ts": "operator-account-purge-plan",
+  "scripts/account-retention-expiry.ts": "operator-account-retention-expiry",
   "lib/integration-gateway/runtime/worker-client.ts": "system-integration-worker",
   "lib/intake.ts": "public-intake-read",
   "lib/designer.ts": "public-designer-read",

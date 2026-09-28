@@ -404,6 +404,7 @@ describe("Layout Studio delivery/UI slice", () => {
       "20260928091000_projectceo_m3_room_handoff_readiness_read.sql",
       "20260928100000_account_retention_cases.sql",
       "20260928110000_remhaos_telegram_tg2.sql",
+      "20260928120000_account_retention_expiry.sql",
     ];
     const actual = readdirSync(join(repoRoot, "supabase/migrations"), { withFileTypes: true })
       // Предмет проверки — миграции, а не всё содержимое папки. Рядом с ними

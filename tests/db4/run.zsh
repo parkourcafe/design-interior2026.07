@@ -113,7 +113,8 @@ for sql in \
   "${repo_root}/tests/db4/79_m1_proposal_lifecycle_guard.sql" \
   "${repo_root}/tests/db4/80_package_capability_template_ledger.sql" \
   "${repo_root}/tests/db4/82_passport_approval_authority.sql" \
-  "${repo_root}/tests/db4/84_account_retention.sql"; do
+  "${repo_root}/tests/db4/84_account_retention.sql" \
+  "${repo_root}/tests/db4/86_account_retention_expiry.sql"; do
   print -r -- "Running ${sql:t}"
   run_file "${sql}"
 done

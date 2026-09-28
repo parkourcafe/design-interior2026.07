@@ -33,7 +33,9 @@ export default function DeleteAccount() {
     fetch("/api/account/retention")
       .then((response) => (response.ok ? response.json() : null))
       .then((body: { retention?: Retention | null } | null) => {
-        if (active && body?.retention?.status === "requested") setRetention(body.retention);
+        if (active && (body?.retention?.status === "requested" || body?.retention?.status === "expired")) {
+          setRetention(body.retention);
+        }
       })
       .catch(() => undefined);
     return () => {
