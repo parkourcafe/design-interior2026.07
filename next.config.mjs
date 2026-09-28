@@ -1,3 +1,28 @@
+// Канонический origin публичного сайта (ADR-0005: www.remhaos.com). Тот же
+// фолбэк, что у appUrl() в lib/env.ts; next.config не может импортировать TS.
+const CANONICAL_ORIGIN = (process.env.NEXT_PUBLIC_APP_URL || "https://www.remhaos.com").replace(/\/$/, "");
+
+// ADR-0005: старый домен должен перенаправлять на новый. Раньше arhidom.space
+// отдавал тот же контент с кодом 200 — дубль для поиска. 301 с сохранением
+// пути и query. Исключения — то, что ломается при смене origin:
+//   /api/*        — POST/JSON-клиенты (в т.ч. приложения), 301 превращает POST в GET;
+//   /auth/*       — magic-link/PKCE: cookie code verifier живёт на старом origin;
+//   /.well-known/* — AASA/assetlinks проверяются на каждом hostname отдельно.
+// Если NEXT_PUBLIC_APP_URL сам указывает на arhidom.space, правило не
+// создаётся — иначе получился бы редирект-цикл.
+export const LEGACY_HOST_PATTERN = "(?:www\\.)?arhidom\\.space";
+export function legacyHostRedirects(canonicalOrigin = CANONICAL_ORIGIN) {
+  if (/arhidom\.space/i.test(canonicalOrigin)) return [];
+  return [
+    {
+      source: "/:path((?!api/|api$|auth/|auth$|\\.well-known/).*)",
+      has: [{ type: "host", value: LEGACY_HOST_PATTERN }],
+      destination: `${canonicalOrigin}/:path`,
+      statusCode: 301,
+    },
+  ];
+}
+
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: true,
@@ -16,6 +41,9 @@ const nextConfig = {
         hostname: "d8j0ntlcm91z4.cloudfront.net",
       },
     ],
+  },
+  async redirects() {
+    return legacyHostRedirects();
   },
   async rewrites() {
     return [
