@@ -402,6 +402,7 @@ describe("Layout Studio delivery/UI slice", () => {
       "20260927090000_projectceo_passport_approval_authority.sql",
       "20260928090000_projectceo_m3_room_handoff_freshness.sql",
       "20260928091000_projectceo_m3_room_handoff_readiness_read.sql",
+      "20260928095900_pi_table_owner_public_create.sql",
       "20260928100000_account_retention_cases.sql",
       "20260928110000_remhaos_telegram_tg2.sql",
       "20260928120000_account_retention_expiry.sql",
@@ -411,6 +412,8 @@ describe("Layout Studio delivery/UI slice", () => {
       "20260928151000_intake_rate_limits_and_attachments.sql",
       "20260928152000_client_uploads_path_scope.sql",
       "20260928153000_market_routing_receipt_relogin.sql",
+      "20260928154000_pi_table_owner_public_create_revoke.sql",
+      "20260928155000_definer_functions_request_user.sql",
     ];
     const actual = readdirSync(join(repoRoot, "supabase/migrations"), { withFileTypes: true })
       // Предмет проверки — миграции, а не всё содержимое папки. Рядом с ними
