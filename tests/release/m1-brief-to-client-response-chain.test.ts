@@ -33,9 +33,13 @@ function row(table: "proposals" | "projects"): Row {
 
 function fakeClient() {
   return {
+    // account_retention_active (DEC-044) — на main не вызывается; синтетический
+    // дизайнер не в сроке удаления.
+    rpc: async () => ({ data: false, error: null }),
     schema: () => ({
       rpc: async () => ({
-        data: { requests: [{ subjectKind: "project_passport", subjectId: "project-1", status: "approved" }] },
+        // subjectRevisionCurrent — поле DEC-041 §3; на main оно не читается.
+        data: { requests: [{ subjectKind: "project_passport", subjectId: "project-1", status: "approved", subjectRevisionCurrent: true }] },
         error: null,
       }),
     }),
@@ -219,9 +223,10 @@ describe("M1 chain: a sent or accepted proposal is not rewritten behind the clie
   it.each(["sent", "accepted"] as const)("save and rebuild leave a %s proposal untouched", async (status) => {
     const original = [{ id: "price", title: "Стоимость", body: "от 100 000 до 120 000 ₽" }];
     seed(status, original);
-    expect(await saveProposal("project-1", [{ id: "price", title: "Стоимость", body: "от 1 ₽" }]))
-      .toEqual({ ok: false, reason: "sent" });
-    expect(await rebuildProposal("project-1")).toEqual({ ok: false, reason: "sent" });
+    // Проверяем отказ и неизменность текста, а не литерал причины: ветка
+    // DEC-044 называет её "not_draft".
+    expect((await saveProposal("project-1", [{ id: "price", title: "Стоимость", body: "от 1 ₽" }])).ok).toBe(false);
+    expect((await rebuildProposal("project-1")).ok).toBe(false);
     expect(row("proposals").sections).toEqual(original);
   });
 
