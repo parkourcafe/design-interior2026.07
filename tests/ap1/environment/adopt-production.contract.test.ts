@@ -124,6 +124,8 @@ describe("WP-13 historical production adoption contract", () => {
   });
 
   describe.skipIf(!zshAvailable || !dockerAvailable)("disposable execution failures", () => {
+    // A fresh runner pulls postgres:16-alpine first, and the script then waits
+    // up to 30 s for the container to accept connections.
     it("fails closed when the baseline SQL precondition rejects the catalog", () => {
       const ref = allowlist("rehearsal-local");
       try {
@@ -142,6 +144,6 @@ describe("WP-13 historical production adoption contract", () => {
       } finally {
         ref.dispose();
       }
-    });
+    }, 60_000);
   });
 });
