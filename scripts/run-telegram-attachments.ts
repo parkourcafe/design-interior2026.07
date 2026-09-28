@@ -14,7 +14,7 @@
 //   * очередь вложений и загрузка байтов в карантинное хранилище —
 //     `service_role` (системные двери моста, Storage);
 //   * записи file intake (`create_file_intake_worker` /
-//     `mark_file_intake_uploaded_worker`) — роль `pi_worker_executor` по ключу
+//     `mark_file_intake_uploaded_worker`) — узкая роль `pi_telegram_file_worker` по ключу
 //     `REMHAOS_FILE_INTAKE_WORKER_JWT`. Ключ выпускает владелец:
 //     docs/canonical/remhaos-v1/REMHAOS_FILE_INTAKE_WORKER_KEY_RUNBOOK.md. Без него — отказ до
 //     первого захвата, попытки не тратятся.

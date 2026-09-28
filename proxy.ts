@@ -43,6 +43,17 @@ export async function proxy(request: NextRequest) {
     return NextResponse.redirect(url);
   }
 
+  // DEC-045 (a): после срока удаления кабинет закрыт на каждом запросе,
+  // включая клиентские переходы, а не только при полной загрузке страницы.
+  if (isAuthenticated && request.nextUrl.pathname.startsWith("/dashboard")) {
+    const { data: retention } = await supabase.rpc("get_account_retention_status");
+    if ((retention as { status?: string } | null)?.status === "expired") {
+      const url = request.nextUrl.clone();
+      url.pathname = "/account-closed";
+      return NextResponse.redirect(url);
+    }
+  }
+
   return response;
 }
 

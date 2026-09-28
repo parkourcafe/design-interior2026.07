@@ -12,6 +12,7 @@ const state = vi.hoisted(() => ({
   tables: {} as Record<string, Record<string, unknown>[]>,
   filters: [] as string[],
   retentionStatus: null as { status: string } | null,
+  retentionError: null as { message: string } | null,
 }));
 
 vi.mock("@/lib/rate-limit", () => ({ checkRateLimit: async () => true, clientIp: () => "test" }));
@@ -49,7 +50,9 @@ vi.mock("@/lib/supabase/server", () => ({
       if (name === "export_passport_revisions") {
         return { data: [{ project_id: "project-1", revision_no: 1, passport: { contact: "x" } }], error: null };
       }
-      if (name === "get_account_retention_status") return { data: state.retentionStatus, error: null };
+      if (name === "get_account_retention_status") {
+        return { data: state.retentionError ? null : state.retentionStatus, error: state.retentionError };
+      }
       return { data: null, error: null };
     },
     from: (table: string) => {
@@ -82,6 +85,7 @@ beforeEach(() => {
   state.cancelError = null;
   state.filters = [];
   state.retentionStatus = null;
+  state.retentionError = null;
   state.tables = {
     projects: [{ id: "project-1", designer_id: "designer-1", intake_token: "secret-intake", client_name: "Клиент" }],
     proposals: [{ id: "proposal-1", project_id: "project-1", version: 1, public_token: "secret-link", status: "sent" }],
@@ -126,6 +130,13 @@ describe("full account export", () => {
     const response = await exportAccount();
     expect(response.status).toBe(403);
     expect(await response.json()).toMatchObject({ error: "account_closed" });
+    expect(state.filters).toEqual([]);
+  });
+
+  it("fails closed when the status cannot be read", async () => {
+    state.retentionError = { message: "connection reset" };
+    const response = await exportAccount();
+    expect(response.status).toBe(503);
     expect(state.filters).toEqual([]);
   });
 

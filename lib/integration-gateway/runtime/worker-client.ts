@@ -41,8 +41,9 @@ export function createIntegrationWorkerResources(
 }
 
 /**
- * DEC-045 (b): клиент воркеров file intake под ролью `pi_worker_executor`.
- * PostgREST переключается на роль из JWT (`role`); ключ выпускает владелец
+ * DEC-045 (b): клиент загрузчика вложений Telegram под узкой ролью
+ * `pi_telegram_file_worker` (только две двери file intake). PostgREST
+ * переключается на роль из JWT (`role`); ключ выпускает владелец
  * (docs/canonical/remhaos-v1/REMHAOS_FILE_INTAKE_WORKER_KEY_RUNBOOK.md). Ключ с другой ролью —
  * например, по ошибке положенный service role — отклоняется до первого вызова:
  * воркер не должен тихо работать с правами шире своих.
@@ -56,8 +57,14 @@ export function createFileIntakeWorkerClient(
   if (!url || !publicKey || !token) {
     throw new SecretStoreUnavailableError("file_intake_worker_key_required");
   }
-  if (fileIntakeWorkerRole(token) !== "pi_worker_executor") {
+  const claims = fileIntakeWorkerClaims(token);
+  if (claims?.role !== FILE_INTAKE_WORKER_ROLE) {
     throw new SecretStoreUnavailableError("file_intake_worker_key_wrong_role");
+  }
+  // Ключ без срока или с истёкшим сроком не принимается: иначе вложения
+  // брались бы в аренду процессом, которому API всё равно откажет.
+  if (typeof claims.exp !== "number" || claims.exp * 1000 <= Date.now()) {
+    throw new SecretStoreUnavailableError("file_intake_worker_key_expired");
   }
   return createClient(url, publicKey, {
     auth: { persistSession: false, autoRefreshToken: false },
@@ -65,13 +72,15 @@ export function createFileIntakeWorkerClient(
   }) as unknown as PostgresRpcClient;
 }
 
-/** Роль из JWT без проверки подписи (её проверяет PostgREST). */
-export function fileIntakeWorkerRole(token: string): string | null {
+export const FILE_INTAKE_WORKER_ROLE = "pi_telegram_file_worker";
+
+/** Поля JWT без проверки подписи (подпись проверяет PostgREST). */
+export function fileIntakeWorkerClaims(token: string): { role?: unknown; exp?: unknown } | null {
   const parts = token.split(".");
   if (parts.length !== 3 || !parts[1]) return null;
   try {
-    const payload = JSON.parse(Buffer.from(parts[1], "base64url").toString("utf8")) as { role?: unknown };
-    return typeof payload.role === "string" ? payload.role : null;
+    const payload = JSON.parse(Buffer.from(parts[1], "base64url").toString("utf8")) as unknown;
+    return payload && typeof payload === "object" ? payload as { role?: unknown; exp?: unknown } : null;
   } catch {
     return null;
   }

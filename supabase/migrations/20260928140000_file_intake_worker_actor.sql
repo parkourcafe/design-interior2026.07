@@ -1,7 +1,9 @@
 -- DEC-045 (c): точечная правка функций file intake эпохи R1. Автор системных
--- записей больше не всегда «импорт Google Drive»: он определяется по ключу
--- идемпотентности. Ключи загрузчика вложений Telegram начинаются с
--- `telegram-attachment:` (lib/integration-gateway/telegram/attachment-runner.ts).
+-- записей больше не всегда «импорт Google Drive»: он определяется по роли,
+-- под которой пришёл вызов. Загрузчик вложений Telegram работает под своей
+-- ролью `pi_telegram_file_worker` (20260928130000) — его записи подписаны
+-- `system:telegram-attachment-worker`. Автор берётся из личности, а не из
+-- того, что вызывающий сам написал в ключе: подписаться чужим именем нельзя.
 --
 -- Тела функций скопированы из 20260913053000_r1_external_materialization_isolation.sql
 -- БЕЗ изменений, кроме автора. Подпись, владелец, права (ACL сохраняется при
@@ -11,14 +13,17 @@
 begin;
 set local check_function_bodies = on;
 
-create function remhaos_integration._file_intake_worker_actor(p_idempotency_key text)
+-- `role` — роль сессии (SET ROLE / роль PostgREST из JWT). SECURITY DEFINER
+-- меняет current_user на владельца функции, но не этот параметр.
+create function remhaos_integration._file_intake_worker_actor()
 returns text
 language sql
-immutable
+stable
 set search_path = ''
 as $function$
   select case
-    when p_idempotency_key like 'telegram-attachment:%' then 'system:telegram-attachment-worker'
+    when pg_catalog.current_setting('role', true) = 'pi_telegram_file_worker'
+      then 'system:telegram-attachment-worker'
     else 'system:google-drive-import-worker'
   end
 $function$;
@@ -140,7 +145,7 @@ begin
     );
     return remhaos_integration._complete_command(
       v_organization_id, p_project_id, 'create_file_intake_worker', v_key_digest,
-      v_request_digest, 'system', remhaos_integration._file_intake_worker_actor(p_idempotency_key), null,
+      v_request_digest, 'system', remhaos_integration._file_intake_worker_actor(), null,
       v_result, 'file_intake_reused', 'file_intake_reused',
       jsonb_build_object('status', v_existing.status), null
     );
@@ -164,7 +169,7 @@ begin
   );
   perform remhaos_integration._record_file_intake_event(
     v_organization_id, p_project_id, v_intake_id, null, 'requested',
-    'file_intake_requested', 'system', remhaos_integration._file_intake_worker_actor(p_idempotency_key), null,
+    'file_intake_requested', 'system', remhaos_integration._file_intake_worker_actor(), null,
     jsonb_build_object('extension', v_extension, 'media_type', v_media_type, 'size_bytes', p_size_bytes)
   );
   v_result := jsonb_build_object(
@@ -188,7 +193,7 @@ begin
   );
   return remhaos_integration._complete_command(
     v_organization_id, p_project_id, 'create_file_intake_worker', v_key_digest,
-    v_request_digest, 'system', remhaos_integration._file_intake_worker_actor(p_idempotency_key), null,
+    v_request_digest, 'system', remhaos_integration._file_intake_worker_actor(), null,
     v_result, 'file_intake_requested', 'file_intake_requested',
     jsonb_build_object('intake_id', v_intake_id, 'status', 'requested'), null
   );
@@ -243,7 +248,7 @@ begin
       v_result := jsonb_build_object('intakeId', p_intake_id, 'status', v_intake.status);
       return remhaos_integration._complete_command(
         v_organization_id, p_project_id, 'mark_file_intake_uploaded_worker', v_key_digest,
-        v_request_digest, 'system', remhaos_integration._file_intake_worker_actor(p_idempotency_key), null,
+        v_request_digest, 'system', remhaos_integration._file_intake_worker_actor(), null,
         v_result, 'file_intake_upload_replayed', 'file_intake_upload_replayed', '{}', null
       );
     end if;
@@ -255,19 +260,19 @@ begin
   where organization_id = v_organization_id and project_id = p_project_id and intake_id = p_intake_id;
   perform remhaos_integration._record_file_intake_event(
     v_organization_id, p_project_id, p_intake_id, 'requested', 'uploaded_to_quarantine',
-    'file_uploaded_to_quarantine', 'system', remhaos_integration._file_intake_worker_actor(p_idempotency_key), null
+    'file_uploaded_to_quarantine', 'system', remhaos_integration._file_intake_worker_actor(), null
   );
   update remhaos_integration.file_intakes
   set status = 'scan_pending'
   where organization_id = v_organization_id and project_id = p_project_id and intake_id = p_intake_id;
   perform remhaos_integration._record_file_intake_event(
     v_organization_id, p_project_id, p_intake_id, 'uploaded_to_quarantine', 'scan_pending',
-    'file_scan_queued', 'system', remhaos_integration._file_intake_worker_actor(p_idempotency_key), null
+    'file_scan_queued', 'system', remhaos_integration._file_intake_worker_actor(), null
   );
   v_result := jsonb_build_object('intakeId', p_intake_id, 'status', 'scan_pending');
   return remhaos_integration._complete_command(
     v_organization_id, p_project_id, 'mark_file_intake_uploaded_worker', v_key_digest,
-    v_request_digest, 'system', remhaos_integration._file_intake_worker_actor(p_idempotency_key), null,
+    v_request_digest, 'system', remhaos_integration._file_intake_worker_actor(), null,
     v_result, 'file_intake_upload_accepted', 'file_intake_upload_accepted', '{}', null
   );
 end
@@ -293,8 +298,8 @@ begin
   select pg_catalog.pg_get_userbyid(p.proowner) into v_owner
   from pg_proc p join pg_namespace n on n.oid = p.pronamespace
   where n.nspname = 'remhaos_integration_api' and p.proname = 'create_file_intake_worker';
-  execute pg_catalog.format('alter function remhaos_integration._file_intake_worker_actor(text) owner to %I', v_owner);
-  revoke all on function remhaos_integration._file_intake_worker_actor(text)
+  execute pg_catalog.format('alter function remhaos_integration._file_intake_worker_actor() owner to %I', v_owner);
+  revoke all on function remhaos_integration._file_intake_worker_actor()
     from public, anon, authenticated, service_role, pi_human_executor, pi_worker_executor;
 end
 $dec045_helper$;

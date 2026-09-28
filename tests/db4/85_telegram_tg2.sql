@@ -418,7 +418,7 @@ select set_config('db4.tg2_doc_id', :'tg2_doc_id', false),
        set_config('db4.tg2_voice_lease', :'tg2_voice_lease', false);
 
 begin;
-set local role pi_worker_executor;
+set local role pi_telegram_file_worker;
 select (remhaos_integration_api.create_file_intake_worker(
   :'project_a'::uuid, 'telegram-db4-uniq-1.pdf', 'application/pdf', 'pdf', 16,
   'eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee',
@@ -432,7 +432,7 @@ select set_config('db4.tg2_intake_id', :'tg2_intake_id', false),
        set_config('db4.tg2_object_key', :'tg2_object_key', false);
 
 begin;
-set local role pi_worker_executor;
+set local role pi_telegram_file_worker;
 select remhaos_integration_api.mark_file_intake_uploaded_worker(
   :'project_a'::uuid, :'tg2_intake_id'::uuid, 'telegram-attachment:' || :'tg2_doc_id' || ':uploaded'
 );
@@ -521,21 +521,53 @@ begin
   if v_telegram_events <> 3 or v_other_events <> 0 or v_telegram_commands <> 2 then
     raise exception 'DB4_TG2_INTAKE_ACTOR:%:%:%', v_telegram_events, v_other_events, v_telegram_commands;
   end if;
-  if remhaos_integration._file_intake_worker_actor('dbig-worker-file-create') <> 'system:google-drive-import-worker'
-     or remhaos_integration._file_intake_worker_actor('telegram-attachment:x') <> 'system:telegram-attachment-worker' then
-    raise exception 'DB4_TG2_ACTOR_MAPPING';
-  end if;
-  if pg_catalog.has_function_privilege('service_role', 'remhaos_integration._file_intake_worker_actor(text)', 'EXECUTE')
-     or pg_catalog.has_function_privilege('pi_worker_executor', 'remhaos_integration._file_intake_worker_actor(text)', 'EXECUTE') then
+  if pg_catalog.has_function_privilege('service_role', 'remhaos_integration._file_intake_worker_actor()', 'EXECUTE')
+     or pg_catalog.has_function_privilege('pi_telegram_file_worker', 'remhaos_integration._file_intake_worker_actor()', 'EXECUTE') then
     raise exception 'DB4_TG2_ACTOR_HELPER_EXPOSED';
   end if;
-  -- DEC-045 (b): где есть логин-роль PostgREST, она может переключиться на воркера.
+  -- DEC-045 (b): узкая роль может только две двери file intake — не итог
+  -- проверки файла и не двери интеграций.
+  if pg_catalog.has_function_privilege('pi_telegram_file_worker',
+       'remhaos_integration_api.complete_file_intake_scan(uuid, uuid, text, text)', 'EXECUTE')
+     or pg_catalog.pg_has_role('pi_telegram_file_worker', 'pi_worker_executor', 'MEMBER')
+     or pg_catalog.has_table_privilege('pi_telegram_file_worker', 'remhaos_integration.file_intakes', 'SELECT') then
+    raise exception 'DB4_TG2_FILE_WORKER_TOO_WIDE';
+  end if;
   if exists (select 1 from pg_catalog.pg_roles where rolname = 'authenticator')
-     and not pg_catalog.pg_has_role('authenticator', 'pi_worker_executor', 'MEMBER') then
-    raise exception 'DB4_TG2_WORKER_IDENTITY_NOT_GRANTED';
+     and (not pg_catalog.pg_has_role('authenticator', 'pi_telegram_file_worker', 'MEMBER')
+          or pg_catalog.pg_has_role('authenticator', 'pi_worker_executor', 'MEMBER')) then
+    raise exception 'DB4_TG2_WORKER_IDENTITY_GRANT';
   end if;
 end
 $tg2_intake_actor$;
+
+-- Для Google Drive (роль pi_worker_executor) автор прежний — через настоящую
+-- функцию, а не через помощника.
+begin;
+set local role pi_worker_executor;
+select (remhaos_integration_api.create_file_intake_worker(
+  :'project_a'::uuid, 'drive-db4-85.pdf', 'application/pdf', 'pdf', 17,
+  'dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd85',
+  'document', 'telegram-attachment:forged-by-drive'
+) -> 'result' ->> 'intakeId') as tg2_drive_intake \gset
+commit;
+select set_config('db4.tg2_drive_intake', :'tg2_drive_intake', false);
+
+do $tg2_drive_actor$
+begin
+  -- Ключ «под Telegram» не делает автора Telegram: автор — из роли.
+  if exists (
+    select 1 from remhaos_integration.file_intake_events e
+    where e.intake_id = current_setting('db4.tg2_drive_intake')::uuid
+      and e.actor_id <> 'system:google-drive-import-worker'
+  ) or not exists (
+    select 1 from remhaos_integration.file_intake_events e
+    where e.intake_id = current_setting('db4.tg2_drive_intake')::uuid
+  ) then
+    raise exception 'DB4_TG2_DRIVE_ACTOR_CHANGED';
+  end if;
+end
+$tg2_drive_actor$;
 
 -- ─────────────────────────────────────────────────────────────────────────────
 -- 7. Аренда: исчерпанные попытки и возврат без списания (ревью TG2)

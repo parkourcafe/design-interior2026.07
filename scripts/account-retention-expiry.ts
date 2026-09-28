@@ -2,7 +2,7 @@
 // Ничего не удаляет. Запуск:
 //   npx tsx scripts/account-retention-expiry.ts sweep
 //   npx tsx scripts/account-retention-expiry.ts list
-//   npx tsx scripts/account-retention-expiry.ts restore <designer-uuid> "<причина>"
+//   npx tsx scripts/account-retention-expiry.ts restore <designer-uuid> "<причина>" "<оператор>"
 // `sweep` переводит заявки с истёкшим сроком в `expired` (с журналом);
 // `restore` — восстановление по просьбе дизайнера, только после срока.
 import { createScopedServiceClient } from "@/lib/supabase/token-scoped";
@@ -10,20 +10,21 @@ import { createScopedServiceClient } from "@/lib/supabase/token-scoped";
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 
 async function main() {
-  const [command, designerId, reason] = process.argv.slice(2);
+  const [command, designerId, reason, operator] = process.argv.slice(2);
   const client = createScopedServiceClient("operator-account-retention-expiry");
   let result;
   if (command === "sweep") {
     result = await client.rpc("sweep_account_retention_expiry");
   } else if (command === "list") {
     result = await client.rpc("list_expired_account_retention_cases");
-  } else if (command === "restore" && UUID.test(designerId ?? "") && reason?.trim()) {
+  } else if (command === "restore" && UUID.test(designerId ?? "") && reason?.trim() && operator?.trim()) {
     result = await client.rpc("restore_account_retention_case", {
       p_designer_id: designerId,
       p_reason: reason.trim(),
+      p_operator: operator.trim(),
     });
   } else {
-    throw new Error("usage: account-retention-expiry sweep | list | restore <designer-uuid> <reason>");
+    throw new Error("usage: account-retention-expiry sweep | list | restore <designer-uuid> <reason> <operator>");
   }
   if (result.error) throw new Error(result.error.message);
   process.stdout.write(`${JSON.stringify(result.data, null, 2)}\n`);

@@ -50,7 +50,7 @@ begin
   foreach v_signature in array array[
     'public.sweep_account_retention_expiry()',
     'public.list_expired_account_retention_cases()',
-    'public.restore_account_retention_case(uuid,text)'
+    'public.restore_account_retention_case(uuid,text,text)'
   ] loop
     if pg_catalog.has_function_privilege('authenticated', v_signature, 'EXECUTE')
        or pg_catalog.has_function_privilege('anon', v_signature, 'EXECUTE')
@@ -157,10 +157,10 @@ $no_reopen$;
 -- === 3. Восстановление: только оператор, только с причиной =================
 
 select pg_temp.expect_error('authenticated', '31111111-1111-4111-8111-111111111111',
-  $sql$ select public.restore_account_retention_case('31111111-1111-4111-8111-111111111111', 'сам') $sql$,
+  $sql$ select public.restore_account_retention_case('31111111-1111-4111-8111-111111111111', 'сам', 'сам') $sql$,
   '42501', 'permission denied', 'designer_restore');
 select pg_temp.expect_error('service_role', null,
-  $sql$ select public.restore_account_retention_case('31111111-1111-4111-8111-111111111111', ' ') $sql$,
+  $sql$ select public.restore_account_retention_case('31111111-1111-4111-8111-111111111111', ' ', 'ops') $sql$,
   '22023', 'ACCOUNT_RETENTION_REASON_REQUIRED', 'restore_without_reason');
 
 do $restore$
@@ -170,7 +170,12 @@ begin
   -- Legal hold восстановлению не мешает: данные сохраняются.
   v_result := pg_temp.call_as('service_role', null,
     $sql$ select public.restore_account_retention_case('31111111-1111-4111-8111-111111111111',
-      'Дизайнер вернулся, письмо от 28.09') $sql$);
+      'Дизайнер вернулся, письмо от 28.09', 'ops@remhaos.example') $sql$);
+  if (select detail->>'operator' from public.account_retention_events
+      where case_id = current_setting('db4.t86_case')::uuid and event_type = 'restored')
+     is distinct from 'ops@remhaos.example' then
+    raise exception 'DB4_86_RESTORE_OPERATOR_NOT_RECORDED';
+  end if;
   if v_result->>'status' <> 'cancelled' or (v_result->>'closed')::boolean then
     raise exception 'DB4_86_RESTORE:%', v_result;
   end if;
@@ -201,7 +206,7 @@ begin
 end
 $fresh$;
 select pg_temp.expect_error('service_role', null,
-  $sql$ select public.restore_account_retention_case('31111111-1111-4111-8111-111111111111', 'рано') $sql$,
+  $sql$ select public.restore_account_retention_case('31111111-1111-4111-8111-111111111111', 'рано', 'ops') $sql$,
   '42501', 'ACCOUNT_RETENTION_WINDOW_OPEN', 'restore_in_window');
 
 rollback;

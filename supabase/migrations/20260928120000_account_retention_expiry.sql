@@ -253,7 +253,9 @@ $function$;
 
 -- Восстановление по просьбе дизайнера: данные сохраняются, вход открывается.
 -- Legal hold не мешает — он запрещает удаление, а не сохранение.
-create function public.restore_account_retention_case(p_designer_id uuid, p_reason text)
+-- p_operator — кто восстановил (имя или почта оператора): service_role общий,
+-- и без этого журнал не ответил бы, кто принял решение.
+create function public.restore_account_retention_case(p_designer_id uuid, p_reason text, p_operator text)
 returns jsonb
 language plpgsql
 volatile
@@ -265,6 +267,9 @@ declare
 begin
   if p_reason is null or char_length(btrim(p_reason)) not between 1 and 500 then
     raise exception using errcode = '22023', message = 'ACCOUNT_RETENTION_REASON_REQUIRED';
+  end if;
+  if p_operator is null or char_length(btrim(p_operator)) not between 1 and 200 then
+    raise exception using errcode = '22023', message = 'ACCOUNT_RETENTION_OPERATOR_REQUIRED';
   end if;
   perform pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtextextended('account-retention:' || p_designer_id::text, 0));
   v_case := public._active_retention_case(p_designer_id);
@@ -279,8 +284,9 @@ begin
   set status = 'cancelled', cancelled_at = statement_timestamp()
   where case_id = v_case.case_id
   returning * into v_case;
-  insert into public.account_retention_events (case_id, event_type, actor, reason)
-  values (v_case.case_id, 'restored', 'operator', btrim(p_reason));
+  insert into public.account_retention_events (case_id, event_type, actor, reason, detail)
+  values (v_case.case_id, 'restored', 'operator', btrim(p_reason),
+    jsonb_build_object('operator', btrim(p_operator)));
   return public._retention_status_json(v_case);
 end
 $function$;
@@ -293,7 +299,7 @@ begin
     'public._retention_case_expired(public.account_retention_cases)',
     'public.sweep_account_retention_expiry()',
     'public.list_expired_account_retention_cases()',
-    'public.restore_account_retention_case(uuid, text)'
+    'public.restore_account_retention_case(uuid, text, text)'
   ] loop
     execute pg_catalog.format('alter function %s owner to pi_table_owner', v_signature);
     execute pg_catalog.format(
@@ -305,6 +311,6 @@ $grants$;
 
 grant execute on function public.sweep_account_retention_expiry() to service_role;
 grant execute on function public.list_expired_account_retention_cases() to service_role;
-grant execute on function public.restore_account_retention_case(uuid, text) to service_role;
+grant execute on function public.restore_account_retention_case(uuid, text, text) to service_role;
 
 commit;
