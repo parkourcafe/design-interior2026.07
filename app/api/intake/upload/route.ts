@@ -6,6 +6,7 @@ import { checkRateLimit, clientIp } from "@/lib/rate-limit";
 import {
   CLIENT_UPLOAD_MAX_BYTES,
   CLIENT_UPLOAD_MAX_FILES,
+  clientFileDisplayName,
   safeClientFileName,
   sniffClientUpload,
 } from "@/lib/brief/client-upload-policy";
@@ -63,8 +64,8 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "too_many_files" }, { status: 409 });
   }
 
-  const name = safeClientFileName(file.name, kind.extension);
-  const path = `${project.id}/${Date.now()}-${name}`;
+  const path = `${project.id}/${Date.now()}-${safeClientFileName(file.name, kind.extension)}`;
+  const name = clientFileDisplayName(file.name);
   let uploaded = false;
   try {
     const { error: uploadError } = await admin.storage

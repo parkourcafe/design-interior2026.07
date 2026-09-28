@@ -7,7 +7,11 @@ type CookieToSet = { name: string; value: string; options?: CookieOptions };
 
 export function createRegionalBrowserClient(cellCode: DataCellId) {
   const config = regionalSupabaseConfig(cellCode);
+  // Не общий клиент страницы: @supabase/ssr по умолчанию отдаёт в браузере
+  // первый созданный клиент и игнорирует адрес и куку следующих вызовов —
+  // вход в US-контур мог получить уже созданный RU-клиент.
   return createBrowserClient(config.url, config.publishableKey, {
+    isSingleton: false,
     cookieOptions: { name: config.cookieName },
   });
 }

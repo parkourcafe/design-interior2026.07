@@ -236,7 +236,6 @@ describe("intake submit validates consent and answers on the server", () => {
     ["designer_plan_attachments", [{ path: "designer-plans/other/plan.pdf" }]],
     ["designer_plan_assist", { text: "x" }],
     ["not_a_question", "x"],
-    ["custom_7", "x"],
   ])("rejects the service or unknown key %s without writing", async (key, value) => {
     const response = await submit(submitRequest({ ...validAnswers, [key]: value }));
     expect(response.status).toBe(400);
@@ -257,7 +256,7 @@ describe("intake submit validates consent and answers on the server", () => {
   });
 
   it("rejects an oversized body before parsing", async () => {
-    const response = await submit(submitRequest({ ...validAnswers, pain: "x".repeat(70 * 1024) }));
+    const response = await submit(submitRequest({ ...validAnswers, pain: "x".repeat(300 * 1024) }));
     expect(response.status).toBe(413);
     expect(state.operations).toEqual([]);
   });

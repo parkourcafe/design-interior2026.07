@@ -50,7 +50,7 @@ vi.mock("@/lib/supabase/regional-admin", () => ({
 }));
 
 import { POST as upload } from "../../app/api/intake/upload/route";
-import { safeClientFileName, sniffClientUpload } from "../../lib/brief/client-upload-policy";
+import { clientFileDisplayName, safeClientFileName, sniffClientUpload } from "../../lib/brief/client-upload-policy";
 
 const PDF = "%PDF-1.7 synthetic";
 const PNG = new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 1, 2, 3]);
@@ -80,7 +80,13 @@ describe("client upload policy", () => {
   });
 
   it("strips paths and control characters from the file name", () => {
-    expect(safeClientFileName("../../other-project/план кухни.PDF", "pdf")).toBe("other-project_план_кухни.pdf");
+    // Ключ хранилища — только ASCII: Supabase Storage отвергает кириллицу
+    // (проверено на стенде 28.09: «План.png» → 500 до исправления).
+    expect(safeClientFileName("../../other-project/план кухни.PDF", "pdf")).toBe("other-project_plan_kuhni.pdf");
+    expect(safeClientFileName("План Ёлки.png", "png")).toBe("Plan_Elki.png");
+    expect(safeClientFileName("日本.webp", "webp")).toBe("file.webp");
+    expect(clientFileDisplayName("C:\\Users\\a\\План квартиры.pdf")).toBe("План квартиры.pdf");
+    expect(clientFileDisplayName("../../x\u0000y.png")).toBe("xy.png");
     expect(safeClientFileName("", "png")).toBe("file.png");
   });
 });
@@ -103,7 +109,7 @@ describe("intake upload route limits", () => {
   });
 
   it("rejects an oversized file before storing it", async () => {
-    const big = new Uint8Array(15 * 1024 * 1024 + 1);
+    const big = new Uint8Array(4 * 1024 * 1024 + 1);
     big.set(new TextEncoder().encode(PDF));
     const response = await upload(uploadRequest(new File([big], "big.pdf")));
     expect(response.status).toBe(413);

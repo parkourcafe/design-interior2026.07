@@ -9,18 +9,32 @@ import type { AnswersMap } from "@/lib/types";
 //   * id вопросов из QUESTIONS (кроме файлов — их пишет маршрут загрузки);
 //   * свои вопросы дизайнера custom_0..custom_{n-1} этого проекта;
 //   * comments — комментарии к этим вопросам.
-// Служебные ключи (attachments, designer_*) и любые другие отклоняются: через
-// них подменялись вложения, а политика хранилища выдавала файлы по путям из
-// ответов.
+// Отказ (400) — только за служебные и незнакомые ключи (attachments, designer_*
+// и т.п.): через них подменялись вложения, а политика хранилища выдавала файлы
+// по путям из ответов. Всё, что может прийти от настоящего клиента, не
+// отклоняется, а приводится в порядок, иначе черновик брифа в браузере клиента
+// навсегда перестаёт отправляться:
+//   * слишком длинный текст обрезается до лимита;
+//   * пустые ячейки референсов (мастер пишет их по индексу) убираются;
+//   * ответы и комментарии к своим вопросам, которые дизайнер уже удалил или
+//     изменил, пока клиент заполнял бриф, тихо отбрасываются.
 
-export const MAX_SUBMIT_BODY_BYTES = 64 * 1024;
+export const MAX_SUBMIT_BODY_BYTES = 256 * 1024;
 const TEXT_MAX = 4000;
 const SHORT_MAX = 200;
 const COMMENT_MAX = 2000;
+const CUSTOM_ID = /^custom_\d{1,3}$/;
 
-const shortText = z.string().max(SHORT_MAX);
+const text = (max: number) => z.string().transform((value) => value.slice(0, max));
+const shortText = text(SHORT_MAX);
 const optionalFiniteNumber = (min: number, max: number) =>
   z.number().finite().min(min).max(max).optional();
+// Мастер пишет референсы по индексу: пропущенная ячейка приходит как null.
+const textList = (max: number, items: number) =>
+  z.array(z.string().nullable()).transform((list) =>
+    list.filter((item): item is string => typeof item === "string" && item.trim() !== "")
+      .slice(0, items)
+      .map((item) => item.slice(0, max)));
 
 const objectSchema = z.object({
   type: z.enum(["flat", "house", "apartments"]).optional(),
@@ -39,15 +53,15 @@ const budgetSchema = z.object({
 }).strict();
 
 const styleSchema = z.object({
-  refs: z.array(z.string().max(1000)).max(20).optional(),
-  anti: z.array(z.string().max(SHORT_MAX)).max(50).optional(),
-  notes: z.string().max(TEXT_MAX).optional(),
+  refs: textList(1000, 20).optional(),
+  anti: textList(SHORT_MAX, 50).optional(),
+  notes: text(TEXT_MAX).optional(),
 }).strict();
 
 const contactSchema = z.object({
   name: shortText.optional(),
-  phone: z.string().max(50).optional(),
-  email: z.string().max(SHORT_MAX).optional(),
+  phone: text(50).optional(),
+  email: shortText.optional(),
   consent: z.boolean().optional(),
 }).strict();
 
@@ -63,14 +77,15 @@ function schemaFor(question: Question): z.ZodTypeAny | null {
     case "contact":
       return contactSchema;
     case "text":
-      return z.string().max(TEXT_MAX);
+      return text(TEXT_MAX);
     case "number":
-      return z.number().finite().min(0).max(1_000_000);
+      return z.number().finite().min(0).max(1_000_000_000_000);
     case "choice":
       return values.length > 0 ? z.string().refine((value) => values.includes(value)) : shortText;
     case "multi":
       return values.length > 0
-        ? z.array(z.string().refine((value) => values.includes(value))).max(values.length)
+        ? z.array(z.string()).transform((list) => [...new Set(list.filter((value) => values.includes(value)))])
+            .refine((list) => list.length > 0)
         : z.array(shortText).max(50);
     case "files":
       return null;
@@ -101,18 +116,31 @@ export function validateSubmittedAnswers(
   for (const [key, value] of Object.entries(raw as Record<string, unknown>)) {
     if (value === null || value === undefined) continue;
     if (key === "comments") {
-      const comments = z.record(z.string().max(COMMENT_MAX)).safeParse(value);
-      if (!comments.success || Object.keys(comments.data).some((id) => !allowed.has(id))) {
-        return { ok: false, error: "invalid_answers", field: "comments" };
+      // Комментарии — только строки к существующим вопросам; устаревшие
+      // (вопрос дизайнера удалён) отбрасываются.
+      if (typeof value !== "object" || Array.isArray(value)) continue;
+      const comments: Record<string, string> = {};
+      for (const [id, comment] of Object.entries(value as Record<string, unknown>)) {
+        if (allowed.has(id) && typeof comment === "string" && comment.trim() !== "") {
+          comments[id] = comment.slice(0, COMMENT_MAX);
+        }
       }
-      answers.comments = comments.data as AnswersMap[string];
+      if (Object.keys(comments).length > 0) answers.comments = comments as AnswersMap[string];
       continue;
     }
     const question = allowed.get(key);
     const schema = question ? schemaFor(question) : null;
-    if (!schema) return { ok: false, error: "invalid_answers", field: key };
+    if (!schema) {
+      // Свой вопрос, которого у проекта уже нет, — устаревший черновик клиента.
+      if (CUSTOM_ID.test(key)) continue;
+      return { ok: false, error: "invalid_answers", field: key };
+    }
     const parsed = schema.safeParse(value);
-    if (!parsed.success) return { ok: false, error: "invalid_answers", field: key };
+    if (!parsed.success) {
+      // Дизайнер поменял тип или варианты своего вопроса — ответ устарел.
+      if (CUSTOM_ID.test(key)) continue;
+      return { ok: false, error: "invalid_answers", field: key };
+    }
     answers[key] = parsed.data as AnswersMap[string];
   }
 

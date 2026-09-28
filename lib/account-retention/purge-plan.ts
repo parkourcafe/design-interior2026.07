@@ -29,6 +29,10 @@ export interface AccountPurgePlan {
     readonly projectRooms: number;
     readonly contractDocuments: number;
     readonly passportRevisions: number;
+    // Записи согласия на обработку ПДн (20260928150000): append-only, держат
+    // проект (on delete restrict). Правило их хранения после удаления аккаунта —
+    // решение владельца и юриста; до него реальное удаление проекта невозможно.
+    readonly intakeConsentRecords: number;
     readonly storagePrefixes: readonly string[];
   };
 }
@@ -52,8 +56,9 @@ export async function planAccountPurge(client: PurgePlanClient, designerId: stri
     if (result.error) throw new Error(`account_purge_count_failed:${table}`);
     return result.count ?? 0;
   };
-  const [proposals, answers, riskCards, projectRooms, contractDocuments] = await Promise.all([
+  const [proposals, answers, riskCards, projectRooms, contractDocuments, intakeConsentRecords] = await Promise.all([
     count("proposals"), count("answers"), count("risk_cards"), count("project_rooms"), count("contract_documents"),
+    count("intake_consent_records"),
   ]);
   const revisions = await client.rpc("count_passport_revisions", { p_project_ids: projectIds });
   if (revisions.error) throw new Error("account_purge_revisions_failed");
@@ -73,6 +78,7 @@ export async function planAccountPurge(client: PurgePlanClient, designerId: stri
       projectRooms,
       contractDocuments,
       passportRevisions: Number(revisions.data ?? 0),
+      intakeConsentRecords,
       storagePrefixes: projectIds.flatMap((id) => [`client-uploads/${id}/`, `client-uploads/designer-plans/${id}/`]),
     },
   };

@@ -14,6 +14,8 @@ export function createClient() {
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     (process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY ||
       process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY)!,
-    cookieName ? { cookieOptions: { name: cookieName } } : undefined,
+    // Не общий клиент страницы: иначе имя куки из первого вызова на странице
+    // (например, до входа) побеждает текущее.
+    { isSingleton: false, ...(cookieName ? { cookieOptions: { name: cookieName } } : {}) },
   );
 }
