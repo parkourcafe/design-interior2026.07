@@ -5,9 +5,15 @@
 #
 # Что переносится (порядок важен — внешние ключи):
 #   auth.users, auth.identities   — входы; хеши паролей переносятся как есть,
-#                                   старые пароли работают; сессии — нет
-#                                   (все входят заново);
+#                                   старые пароли работают. НЕ переносятся
+#                                   сессии и refresh-токены (все входят заново),
+#                                   а также факторы MFA и одноразовые коды
+#                                   (в рабочей базе MFA не включён);
 #   designers, projects, answers, risk_cards, proposals, events.
+# Ссылки на бриф: intake_expires_at в старой схеме нет, в новой NULL = «без
+# срока», поэтому все старые ссылки /i/… остаются рабочими — осознанно, чтобы
+# клиенты, заполняющие бриф, не потеряли доступ.
+#
 # Что НЕ переносится (остаётся в старой базе как архив): таблицы прежнего
 # M1-runtime (ai_calls, approval_requests, audit_events, project_facts,
 # project_sources, workflow_*), proposal_revisions (в новой схеме такой
@@ -62,6 +68,45 @@ filled=$(tgt -c "select (select count(*) from auth.users) + (select count(*) fro
   + (select count(*) from public.projects)")
 [[ "$filled" == "0" ]] || { print -r -- "ОТКАЗ: приёмник не пуст ($filled строк) — перенос только в пустую базу"; exit 1; }
 
+print -r -- "== Предварительная проверка: ограничения приёмника на данных источника"
+# Одна плохая строка сорвала бы всю транзакцию записи уже после выгрузки.
+# Поэтому каждое ограничение приёмника (CHECK, внешний ключ, уникальность)
+# на переносимых таблицах заранее проверяется на источнике. Ограничение,
+# ссылающееся на столбец, которого в источнике нет, пропускается: такой
+# столбец придёт значением по умолчанию.
+pre_fail=0
+for table in $TABLES; do
+  schema=${table%%.*}; name=${table#*.}
+  tgt -c "select c.contype::text || E'\t' || c.conname || E'\t' || pg_catalog.pg_get_constraintdef(c.oid)
+    from pg_catalog.pg_constraint c
+    where c.conrelid = '$table'::regclass and c.contype in ('c', 'f', 'u')
+    order by c.conname" | while IFS=$'\t' read -r ctype cname cdef; do
+    [[ -n "$ctype" ]] || continue
+    case $ctype in
+      c) query="select count(*) from $table where not (${cdef#CHECK })" ;;
+      f) cols=$(print -r -- "$cdef" | sed -E 's/^FOREIGN KEY \(([^)]*)\) REFERENCES ([^(]*)\(([^)]*)\).*/\1/')
+         ref=$(print -r -- "$cdef" | sed -E 's/^FOREIGN KEY \(([^)]*)\) REFERENCES ([^(]*)\(([^)]*)\).*/\2/')
+         refcols=$(print -r -- "$cdef" | sed -E 's/^FOREIGN KEY \(([^)]*)\) REFERENCES ([^(]*)\(([^)]*)\).*/\3/')
+         [[ "$ref" == *.* ]] || ref="$schema.$ref"
+         query="select count(*) from $table where ($cols) is not null and ($cols) not in (select $refcols from $ref)" ;;
+      u) cols=$(print -r -- "$cdef" | sed -E 's/^UNIQUE \(([^)]*)\).*/\1/')
+         # Как и сама база: строки с NULL в уникальных столбцах не считаются дублями.
+         notnull=$(print -r -- "$cols" | sed -E 's/ *, */ is not null and /g')
+         query="select count(*) from (select 1 from $table where $notnull is not null group by $cols having count(*) > 1) d" ;;
+    esac
+    bad=$(src -c "$query" 2>/dev/null) || { print -r -- "  пропущено $table $cname (столбца нет в источнике)"; continue; }
+    if [[ "$bad" != "0" ]]; then
+      print -r -- "  FAIL $table $cname: $bad строк нарушают ограничение приёмника"; pre_fail=1
+    fi
+  done
+done 2>&1 | tee "$WORK/preflight.log"
+if grep -q "FAIL" "$WORK/preflight.log"; then
+  print -r -- "ОТКАЗ: исправьте перечисленные строки в источнике (или исключите их) и повторите"; exit 1
+fi
+print -r -- "  ограничения приёмника: нарушений нет"
+files_expected=$(src -c "select count(*) from storage.objects where bucket_id = 'client-uploads' and name not like '%/'")
+print -r -- "  файлов client-uploads в источнике: $files_expected (передайте в transfer-files.mjs как EXPECTED_FILE_COUNT)"
+
 print -r -- "== Выгрузка из источника (только чтение)"
 load_sql="$WORK/load.sql"
 : > "$load_sql"
@@ -74,10 +119,16 @@ for table in $TABLES; do
     where table_schema = '$schema' and table_name = '$name' and is_generated = 'NEVER'")
   cols=$(print -r -- "$src_cols" | tr ',' '\n' | grep -Fxf <(print -r -- "$tgt_cols" | tr ',' '\n') | sed 's/.*/"&"/' | paste -sd, - || true)
   [[ -n "$cols" ]] || { print -r -- "ОТКАЗ: нет общих столбцов для $table"; exit 1; }
-  src -c "\\copy (select $cols from $table) to '$WORK/$name.csv' with (format csv, header true)"
-  rows=$(src -c "select count(*) from $table")
+  # Выгрузка и подсчёт — в одной транзакции REPEATABLE READ: даже если старый
+  # сайт ещё пишет, сверка идёт по тому же снимку, что и выгрузка.
+  src <<SQL
+begin isolation level repeatable read read only;
+\\copy (select $cols from $table) to '$WORK/$name.csv' with (format csv, header true)
+\\copy (select count(*) from $table) to '$WORK/$name.count'
+commit;
+SQL
+  rows=$(< "$WORK/$name.count")
   print -r -- "  $table: $rows строк"
-  print -r -- "$rows" > "$WORK/$name.count"
   print -r -- "\\copy $table ($cols) from '$WORK/$name.csv' with (format csv, header true)" >> "$load_sql"
 done
 

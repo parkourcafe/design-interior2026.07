@@ -11,6 +11,7 @@
 // Запуск (ключи service role не печатаются):
 //   SOURCE_SUPABASE_URL=… SOURCE_SERVICE_ROLE_KEY=… \
 //   TARGET_SUPABASE_URL=… TARGET_SERVICE_ROLE_KEY=… \
+//   EXPECTED_FILE_COUNT=<число из вывода transfer.zsh> \
 //     node scripts/cutover/transfer-files.mjs
 
 const BUCKET = "client-uploads";
@@ -46,11 +47,19 @@ async function list(side, prefix) {
       if (entry.id === null) files.push(...(await list(side, path))); // папка
       else files.push({ path, size: Number(entry.metadata?.size ?? 0), type: entry.metadata?.mimetype });
     }
-    if (page.length < 1000) return files;
+    // До пустой страницы, а не «меньше лимита»: сервер может отдавать меньше
+    // 1000 записей за раз, и короткая первая страница не значит конец.
+    if (page.length === 0) return files;
   }
 }
 
 const sourceFiles = await list(source, "");
+// Сверка с базой: transfer.zsh печатает число файлов в storage.objects источника.
+const expected = process.env.EXPECTED_FILE_COUNT?.trim();
+if (expected !== undefined && expected !== "" && Number(expected) !== sourceFiles.length) {
+  console.error(`список Storage API (${sourceFiles.length}) не совпадает с базой (${expected})`);
+  process.exit(1);
+}
 const targetSizes = new Map((await list(target, "")).map((file) => [file.path, file.size]));
 console.log(`== файлов в источнике: ${sourceFiles.length}`);
 
