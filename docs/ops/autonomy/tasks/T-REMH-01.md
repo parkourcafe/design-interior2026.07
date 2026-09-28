@@ -212,3 +212,72 @@ GitHub CI не запускался: B6.
 1. Владельцу: решить B5, B6, B7. Пройти чек-лист `docs/ops/autonomy/demo/M1_LOCAL_DEMO.md` §B и прислать ✓/✗ по пунктам.
 2. Исполнителю, следующий запуск: R4 — посевы для российского пилота из `docs/positioning` и research. Ничего не публиковать.
 3. После слияния phase-0: убрать из #210 дублирующий фикс (B7) и перепрогнать `npm run test`.
+
+## 10. Запуск 3 — 28.09.2026 (R2 + R4)
+
+База: `origin/main` = `737795d`; ветка до запуска — `d0f8b24`. Файлы `proposal/actions.ts` и `editor.tsx` не трогались (B7).
+
+### 10.1 Статус
+
+| # | Задача | Статус |
+|---|---|---|
+| R2 | M1 → M2 | Без изменений: API + БД — TESTED_LOCAL (§6). Вход из UI — BLOCKED_DECISION (B3/B5). Новых тестов нет: реализованной TS-связи «паспорт M1 → данные M2» в коде нет, тестировать нечего |
+| R2 | M2 → M3 одним прогоном | **TESTED_LOCAL**: новый `tests/release/m2-m3-transition-chain.test.ts`, 6 тестов |
+| R2 | M3 → M4 | Без изменений: TESTED_LOCAL на уровне БД (§6) и прогона Kora (`tests/projectceo-e2e/kora-pilot.e2e.test.ts`, в общем наборе зелёный). Дублирующий тест не писал |
+| R4 | Посевы | DONE_CODE (документ): `docs/ops/autonomy/seeding/REMHAOS_SEEDING_2026-09-28.md`. Ничего не отправлено. Площадки — BLOCKED_DECISION D1 |
+
+### 10.2 Изменённые файлы
+
+- `tests/release/m2-m3-transition-chain.test.ts` — новый.
+- `docs/ops/autonomy/seeding/REMHAOS_SEEDING_2026-09-28.md` — новый.
+- `docs/ops/autonomy/tasks/T-REMH-01.md` — этот раздел.
+
+### 10.3 R2 · что проверяет новый тест
+
+Выход каждого звена — вход следующего: `createRoomDesignIntent` → `createDesignIntentBudget` → `createM2ApprovalSubmission` → `reviewM2ApprovalSubmission` (клиент ≠ дизайнер) → `createApprovedM2Commit` → `createM2ToM3Handoff` → `registerDocumentationSheet` → `reviewPackageCompleteness`. Данные синтетические (комната, 3 варианта × 2 позиции, цены назначены в тесте).
+
+1. Прямой путь: набор выборов, подпись планировки, ревизия намерения и сумма (222 000 ₽, целое) доходят до `sheet.origin` без подмены. Пакет полный.
+2. `change_requested` клиента: `M2_COMMIT_NOT_APPROVED` в M2 и `M2_M3_COMMIT_NOT_APPROVED` на входе M3.
+3. Цена позиции изменилась после согласования → `M2_COMMIT_STALE_BUDGET`.
+4. Цены старше 30 дней на момент подачи → `M2_APPROVAL_MISSING_PRICE`.
+5. Планировка не опубликована → `M2_M3_EXACT_LAYOUT_NOT_FOUND`; подпись подменена → `M2_M3_LAYOUT_MISMATCH`.
+6. Лист ссылается на выбор другого варианта → `DOCUMENTATION_SHEET_SPECIFICATION_NOT_APPROVED`; неполный лист → `SPECIFICATION_NOT_COVERED`; лист из чужого утверждения → `SHEET_FROM_OTHER_APPROVAL`.
+
+Проверка, что тест ловит поломку: из `createM2ToM3Handoff` временно убраны проверка статуса и сверка подписи → 2 из 6 тестов упали; код восстановлен (в диффе его нет).
+
+Находки [факт]:
+- `createApprovedM2Commit` и `createM2ToM3Handoff` не вызываются нигде в `app/`, `components/`, `lib/` вне своих модулей. В продукте переход M2 → M3 делает SQL (`publish_m2_m3_handoff`, `supabase/migrations/20260802090000_projectceo_m2_client_review_m3_handoff.sql`). TS-функции — эталон контракта, а не рабочий путь.
+- Тип `ApprovedM2Commit` не содержит полей, которые нужны входу handoff: `id`, `revisionId`, `revisionNo`, `status` коммита, `approvalPackageId`, `layoutRevisionId`. Их присваивает хранилище. В тесте это заполняет функция `persisted` — тестовая замена SQL-записи, не продуктовый адаптер.
+- `createApprovedM2Commit` принимает любые непустые id, а handoff требует UUID для проекта и пакета. [интерпретация] В БД id — UUID, поэтому в продукте расхождения нет; в тесте использованы UUID.
+
+### 10.4 R2 · BLOCKED — нужно от владельца (реальные документы не подменялись)
+
+- **R2-1 · BLOCKED_EXTERNAL — реальный пакет цикла 7.** [факт] `tests/fixtures/cycle7/external-package.manifest.json`: `"status": "pending"`, «prices and selections require commercial confirmation». Нужно: подтверждённые цены и выборы по пакету (или другой реальный пакет) — чтобы прогнать M2 → M3 не на синтетике.
+- **R2-2 · BLOCKED_DECISION — состав обязательных листов M3.** [факт] `modules/documentation/contracts.ts:86`: «состав обязательных листов нигде не утверждён». Проверка полноты поэтому видит только комнату и выборы. Нужно: утверждённый перечень листов (шаблон пакета документации).
+- **R2-3 · BLOCKED_DECISION — связь паспорта M1 с M2.** В коде паспорт M1 в M2 только показывается (`contractedPassport`, `live-read-port.ts:837`), в бюджет или варианты M2 не попадает. Нужно решение: должна ли вилка/бюджет из брифа ограничивать варианты M2 (правило), или это только справка.
+- B3/B5 (вход M1 → M2 из UI и approval перед «Отправить») — без изменений, см. §7 и §9.4.
+
+### 10.5 R4 · итог
+
+- Названных площадок с источником в репозитории — **0**. Единственный источник о канале: `docs/positioning/REMHAOS_POSITIONING_V2_2026-08-08.md:160-161` («личная сеть, профессиональные сообщества дизайнеров»). Поиск по `docs/`, `research/`, корневым `*.md`: `docs/gtm/` и `docs/marketing/` не существуют.
+- Три текста (дизайнер → `/designers`, студия → `/studios`, сообщество → `/pilot`), UTM-ссылки на `https://www.remhaos.com` (`lib/env.ts:4`), критерий на 14 дней, очередь 29.09–12.10, чек-лист на 5 минут.
+- [факт] UTM сейчас не сохраняется нигде: веб-аналитики в коде нет, `pilot_request` пишется без источника (`app/api/pilot/route.ts:16-20`).
+- Решения владельца: D1 площадки, D2 учёт UTM, D3 пороги, D4 маркировка рекламы, D5 бесплатный или платный пилот (документы противоречат).
+
+### 10.6 Проверки (реально запускались 28.09.2026)
+
+| Команда | Результат |
+|---|---|
+| `npm ci --no-audit --no-fund` | exit 0, 599 пакетов |
+| `npx vitest run tests/release/m2-m3-transition-chain.test.ts` | 6/6 passed |
+| то же на временно испорченном `m2-to-m3-handoff/index.ts` | 2 failed / 4 passed (ожидаемо), файл восстановлен |
+| `npm run typecheck` | exit 0 |
+| `npx eslint tests/release/m2-m3-transition-chain.test.ts` | 0 ошибок, 0 предупреждений |
+| `npm run test` (с zsh) | exit 0: **260 файлов, 2338 passed, 1 skipped** |
+
+Не запускались: `npm run build` (изменены только тест и документы), GitHub CI (B6), живой сайт (закрыт сетевой политикой).
+
+### 10.7 next_step
+
+1. Владельцу: D1–D5 из `REMHAOS_SEEDING_2026-09-28.md` §9, чек-лист §8 там же; R2-1…R2-3; прежние B3/B5/B6/B7.
+2. Исполнителю, после D1/D2: дополнить таблицу площадок и UTM-ссылки; после R2-2 — тест полноты пакета M3 по утверждённому перечню листов.
