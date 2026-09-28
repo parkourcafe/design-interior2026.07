@@ -28,9 +28,9 @@
     "worker:release-artifacts": "tsx scripts/run-release-artifact-worker.ts",
     "worker:change-impact": "tsx scripts/run-change-impact-worker.ts",
     "worker:ingest-source-graph": "tsx scripts/run-ingest-source-graph-worker.ts",
-    "bridge:telegram-notifications": "tsx scripts/run-telegram-notifications.ts",
-    "bridge:telegram-workers": "tsx scripts/run-telegram-bridge-workers.ts",
-    "bridge:telegram-attachments": "tsx scripts/run-telegram-attachments.ts"
+    "bridge:telegram-notifications": "tsx --conditions=react-server scripts/run-telegram-notifications.ts",
+    "bridge:telegram-workers": "tsx --conditions=react-server scripts/run-telegram-bridge-workers.ts",
+    "bridge:telegram-attachments": "tsx --conditions=react-server scripts/run-telegram-attachments.ts"
   },
   "dependencies": {
     "@capacitor/core": "^8.4.2",
@@ -61,6 +61,7 @@
     "eslint-config-next": "^16.3.3",
     "jsdom": "^25.0.1",
     "postcss": "8.5.25",
+    "server-only": "0.0.1",
     "tailwindcss": "^3.4.13",
     "tsx": "^4.19.1",
     "typescript": "^5.6.3",

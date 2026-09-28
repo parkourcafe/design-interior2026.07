@@ -499,6 +499,44 @@ begin
 end
 $tg2_attachment_state$;
 
+-- DEC-045 (c): автор записей file intake для Telegram — воркер Telegram, а не
+-- импорт Google Drive; прежний автор для остальных ключей не изменился.
+do $tg2_intake_actor$
+declare
+  v_telegram_events int;
+  v_other_events int;
+  v_telegram_commands int;
+begin
+  select count(*) filter (where e.actor_id = 'system:telegram-attachment-worker'),
+         count(*) filter (where e.actor_id <> 'system:telegram-attachment-worker')
+    into v_telegram_events, v_other_events
+  from remhaos_integration.file_intake_events e
+  where e.intake_id = current_setting('db4.tg2_intake_id')::uuid;
+  select count(*) into v_telegram_commands
+  from remhaos_integration.command_records c
+  where c.project_id = '41111111-1111-4111-8111-111111111111'
+    and c.operation in ('create_file_intake_worker', 'mark_file_intake_uploaded_worker')
+    and c.actor_type = 'system' and c.actor_id = 'system:telegram-attachment-worker';
+  -- Три события (requested, uploaded, scan queued) и две команды — как у Drive.
+  if v_telegram_events <> 3 or v_other_events <> 0 or v_telegram_commands <> 2 then
+    raise exception 'DB4_TG2_INTAKE_ACTOR:%:%:%', v_telegram_events, v_other_events, v_telegram_commands;
+  end if;
+  if remhaos_integration._file_intake_worker_actor('dbig-worker-file-create') <> 'system:google-drive-import-worker'
+     or remhaos_integration._file_intake_worker_actor('telegram-attachment:x') <> 'system:telegram-attachment-worker' then
+    raise exception 'DB4_TG2_ACTOR_MAPPING';
+  end if;
+  if pg_catalog.has_function_privilege('service_role', 'remhaos_integration._file_intake_worker_actor(text)', 'EXECUTE')
+     or pg_catalog.has_function_privilege('pi_worker_executor', 'remhaos_integration._file_intake_worker_actor(text)', 'EXECUTE') then
+    raise exception 'DB4_TG2_ACTOR_HELPER_EXPOSED';
+  end if;
+  -- DEC-045 (b): где есть логин-роль PostgREST, она может переключиться на воркера.
+  if exists (select 1 from pg_catalog.pg_roles where rolname = 'authenticator')
+     and not pg_catalog.pg_has_role('authenticator', 'pi_worker_executor', 'MEMBER') then
+    raise exception 'DB4_TG2_WORKER_IDENTITY_NOT_GRANTED';
+  end if;
+end
+$tg2_intake_actor$;
+
 -- ─────────────────────────────────────────────────────────────────────────────
 -- 7. Аренда: исчерпанные попытки и возврат без списания (ревью TG2)
 -- ─────────────────────────────────────────────────────────────────────────────

@@ -10,16 +10,14 @@
 //   * `REMHAOS_TELEGRAM_ATTACHMENTS_ENABLED=true` — глобальный флаг загрузки.
 // Флаг проекта «файлы» проверяет база: чужие вложения процесс не получает.
 //
-// Идентичность — ОТКРЫТЫЙ ВОПРОС (см. evidence TG2):
-//   * очередь вложений — `service_role` (системные двери моста);
-//   * карантин file intake — функции `create_file_intake_worker` /
-//     `mark_file_intake_uploaded_worker` выданы только `pi_worker_executor`,
-//     а логин-роли с этим членством ни в одном окружении нет (как и для импорта
-//     Google Drive). Через `service_role` вызов будет отклонён правами базы, и
-//     проход остановится с ошибкой. Поэтому `REMHAOS_TELEGRAM_ATTACHMENTS_ENABLED`
-//     не включается, пока владелец не решит, под какой ролью работает воркер.
-//     Путь целиком доказан в DB4 (`85_telegram_tg2.sql`, SET ROLE
-//     pi_worker_executor) и unit-тестами с фейковым Telegram.
+// Идентичности две и не смешиваются (DEC-045 (b)):
+//   * очередь вложений и загрузка байтов в карантинное хранилище —
+//     `service_role` (системные двери моста, Storage);
+//   * записи file intake (`create_file_intake_worker` /
+//     `mark_file_intake_uploaded_worker`) — роль `pi_worker_executor` по ключу
+//     `REMHAOS_FILE_INTAKE_WORKER_JWT`. Ключ выпускает владелец:
+//     docs/canonical/remhaos-v1/REMHAOS_FILE_INTAKE_WORKER_KEY_RUNBOOK.md. Без него — отказ до
+//     первого захвата, попытки не тратятся.
 
 import { config } from "dotenv";
 import { createClient } from "@supabase/supabase-js";
@@ -32,6 +30,7 @@ import { isTelegramBridgeEnabled } from "../lib/integration-gateway/telegram/bri
 import { readTelegramCredentials } from "../lib/integration-gateway/telegram/config";
 import { runTelegramAttachmentBatch } from "../lib/integration-gateway/telegram/attachment-runner";
 import { FileIntakeWorkerService } from "../lib/integration-gateway/file-intake/service";
+import { createFileIntakeWorkerClient } from "../lib/integration-gateway/runtime/worker-client";
 
 config({ path: ".env.local" });
 
@@ -53,6 +52,10 @@ async function main(): Promise<void> {
     return;
   }
 
+  // Ключ воркера проверяется ДО захвата: иначе вложения брались бы в аренду
+  // процессом, который заведомо не может их положить в карантин.
+  const workerClient = createFileIntakeWorkerClient();
+
   const credentials = readTelegramCredentials();
   if (!credentials.ok) {
     throw new Error(`Не заданы переменные: ${credentials.missing.join(", ")}`);
@@ -68,7 +71,7 @@ async function main(): Promise<void> {
   const result = await runTelegramAttachmentBatch(
     new TelegramSystemPort(client),
     new TelegramBotApi(credentials.credentials.botToken),
-    new FileIntakeWorkerService(client, admin.storage as unknown as PrivateStorageClient),
+    new FileIntakeWorkerService(workerClient, admin.storage as unknown as PrivateStorageClient),
     {
       maxRows: Number(process.env.TELEGRAM_ATTACHMENT_MAX_ROWS ?? "5"),
     },
