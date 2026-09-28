@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { publicPageMetadata } from "@/lib/seo/site";
 import Link from "next/link";
 import { ru } from "@/lib/i18n/ru";
 import LandingNav from "@/components/landing/nav";
@@ -10,12 +11,11 @@ import PilotForm from "./pilot-form";
 const p = ru.landing.pagePilot;
 const L = ru.landing;
 
-export const metadata: Metadata = {
-  alternates: { canonical: "/pilot" },
-  openGraph: { url: "/pilot" },
+export const metadata: Metadata = publicPageMetadata({
   title: `${p.title} — ${ru.app.name}`,
   description: p.sub,
-};
+  path: "/pilot",
+});
 
 // Тарифов нет по дизайну: идёт бесплатный пилот (см. FAQ/стратегию).
 // Страница продаёт пилот и собирает заявку — без выдуманных тарифных сеток.

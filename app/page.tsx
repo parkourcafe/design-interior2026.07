@@ -11,14 +11,16 @@ import { delay } from "@/components/landing/delay";
 import { MEDIA } from "@/components/landing/media";
 
 import type { Metadata } from "next";
+import { publicPageMetadata, SITE_TITLE } from "@/lib/seo/site";
 
-// Canonical нужен потому, что старый домен arhidom.space отдаёт тот же контент
-// с кодом 200: без него у поиска нет сигнала, какая версия основная.
+// Canonical — сигнал поиску, какая версия основная; старый домен arhidom.space
+// дополнительно уводится 301 на канонический хост (middleware.ts).
 // metadataBase в корневом layout разворачивает "/" в абсолютный URL.
-export const metadata: Metadata = {
-  alternates: { canonical: "/" },
-  openGraph: { url: "/" },
-};
+export const metadata: Metadata = publicPageMetadata({
+  title: SITE_TITLE,
+  description: ru.app.heroSub,
+  path: "/",
+});
 
 const L = ru.landing;
 
