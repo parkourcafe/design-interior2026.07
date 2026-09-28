@@ -5,8 +5,8 @@
 | task_id | T-REMH-01 |
 | repo | parkourcafe/design-interior2026.07 |
 | base SHA | `737795d7aa6bae3b6020010c6a53b4757ed99a48` (main, merge #209; #208 влит ранее) |
-| branch | `claude/autonomy-remh-01` |
-| дата прогона | 27.09.2026 |
+| branch / PR | `claude/autonomy-remh-01` · draft PR [#210](https://github.com/parkourcafe/design-interior2026.07/pull/210) |
+| дата прогона | 27.09.2026 (запуск 1), 28.09.2026 (запуск 2, раздел 9) |
 | среда | только локальная песочница; Node 22.22.2, npm 10.9.7; без `.env`, без секретов, без сети к production, без платных LLM |
 
 Словарь статусов: `DONE_CODE`, `TESTED_LOCAL`, `BLOCKED_EXTERNAL`, `BLOCKED_DECISION`, `NOT_VERIFIED`. Staging и production здесь не проверялись ни в одном пункте.
@@ -138,3 +138,77 @@
 1. Ревью черновика PR (исправление неизменяемости КП).
 2. В окружении с Docker registry и Supabase CLI прогнать `npm run test:db4`, `npm run test:db5` (PG16 и PG17) и `npm run test:ap5` на коммите этой ветки.
 3. Принять решения B3 и B4. Поправить абзац про V2/V3 в `AGENTS.md` по DEC-039.
+
+## 9. Запуск 2 — 28.09.2026 (R1 + R3)
+
+### 9.1 Статус
+
+| # | Задача | Статус |
+|---|---|---|
+| R1 | Draft PR | DONE: PR #210 уже был открыт, он draft и указывает на `main` |
+| R1 | CI до зелёного | BLOCKED_DECISION, см. B6. Проверки прогнаны локально, результат ниже |
+| R3 | Локальная демонстрация «бриф → КП → ответ клиента» | TESTED_LOCAL: `npm run demo:m1:local` |
+| R3 | Чек-лист владельцу на 5 минут | DONE_CODE: `docs/ops/autonomy/demo/M1_LOCAL_DEMO.md` §B. Живой прогон — NOT_VERIFIED, сайт закрыт прокси |
+| 3d | Публичная страница `/p/[public_token]` | Повышено с NOT_VERIFIED до TESTED_LOCAL: серверный рендер с mock-БД. Клики в браузере по-прежнему NOT_VERIFIED |
+| R2 | Переходы M1→M4 | Без изменений относительно раздела 6. Новое — находка B5 |
+| R4 | Посевы | Не начато. Это следующий запуск |
+
+### 9.2 Изменённые файлы
+
+- `tests/release/m1-local-demo.test.tsx` — новый. Прогоняет по порядку:
+  - бриф → риски → цена → КП;
+  - `/p/` на черновике → 404;
+  - `sendProposal`;
+  - серверный рендер `/p/`: секции, цена, три кнопки, событие `proposal_viewed`;
+  - `accept`;
+  - повторный рендер с «Вы приняли это предложение».
+- `package.json` — добавлен только скрипт `demo:m1:local`. Зависимости не менялись.
+- `tests/release/m1-brief-to-client-response-chain.test.ts` — совместимость с веткой `claude/phase-0-kg4xd8`:
+  - в мок добавлены `rpc` (`account_retention_active` → false) и `subjectRevisionCurrent: true`;
+  - регрессия теперь проверяет отказ и неизменность текста, а не литерал причины (`"sent"` против `"not_draft"`).
+- `DEMO.md`, шаг 7:
+  - порядок исправлен: сначала «Отправить», потом ссылка `/p/`. [факт] Черновик отдаёт 404, `app/p/[public_token]/page.tsx:34`;
+  - добавлено предусловие approval;
+  - упомянут `demo:m1:local`.
+- `docs/ops/autonomy/demo/M1_LOCAL_DEMO.md` — новый: стенограмма, находка B5, чек-лист владельцу.
+
+### 9.3 Проверки (реально запускались 28.09.2026)
+
+| Команда | Результат |
+|---|---|
+| `npm ci --no-audit --no-fund` | exit 0 |
+| `npm run lint` | exit 0: 0 ошибок, 15 предупреждений (как на base) |
+| `npm run typecheck` | exit 0 |
+| `npm run test` (с zsh) | exit 0: **259 файлов, 2332 passed, 1 skipped** |
+| `npm run build` | exit 0 |
+| `npm run demo:m1:local` | 1/1 passed, стенограмма в `M1_LOCAL_DEMO.md` |
+| Оба теста M1 на коде `origin/claude/phase-0-kg4xd8` (временный detached worktree, ветку не менял) | До правки моков: 5 failed. После: **11/11 passed** |
+
+GitHub CI не запускался: B6.
+
+### 9.4 Новые блокеры
+
+- **B5 · BLOCKED_DECISION — «Отправить» КП на свежем проекте недостижимо кликами.**
+  - [факт] `sendProposal` требует утверждённый approval на `project_passport` (`actions.ts:191`).
+  - [факт] RPC `list_approval_requests` авторизует через `_authorize_project_human`, значит, проект должен быть записан в ProjectCEO.
+  - [факт] Вызова `/api/projectceo/enroll` в UI нет. AP5 делает enrollment прямым RPC (`tests/ap5/global-setup.ts:146-163`).
+  - [интерпретация] Демо по DEMO.md останавливается на шаге 7. Это расширение B3.
+  - Нужно решение владельца: (а) кнопка enrollment + approval в пилотном пути **или** (б) отправка КП в пилоте без approval.
+- **B6 · BLOCKED_DECISION — CI для PR не запускается.**
+  - [факт] Все workflow в `.github/workflows/` имеют только `on: workflow_dispatch` (коммит `07e186d` «chore: disable automatic runs»).
+  - [факт] Единственный check у PR #210 — «Supabase Preview», skipped.
+  - Правила программы запрещают включать отключённый CI. Ручной dispatch тратит минуты Actions, поэтому я его не запускал.
+  - Нужно: владелец запускает `CI` вручную на `claude/autonomy-remh-01` **или** разрешает это исполнителю.
+- **B7 · BLOCKED_DECISION — пересечение с `claude/phase-0-kg4xd8` (DEC-044).**
+  - [факт] Та ветка меняет те же файлы: `proposal/actions.ts`, `editor.tsx`, `app/api/proposal/respond/route.ts`, `app/p/[public_token]/*`, `package.json`.
+  - [факт] В ней тот же фикс неизменяемости КП, только шире: `.eq("status","draft")` в update, причина `not_draft`, триггер БД `guard_proposal_lifecycle` в миграции `20260925090000`. Это закрывает и B4.
+  - [факт] `git merge-tree HEAD origin/claude/phase-0-kg4xd8` даёт конфликты в `actions.ts` и `editor.tsx`.
+  - Их файлы я не трогал.
+  - Рекомендация [интерпретация]: вливать phase-0 первым. После этого из #210 выкинуть коммит `9f2f801`, то есть собственный фикс в `actions.ts`/`editor.tsx`, и оставить только тесты, демо и документы. Тесты уже зелёные на коде phase-0.
+  - Нужно решение оркестратора или владельца о порядке слияния.
+
+### 9.5 next_step
+
+1. Владельцу: решить B5, B6, B7. Пройти чек-лист `docs/ops/autonomy/demo/M1_LOCAL_DEMO.md` §B и прислать ✓/✗ по пунктам.
+2. Исполнителю, следующий запуск: R4 — посевы для российского пилота из `docs/positioning` и research. Ничего не публиковать.
+3. После слияния phase-0: убрать из #210 дублирующий фикс (B7) и перепрогнать `npm run test`.
