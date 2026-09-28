@@ -43,6 +43,7 @@ export default function IntakeWizard({
   // 'quick' — быстрое ядро; 'deep' — клиент решил дозаполнить детали.
   const [mode, setMode] = useState<"quick" | "deep">("quick");
   const [submitting, setSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState<string | null>(null);
   const [done, setDone] = useState(false);
   // Свободные комментарии к каждому вопросу (в т.ч. надиктованные голосом).
   const [comments, setComments] = useState<Record<string, string>>({});
@@ -156,12 +157,28 @@ export default function IntakeWizard({
 
   async function finish() {
     setSubmitting(true);
+    setSubmitError(null);
     const res = await fetch("/api/intake/submit", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ token, answers: { ...answers, comments } }),
-    });
+    }).catch(() => null);
     setSubmitting(false);
+    if (!res) {
+      setSubmitError(ru.brief.submitFailed);
+      return;
+    }
+    // Сервер сам проверяет согласие и ответы: сообщаем, что не так, а не молчим.
+    if (!res.ok && res.status !== 409) {
+      setSubmitError(
+        res.status === 422
+          ? ru.brief.consentRequired
+          : res.status === 429
+            ? ru.brief.tooManyAttempts
+            : ru.brief.submitFailed,
+      );
+      return;
+    }
     // 409 — бриф уже отправлен (например, во второй вкладке): повторная
     // отправка запрещена сервером, показываем тот же экран «готово».
     if (res.ok || res.status === 409) {
@@ -247,6 +264,7 @@ export default function IntakeWizard({
           <button onClick={addDetails} disabled={submitting} className="btn-ghost px-6 py-3.5 text-base">
             Добавить детали <span className="ml-2">→</span>
           </button>
+          {submitError ? <p role="alert" className="text-sm text-red-700">{submitError}</p> : null}
         </div>
         <button
           onClick={() => setStep(quick.length - 1)}
@@ -326,6 +344,7 @@ export default function IntakeWizard({
             {submitting ? ru.brief.saving : isLast ? ru.brief.finish : ru.brief.next}
           </button>
         </div>
+        {submitError ? <p role="alert" className="mt-3 text-sm text-red-700">{submitError}</p> : null}
       </div>
     </main>
   );
@@ -678,6 +697,7 @@ function ContactInput({
 
 function FilesInput({ token }: { token: string }) {
   const [uploaded, setUploaded] = useState<string[]>([]);
+  const [rejected, setRejected] = useState<string[]>([]);
   const [busy, setBusy] = useState(false);
 
   async function onFile(e: React.ChangeEvent<HTMLInputElement>) {
@@ -688,8 +708,9 @@ function FilesInput({ token }: { token: string }) {
       const form = new FormData();
       form.append("token", token);
       form.append("file", file);
-      const res = await fetch("/api/intake/upload", { method: "POST", body: form });
-      if (res.ok) setUploaded((prev) => [...prev, file.name]);
+      const res = await fetch("/api/intake/upload", { method: "POST", body: form }).catch(() => null);
+      if (res?.ok) setUploaded((prev) => [...prev, file.name]);
+      else setRejected((prev) => [...prev, file.name]);
     }
     setBusy(false);
   }
@@ -697,13 +718,16 @@ function FilesInput({ token }: { token: string }) {
   return (
     <div className="space-y-3">
       <p className="text-sm text-muted">{ru.brief.uploadHint}</p>
-      <input type="file" multiple onChange={onFile} disabled={busy} accept="image/*,.pdf" />
+      <input type="file" multiple onChange={onFile} disabled={busy} accept="image/jpeg,image/png,image/webp,application/pdf" />
       {busy && <p className="text-sm text-muted">{ru.brief.saving}</p>}
       <ul className="text-sm text-muted">
         {uploaded.map((n) => (
           <li key={n}>✓ {n}</li>
         ))}
       </ul>
+      {rejected.map((n) => (
+        <p key={n} role="alert" className="text-sm text-red-700">{ru.brief.uploadRejected(n)}</p>
+      ))}
     </div>
   );
 }

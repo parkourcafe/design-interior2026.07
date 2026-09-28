@@ -1,3 +1,4 @@
+import { llmSignal } from "@/lib/llm/timeout";
 import { inflateSync } from "node:zlib";
 
 export type PlanTextExtractionStatus = "text_extracted" | "no_text" | "unsupported" | "failed";
@@ -364,6 +365,8 @@ export async function zaiGlmOcr(file: File, options: PlanOcrOptions = {}): Promi
       return_crop_images: false,
       need_layout_visualization: false,
     }),
+    // Аудит 28.09: зависший OCR не держит загрузку плана бесконечно.
+    signal: llmSignal(),
   });
 
   if (!res.ok) {

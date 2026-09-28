@@ -11,13 +11,14 @@
 //   Заголовок: Authorization: Bearer <ZAI_API_KEY>
 //   Модель из LLM_MODEL (напр. glm-4.6). Docs: https://docs.z.ai/
 
+import { llmSignal } from "./timeout";
 const DEFAULT_BASE_URL = "https://api.z.ai/api/paas/v4";
 
 interface OpenAiChatResponse {
   choices?: Array<{ message?: { content?: string } }>;
 }
 
-export async function completeZai(prompt: string): Promise<string> {
+export async function completeZai(prompt: string, timeoutMs?: number): Promise<string> {
   const apiKey = process.env.ZAI_API_KEY;
   const baseUrl = (process.env.ZAI_BASE_URL ?? DEFAULT_BASE_URL).replace(/\/$/, "");
   const model = process.env.LLM_MODEL ?? "glm-4.6";
@@ -38,6 +39,7 @@ export async function completeZai(prompt: string): Promise<string> {
       max_tokens: 2000,
       messages: [{ role: "user", content: prompt }],
     }),
+    signal: llmSignal(timeoutMs),
   });
 
   if (!res.ok) {

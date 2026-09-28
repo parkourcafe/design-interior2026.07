@@ -40,6 +40,7 @@ export function promptSha256(prompt: string): string {
 
 /** Только слаг отказа — без тела ответа провайдера. */
 export function providerErrorCode(e: unknown): string {
+  if (e instanceof Error && (e.name === "TimeoutError" || e.name === "AbortError")) return "llm_timeout";
   const raw = e instanceof Error ? e.message : String(e);
   return (raw.split(":")[0] ?? "").slice(0, 80) || "llm_unknown_error";
 }

@@ -4,9 +4,14 @@ import { getProjectByIntakeToken } from "@/lib/intake";
 import { INTAKE_OPEN_STATUSES, isIntakeOpen } from "@/lib/intake-status";
 import { runRiskPipeline } from "@/lib/brief/pipeline";
 import { checkRateLimit, clientIp } from "@/lib/rate-limit";
-import type { AnswersMap, RiskCard } from "@/lib/types";
+import { MAX_SUBMIT_BODY_BYTES, validateSubmittedAnswers } from "@/lib/brief/answer-schema";
+import { INTAKE_CONSENT_TEXT_SHA256, INTAKE_CONSENT_VERSION } from "@/lib/legal/consent";
+import type { RiskCard } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
+// Запас на анализ рисков: AI ограничен таймаутом (lib/llm), после него —
+// карточки по правилам. Функция не должна обрываться платформой раньше.
+export const maxDuration = 60;
 
 // Завершение брифа: сохранить answers, построить паспорт + карточки рисков
 // (rules + LLM с деградацией), выставить статус brief_completed,
@@ -20,11 +25,22 @@ export async function POST(request: Request) {
     );
   }
 
-  const body = (await request.json().catch(() => ({}))) as {
-    token?: string;
-    answers?: AnswersMap;
-  };
-  const project = await getProjectByIntakeToken(body.token ?? "");
+  // Размер тела — до разбора: бриф из мастера занимает единицы килобайт.
+  const declared = Number(request.headers.get("content-length") ?? "0");
+  if (declared > MAX_SUBMIT_BODY_BYTES) {
+    return NextResponse.json({ error: "payload_too_large" }, { status: 413 });
+  }
+  const text = await request.text().catch(() => "");
+  if (Buffer.byteLength(text, "utf8") > MAX_SUBMIT_BODY_BYTES) {
+    return NextResponse.json({ error: "payload_too_large" }, { status: 413 });
+  }
+  let body: { token?: unknown; answers?: unknown };
+  try {
+    body = JSON.parse(text) as { token?: unknown; answers?: unknown };
+  } catch {
+    return NextResponse.json({ error: "invalid_request" }, { status: 400 });
+  }
+  const project = await getProjectByIntakeToken(typeof body.token === "string" ? body.token : "");
   if (!project) return NextResponse.json({ error: "not_found" }, { status: 404 });
   // DEC-044 (a): студия закрывает аккаунт — бриф только для чтения. Отказ до
   // любой записи (в том числе до загрузки файла в хранилище).
@@ -35,10 +51,29 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "already_submitted" }, { status: 409 });
   }
 
-  const answers = body.answers ?? {};
+  // Только ответы, которые умеет записать мастер брифа (lib/brief/answer-schema.ts).
+  const validated = validateSubmittedAnswers(body.answers ?? {}, project.custom_questions);
+  if (!validated.ok) {
+    return NextResponse.json({ error: validated.error, field: validated.field }, { status: 400 });
+  }
+  // Согласие на обработку ПДн проверяет сервер, а не только браузер.
+  if (!validated.consent) {
+    return NextResponse.json({ error: "consent_required" }, { status: 422 });
+  }
+  const answers = validated.answers;
   const admin = createRegionalPublicTokenClient(project.cellCode, "intake-submit");
 
   try {
+    // 0. Зафиксировать согласие: время ставит база, версия и хеш текста —
+    // lib/legal/consent.ts. Без записи согласия ответы не сохраняются.
+    const consent = await admin.from("intake_consent_records").insert({
+      project_id: project.id,
+      consent_version: INTAKE_CONSENT_VERSION,
+      consent_text_sha256: INTAKE_CONSENT_TEXT_SHA256,
+      source: project.designer_id ? "designer_intake" : "self_serve_intake",
+    });
+    if (consent.error) throw new Error("consent_failed");
+
 
     // 1. Сохранить сырые ответы (upsert по project_id + question_id) — до
     // перехода статуса: если что-то упадёт позже, ответы не потеряются и

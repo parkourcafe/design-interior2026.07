@@ -19,6 +19,7 @@ vi.mock("server-only", () => ({}));
 vi.mock("@/lib/intake", () => ({
   getProjectByIntakeToken: async () => ({
     id: "project", designer_id: "designer", status: state.projectStatus, cellCode: "ru",
+    custom_questions: [{ type: "text", title: "Своё" }],
   }),
 }));
 vi.mock("@/lib/rate-limit", () => ({ checkRateLimit: async () => true, clientIp: () => "test" }));
@@ -82,10 +83,14 @@ import {
 } from "../../app/dashboard/projects/[id]/proposal/actions";
 import { INTAKE_OPEN_STATUSES, isIntakeOpen } from "../../lib/intake-status";
 
-const submitRequest = () => new Request("http://localhost/api/intake/submit", {
+const validAnswers = {
+  pain: "Тесно в прихожей",
+  contact: { name: "Клиент", phone: "+7 900 000-00-00", consent: true },
+};
+const submitRequest = (answers: unknown = validAnswers) => new Request("http://localhost/api/intake/submit", {
   method: "POST",
   headers: { "Content-Type": "application/json" },
-  body: JSON.stringify({ token: "token", answers: { q: "a" } }),
+  body: JSON.stringify({ token: "token", answers }),
 });
 
 beforeEach(() => {
@@ -211,3 +216,58 @@ describe("public brief link /b/ is closed (DEC-042)", () => {
     }
   });
 });
+
+// Аудит 28.09, шаг 4: согласие и ответы проверяет сервер.
+describe("intake submit validates consent and answers on the server", () => {
+  it("refuses a brief without consent and writes nothing", async () => {
+    const response = await submit(submitRequest({ pain: "x", contact: { name: "Клиент", phone: "1", consent: false } }));
+    expect(response.status).toBe(422);
+    expect(await response.json()).toEqual({ error: "consent_required" });
+    expect(state.operations).toEqual([]);
+  });
+
+  it("refuses a brief with no contact at all", async () => {
+    expect((await submit(submitRequest({ pain: "x" }))).status).toBe(422);
+    expect(state.operations).toEqual([]);
+  });
+
+  it.each([
+    ["attachments", [{ path: "other-project/secret.pdf" }]],
+    ["designer_plan_attachments", [{ path: "designer-plans/other/plan.pdf" }]],
+    ["designer_plan_assist", { text: "x" }],
+    ["not_a_question", "x"],
+    ["custom_7", "x"],
+  ])("rejects the service or unknown key %s without writing", async (key, value) => {
+    const response = await submit(submitRequest({ ...validAnswers, [key]: value }));
+    expect(response.status).toBe(400);
+    expect(await response.json()).toEqual({ error: "invalid_answers", field: key });
+    expect(state.operations).toEqual([]);
+  });
+
+  it("rejects values of the wrong shape", async () => {
+    const wrongChoice = await submit(submitRequest({ ...validAnswers, condition: "not-an-option" }));
+    expect(wrongChoice.status).toBe(400);
+    const wrongObject = await submit(submitRequest({ ...validAnswers, object: { type: "flat", injected: true } }));
+    expect(wrongObject.status).toBe(400);
+    expect(state.operations).toEqual([]);
+  });
+
+  it("accepts the designer's own custom questions of this project", async () => {
+    expect((await submit(submitRequest({ ...validAnswers, custom_0: "ответ" }))).status).toBe(200);
+  });
+
+  it("rejects an oversized body before parsing", async () => {
+    const response = await submit(submitRequest({ ...validAnswers, pain: "x".repeat(70 * 1024) }));
+    expect(response.status).toBe(413);
+    expect(state.operations).toEqual([]);
+  });
+
+  it("records consent before saving the answers", async () => {
+    expect((await submit(submitRequest())).status).toBe(200);
+    const consent = state.operations.findIndex((op) => op.startsWith("intake_consent_records:insert"));
+    const answers = state.operations.findIndex((op) => op.startsWith("answers:upsert"));
+    expect(consent).toBeGreaterThanOrEqual(0);
+    expect(answers).toBeGreaterThan(consent);
+  });
+});
+

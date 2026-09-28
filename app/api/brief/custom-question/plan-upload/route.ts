@@ -7,6 +7,8 @@ import { createClient } from "@/lib/supabase/server";
 import { getStudio } from "@/lib/studio";
 
 export const dynamic = "force-dynamic";
+// AI ограничен таймаутом (lib/llm/timeout.ts); функция живёт дольше него.
+export const maxDuration = 60;
 
 const MAX_FILE_BYTES = 15 * 1024 * 1024;
 const ProjectId = z.string().uuid();
