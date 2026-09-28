@@ -8,7 +8,7 @@
 // корневым сертификатом НУЦ Минцифры. Здесь не поднимаем, чтобы не тащить mTLS-
 // конфигурацию в скелет; YandexGPT — основной путь.
 
-export async function completeGigaChat(_prompt: string, _timeoutMs?: number): Promise<string> {
+export async function completeGigaChat(_prompt: string): Promise<string> {
   throw new Error(
     "gigachat_not_implemented: запасной провайдер не подключён в v0.1. " +
       "Используйте LLM_PROVIDER=yandex. Реализация GigaChat — отдельная фаза (см. BACKLOG).",

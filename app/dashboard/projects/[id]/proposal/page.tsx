@@ -15,6 +15,8 @@ import { RESPONSE_TYPES } from "@/lib/proposal/respond";
 import type { RiskCardRow } from "@/lib/review";
 import ProposalEditor from "./editor";
 import CreateRoomButton from "../room/create-button";
+import PassportApproval from "./passport-approval";
+import { readPassportApproval } from "@/lib/proposal/passport-approval";
 
 export const dynamic = "force-dynamic";
 
@@ -186,6 +188,8 @@ export default async function ProposalPage({ params }: { params: Promise<{ id: s
   if (issuedMeanwhile) redirect(`/dashboard/projects/${p.id}/proposal`);
 
   const publicUrl = `${await requestBaseUrl()}/p/${publicToken}`;
+  // Аудит 28.09, шаг 6: до отправки — блок подтверждения паспорта проекта.
+  const passportApproval = sent ? null : await readPassportApproval(supabase, p.id);
 
   // Петля обратной связи (audit S4): открывал ли клиент КП и его ответ.
   const { data: feedbackEvents } = await supabase
@@ -239,6 +243,7 @@ export default async function ProposalPage({ params }: { params: Promise<{ id: s
         )}
       </div>
 
+      {passportApproval ? <PassportApproval projectId={p.id} initial={passportApproval} /> : null}
       <ProposalEditor
         // Смена статуса (отправка из другой вкладки) пересоздаёт редактор с
         // текстом из базы, а не с локальными несохранёнными правками.
