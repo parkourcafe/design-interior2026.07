@@ -72,13 +72,15 @@ export default function ProposalEditor({
   return (
     <div className="space-y-6">
       <div className="no-print flex flex-wrap items-center gap-3">
-        <button onClick={save} disabled={pending} className="btn-ghost">
-          {pending ? ru.proposal.saving : saved ? ru.proposal.saved : ru.proposal.save}
-        </button>
         {!sent && (
-          <button onClick={rebuild} disabled={pending} className="btn-ghost">
-            Пересобрать
-          </button>
+          <>
+            <button onClick={save} disabled={pending} className="btn-ghost">
+              {pending ? ru.proposal.saving : saved ? ru.proposal.saved : ru.proposal.save}
+            </button>
+            <button onClick={rebuild} disabled={pending} className="btn-ghost">
+              Пересобрать
+            </button>
+          </>
         )}
         <button onClick={() => window.print()} className="btn-ghost">
           {ru.proposal.print}
@@ -112,6 +114,7 @@ export default function ProposalEditor({
             <textarea
               value={s.body}
               onChange={(e) => edit(s.id, e.target.value)}
+              readOnly={sent}
               className="input min-h-32 font-sans leading-relaxed"
             />
           </div>

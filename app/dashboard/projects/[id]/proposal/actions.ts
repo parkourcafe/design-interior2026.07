@@ -60,11 +60,14 @@ async function hasApprovedProjectPassport(
 export async function saveProposal(
   projectId: string,
   sections: ProposalSection[],
-): Promise<{ ok: boolean }> {
+): Promise<{ ok: boolean; reason?: "sent" }> {
   const supabase = await createClient();
   try {
     const latest = await getLatestProposal(supabase, projectId);
     if (!latest) return { ok: false };
+    // Отправленное или принятое КП — то, что клиент видит по живой ссылке и
+    // на что он ответил; правка задним числом подменила бы содержание ответа.
+    if (latest.status !== "draft") return { ok: false, reason: "sent" };
     const { error } = await supabase
       .from("proposals")
       .update({ sections })
@@ -92,7 +95,7 @@ export async function rebuildProposal(
 
     const proposal = await getLatestProposal(supabase, projectId);
     if (!proposal) return { ok: false };
-    if (proposal.status === "sent") {
+    if (proposal.status !== "draft") {
       return { ok: false, reason: "sent" };
     }
 
@@ -180,6 +183,8 @@ export async function sendProposal(projectId: string): Promise<{
 
     const latest = await getLatestProposal(supabase, projectId);
     if (!latest) return { ok: false };
+    // Повторная отправка принятого КП откатила бы статусы proposal_accepted.
+    if (latest.status === "accepted") return { ok: false };
     // «Отправить клиенту» — необратимое изменение публичной поверхности КП.
     // Approval request создаётся и решается через ProjectCEO command boundary;
     // здесь проверяем только его request-bound опубликованный результат.
