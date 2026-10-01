@@ -69,6 +69,48 @@ describe("plan file text extraction", () => {
     expect(extractPdfTextFromBuffer(pdf)).toContain("PROJECT NAME");
   });
 
+  // E2E-20261001-1531, D4: PDF из Chromium (два шрифта, коды CID, кириллица в
+  // одиночных записях bfchar) терял «К», «х», «Е», «ё»: «Казань» → «азань».
+  it("decodes Cyrillic bfchar entries as UTF-16 and picks the font map that covers the string", () => {
+    const regular = Buffer.from(
+      [
+        "begincmap",
+        "8 beginbfchar",
+        "<0003> <0020>",
+        "<03AF> <041A>",
+        "<03DA> <0445>",
+        "<03E1> <044F>",
+        "<03E4> <044C>",
+        "<03E6> <0451>",
+        "<0008> <0415>",
+        "<000C> <0414>",
+        "endbfchar",
+        "1 beginbfrange",
+        "<03C5> <03D8> <0430>",
+        "endbfrange",
+        "endcmap",
+      ].join("\n"),
+      "latin1",
+    );
+    // Второй шрифт перекрывает часть кодов и не знает «х».
+    const bold = Buffer.from(["begincmap", "2 beginbfchar", "<0003> <0020>", "<03AF> <041A>", "endbfchar", "endcmap"].join("\n"), "latin1");
+    // «Казань кухня ёлка» шестнадцатеричными CID; «ЕД» — литералом с \b и \f.
+    // К а з а н ь · к у х н я · ё л к а (а…у — диапазон 03C5…03D8 → U+0430…U+0443).
+    const hex = "03AF03C503CC03C503D203E4" + "0003" + "03CF03D803DA03D203E1" + "0003" + "03E603D003CF03C5";
+    // «ЕД кухня кухня» литералом: Е и Д — коды 0x0008/0x000C, записанные как \b и \f.
+    const kuhnya = "\\003\\317\\003\\330\\003\\332\\003\\322\\003\\341";
+    const literal = `\\000\\b\\000\\f\\000\\003${kuhnya}\\000\\003${kuhnya}`;
+    const content = Buffer.from(`BT <${hex}> Tj (${literal}) Tj ET`, "latin1");
+    const pdf = Buffer.concat([
+      pdfWithStream(deflateSync(bold), true),
+      pdfWithStream(deflateSync(regular), true),
+      pdfWithStream(deflateSync(content), true),
+    ]);
+    const text = extractPdfTextFromBuffer(pdf);
+    expect(text).toContain("Казань кухня ёлка");
+    expect(text).toContain("ЕД кухня кухня");
+  });
+
   it("uses extracted file text as plan-assist evidence", () => {
     const draft = derivePlanAssistedDraft({
       project_type: "residential",

@@ -185,18 +185,26 @@ function Row({ label, children }: { label: string; children: React.ReactNode }) 
   );
 }
 
-export default function PassportView({ passport }: { passport: Passport }) {
+export default function PassportView({
+  passport,
+  audience = "designer",
+}: {
+  passport: Passport;
+  /** Комплект исполнителя: без контактов, источника, бюджета, горизонта и болей семьи. */
+  audience?: "designer" | "contractor";
+}) {
   const o = passport.object;
+  const contractor = audience === "contractor";
   return (
     <div className="card">
-      {passport.contact && (
+      {!contractor && passport.contact && (
         <Row label="Контакт клиента">
           {passport.contact.name}
           {passport.contact.phone ? ` · ${passport.contact.phone}` : ""}
           {passport.contact.email ? ` · ${passport.contact.email}` : ""}
         </Row>
       )}
-      {passport.source && <Row label="Источник">{SOURCE_LABEL[passport.source] ?? passport.source}</Row>}
+      {!contractor && passport.source && <Row label="Источник">{SOURCE_LABEL[passport.source] ?? passport.source}</Row>}
       <Row label={pv.object}>
         {o.type ? OBJECT_TYPE_LABEL[o.type] ?? o.type : pv.notFilled}
         {o.area_m2 ? `, ${o.area_m2} м²` : ""}
@@ -208,20 +216,25 @@ export default function PassportView({ passport }: { passport: Passport }) {
         {o.replanning ? ` · ${REPLANNING_LABEL[o.replanning]}` : ""}
         {o.neighbors_renovation ? ` · ${NEIGHBORS_LABEL[o.neighbors_renovation]}` : ""}
       </Row>
-      {passport.vision && (
+      {!contractor && passport.vision && (
         <Row label="Видение клиента">
           <span className="italic">«{passport.vision}»</span>
         </Row>
       )}
-      <Row label={pv.assetHorizon}>{pv.assetHorizonValue[passport.asset_horizon]}</Row>
-      <Row label={pv.household}>
+      {!contractor && <Row label={pv.assetHorizon}>{pv.assetHorizonValue[passport.asset_horizon]}</Row>}
+      {!contractor && <Row label={pv.household}>
         {pv.now}: {passport.household.now}; {pv.in5y}: {passport.household.in_5y}
         {passport.household.kids ? ` · ${pv.kids}` : ""}
         {passport.household.pets ? ` · ${pv.pets}` : ""}
         {passport.household.decision_makers
           ? ` · ${DECISION_LABEL[passport.household.decision_makers]}`
           : ""}
-      </Row>
+      </Row>}
+      {contractor && (passport.household.kids || passport.household.pets) && (
+        <Row label={pv.household}>
+          {[passport.household.kids ? pv.kids : "", passport.household.pets ? pv.pets : ""].filter(Boolean).join(" · ")}
+        </Row>
+      )}
       <Row label={pv.lifestyle}>
         {pv.morningLoad}: {pv.loadValue[passport.lifestyle.morning_load]}
         {passport.lifestyle.bathrooms ? ` · ${pv.bathrooms}: ${passport.lifestyle.bathrooms}` : ""}
@@ -238,12 +251,12 @@ export default function PassportView({ passport }: { passport: Passport }) {
               .join(", ")}`
           : ""}
       </Row>
-      <Row label={pv.budget}>
+      {!contractor && <Row label={pv.budget}>
         {money(passport.budget.range)}
         {passport.budget.includes_furniture
           ? ` · ${INCLUDES_FURNITURE_LABEL[passport.budget.includes_furniture]}`
           : ""}
-      </Row>
+      </Row>}
       <Row label={pv.timeline}>
         {passport.timeline.target} · {pv.urgencyValue[passport.timeline.urgency]}
         {passport.timeline.hard_deadline ? ` · дедлайн: ${passport.timeline.hard_deadline}` : ""}
@@ -335,7 +348,7 @@ export default function PassportView({ passport }: { passport: Passport }) {
           !passport.style.palette &&
           pv.notFilled}
       </Row>
-      <Row label={pv.pain}>{passport.pain_points || pv.notFilled}</Row>
+      {!contractor && <Row label={pv.pain}>{passport.pain_points || pv.notFilled}</Row>}
     </div>
   );
 }

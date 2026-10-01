@@ -7,25 +7,39 @@ import { canAdvanceProposalProjectStatus } from "@/lib/proposal/status";
 export const dynamic = "force-dynamic";
 
 // Ответ клиента на публичное КП: принять / обсудить / запросить правки.
-// Без миграций: ответ фиксируется событием (events), первый ответ — финальный.
+// Ответ привязан к версии КП (proposal_responses, 20261001100000): одна версия —
+// один ответ. Повтор того же ответа идемпотентен, другой ответ на ту же версию —
+// 409 already_responded (не маскируется под успех). Ответ на версию, которую
+// заменила более новая выданная версия, — 409 superseded.
 // Это подтверждение намерения, не юридическая подпись (см. i18n respond.note).
-import { ACTION_EVENT, RESPONSE_TYPES } from "@/lib/proposal/respond";
+import {
+  ACTION_EVENT,
+  hasNewerIssuedVersion,
+  isResponseAction,
+  normalizeResponseComment,
+  readProposalResponse,
+} from "@/lib/proposal/respond";
 
 export async function POST(request: Request) {
   if (!(await checkRateLimit("proposal_respond", clientIp(request), 20, 60 * 60 * 1000))) {
     return NextResponse.json({ error: "rate_limited" }, { status: 429 });
   }
 
-  const body = (await request.json().catch(() => ({}))) as { token?: string; action?: string };
-  const eventType = body.action ? ACTION_EVENT[body.action] : undefined;
-  if (!body.token || !eventType) {
+  const body = (await request.json().catch(() => ({}))) as { token?: unknown; action?: unknown; comment?: unknown };
+  if (typeof body.token !== "string" || !body.token || !isResponseAction(body.action)) {
     return NextResponse.json({ error: "bad_request" }, { status: 400 });
+  }
+  const action = body.action;
+  const eventType = ACTION_EVENT[action];
+  const comment = normalizeResponseComment(action, body.comment);
+  if (comment === "too_long") {
+    return NextResponse.json({ error: "comment_too_long" }, { status: 400 });
   }
 
   const admin = createScopedServiceClient("proposal-response");
   const { data: proposal } = await admin
     .from("proposals")
-    .select("id, project_id, status, public_expires_at")
+    .select("id, project_id, version, status, sent_at, public_expires_at")
     .eq("public_token", body.token)
     .maybeSingle();
 
@@ -64,28 +78,46 @@ export async function POST(request: Request) {
       if (projectUpdate.error) throw new Error("response_project_update_failed");
     }
   }
+  const issued = proposal as { id: string; project_id: string; version: number; sent_at?: string | null };
   try {
-    // Первый ответ — финальный: повторные клики не перезаписывают решение.
-    const { data: existing, error: existingError } = await admin
-      .from("events")
-      .select("type")
-      .eq("project_id", projectId)
-      .in("type", RESPONSE_TYPES)
-      .order("created_at", { ascending: true })
-      .limit(1);
-    if (existingError) throw new Error("response_read_failed");
-    const first = existing?.[0];
-    if (first) {
-      if (first.type === "proposal_accepted") await reconcileAcceptedState();
-      return NextResponse.json({ ok: true, response: first.type });
+    // Клиент открыл старую ссылку, а дизайнер уже выпустил новую версию.
+    if (await hasNewerIssuedVersion(admin, issued)) {
+      return NextResponse.json({ error: "superseded" }, { status: 409 });
     }
 
-    const recorded = await admin.from("events").insert({
+    const respondExisting = async (existing: string) => {
+      if (existing !== eventType) {
+        return NextResponse.json({ error: "already_responded", response: existing }, { status: 409 });
+      }
+      if (existing === "proposal_accepted") await reconcileAcceptedState();
+      return NextResponse.json({ ok: true, response: existing });
+    };
+
+    const existing = await readProposalResponse(admin, issued);
+    if (existing.eventType) return await respondExisting(existing.eventType);
+
+    const recorded = await admin.from("proposal_responses").insert({
+      proposal_id: issued.id,
+      project_id: projectId,
+      proposal_version: issued.version,
+      action,
+      comment,
+    });
+    if (recorded.error) {
+      // Параллельный ответ на ту же версию: решение уже записано другим запросом.
+      if ((recorded.error as { code?: string }).code === "23505") {
+        const raced = await readProposalResponse(admin, issued);
+        if (raced.eventType) return await respondExisting(raced.eventType);
+      }
+      throw new Error("response_write_failed");
+    }
+
+    const event = await admin.from("events").insert({
       designer_id: designerId,
       project_id: projectId,
       type: eventType,
     });
-    if (recorded.error) throw new Error("response_write_failed");
+    if (event.error) throw new Error("response_event_write_failed");
 
     if (eventType === "proposal_accepted") {
       await reconcileAcceptedState();

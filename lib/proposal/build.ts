@@ -104,12 +104,18 @@ function stagesText(termWeeks: [number, number] | null): string {
     .join("\n");
 }
 
-function includedText(pkg: keyof typeof PACKAGE_DELIVERABLES, acceptedCards: RiskCard[]): string {
-  const base = deliverables(pkg).map((d) => `— ${d}`);
-  const fromRisks = acceptedCards
-    .filter((c) => c.proposal_implication.trim())
-    .map((c) => `— С учётом обсуждённого (${c.risk_type}): ${c.proposal_implication}`);
-  return [...base, ...fromRisks].join("\n");
+// «Следствие для КП» принятых рисков — указание дизайнеру («в КП зафиксировать…»),
+// а не текст для клиента: в секции КП оно не подставляется (E2E-20261001-1531, D7),
+// а показывается дизайнеру подсказкой рядом с редактором (proposalHintsFromRisks).
+function includedText(pkg: keyof typeof PACKAGE_DELIVERABLES): string {
+  return deliverables(pkg).map((d) => `— ${d}`).join("\n");
+}
+
+/** Подсказки дизайнеру из принятых рисков: что учесть в тексте КП. */
+export function proposalHintsFromRisks(acceptedCards: readonly Pick<RiskCard, "risk_type" | "proposal_implication">[]): string[] {
+  return acceptedCards
+    .map((c) => c.proposal_implication.trim())
+    .filter((text, index, all) => text.length > 0 && all.indexOf(text) === index);
 }
 
 function excludedText(defaults: ProposalDefaults): string {
@@ -129,6 +135,7 @@ function clientInputsText(passport: Passport): string {
 
 export interface BuildProposalArgs {
   passport: Passport;
+  /** Принятые риски. В текст секций не подставляются (см. proposalHintsFromRisks). */
   acceptedCards: RiskCard[];
   defaults: ProposalDefaults;
   price: PriceResult | null; // null → режим «без цены»
@@ -137,7 +144,7 @@ export interface BuildProposalArgs {
 }
 
 export function buildProposalSections(args: BuildProposalArgs): ProposalSection[] {
-  const { passport, acceptedCards, defaults, price, packageChoice, packageRecommendation } = args;
+  const { passport, defaults, price, packageChoice, packageRecommendation } = args;
 
   const sections: ProposalSection[] = [
     { id: "task", title: "Задача клиента", body: taskText(passport) },
@@ -161,7 +168,7 @@ export function buildProposalSections(args: BuildProposalArgs): ProposalSection[
   }
 
   sections.push(
-    { id: "included", title: "Что входит", body: includedText(packageChoice, acceptedCards) },
+    { id: "included", title: "Что входит", body: includedText(packageChoice) },
     { id: "excluded", title: "Что не входит", body: excludedText(defaults) },
     {
       id: "revisions",

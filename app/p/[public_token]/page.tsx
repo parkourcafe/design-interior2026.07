@@ -4,7 +4,7 @@ import { createScopedServiceClient } from "@/lib/supabase/token-scoped";
 import { isPublicLinkActive } from "@/lib/proposal/public-link";
 import { ru } from "@/lib/i18n/ru";
 import type { ProposalSection } from "@/lib/types";
-import { RESPONSE_TYPES } from "@/lib/proposal/respond";
+import { hasNewerIssuedVersion, readProposalResponse } from "@/lib/proposal/respond";
 import PrintButton from "./print-button";
 import ProposalRespond from "./respond";
 
@@ -24,7 +24,7 @@ export default async function PublicProposalPage({
   const admin = createScopedServiceClient("public-proposal");
   const { data: proposal } = await admin
     .from("proposals")
-    .select("sections, status, project_id, public_expires_at")
+    .select("id, version, sections, status, project_id, sent_at, public_expires_at")
     .eq("public_token", public_token)
     .maybeSingle();
 
@@ -69,15 +69,20 @@ export default async function PublicProposalPage({
   const sections = (proposal.sections ?? []) as ProposalSection[];
   const clientName = (project as { client_name?: string } | null)?.client_name ?? "";
 
-  // Ответ клиента (если уже был) + событие «КП просмотрено» (один раз).
-  const { data: pastEvents } = await admin
+  // Ответ клиента на эту версию (если уже был) + событие «КП просмотрено» (один раз).
+  const issued = proposal as { id: string; version: number; sent_at?: string | null };
+  const ref = { id: issued.id, project_id: projectId, version: issued.version, sent_at: issued.sent_at ?? null };
+  const [{ eventType: response }, superseded] = await Promise.all([
+    readProposalResponse(admin, ref),
+    hasNewerIssuedVersion(admin, ref),
+  ]);
+  const { data: viewedEvents } = await admin
     .from("events")
     .select("type")
     .eq("project_id", projectId)
-    .in("type", [...RESPONSE_TYPES, "proposal_viewed"]);
-  const seen = new Set((pastEvents ?? []).map((e) => (e as { type: string }).type));
-  const response = RESPONSE_TYPES.find((t) => seen.has(t)) ?? null;
-  if (!seen.has("proposal_viewed")) {
+    .eq("type", "proposal_viewed")
+    .limit(1);
+  if (!viewedEvents?.length) {
     await admin.from("events").insert({
       designer_id: (project as { designer_id?: string | null } | null)?.designer_id ?? null,
       project_id: projectId,
@@ -91,6 +96,7 @@ export default async function PublicProposalPage({
         <div>
           <p className="text-xs uppercase tracking-widest text-muted">{ru.proposal.title}</p>
           <h1 className="mt-1 font-display text-3xl font-semibold">{clientName}</h1>
+          <p className="mt-1 text-xs text-muted">{ru.landing.respond.versionLabel(issued.version)}</p>
         </div>
         <PrintButton />
       </header>
@@ -105,7 +111,7 @@ export default async function PublicProposalPage({
       </article>
 
       {/* Решение клиента: принять / обсудить / запросить правки (audit S3). */}
-      <ProposalRespond token={public_token} initialResponse={response} />
+      <ProposalRespond token={public_token} initialResponse={response} superseded={superseded} />
     </main>
   );
 }

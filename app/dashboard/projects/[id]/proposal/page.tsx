@@ -7,14 +7,16 @@ import { requestBaseUrl } from "@/lib/base-url";
 import { ru } from "@/lib/i18n/ru";
 import type { AnswersMap, Passport, PricingConfig, ProposalDefaults, ProposalSection } from "@/lib/types";
 import { calcPrice, type PriceResult } from "@/lib/pricing/calc";
-import { buildProposalSections } from "@/lib/proposal/build";
+import { buildProposalSections, proposalHintsFromRisks } from "@/lib/proposal/build";
 import { getLatestProposal, nextProposalVersion } from "@/lib/proposal/latest";
 import { canAdvanceProposalProjectStatus } from "@/lib/proposal/status";
 import { derivePackageRecommendation } from "@/lib/proposal/package";
-import { RESPONSE_TYPES } from "@/lib/proposal/respond";
+import { ACTION_EVENT, readProposalResponse } from "@/lib/proposal/respond";
 import type { RiskCardRow } from "@/lib/review";
 import ProposalEditor from "./editor";
-import CreateRoomButton from "../room/create-button";
+import HandoverButton from "../room/handover-button";
+import { kitFileSources } from "@/lib/project-room/handover";
+import CreateRevisionButton from "./revision-button";
 import PassportApproval from "./passport-approval";
 import { readPassportApproval } from "@/lib/proposal/passport-approval";
 
@@ -188,22 +190,50 @@ export default async function ProposalPage({ params }: { params: Promise<{ id: s
   if (issuedMeanwhile) redirect(`/dashboard/projects/${p.id}/proposal`);
 
   const publicUrl = `${await requestBaseUrl()}/p/${publicToken}`;
+  const riskHints = proposalHintsFromRisks(acceptedCards);
   // Аудит 28.09, шаг 6: до отправки — блок подтверждения паспорта проекта.
   const passportApproval = sent ? null : await readPassportApproval(supabase, p.id);
 
-  // Петля обратной связи (audit S4): открывал ли клиент КП и его ответ.
-  const { data: feedbackEvents } = await supabase
+  // Петля обратной связи (audit S4): открывал ли клиент КП и его ответ на
+  // последнюю выданную версию (20261001100000: ответ привязан к версии).
+  const { data: viewedEvents } = await supabase
     .from("events")
     .select("type")
     .eq("project_id", p.id)
-    .in("type", [...RESPONSE_TYPES, "proposal_viewed"]);
-  const feedback = new Set((feedbackEvents ?? []).map((e) => (e as { type: string }).type));
-  const clientResponse = RESPONSE_TYPES.find((t) => feedback.has(t)) ?? null;
+    .eq("type", "proposal_viewed")
+    .limit(1);
+  const clientViewed = Boolean(viewedEvents?.length);
+  const { data: issuedRow } = await supabase
+    .from("proposals")
+    .select("id, version, status, sent_at")
+    .eq("project_id", p.id)
+    .in("status", ["sent", "accepted"])
+    .order("version", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  const lastIssued = issuedRow as { id: string; version: number; status: string; sent_at: string | null } | null;
+  const issuedResponse = lastIssued
+    ? await readProposalResponse(supabase, { ...lastIssued, project_id: p.id })
+    : { eventType: null, comment: null };
+  const clientResponse = issuedResponse.eventType;
+  const canRevise = sent && existing?.status === "sent"
+    && (clientResponse === ACTION_EVENT.changes || clientResponse === ACTION_EVENT.discuss);
+  const draftAfterIssued = !sent && existing && lastIssued && lastIssued.version < existing.version
+    ? { draft: existing.version, issued: lastIssued.version }
+    : null;
   const { data: existingRoom } = await supabase
     .from("project_rooms")
     .select("id")
     .eq("project_id", p.id)
     .maybeSingle();
+  const { data: kitRow } = existingRoom
+    ? await supabase
+      .from("project_handover_kits")
+      .select("id, created_at")
+      .eq("room_id", (existingRoom as { id: string }).id)
+      .maybeSingle()
+    : { data: null };
+  const existingKit = kitRow as { id: string; created_at: string } | null;
 
   return (
     <div>
@@ -227,9 +257,17 @@ export default async function ProposalPage({ params }: { params: Promise<{ id: s
           </ul>
           <p className="mt-2 text-xs text-muted">{ru.proposal.packageRecommendationHint}</p>
         </div>
-        {(clientResponse || feedback.has("proposal_viewed")) && (
+        {existing ? (
+          <p className="mt-2 text-xs text-muted">{ru.proposal.versionLabel(existing.version)}</p>
+        ) : null}
+        {draftAfterIssued ? (
+          <p className="mt-2 text-sm text-amber-800">
+            {ru.proposal.revisionDraftFor(draftAfterIssued.draft, draftAfterIssued.issued)}
+          </p>
+        ) : null}
+        {(clientResponse || clientViewed) && (
           <div className="mt-3 flex flex-wrap gap-2">
-            {feedback.has("proposal_viewed") && (
+            {clientViewed && (
               <span className="rounded-full border border-line bg-white px-3 py-1 text-xs text-muted">
                 {ru.proposal.clientViewed}
               </span>
@@ -241,8 +279,33 @@ export default async function ProposalPage({ params }: { params: Promise<{ id: s
             )}
           </div>
         )}
+        {issuedResponse.comment ? (
+          <div className="mt-3 rounded-md border border-line bg-white p-3 text-sm">
+            <p className="text-xs uppercase tracking-wide text-muted">
+              {ru.proposal.clientComment}
+              {lastIssued ? ` · ${ru.proposal.versionLabel(lastIssued.version)}` : ""}
+            </p>
+            <p className="mt-1 whitespace-pre-line">{issuedResponse.comment}</p>
+          </div>
+        ) : null}
+        {canRevise && existing ? (
+          <section className="card mt-4 border-accent/30">
+            <h2 className="font-display text-xl font-semibold">{ru.proposal.revisionTitle}</h2>
+            <p className="mb-3 mt-1 text-sm text-muted">{ru.proposal.revisionHint}</p>
+            <CreateRevisionButton projectId={p.id} nextVersion={existing.version + 1} />
+          </section>
+        ) : null}
       </div>
 
+      {!sent && riskHints.length > 0 ? (
+        <section className="card mb-4 border-amber-300/60 bg-amber-50/40">
+          <h2 className="font-medium">{ru.proposal.riskHintsTitle}</h2>
+          <p className="mt-1 text-xs text-muted">{ru.proposal.riskHintsLead}</p>
+          <ul className="mt-2 list-disc space-y-1 pl-5 text-sm">
+            {riskHints.map((hint) => <li key={hint}>{hint}</li>)}
+          </ul>
+        </section>
+      ) : null}
       {passportApproval ? <PassportApproval projectId={p.id} initial={passportApproval} /> : null}
       <ProposalEditor
         // Смена статуса (отправка из другой вкладки) пересоздаёт редактор с
@@ -258,10 +321,23 @@ export default async function ProposalPage({ params }: { params: Promise<{ id: s
         <section className="card mt-6 border-accent/30">
           <h2 className="font-display text-2xl font-semibold">{ru.projectRoom.acceptedTitle}</h2>
           <p className="mb-4 text-sm text-muted">{ru.projectRoom.acceptedHint}</p>
-          {existingRoom ? (
-            <Link href={`/dashboard/projects/${p.id}/room`} className="btn-primary">{ru.projectRoom.open}</Link>
+          {existingKit ? (
+            <div className="space-y-2">
+              <p className="text-sm">{ru.handover.kitCreated(new Date(existingKit.created_at).toLocaleString("ru-RU"))}</p>
+              <Link href={`/dashboard/projects/${p.id}/room`} className="btn-primary">{ru.projectRoom.open}</Link>
+            </div>
           ) : (
-            <CreateRoomButton projectId={p.id} />
+            <>
+              <p className="mb-3 text-sm text-muted">{ru.handover.hint}</p>
+              {existingRoom ? (
+                <Link href={`/dashboard/projects/${p.id}/room`} className="btn-ghost mb-3 inline-block">{ru.projectRoom.open}</Link>
+              ) : null}
+              <HandoverButton
+                projectId={p.id}
+                proposalVersion={lastIssued?.version ?? 1}
+                files={kitFileSources(answers, p.id).map((file) => ({ kind: file.kind, name: file.name, size: file.size }))}
+              />
+            </>
           )}
         </section>
       )}

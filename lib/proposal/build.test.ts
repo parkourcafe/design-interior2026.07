@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { buildProposalSections } from "./build";
+import { buildProposalSections, proposalHintsFromRisks } from "./build";
 import { buildPassport } from "@/lib/brief/passport";
 import type { RiskCard, ProposalDefaults } from "@/lib/types";
 import type { PriceResult } from "@/lib/pricing/calc";
@@ -65,7 +65,7 @@ describe("buildProposalSections", () => {
     expect(sections.find((s) => s.id === "price")).toBeUndefined();
   });
 
-  it("folds accepted risk implications into 'included'", () => {
+  it("keeps designer notes from accepted risks out of the client text and offers them as hints (E2E D7)", () => {
     const sections = buildProposalSections({
       passport,
       acceptedCards: [acceptedCard],
@@ -74,8 +74,11 @@ describe("buildProposalSections", () => {
       packageChoice: "full",
       packageRecommendation,
     });
-    const included = sections.find((s) => s.id === "included");
-    expect(included?.body).toContain("включить проект систем хранения");
+    const text = JSON.stringify(sections);
+    expect(text).not.toContain("включить проект систем хранения");
+    expect(text).not.toContain("С учётом обсуждённого");
+    expect(proposalHintsFromRisks([acceptedCard, acceptedCard]))
+      .toEqual([acceptedCard.proposal_implication]);
   });
 
   it("prefills the task section from the passport", () => {
