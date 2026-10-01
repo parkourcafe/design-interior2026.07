@@ -1,0 +1,112 @@
+# База RemHaOS на своём сервере (Россия)
+
+Зачем: по 152-ФЗ (ст. 18 ч. 5) данные граждан РФ при сборе записываются в базу на
+территории России. У облачного Supabase нет региона в РФ, поэтому те же программы
+Supabase ставятся на арендованный сервер в российском дата-центре. Сайт подключается к
+нему так же, как к облачному Supabase — меняется только адрес и ключи.
+
+Проверено 01.10.2026 на стенде, на этом комплекте:
+- установка с нуля;
+- все 145 миграций репозитория, повторный запуск применяет 0;
+- перенос данных из старой базы (`scripts/cutover/`) со старыми паролями;
+- путь в браузере: регистрация → бриф клиента → подтверждение паспорта → отправка КП
+  → ссылка клиента;
+- ночная копия: дамп базы и архив файлов.
+
+Не проверены на стенде: реальная почта (SMTP), вход через Google, сертификат HTTPS
+для настоящего домена.
+
+## Что внутри
+
+| Сервис | Что делает |
+|---|---|
+| `db` | PostgreSQL 17 (образ Supabase). Наружу не открыт: только 127.0.0.1 сервера. |
+| `auth` | Регистрация, вход, письма (GoTrue). |
+| `rest` | API к базе (PostgREST). Отдаются только разрешённые схемы. |
+| `storage` | Файлы клиентов (планы, фото) — на диске сервера. |
+| `gateway` | HTTPS (сертификат Let's Encrypt — автоматически) и пути `/auth/v1`, `/rest/v1`, `/storage/v1`. |
+| `backup` | Каждую ночь: дамп базы и архив файлов в `./backups`, хранение 14 дней. |
+
+## Сервер
+
+- Виртуальная машина в российском дата-центре: 2 vCPU, 4 ГБ RAM, 40–50 ГБ SSD,
+  публичный IPv4, Ubuntu 24.04.
+- Включите у хостера **ежедневные снимки диска** — это копия вне `./backups`.
+- Управляемая база данных хостера («Managed PostgreSQL») не подходит: Supabase нужен свой
+  образ базы с правами, которые хостеры не дают.
+
+## Установка (один раз, ~30 минут)
+
+1. **DNS.** У регистратора домена: запись `A` для `api.remhaos.com` → IP сервера.
+2. **Docker.** На сервере:
+   ```
+   curl -fsSL https://get.docker.com | sh
+   ```
+3. **Код.**
+   ```
+   git clone https://github.com/parkourcafe/design-interior2026.07.git
+   cd design-interior2026.07/deploy/self-hosted
+   ```
+4. **Секреты.**
+   ```
+   sh generate-env.sh api.remhaos.com https://www.remhaos.com
+   ```
+   Откройте `.env` и заполните `SMTP_*` (почтовый сервис), при необходимости `GOOGLE_*`.
+   Сохраните копию `.env` в менеджере паролей — без него сервер не восстановить.
+5. **Запуск.**
+   ```
+   docker compose up -d
+   docker compose ps          # все сервисы Up, db — healthy
+   ```
+6. **Миграции.**
+   ```
+   sh apply-migrations.sh     # в конце: MIGRATIONS_OK … всего: 145 (или больше)
+   ```
+7. **Проверка.** В браузере `https://api.remhaos.com/auth/v1/health` — ответ с `GoTrue`.
+
+## Подключение сайта (Vercel → Settings → Environment Variables → Production)
+
+- `NEXT_PUBLIC_SUPABASE_URL` = `https://api.remhaos.com`
+- `NEXT_PUBLIC_SUPABASE_ANON_KEY` и `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` = `ANON_KEY` из `.env`
+- `SUPABASE_SERVICE_ROLE_KEY` = `SERVICE_ROLE_KEY` из `.env`
+
+Остальное — по `docs/audits/CUTOVER_RUNBOOK_2026-09-28.md`, раздел D.
+
+## Перенос данных со старой базы
+
+База закрыта для внешнего мира, поэтому перенос идёт через SSH-туннель со своего
+компьютера:
+```
+ssh -N -L 15432:127.0.0.1:5432 user@<IP сервера>      # в отдельном окне
+TARGET_DB_URL="postgresql://postgres:<POSTGRES_PASSWORD из .env>@127.0.0.1:15432/postgres"
+```
+Дальше — `scripts/cutover/transfer.zsh` и `transfer-files.mjs` по инструкции переезда
+(для файлов `TARGET_SUPABASE_URL=https://api.remhaos.com`).
+
+## Обновление
+
+```
+git pull
+docker compose up -d          # если менялись версии сервисов
+sh apply-migrations.sh        # применит только новые миграции
+```
+
+## Восстановление из копии
+
+```
+docker compose stop auth rest storage gateway
+docker compose exec -T db sh -c 'PGPASSWORD=$POSTGRES_PASSWORD pg_restore -h localhost -U supabase_admin -d postgres --clean --if-exists' < backups/db-<дата>.dump
+tar -xzf backups/storage-<дата>.tar.gz -C volumes/storage
+docker compose up -d
+```
+Команда восстановления на стенде **не проверялась** (проверено только, что копия
+создаётся и содержит все таблицы и файлы). Перед восстановлением на рабочем сервере —
+отрепетировать на отдельной машине.
+
+## Безопасность
+
+- `.env`, `volumes/` и `backups/` не коммитятся (`.gitignore`). Копии содержат
+  персональные данные и создаются с правами только для владельца.
+- Открыты наружу только 80/443. Вход на сервер — по SSH-ключу; парольный вход по SSH
+  отключите.
+- Чужие сайты не получают доступа к API из браузера (CORS только для адреса сайта).

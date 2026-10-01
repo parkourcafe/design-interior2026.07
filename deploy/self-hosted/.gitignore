@@ -1,0 +1,5 @@
+.env
+volumes/db/data/
+volumes/storage/
+volumes/caddy/
+backups/
