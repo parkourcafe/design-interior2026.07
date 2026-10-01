@@ -72,6 +72,27 @@ protection** → Save. Supabase начнёт отклонять пароли и�
 
 ## Часть C — подготовка новой базы (после решения B1)
 
+> **Решение владельца 01.10: сначала Россия.** У Supabase нет региона в РФ, поэтому
+> база ставится на свой сервер в российском дата-центре — комплект
+> `deploy/self-hosted/` (инструкция в его `README.md`). Для этой ветки шаги C1–C4
+> заменяются так:
+> - **C1 →** арендовать виртуальную машину у российского хостера (2 vCPU, 4 ГБ RAM,
+>   40–50 ГБ SSD, IPv4, Ubuntu 24.04), включить ежедневные снимки диска, запись DNS
+>   `api.remhaos.com` → IP сервера.
+> - **C2 →** почта (`SMTP_*`) и Google (`GOOGLE_*`) задаются в `.env` комплекта, а не в
+>   панели Supabase. В Google Cloud Console redirect URI —
+>   `https://api.remhaos.com/auth/v1/callback`. Защита от утёкших паролей —
+>   `PASSWORD_HIBP_ENABLED=true` (по умолчанию).
+> - **C3 →** не нужен: бакеты создают миграции.
+> - **C4 →** `docker compose up -d` и `sh apply-migrations.sh` на сервере.
+> - **C5 →** ключи берутся из `.env` комплекта: `ANON_KEY` и `SERVICE_ROLE_KEY`;
+>   `NEXT_PUBLIC_SUPABASE_URL=https://api.remhaos.com`.
+> - **D2 →** перенос — через SSH-туннель (см. README комплекта), строка приёмника
+>   `postgresql://postgres:<POSTGRES_PASSWORD>@127.0.0.1:15432/postgres`, для файлов
+>   `TARGET_SUPABASE_URL=https://api.remhaos.com`.
+> Остальные шаги D и E — без изменений. Ниже — вариант с облачным Supabase (если юрист
+> разрешит хранение вне РФ).
+
 ### C1. Создать проект Supabase
 supabase.com → организация `Remhaos+ Pet ID` → **New project**:
 - Name: например `remhaos-prod-2`;
