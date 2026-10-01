@@ -3,8 +3,9 @@ import { createClient } from "@/lib/supabase/server";
 
 export const dynamic = "force-dynamic";
 
-// Статус заявки на удаление аккаунта и её отмена (DEC-044 (a)). Отмена
-// невозможна после срока или при legal hold — это решает база.
+// Статус заявки на удаление аккаунта (DEC-047). Сам дизайнер удаление не
+// отменяет — только поддержка до уничтожения; POST оставлен для старых
+// клиентов и получает отказ базы.
 
 async function currentUser() {
   const supabase = await createClient();
@@ -28,7 +29,9 @@ export async function POST() {
   const { data, error } = await supabase.rpc("cancel_account_deletion", { p_reason: null });
   if (error) {
     const message = String(error.message ?? "");
-    const reason = message.includes("ACCOUNT_RETENTION_LEGAL_HOLD")
+    const reason = message.includes("ACCOUNT_RETENTION_CANCEL_VIA_SUPPORT") || /permission denied/i.test(message)
+      ? "cancel_via_support"
+      : message.includes("ACCOUNT_RETENTION_LEGAL_HOLD")
       ? "legal_hold"
       : message.includes("ACCOUNT_RETENTION_WINDOW_CLOSED")
         ? "window_closed"

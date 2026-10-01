@@ -18,6 +18,7 @@ const purposes = new Set([
   "system-telegram-webhook",
   "operator-account-purge-plan",
   "operator-account-retention-expiry",
+  "operator-account-purge",
   "system-integration-worker",
   "public-intake-read",
   "public-designer-read",

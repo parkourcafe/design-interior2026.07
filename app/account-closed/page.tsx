@@ -8,15 +8,16 @@ import SignOutButton from "../dashboard/sign-out-button";
 export const dynamic = "force-dynamic";
 export const metadata: Metadata = { robots: { index: false, follow: false } };
 
-// DEC-045 (a): срок удаления аккаунта истёк — кабинет закрыт, данные ждут
-// удаления. Сюда ведут proxy.ts и layout кабинета.
+// DEC-047: удаление аккаунта запрошено — кабинет закрыт, данные будут
+// уничтожены не позднее даты purgeAfter. Сюда ведут proxy.ts и layout кабинета.
 export default async function AccountClosedPage() {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) redirect("/login");
   const { data } = await supabase.rpc("get_account_retention_status");
-  const retention = data as { status?: string; purgeAfter?: string } | null;
-  if (retention?.status !== "expired" || !retention.purgeAfter) redirect("/dashboard");
+  const retention = data as { status?: string; purgeAfter?: string; closed?: boolean } | null;
+  const closed = retention?.closed === true || retention?.status === "expired";
+  if (!closed || !retention?.purgeAfter) redirect("/dashboard");
   const date = new Date(retention.purgeAfter).toLocaleDateString("ru-RU", {
     day: "numeric", month: "long", year: "numeric",
   });

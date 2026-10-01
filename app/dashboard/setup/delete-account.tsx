@@ -1,16 +1,17 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import { ru } from "@/lib/i18n/ru";
 
-// DEC-040, DEC-041 §2, DEC-044 (a): удаление аккаунта — заявка с 90-дневным
-// сроком «только для чтения». В срок: статус, полный экспорт, отмена.
+// DEC-047: удаление аккаунта — запрос сразу закрывает аккаунт, данные
+// уничтожаются в течение 30 дней. Экспорт — до запроса; отмена — через
+// поддержку.
 
 type Retention = {
   readonly status: string;
   readonly purgeAfter: string;
   readonly legalHold: boolean;
-  readonly cancellable: boolean;
 };
 
 function formatDate(value: string): string {
@@ -22,6 +23,7 @@ function formatDate(value: string): string {
 }
 
 export default function DeleteAccount() {
+  const router = useRouter();
   const [open, setOpen] = useState(false);
   const [confirmation, setConfirmation] = useState("");
   const [busy, setBusy] = useState(false);
@@ -57,25 +59,8 @@ export default function DeleteAccount() {
       setBusy(false);
       return;
     }
-    const status = await fetch("/api/account/retention").then((r) => r.json()).catch(() => null) as
-      { retention?: Retention | null } | null;
-    setRetention(status?.retention ?? null);
-    setOpen(false);
-    setBusy(false);
-  }
-
-  async function cancelDeletion() {
-    setBusy(true);
-    setError("");
-    const response = await fetch("/api/account/retention", { method: "POST" });
-    const result = (await response.json().catch(() => ({}))) as { error?: string };
-    if (!response.ok) {
-      setError(ru.deleteAccount.cancelBlocked[result.error ?? ""] ?? ru.deleteAccount.cancelError);
-      setBusy(false);
-      return;
-    }
-    setRetention(null);
-    setBusy(false);
+    // Аккаунт закрыт с момента запроса — экран «Аккаунт закрыт».
+    router.push("/account-closed");
   }
 
   return (
@@ -87,17 +72,6 @@ export default function DeleteAccount() {
             {ru.deleteAccount.pending(formatDate(retention.purgeAfter))}
           </p>
           {retention.legalHold ? <p className="text-sm text-red-800">{ru.deleteAccount.legalHold}</p> : null}
-          {error ? <p role="alert" className="text-sm text-red-700">{error}</p> : null}
-          <div className="flex flex-wrap gap-3">
-            <a href="/api/account/export" className="rounded-md border border-red-300 px-4 py-2 text-sm font-medium text-red-800">
-              {ru.deleteAccount.export}
-            </a>
-            {retention.cancellable ? (
-              <button type="button" className="rounded-md bg-red-700 px-4 py-2 text-sm font-medium text-white disabled:opacity-50" disabled={busy} onClick={cancelDeletion}>
-                {busy ? ru.deleteAccount.cancelling : ru.deleteAccount.cancelDeletion}
-              </button>
-            ) : null}
-          </div>
         </div>
       ) : (
         <>

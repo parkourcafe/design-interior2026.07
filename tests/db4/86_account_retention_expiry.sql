@@ -1,8 +1,9 @@
 \set ON_ERROR_STOP on
 
--- DB4: после 90 дней заявка на удаление аккаунта — «срок вышел, ждёт
--- удаления» (DEC-045 (a); миграция 20260928120000). Вход закрыт, данные не
--- трогаются, оператор видит список и может восстановить аккаунт с причиной.
+-- DB4: после срока заявка на удаление аккаунта — «срок вышел, ждёт
+-- уничтожения» (DEC-045 (a); миграция 20260928120000; по DEC-047 срок 30 дней,
+-- здесь — старая 90-дневная заявка). Вход закрыт, оператор видит список и
+-- может восстановить аккаунт с причиной — и после срока, и в срок (DEC-047).
 -- Дизайнер 31111111 (проект 41111111). Весь файл — одна транзакция с откатом.
 
 begin;
@@ -102,7 +103,7 @@ select pg_temp.expect_error('authenticated', '31111111-1111-4111-8111-1111111111
     where id = '41111111-1111-4111-8111-111111111111' returning 1) select to_jsonb(count(*)) from u $sql$,
   '42501', 'ACCOUNT_IN_RETENTION_READ_ONLY', 'write_after_window');
 select pg_temp.expect_error('authenticated', '31111111-1111-4111-8111-111111111111',
-  'select public.cancel_account_deletion(null)', '42501', 'ACCOUNT_RETENTION_WINDOW_CLOSED', 'cancel_after_window');
+  'select public.cancel_account_deletion(null)', '42501', 'cancel_account_deletion', 'cancel_after_window');
 
 -- === 2. Перевод статуса: один раз, с журналом ==============================
 
@@ -198,16 +199,20 @@ begin
 end
 $restore$;
 
--- В срок восстанавливать нечего: дизайнер отменяет сам.
+-- DEC-047: в срок отменяет только оператор (дизайнер сам не может).
 do $fresh$
+declare
+  v_result jsonb;
 begin
   perform pg_temp.call_as('authenticated', '31111111-1111-4111-8111-111111111111',
     'select public.request_account_deletion(null)');
+  v_result := pg_temp.call_as('service_role', null,
+    $sql$ select public.restore_account_retention_case('31111111-1111-4111-8111-111111111111', 'ошибка, письмо', 'ops') $sql$);
+  if v_result->>'status' <> 'cancelled' or (v_result->>'closed')::boolean then
+    raise exception 'DB4_86_RESTORE_IN_WINDOW:%', v_result;
+  end if;
 end
 $fresh$;
-select pg_temp.expect_error('service_role', null,
-  $sql$ select public.restore_account_retention_case('31111111-1111-4111-8111-111111111111', 'рано', 'ops') $sql$,
-  '42501', 'ACCOUNT_RETENTION_WINDOW_OPEN', 'restore_in_window');
 
 rollback;
 

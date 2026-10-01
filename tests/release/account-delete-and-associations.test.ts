@@ -1,9 +1,9 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-// DEC-040, DEC-041 §2, DEC-044 (a): удаление аккаунта — заявка с 90-дневным
-// сроком «только для чтения», а не мгновенное стирание. Маршрут не берёт
-// сервисный ключ, ничего не удаляет и не закрывает вход; заявку создаёт база
-// от имени самого дизайнера (DB4 84 проверяет саму заявку и «только чтение»).
+// DEC-047: запрос удаления аккаунта сразу закрывает аккаунт, данные уничтожает
+// оператор в течение 30 дней (функция базы под суперпользователем, DB4 90).
+// Маршрут не берёт сервисный ключ и сам ничего не удаляет; заявку создаёт база
+// от имени самого дизайнера (DB4 84 проверяет заявку и закрытие).
 
 const state = vi.hoisted(() => ({
   adminCalls: 0,
@@ -45,7 +45,7 @@ function deleteRequest(confirmation: string) {
   });
 }
 
-describe("release account deletion (90-day read-only retention)", () => {
+describe("release account deletion request (DEC-047: closed at once, purged within 30 days)", () => {
   beforeEach(() => {
     state.adminCalls = 0;
     state.user = { id: "user-1" };
@@ -80,7 +80,7 @@ describe("release account deletion (90-day read-only retention)", () => {
     expect(response.status).toBe(500);
   });
 
-  it("no longer deletes data, storage files or the Auth user", () => {
+  it("the request route itself deletes no data, storage files or Auth user", () => {
     const source = readFileSync("app/api/account/delete/route.ts", "utf8");
     for (const forbidden of [".delete(", ".remove(", "deleteUser", "createScopedServiceClient", "createAdminClient"]) {
       expect(source).not.toContain(forbidden);

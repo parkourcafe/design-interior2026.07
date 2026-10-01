@@ -1,8 +1,8 @@
-// DEC-041 §2: план удаления данных дизайнера после 90-дневного срока — ТОЛЬКО
-// dry-run. Ничего не удаляет; блокеры (срок, legal hold, платный архив) решает
-// база (account_purge_blockers), объём — счётчики строк и префиксы хранилища.
-// Сам план записывается в неизменяемый журнал заявки (record_account_purge_plan).
-// Реальное удаление не разрешено: см. REMHAOS_ACCOUNT_RETENTION_DESIGN_2026-09-28.md.
+// DEC-041 §2: план удаления данных дизайнера — dry-run, ничего не удаляет;
+// блокеры (срок, legal hold, платный архив) решает база
+// (account_purge_blockers), объём — счётчики строк и префиксы хранилища. План
+// записывается в неизменяемый журнал заявки (record_account_purge_plan).
+// Само уничтожение (DEC-047, 30 дней) — scripts/account-purge.ts.
 
 export interface PurgePlanClient {
   rpc(name: string, args: Record<string, unknown>): PromiseLike<{ data: unknown; error: unknown }>;
@@ -29,9 +29,9 @@ export interface AccountPurgePlan {
     readonly projectRooms: number;
     readonly contractDocuments: number;
     readonly passportRevisions: number;
-    // Записи согласия на обработку ПДн (20260928150000): append-only, держат
-    // проект (on delete restrict). Правило их хранения после удаления аккаунта —
-    // решение владельца и юриста; до него реальное удаление проекта невозможно.
+    // Записи согласия на обработку ПДн (20260928150000): уничтожаются вместе
+    // с проектом (DEC-047); хранить ли доказательство согласия дольше — вопрос
+    // юристу.
     readonly intakeConsentRecords: number;
     readonly storagePrefixes: readonly string[];
   };

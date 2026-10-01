@@ -1,7 +1,9 @@
 \set ON_ERROR_STOP on
 
--- DB4: удаление аккаунта дизайнера — 90 дней только для чтения
--- (DEC-040, DEC-041 §2, DEC-044 (a); миграция 20260928100000). Дизайнер
+-- DB4: удаление аккаунта дизайнера (DEC-040, DEC-041 §2; миграция
+-- 20260928100000) по политике DEC-047 (20260928158000): запрос сразу
+-- закрывает аккаунт (запись запрещена), срок уничтожения 30 дней, отмена —
+-- только оператором. Уничтожение — DB4 90. Дизайнер
 -- 31111111 (проект 41111111), второй дизайнер 33333333 (проект 42222222).
 -- Весь файл — одна транзакция с откатом. Данные не удаляются нигде.
 
@@ -80,8 +82,8 @@ begin
   v_second := pg_temp.call_as('authenticated', '31111111-1111-4111-8111-111111111111',
     'select public.request_account_deletion(null)');
   if v_first->>'status' <> 'requested' or (v_first->>'replay')::boolean
-     or (v_first->>'purgeAfter')::timestamptz <> (v_first->>'requestedAt')::timestamptz + interval '90 days'
-     or not (v_first->>'cancellable')::boolean then
+     or (v_first->>'purgeAfter')::timestamptz <> (v_first->>'requestedAt')::timestamptz + interval '30 days'
+     or (v_first->>'cancellable')::boolean or not (v_first->>'closed')::boolean then
     raise exception 'DB4_84_REQUEST_SHAPE:%', v_first;
   end if;
   if v_second->>'caseId' <> v_first->>'caseId' or not (v_second->>'replay')::boolean then
@@ -214,15 +216,9 @@ begin
 end
 $hold$;
 
--- Legal hold отмене не мешает: отмена сохраняет данные.
-do $hold_keeps_cancel$
-begin
-  if not (pg_temp.call_as('authenticated', '31111111-1111-4111-8111-111111111111',
-      'select public.get_account_retention_status()')->>'cancellable')::boolean then
-    raise exception 'DB4_84_HOLD_BLOCKS_CANCEL';
-  end if;
-end
-$hold_keeps_cancel$;
+-- Дизайнер сам удаление не отменяет (DEC-047): права на функцию нет.
+select pg_temp.expect_error('authenticated', '31111111-1111-4111-8111-111111111111',
+  'select public.cancel_account_deletion(null)', '42501', 'cancel_account_deletion', 'designer_cancel');
 select pg_temp.expect_error('service_role', null,
   $sql$ select public.mark_account_paid_archive('31111111-1111-4111-8111-111111111111',
     current_date - 1, 'Прошлая дата') $sql$,
@@ -247,14 +243,15 @@ begin
 end
 $plan_recorded$;
 
--- === 5. Отмена снимает «только чтение»; журнал и заявка неизменяемы =========
+-- === 5. Отмена оператором в срок снимает закрытие; журнал и заявка неизменяемы
 
 do $cancel$
 declare
   v_result jsonb;
 begin
-  v_result := pg_temp.call_as('authenticated', '31111111-1111-4111-8111-111111111111',
-    'select public.cancel_account_deletion(''Передумал'')');
+  v_result := pg_temp.call_as('service_role', null,
+    $sql$ select public.restore_account_retention_case('31111111-1111-4111-8111-111111111111',
+      'Передумал, письмо в поддержку', 'operator@remhaos.test') $sql$);
   if v_result->>'status' <> 'cancelled' then
     raise exception 'DB4_84_CANCEL_FAILED:%', v_result;
   end if;
@@ -264,8 +261,9 @@ begin
 end
 $cancel$;
 
-select pg_temp.expect_error('authenticated', '31111111-1111-4111-8111-111111111111',
-  'select public.cancel_account_deletion(null)', 'P0002', 'ACCOUNT_RETENTION_NO_ACTIVE_CASE', 'cancel_twice');
+select pg_temp.expect_error('service_role', null,
+  $sql$ select public.restore_account_retention_case('31111111-1111-4111-8111-111111111111', 'Повтор', 'operator') $sql$,
+  'P0002', 'ACCOUNT_RETENTION_NO_ACTIVE_CASE', 'cancel_twice');
 
 do $immutable$
 begin
@@ -289,7 +287,8 @@ begin
 end
 $immutable$;
 
--- === 6. Срок истёк: отмены нет, блокеров нет (удаление всё равно не выполняется)
+-- === 6. Срок истёк: блокеров нет (уничтожение — DB4 90); старая 90-дневная
+-- заявка (до DEC-047) остаётся допустимой.
 
 do $window_closed$
 declare
@@ -308,7 +307,7 @@ end
 $window_closed$;
 
 select pg_temp.expect_error('authenticated', '31111111-1111-4111-8111-111111111111',
-  'select public.cancel_account_deletion(null)', '42501', 'ACCOUNT_RETENTION_WINDOW_CLOSED', 'cancel_after_window');
+  'select public.cancel_account_deletion(null)', '42501', 'cancel_account_deletion', 'cancel_after_window');
 
 rollback;
 

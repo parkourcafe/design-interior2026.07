@@ -117,7 +117,8 @@ for sql in \
   "${repo_root}/tests/db4/86_account_retention_expiry.sql" \
   "${repo_root}/tests/db4/87_intake_limits_and_consent.sql" \
   "${repo_root}/tests/db4/88_real_supabase_bootstrap_rights.sql" \
-  "${repo_root}/tests/db4/89_proposal_link_expiry_and_consent_text.sql"; do
+  "${repo_root}/tests/db4/89_proposal_link_expiry_and_consent_text.sql" \
+  "${repo_root}/tests/db4/90_account_purge.sql"; do
   print -r -- "Running ${sql:t}"
   run_file "${sql}"
 done

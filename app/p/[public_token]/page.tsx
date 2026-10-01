@@ -34,17 +34,19 @@ export default async function PublicProposalPage({
   // не должен — notFound() не раскрывает даже сам факт существования КП.
   if (!["sent", "accepted"].includes((proposal as { status?: string }).status ?? "")) notFound();
 
+  const linkClosed = (
+    <main className="mx-auto max-w-2xl px-6 py-16">
+      <div className="card space-y-2">
+        <h1 className="font-display text-2xl font-semibold">{ru.proposal.linkExpiredTitle}</h1>
+        <p className="text-sm text-muted">{ru.proposal.linkExpiredBody}</p>
+      </div>
+    </main>
+  );
+
   // Срок ссылки истёк или дизайнер её отозвал: содержимое КП не показываем и
   // ничего не записываем (миграция 20260928156000).
   if (!isPublicLinkActive((proposal as { public_expires_at?: string | null }).public_expires_at)) {
-    return (
-      <main className="mx-auto max-w-2xl px-6 py-16">
-        <div className="card space-y-2">
-          <h1 className="font-display text-2xl font-semibold">{ru.proposal.linkExpiredTitle}</h1>
-          <p className="text-sm text-muted">{ru.proposal.linkExpiredBody}</p>
-        </div>
-      </main>
-    );
+    return linkClosed;
   }
 
   const projectId = (proposal as { project_id: string }).project_id;
@@ -55,12 +57,13 @@ export default async function PublicProposalPage({
     .maybeSingle();
 
   const designerId = (project as { designer_id?: string | null } | null)?.designer_id ?? null;
-  // DEC-044 (a): аккаунт дизайнера в сроке удаления — КП открывается, но
-  // ничего не записывается: ни просмотр, ни ответ клиента.
-  let archived = false;
+  // DEC-047: студия запросила удаление аккаунта — ссылки клиентов гаснут сразу.
+  // Не удалось проверить — ссылка закрыта, а не открыта.
   if (designerId) {
-    const { data: inRetention } = await admin.rpc("account_retention_active", { p_designer_id: designerId });
-    archived = inRetention === true;
+    const { data: inRetention, error: retentionError } = await admin.rpc("account_retention_active", {
+      p_designer_id: designerId,
+    });
+    if (retentionError || inRetention === true) return linkClosed;
   }
 
   const sections = (proposal.sections ?? []) as ProposalSection[];
@@ -74,7 +77,7 @@ export default async function PublicProposalPage({
     .in("type", [...RESPONSE_TYPES, "proposal_viewed"]);
   const seen = new Set((pastEvents ?? []).map((e) => (e as { type: string }).type));
   const response = RESPONSE_TYPES.find((t) => seen.has(t)) ?? null;
-  if (!archived && !seen.has("proposal_viewed")) {
+  if (!seen.has("proposal_viewed")) {
     await admin.from("events").insert({
       designer_id: (project as { designer_id?: string | null } | null)?.designer_id ?? null,
       project_id: projectId,
@@ -102,7 +105,7 @@ export default async function PublicProposalPage({
       </article>
 
       {/* Решение клиента: принять / обсудить / запросить правки (audit S3). */}
-      <ProposalRespond token={public_token} initialResponse={response} archived={archived} />
+      <ProposalRespond token={public_token} initialResponse={response} />
     </main>
   );
 }

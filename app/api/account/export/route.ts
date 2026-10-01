@@ -54,14 +54,16 @@ export async function GET() {
   } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: "Не авторизован." }, { status: 401 });
 
-  // DEC-045 (a): после срока аккаунт закрыт — экспорт тоже.
+  // DEC-047: после запроса удаления аккаунт закрыт — экспорт тоже (скачать
+  // его можно до запроса).
   // Ошибка чтения статуса — отказ, а не экспорт: закрытость не должна
   // зависеть от того, ответила ли база.
   const status = await supabase.rpc("get_account_retention_status");
   if (status.error) {
     return NextResponse.json({ error: "Не удалось проверить статус аккаунта." }, { status: 503 });
   }
-  if ((status.data as { status?: string } | null)?.status === "expired") {
+  const state = status.data as { status?: string; closed?: boolean } | null;
+  if (state?.closed === true || state?.status === "expired") {
     return NextResponse.json({ error: "account_closed", message: ru.retention.closedExport }, { status: 403 });
   }
 

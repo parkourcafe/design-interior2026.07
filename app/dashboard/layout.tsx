@@ -22,28 +22,27 @@ export default async function DashboardLayout({ children }: { children: React.Re
     if (!studio) redirect("/login");
   }
 
-  // DEC-044 (a): в срок удаления аккаунта кабинет только для чтения — об этом
-  // говорит баннер на каждой странице, а не ошибки отдельных действий.
-  // DEC-045 (a): после срока кабинет закрыт целиком — экран «Аккаунт закрыт»
+  // DEC-047: запрос удаления сразу закрывает кабинет — экран «Аккаунт закрыт»
   // с контактом поддержки (/account-closed; proxy.ts закрывает и переходы).
+  // Баннер «только для чтения» остаётся для старых заявок без `closed`.
   let retentionUntil: string | null = null;
-  let closedSince: string | null = null;
+  let closed = false;
   try {
     const supabase = await createClient();
     const { data } = await supabase.rpc("get_account_retention_status");
-    const retention = data as { status?: string; purgeAfter?: string } | null;
+    const retention = data as { status?: string; purgeAfter?: string; closed?: boolean } | null;
     const date = retention?.purgeAfter
       ? new Date(retention.purgeAfter).toLocaleDateString("ru-RU", {
           day: "numeric", month: "long", year: "numeric",
         })
       : null;
-    if (retention?.status === "expired" && date) closedSince = date;
+    if (retention?.closed === true || retention?.status === "expired") closed = true;
     else if (retention?.status === "requested" && date) retentionUntil = date;
   } catch {
     retentionUntil = null;
   }
 
-  if (closedSince) redirect("/account-closed");
+  if (closed) redirect("/account-closed");
 
   return (
     <div className="min-h-screen">
