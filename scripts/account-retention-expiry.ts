@@ -1,11 +1,12 @@
-// Оператор: аккаунты, у которых вышел срок удаления (DEC-045 (a); по DEC-047 —
-// 30 дней). Ничего не удаляет (уничтожение — scripts/account-purge.ts). Запуск:
+// Оператор: заявки на удаление, у которых нарушен дедлайн уничтожения (DEC-047:
+// 30 дней от запроса; очередь целиком — `account-purge.ts list`). Ничего не
+// удаляет (уничтожение — scripts/account-purge.ts). Запуск:
 //   npx tsx scripts/account-retention-expiry.ts sweep
 //   npx tsx scripts/account-retention-expiry.ts list
 //   npx tsx scripts/account-retention-expiry.ts restore <designer-uuid> "<причина>" "<оператор>"
-// `sweep` переводит заявки с истёкшим сроком в `expired` (с журналом);
-// `restore` — отмена удаления по просьбе дизайнера (DEC-047: в любой момент до
-// уничтожения).
+// `sweep` переводит просроченные заявки в `expired` (с журналом);
+// `restore` — отмена удаления по просьбе дизайнера (DEC-047: только до начала
+// уничтожения; после него база отвечает ACCOUNT_PURGE_IN_PROGRESS).
 import { createScopedServiceClient } from "@/lib/supabase/token-scoped";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;

@@ -37,6 +37,16 @@ exception when others then
 end
 $function$;
 
+create function pg_temp.begin_error(p_designer uuid) returns text
+language plpgsql as $function$
+begin
+  perform public.begin_account_purge(p_designer, 'db4-operator', 'db4-lease');
+  return null;
+exception when others then
+  return sqlerrm;
+end
+$function$;
+
 -- Число вхождений id (как текст) во всех столбцах uuid/text/varchar/json(b)
 -- пользовательских таблиц.
 create function pg_temp.mentions(p_ids uuid[]) returns jsonb
@@ -131,19 +141,16 @@ begin
     raise exception 'DB4_90_NO_REPLICA:%', v_error;
   end if;
   set local session_replication_role = replica;
+  -- Уничтожение базы в обход начатого run запрещено (20260928160000).
   v_error := pg_temp.purge_error('31111111-1111-4111-8111-111111111111');
-  if v_error is distinct from 'ACCOUNT_PURGE_BLOCKED:["WINDOW_OPEN"]' then
-    raise exception 'DB4_90_WINDOW_OPEN:%', v_error;
+  if v_error is distinct from 'ACCOUNT_PURGE_NOT_STARTED' then
+    raise exception 'DB4_90_NOT_STARTED:%', v_error;
   end if;
-  -- Срок прошёл (заявка 31 день назад; триггер неизменяемости в replica не работает).
-  update public.account_retention_cases
-  set requested_at = requested_at - interval '31 days', purge_after = purge_after - interval '31 days'
-  where designer_id = '31111111-1111-4111-8111-111111111111' and status = 'requested';
   set local session_replication_role = origin;
   perform pg_temp.call_as('service_role', null,
     'select public.set_account_legal_hold(''31111111-1111-4111-8111-111111111111'', true, ''Запрос суда'')');
   set local session_replication_role = replica;
-  v_error := pg_temp.purge_error('31111111-1111-4111-8111-111111111111');
+  v_error := pg_temp.begin_error('31111111-1111-4111-8111-111111111111');
   if v_error is distinct from 'ACCOUNT_PURGE_BLOCKED:["LEGAL_HOLD"]' then
     raise exception 'DB4_90_LEGAL_HOLD:%', v_error;
   end if;
@@ -156,10 +163,16 @@ begin
   insert into public.studio_members (id, owner_id, member_id, email, status)
   values ('90f00000-0000-4000-8000-000000000001', '33333333-3333-4333-8333-333333333333',
           '31111111-1111-4111-8111-111111111111', 'db4-90-designer@remhaos.test', 'active');
-  v_error := pg_temp.purge_error('31111111-1111-4111-8111-111111111111');
+  -- Отказ на пробном прогоне внутри begin: точка невозврата не пройдена.
+  v_error := pg_temp.begin_error('31111111-1111-4111-8111-111111111111');
   if v_error not like 'ACCOUNT_PURGE_FOREIGN_RECORDS:%public.events%'
      or v_error not like '%studio_members%' then
     raise exception 'DB4_90_FOREIGN_NOT_REFUSED:%', v_error;
+  end if;
+  if (select status from public.account_retention_cases
+      where designer_id = '31111111-1111-4111-8111-111111111111' and status <> 'cancelled') <> 'requested'
+     or exists (select 1 from public.account_purge_runs) then
+    raise exception 'DB4_90_REFUSAL_STARTED_RUN';
   end if;
   if not exists (select 1 from public.projects where id = '41111111-1111-4111-8111-111111111111')
      or not exists (select 1 from public.designers where id = '31111111-1111-4111-8111-111111111111') then
@@ -199,11 +212,15 @@ $dry_run$;
 
 do $purge$
 declare
+  v_run jsonb;
   v_result jsonb;
   v_left jsonb;
 begin
-  v_result := public.purge_designer_account('31111111-1111-4111-8111-111111111111', 'db4-operator');
-  if v_result->>'status' <> 'purged' or (v_result->>'projects')::int < 1
+  -- Уничтожение в день запроса: срок — дедлайн, а не «не раньше».
+  v_run := public.begin_account_purge('31111111-1111-4111-8111-111111111111', 'db4-operator', 'db4-lease');
+  v_result := public.finish_account_purge((v_run->>'runId')::uuid, 'db4-lease');
+  if v_result->>'status' <> 'completed' or not (v_result->>'deadlineMet')::boolean
+     or (v_result->>'projects')::int < 1
      or not (v_result->'rows' ? 'public.projects') or not (v_result->'rows' ? 'auth.users')
      or not (v_result->'rows' ? 'public.intake_consent_records')
      or not (v_result->'rows' ? 'public.project_passport_revisions') then
@@ -218,8 +235,9 @@ begin
       where receipt_id = (v_result->>'receiptId')::uuid and operator = 'db4-operator') <> 1 then
     raise exception 'DB4_90_RECEIPT_MISSING';
   end if;
-  if public.purge_designer_account('31111111-1111-4111-8111-111111111111', 'db4-operator')
-       <> '{"status": "already_purged"}'::jsonb then
+  if public.begin_account_purge('31111111-1111-4111-8111-111111111111', 'db4-operator', 'db4-lease')
+       <> '{"status": "already_purged"}'::jsonb
+     or public.finish_account_purge((v_run->>'runId')::uuid, 'other-lease')->>'status' <> 'completed' then
     raise exception 'DB4_90_REPEAT_NOT_SAFE';
   end if;
 end

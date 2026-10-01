@@ -203,7 +203,8 @@ declare
 begin
   v_blockers := pg_temp.call_as('service_role', null,
     'select public.account_purge_blockers(''31111111-1111-4111-8111-111111111111'')');
-  if v_blockers->'blockers' <> '["WINDOW_OPEN"]'::jsonb then
+  -- Срок — дедлайн (20260928160000): сразу после запроса блокеров нет.
+  if v_blockers->'blockers' <> '[]'::jsonb then
     raise exception 'DB4_84_BLOCKERS:%', v_blockers;
   end if;
   perform pg_temp.call_as('service_role', null,

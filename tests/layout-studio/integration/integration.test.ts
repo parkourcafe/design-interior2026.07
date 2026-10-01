@@ -418,6 +418,7 @@ describe("Layout Studio delivery/UI slice", () => {
       "20260928157000_intake_consent_text.sql",
       "20260928158000_account_closure_30_days_and_purge.sql",
       "20260928159000_account_purge_review_fixes.sql",
+      "20260928160000_account_purge_deadline_and_runs.sql",
     ];
     const actual = readdirSync(join(repoRoot, "supabase/migrations"), { withFileTypes: true })
       // Предмет проверки — миграции, а не всё содержимое папки. Рядом с ними
