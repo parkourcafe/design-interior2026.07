@@ -69,8 +69,10 @@ services:
       GOTRUE_MAILER_URLPATHS_INVITE: /auth/v1/verify
       GOTRUE_MAILER_URLPATHS_RECOVERY: /auth/v1/verify
       GOTRUE_MAILER_URLPATHS_EMAIL_CHANGE: /auth/v1/verify
-      GOTRUE_MAILER_TEMPLATES_CONFIRMATION: ${API_EXTERNAL_URL}/email-templates/confirm_signup.html
-      GOTRUE_MAILER_TEMPLATES_MAGIC_LINK: ${API_EXTERNAL_URL}/email-templates/magic_link.html
+      # Шаблоны писем — с внутреннего адреса шлюза (наружу не опубликован):
+      # не зависит от сертификата и доступа сервера к самому себе по внешнему IP.
+      GOTRUE_MAILER_TEMPLATES_CONFIRMATION: http://gateway:8088/confirm_signup.html
+      GOTRUE_MAILER_TEMPLATES_MAGIC_LINK: http://gateway:8088/magic_link.html
       GOTRUE_MAILER_SUBJECTS_CONFIRMATION: "RemHaOS: подтвердите регистрацию"
       GOTRUE_MAILER_SUBJECTS_MAGIC_LINK: "RemHaOS: вход"
       GOTRUE_SMTP_HOST: ${SMTP_HOST}
@@ -79,7 +81,14 @@ services:
       GOTRUE_SMTP_PASS: ${SMTP_PASS}
       GOTRUE_SMTP_ADMIN_EMAIL: ${SMTP_ADMIN_EMAIL}
       GOTRUE_SMTP_SENDER_NAME: RemHaOS
+      # Лимиты по IP (как [auth.rate_limit] в config.toml). Без заголовка GoTrue
+      # не различает клиентов и НЕ ограничивает подбор паролей и кодов. Caddy
+      # перезаписывает X-Forwarded-For настоящим адресом клиента.
+      GOTRUE_RATE_LIMIT_HEADER: X-Forwarded-For
       GOTRUE_RATE_LIMIT_EMAIL_SENT: "100"
+      GOTRUE_RATE_LIMIT_TOKEN_REFRESH: "150"
+      GOTRUE_RATE_LIMIT_VERIFY: "100"
+      GOTRUE_RATE_LIMIT_OTP: "100"
       # Вход через Google (необязательно: пусто — выключен).
       GOTRUE_EXTERNAL_GOOGLE_ENABLED: ${GOOGLE_ENABLED:-false}
       GOTRUE_EXTERNAL_GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
@@ -94,8 +103,8 @@ services:
         condition: service_healthy
     environment:
       PGRST_DB_URI: postgres://authenticator:${POSTGRES_PASSWORD}@db:5432/postgres
-      # Те же схемы, что в supabase/config.toml: приватные схемы наружу не отдаются.
-      PGRST_DB_SCHEMAS: public,projectceo_api,projectceo_read_api,projectceo_product_api,projectceo_m3_api,projectceo_m4_api,remhaos_channel_api,remhaos_integration_api,projectceo_platform_api,graphql_public
+      # Ровно схемы из supabase/config.toml: приватные схемы наружу не отдаются.
+      PGRST_DB_SCHEMAS: public,projectceo_api,projectceo_read_api,projectceo_product_api,projectceo_m3_api,projectceo_m4_api,remhaos_channel_api,remhaos_integration_api,projectceo_platform_api
       PGRST_DB_EXTRA_SEARCH_PATH: public,extensions
       PGRST_DB_ANON_ROLE: anon
       PGRST_JWT_SECRET: ${JWT_SECRET}

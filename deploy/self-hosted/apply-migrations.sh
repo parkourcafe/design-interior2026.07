@@ -4,7 +4,10 @@
 # как у Supabase CLI). Запускать из deploy/self-hosted после `docker compose up -d`.
 set -eu
 cd "$(dirname "$0")"
-. ./.env
+# Берём только пароль базы и не исполняем .env как скрипт (в паролях SMTP могут
+# быть символы, опасные для оболочки).
+POSTGRES_PASSWORD=$(sed -n "s/^POSTGRES_PASSWORD=//p" .env | sed "s/^'\(.*\)'$/\1/" | head -1)
+[ -n "$POSTGRES_PASSWORD" ] || { echo "ОТКАЗ: в .env нет POSTGRES_PASSWORD"; exit 1; }
 REPO=../..
 psql_db() { docker compose exec -T -e PGPASSWORD="$POSTGRES_PASSWORD" db psql -h localhost -U postgres -d postgres -X -v ON_ERROR_STOP=1 -q "$@"; }
 
@@ -25,7 +28,11 @@ for f in "$REPO"/supabase/migrations/*.sql; do
   done_already=$(psql_db -Atc "select count(*) from supabase_migrations.schema_migrations where version = '$version'")
   [ "$done_already" = "1" ] && continue
   if ! psql_db < "$f"; then
-    echo "ОТКАЗ: миграция $name не применилась — дальше не иду"; exit 1
+    echo "ОТКАЗ: миграция $name не применилась — дальше не иду."
+    echo "Большинство миграций — одна транзакция и откатываются целиком. Три без"
+    echo "собственной транзакции (20260808050000, 20260808060000, 20260810040000) могут"
+    echo "оставить часть объектов: см. README, раздел «Если миграция упала»."
+    exit 1
   fi
   psql_db -c "insert into supabase_migrations.schema_migrations (version, name) values ('$version', '${name#*_}')"
   applied=$((applied + 1))
