@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { publicPageMetadata } from "@/lib/seo/site";
 import Link from "next/link";
 import { ru } from "@/lib/i18n/ru";
 import LandingNav from "@/components/landing/nav";
@@ -10,10 +11,11 @@ import RespondDemo from "./respond-demo";
 const d = ru.landing.demo;
 const dp = ru.landing.demoProposal;
 
-export const metadata: Metadata = {
+export const metadata: Metadata = publicPageMetadata({
   title: `${d.proposalTitle} — ${ru.app.name}`,
   description: d.proposalSub,
-};
+  path: "/demo/proposal",
+});
 
 // Demo-КП: премиальный «бумажный» документ на тёмной сцене + витрина CTA
 // принятия. Все данные демонстрационные; настоящий поток живёт на /p/[token].

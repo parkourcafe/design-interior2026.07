@@ -26,6 +26,10 @@ export default function LandingFooter() {
             <Link className="text-ivorymuted hover:text-ivory" href="/demo/brief">{n.demoBrief}</Link>
             <Link className="text-ivorymuted hover:text-ivory" href="/demo/proposal">{n.demoProposal}</Link>
             <Link className="text-ivorymuted hover:text-ivory" href="/pilot">{n.pilot}</Link>
+            {/* Хабы интент-кластеров: единственный путь по внутренним ссылкам к
+                22 интент-страницам (lib/seo/intents.ts). */}
+            <Link className="text-ivorymuted hover:text-ivory" href="/for-clients">{f.guidesClients}</Link>
+            <Link className="text-ivorymuted hover:text-ivory" href="/guides">{f.guidesPros}</Link>
           </nav>
           <nav aria-label={f.company} className="flex flex-col gap-2.5 text-sm">
             <span className="mb-1 text-[11px] uppercase tracking-[0.2em] text-ivorymuted/70">{f.company}</span>

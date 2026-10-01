@@ -8,10 +8,10 @@ type Route = {
   changeFrequency: NonNullable<MetadataRoute.Sitemap[number]["changeFrequency"]>;
 };
 
-// Только реальные публичные индексируемые маршруты (сверено по факту app/
-// на 31.07.2026). Токен-роуты, кабинет, API, ProjectCEO guest/QA — намеренно
+// Только реальные публичные ИНДЕКСИРУЕМЫЕ маршруты (сверено по факту app/
+// на 28.09.2026). Токен-роуты, кабинет, API, ProjectCEO guest/QA — намеренно
 // исключены (см. app/robots.ts).
-const ROUTES: Route[] = [
+export const ROUTES: Route[] = [
   { path: "/", priority: 1.0, changeFrequency: "weekly" },
   { path: "/designers", priority: 0.9, changeFrequency: "monthly" },
   { path: "/studios", priority: 0.8, changeFrequency: "monthly" },
@@ -20,9 +20,9 @@ const ROUTES: Route[] = [
   { path: "/demo/proposal", priority: 0.8, changeFrequency: "monthly" },
   { path: "/pilot", priority: 0.6, changeFrequency: "monthly" },
   { path: "/security", priority: 0.4, changeFrequency: "yearly" },
-  { path: "/support", priority: 0.4, changeFrequency: "yearly" },
-  { path: "/legal/privacy", priority: 0.3, changeFrequency: "yearly" },
-  { path: "/legal/terms", priority: 0.3, changeFrequency: "yearly" },
+  // /support, /legal/privacy, /legal/terms, /legal/consent закрыты noindex
+  // (решение владельца) — в sitemap им не место: это противоречивый сигнал
+  // поиску. tests/seo/sitemap-robots.test.ts сверяет sitemap с metadata страниц.
   // Хабы интент-кластеров.
   { path: "/for-clients", priority: 0.7, changeFrequency: "monthly" },
   { path: "/guides", priority: 0.7, changeFrequency: "monthly" },
@@ -32,7 +32,7 @@ const ROUTES: Route[] = [
 // иначе sitemap разойдётся с фактическими маршрутами при первом же изменении.
 // Отклонённые интенты (honest=false) в PUBLISHED_INTENTS не попадают, поэтому
 // страницы под непостроенную функциональность физически не могут сюда пролезть.
-const INTENT_ROUTES: Route[] = PUBLISHED_INTENTS.map((intent) => ({
+export const INTENT_ROUTES: Route[] = PUBLISHED_INTENTS.map((intent) => ({
   path: intent.route,
   priority: intent.priority === "P1" ? 0.6 : 0.5,
   changeFrequency: "monthly" as const,
