@@ -4,6 +4,7 @@ import { completeGigaChat } from "./gigachat";
 import { completeZai } from "./zai";
 import { llmCallTimeoutMs, llmTotalBudgetMs } from "./timeout";
 import { providerErrorCode, recordAiCallBestEffort, type AiCallContext } from "./recording";
+import { AI_DISABLED_ERROR, isAiEnabled } from "./ai-flag";
 
 // Провайдер спрятан за единственным методом completeJSON(prompt, schema).
 // Смена YandexGPT → GigaChat → западный провайдер (EN-экспансия) не трогает
@@ -33,8 +34,10 @@ function getRawCompletion(): {
   name: ProviderName;
   model: string;
   complete: RawCompletion;
-} {
-  const provider = (process.env.LLM_PROVIDER ?? "yandex") as ProviderName;
+} | null {
+  const provider = process.env.LLM_PROVIDER ?? "yandex";
+  // Неизвестное значение — отказ, а не молчаливый уход к провайдеру по умолчанию.
+  if (provider !== "yandex" && provider !== "gigachat" && provider !== "zai") return null;
   const model = process.env.LLM_MODEL ?? DEFAULT_MODELS[provider];
   switch (provider) {
     case "gigachat":
@@ -42,7 +45,6 @@ function getRawCompletion(): {
     case "zai":
       return { name: "zai", model, complete: completeZai };
     case "yandex":
-    default:
       return { name: "yandex", model, complete: completeYandex };
   }
 }
@@ -105,7 +107,11 @@ export async function completeJSON<T>(
   schema: ZodSchema<T>,
   ctx?: AiCallContext,
 ): Promise<LlmResult<T>> {
-  const { name: provider, model, complete } = getRawCompletion();
+  // До любого сетевого вызова и учёта: выключенный AI не получает ничего.
+  if (!isAiEnabled()) return { ok: false, error: AI_DISABLED_ERROR };
+  const selected = getRawCompletion();
+  if (!selected) return { ok: false, error: "llm_provider_unknown" };
+  const { name: provider, model, complete } = selected;
   // Общий срок на вызов и повтор: по его истечении возвращаем ошибку, и
   // вызывающий переходит на запасной путь (в брифе — карточки по правилам).
   const deadline = Date.now() + llmTotalBudgetMs();

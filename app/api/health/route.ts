@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { isAiEnabled } from "@/lib/llm/ai-flag";
 
 export const dynamic = "force-dynamic";
 
@@ -17,13 +18,17 @@ export function GET() {
       process.env.NEXT_PUBLIC_SUPABASE_URL && process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
     ),
     supabase_service_role: Boolean(process.env.SUPABASE_SERVICE_ROLE_KEY),
+    // Включён ли AI вообще (по умолчанию нет, lib/llm/ai-flag.ts) — так владелец
+    // может проверить на рабочем сайте, что данные никуда не уходят.
+    ai_enabled: isAiEnabled(),
     llm_provider: provider,
     llm_configured: llmConfigured,
   };
   return NextResponse.json({
     status: "ok",
     ts: new Date().toISOString(),
-    commit: process.env.VERCEL_GIT_COMMIT_SHA ?? null,
+    // На своём сервере коммит передаётся в APP_COMMIT при сборке образа.
+    commit: process.env.APP_COMMIT ?? process.env.VERCEL_GIT_COMMIT_SHA ?? null,
     env,
   });
 }

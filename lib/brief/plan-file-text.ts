@@ -1,4 +1,5 @@
 import { llmSignal } from "@/lib/llm/timeout";
+import { AI_DISABLED_ERROR, isAiEnabled } from "@/lib/llm/ai-flag";
 import { inflateSync } from "node:zlib";
 
 export type PlanTextExtractionStatus = "text_extracted" | "no_text" | "unsupported" | "failed";
@@ -20,6 +21,8 @@ const DEFAULT_ZAI_OCR_MODEL = "glm-ocr";
 type ToUnicodeMap = Map<string, string>;
 
 export interface PlanOcrOptions {
+  /** По умолчанию — REMHAOS_AI_ENABLED (см. lib/llm/ai-flag.ts). */
+  aiEnabled?: boolean;
   apiKey?: string;
   baseUrl?: string;
   model?: string;
@@ -345,6 +348,11 @@ function textFromZaiOcrResponse(json: ZaiOcrResponse): string {
 }
 
 export async function zaiGlmOcr(file: File, options: PlanOcrOptions = {}): Promise<PlanTextExtraction> {
+  // OCR — тоже внешний AI-сервис (z.ai), и он не идёт через completeJSON:
+  // проверяем тот же флаг до чтения файла.
+  if (!(options.aiEnabled ?? isAiEnabled())) {
+    return { status: "unsupported", source: "none", chars: 0, message: AI_DISABLED_ERROR };
+  }
   const apiKey = options.apiKey ?? process.env.ZAI_API_KEY;
   const baseUrl = (options.baseUrl ?? process.env.ZAI_BASE_URL ?? DEFAULT_ZAI_BASE_URL).replace(/\/$/, "");
   const model = options.model ?? process.env.ZAI_OCR_MODEL ?? DEFAULT_ZAI_OCR_MODEL;

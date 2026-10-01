@@ -22,6 +22,7 @@ function hangingFetch(): typeof fetch {
 }
 
 beforeEach(() => {
+  process.env.REMHAOS_AI_ENABLED = "true";
   process.env.LLM_TIMEOUT_MS = "150";
   process.env.LLM_TOTAL_BUDGET_MS = "400";
   process.env.ZAI_API_KEY = "test-key";
@@ -36,6 +37,7 @@ afterEach(() => {
   delete process.env.LLM_TIMEOUT_MS;
   delete process.env.LLM_TOTAL_BUDGET_MS;
   delete process.env.LLM_PROVIDER;
+  delete process.env.REMHAOS_AI_ENABLED;
 });
 
 describe("AI provider timeout", () => {

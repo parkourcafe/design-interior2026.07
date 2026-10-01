@@ -22,6 +22,8 @@ beforeEach(() => {
   completeMock.mockReset();
   recordMock.mockReset();
   process.env.LLM_PROVIDER = "yandex";
+  // Учёт проверяется на включённом AI (по умолчанию он выключен — ai-flag.ts).
+  process.env.REMHAOS_AI_ENABLED = "true";
   delete process.env.LLM_MODEL;
 });
 

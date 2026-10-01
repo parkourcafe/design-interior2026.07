@@ -121,6 +121,7 @@ describe("plan file text extraction", () => {
     const file = new File(["fake-image"], "plan.png", { type: "image/png" });
 
     const result = await zaiGlmOcr(file, {
+      aiEnabled: true,
       apiKey: "api-key",
       model: "glm-ocr",
     });
