@@ -35,6 +35,8 @@
   "dependencies": {
     "@capacitor/core": "^8.4.2",
     "@capacitor/ios": "^8.4.2",
+    "@fontsource/cormorant-garamond": "^5.3.0",
+    "@fontsource/golos-text": "^5.3.0",
     "@supabase/ssr": "0.12.3",
     "@supabase/supabase-js": "2.110.7",
     "ajv": "^8.17.1",

@@ -8,6 +8,7 @@ import {
 import { createRegionalRouteClient } from "@/lib/supabase/regional";
 import { RegionalSupabaseConfigurationError } from "@/lib/supabase/cells";
 import { bindMarketRoutingReceipt } from "@/lib/market/bind";
+import { requestOrigin } from "@/lib/project-intelligence/delivery/projectceo/csrf";
 
 export const dynamic = "force-dynamic";
 
@@ -69,7 +70,7 @@ export async function POST(request: NextRequest) {
     email,
     password,
     options: {
-      emailRedirectTo: new URL(`/auth/callback?market_receipt=${encodeURIComponent(rawReceipt!)}`, request.url).toString(),
+      emailRedirectTo: new URL(`/auth/callback?market_receipt=${encodeURIComponent(rawReceipt!)}`, requestOrigin(request)).toString(),
     },
   });
 

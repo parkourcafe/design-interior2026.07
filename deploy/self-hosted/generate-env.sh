@@ -21,11 +21,21 @@ jwt() {
 
 JWT_SECRET=$(rand 48)
 CORS=$(printf '%s' "$SITE" | sed 's/[.]/\\./g')
+SITE_HOST=${SITE#*://}; SITE_HOST=${SITE_HOST%%/*}
+# Второе имя сайта (с www или без) перенаправляется на основное.
+case $SITE_HOST in
+  www.*) REDIRECT_HOST=${SITE_HOST#www.} ;;
+  *.*) REDIRECT_HOST=www.$SITE_HOST ;;
+  *) REDIRECT_HOST= ;;
+esac
 umask 077
 cat > .env <<ENV
 # Создано generate-env.sh $(date -u +%Y-%m-%d). СЕКРЕТЫ — не коммитить.
 API_SITE_ADDRESS=$API_DOMAIN
+API_HOST=$API_DOMAIN
 API_EXTERNAL_URL=https://$API_DOMAIN
+WEB_SITE_ADDRESS=$SITE_HOST
+WEB_REDIRECT_ADDRESS=$REDIRECT_HOST
 SITE_URL=$SITE
 ADDITIONAL_REDIRECT_URLS=$SITE/**
 CORS_ALLOWED_ORIGINS=$CORS
@@ -34,6 +44,21 @@ POSTGRES_PASSWORD=$(rand 40)
 JWT_SECRET=$JWT_SECRET
 ANON_KEY=$(jwt anon)
 SERVICE_ROLE_KEY=$(jwt service_role)
+PROJECTCEO_TOKEN_SECRET=$(rand 48)
+REGIONAL_ROUTING_RECEIPT_SECRET=$(rand 48)
+
+# Сайт: контакт поддержки и реквизиты оператора (показываются на юр. страницах;
+# пусто — страница помечает документ как проект). После изменения:
+#   docker compose build web && docker compose up -d web
+SUPPORT_EMAIL=
+LEGAL_OPERATOR_NAME=
+LEGAL_OPERATOR_ADDRESS=
+LEGAL_OPERATOR_EMAIL=
+LEGAL_OPERATOR_PHONE=
+LEGAL_OPERATOR_INN=
+LEGAL_OPERATOR_OGRNIP=
+LEGAL_OPERATOR_REGISTRATION_AUTHORITY=
+LEGAL_OPERATOR_REGISTRATION_DATE=
 
 # Почта (обязательно для регистрации): данные SMTP вашего почтового сервиса.
 SMTP_HOST=
@@ -53,4 +78,4 @@ PASSWORD_HIBP_ENABLED=true
 BACKUP_HOUR_UTC=0
 BACKUP_RETENTION_DAYS=14
 ENV
-echo "Готово: .env создан. Заполните SMTP_* (и GOOGLE_*, если нужен вход через Google)."
+echo "Готово: .env создан. Заполните SMTP_*, SUPPORT_EMAIL, LEGAL_OPERATOR_* (и GOOGLE_*, если нужен вход через Google)."

@@ -10,6 +10,7 @@ import { createRegionalRouteClient } from "@/lib/supabase/regional";
 import { RegionalSupabaseConfigurationError } from "@/lib/supabase/cells";
 import { bindMarketRoutingReceipt } from "@/lib/market/bind";
 import { createClient } from "@/lib/supabase/server";
+import { requestOrigin } from "@/lib/project-intelligence/delivery/projectceo/csrf";
 
 export const dynamic = "force-dynamic";
 
@@ -23,7 +24,10 @@ export const dynamic = "force-dynamic";
 //                               Для этого шаблон письма должен вести на
 //                               {{ .SiteURL }}/auth/callback?token_hash={{ .TokenHash }}&type=email
 export async function GET(request: NextRequest) {
-  const { searchParams, origin } = new URL(request.url);
+  const { searchParams } = new URL(request.url);
+  // Публичный адрес — из заголовков прокси (Caddy, Vercel): за прокси
+  // request.url указывает на внутренний адрес контейнера (0.0.0.0:3000).
+  const origin = requestOrigin(request);
   const code = searchParams.get("code");
   const tokenHash = searchParams.get("token_hash");
   const type = searchParams.get("type") as EmailOtpType | null;

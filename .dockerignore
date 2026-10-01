@@ -1,0 +1,24 @@
+# Образ сайта (Dockerfile): только то, что нужно для сборки.
+.git
+node_modules
+.next
+.next.nosync
+.vercel
+.env
+.env.*
+!.env.example
+docs
+tests
+fixtures
+qa-artifacts
+eval
+research
+reconciliation-2026-09
+ios
+android-twa
+capacitor-web
+supabase
+deploy
+public/landing
+*.md
+tsconfig.tsbuildinfo
