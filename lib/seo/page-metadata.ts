@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { ru } from "@/lib/i18n/ru";
+import { OG_IMAGE } from "@/lib/seo/site";
 
 // Метаданные интент-страниц: уникальные title/description + canonical.
 // Бренд к title не дописываем здесь — существующие страницы делают это сами
@@ -25,8 +26,9 @@ export function intentPageMetadata(opts: {
       siteName: ru.app.name,
       title: fullTitle,
       description,
+      images: [OG_IMAGE],
     },
-    twitter: { card: "summary_large_image", title: fullTitle, description },
+    twitter: { card: "summary_large_image", title: fullTitle, description, images: [OG_IMAGE.url] },
     ...(noindex ? { robots: { index: false, follow: false } } : null),
   };
 }

@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { publicPageMetadata } from "@/lib/seo/site";
 import Image from "next/image";
 import Link from "next/link";
 import { ru } from "@/lib/i18n/ru";
@@ -11,10 +12,11 @@ import { MEDIA } from "@/components/landing/media";
 const p = ru.landing.pageSecurity;
 const L = ru.landing;
 
-export const metadata: Metadata = {
+export const metadata: Metadata = publicPageMetadata({
   title: `${p.title} — ${ru.app.name}`,
   description: p.sub,
-};
+  path: "/security",
+});
 
 export default function SecurityPage() {
   return (

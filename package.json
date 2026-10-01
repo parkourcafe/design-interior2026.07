@@ -23,6 +23,7 @@
     "deploy:prod": "vercel --prod",
     "test:watch": "vitest",
     "seed": "tsx scripts/seed.ts",
+    "demo:m1:local": "M1_DEMO_PRINT=1 vitest run tests/release/m1-local-demo.test.tsx",
     "fetch:media": "node scripts/fetch-landing-media.mjs",
     "provision:ap1": "tsx scripts/provision-ap1-users.ts",
     "worker:release-artifacts": "tsx scripts/run-release-artifact-worker.ts",
