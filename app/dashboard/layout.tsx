@@ -24,7 +24,6 @@ export default async function DashboardLayout({ children }: { children: React.Re
 
   // DEC-047: запрос удаления сразу закрывает кабинет — экран «Аккаунт закрыт»
   // с контактом поддержки (/account-closed; proxy.ts закрывает и переходы).
-  // Баннер «только для чтения» остаётся для старых заявок без `closed`.
   let retentionUntil: string | null = null;
   let closed = false;
   try {

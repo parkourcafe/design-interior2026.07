@@ -6,9 +6,11 @@
 //
 // `list` — закрытые аккаунты, у которых срок уничтожения уже наступил.
 // `purge`:
-//   1. файлы проектов дизайнера удаляются через Storage API (service role):
+//   1. пробный прогон в базе (все проверки, откат): если база откажет —
+//      ничего не удалено, включая файлы;
+//   2. файлы проектов дизайнера удаляются через Storage API (service role):
 //      иначе они остались бы на диске хранилища;
-//   2. данные в базе удаляет public.purge_designer_account — одной
+//   3. данные в базе удаляет public.purge_designer_account — одной
 //      транзакцией, под суперпользователем базы (PURGE_DATABASE_URL, через
 //      SSH-туннель; см. deploy/self-hosted/README.md). Если что-то мешает
 //      (срок, legal hold, остались файлы, чужие записи), база отказывает и
@@ -43,20 +45,39 @@ async function removeFiles(designerId: string): Promise<number> {
   return objects.length;
 }
 
-function purgeDatabase(designerId: string, operator: string): string {
-  const url = process.env.PURGE_DATABASE_URL;
-  if (!url) throw new Error("PURGE_DATABASE_URL не задан (строка подключения суперпользователя базы)");
+function runPurge(designerId: string, operator: string, dryRun: boolean) {
+  const raw = process.env.PURGE_DATABASE_URL;
+  if (!raw) throw new Error("PURGE_DATABASE_URL не задан (строка подключения суперпользователя базы)");
+  // Пароль — через окружение psql, а не в аргументах (их видно в списке процессов).
+  const url = new URL(raw);
+  const password = decodeURIComponent(url.password);
+  url.password = "";
   const sql = [
     "begin;",
     "set local session_replication_role = replica;",
-    "select public.purge_designer_account(:'designer'::uuid, :'operator');",
+    `select public.purge_designer_account(:'designer'::uuid, :'operator', ${dryRun ? "true" : "false"});`,
     "commit;",
   ].join("\n");
-  const result = spawnSync(
+  return spawnSync(
     "psql",
-    [url, "-X", "-q", "-At", "-v", "ON_ERROR_STOP=1", "-v", `designer=${designerId}`, "-v", `operator=${operator}`],
-    { input: sql, encoding: "utf8" },
+    [url.toString(), "-X", "-q", "-At", "-v", "ON_ERROR_STOP=1", "-v", `designer=${designerId}`, "-v", `operator=${operator}`],
+    { input: sql, encoding: "utf8", env: { ...process.env, PGPASSWORD: password } },
   );
+}
+
+// Пробный прогон всегда заканчивается исключением: успех — ACCOUNT_PURGE_DRY_RUN_OK.
+function dryRun(designerId: string, operator: string): string {
+  const result = runPurge(designerId, operator, true);
+  if (result.error) throw result.error;
+  const output = `${result.stdout}${result.stderr}`;
+  const ok = output.match(/ACCOUNT_PURGE_DRY_RUN_OK:(\{.*\})/);
+  if (ok) return ok[1]!;
+  if (result.status === 0 && output.includes("already_purged")) return "already_purged";
+  throw new Error((result.stderr || "psql_failed").trim());
+}
+
+function purgeDatabase(designerId: string, operator: string): string {
+  const result = runPurge(designerId, operator, false);
   if (result.error) throw result.error;
   if (result.status !== 0) throw new Error((result.stderr || "psql_failed").trim());
   return result.stdout.trim();
@@ -72,6 +93,12 @@ async function main() {
     return;
   }
   if (command === "purge" && UUID.test(designerId ?? "") && operator?.trim()) {
+    const check = dryRun(designerId!, operator.trim());
+    process.stdout.write(`dry run: ${check}\n`);
+    if (check === "already_purged") {
+      process.stdout.write('{"status": "already_purged"}\n');
+      return;
+    }
     const files = await removeFiles(designerId!);
     process.stdout.write(`files removed: ${files}\n`);
     process.stdout.write(`${purgeDatabase(designerId!, operator.trim())}\n`);

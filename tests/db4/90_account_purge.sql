@@ -2,8 +2,9 @@
 
 -- DB4-90: уничтожение аккаунта дизайнера (DEC-047, миграция 20260928158000).
 --   * функцию не вызывает ни одна API-роль; без режима replica — отказ;
---   * отказ до срока, при legal hold, при записях в чужом проекте — и тогда
---     не удалено ничего;
+--   * отказ до срока, при legal hold, при записях в чужом проекте и участии в
+--     чужой студии — и тогда не удалено ничего; пробный прогон ничего не
+--     сохраняет;
 --   * после уничтожения ни в одном столбце uuid/text/json(b) любой таблицы
 --     нет id дизайнера и его проектов (проверка по каталогу, независимо от
 --     самой функции); вторая студия не тронута; квитанция без данных
@@ -72,9 +73,9 @@ $function$;
 
 do $rights$
 begin
-  if pg_catalog.has_function_privilege('authenticated', 'public.purge_designer_account(uuid,text)', 'EXECUTE')
-     or pg_catalog.has_function_privilege('anon', 'public.purge_designer_account(uuid,text)', 'EXECUTE')
-     or pg_catalog.has_function_privilege('service_role', 'public.purge_designer_account(uuid,text)', 'EXECUTE')
+  if pg_catalog.has_function_privilege('authenticated', 'public.purge_designer_account(uuid,text,boolean)', 'EXECUTE')
+     or pg_catalog.has_function_privilege('anon', 'public.purge_designer_account(uuid,text,boolean)', 'EXECUTE')
+     or pg_catalog.has_function_privilege('service_role', 'public.purge_designer_account(uuid,text,boolean)', 'EXECUTE')
      or pg_catalog.has_function_privilege('authenticated', 'public.account_purge_storage_objects(uuid)', 'EXECUTE')
      or pg_catalog.has_table_privilege('service_role', 'public.account_purge_receipts', 'SELECT') then
     raise exception 'DB4_90_PURGE_EXPOSED_TO_API';
@@ -150,9 +151,14 @@ begin
   perform pg_temp.call_as('service_role', null,
     'select public.set_account_legal_hold(''31111111-1111-4111-8111-111111111111'', false, ''Снято'')');
   set local session_replication_role = replica;
-  -- Запись в чужом проекте: отказ, и ничего не удалено.
+  -- Запись в чужом проекте и участие в чужой студии (ключ set null на
+  -- auth.users, в строке остаётся почта): отказ, и ничего не удалено.
+  insert into public.studio_members (id, owner_id, member_id, email, status)
+  values ('90f00000-0000-4000-8000-000000000001', '33333333-3333-4333-8333-333333333333',
+          '31111111-1111-4111-8111-111111111111', 'db4-90-designer@remhaos.test', 'active');
   v_error := pg_temp.purge_error('31111111-1111-4111-8111-111111111111');
-  if v_error not like 'ACCOUNT_PURGE_FOREIGN_RECORDS:%public.events%' then
+  if v_error not like 'ACCOUNT_PURGE_FOREIGN_RECORDS:%public.events%'
+     or v_error not like '%studio_members%' then
     raise exception 'DB4_90_FOREIGN_NOT_REFUSED:%', v_error;
   end if;
   if not exists (select 1 from public.projects where id = '41111111-1111-4111-8111-111111111111')
@@ -163,9 +169,31 @@ begin
 end
 $refusals$;
 
--- Оператор решил: событие в чужом проекте удаляется отдельно.
+-- Оператор решил: событие в чужом проекте и участие в чужой студии удаляются отдельно.
 set local session_replication_role = replica;
 delete from public.events where id = '90e00000-0000-4000-8000-000000000001';
+delete from public.studio_members where id = '90f00000-0000-4000-8000-000000000001';
+
+-- Пробный прогон: все проверки пройдены, ничего не удалено.
+do $dry_run$
+declare
+  v_error text;
+begin
+  begin
+    perform public.purge_designer_account('31111111-1111-4111-8111-111111111111', 'db4-operator', true);
+    raise exception 'DB4_90_DRY_RUN_RETURNED';
+  exception when others then
+    v_error := sqlerrm;
+  end;
+  if v_error not like 'ACCOUNT_PURGE_DRY_RUN_OK:%' then
+    raise exception 'DB4_90_DRY_RUN:%', v_error;
+  end if;
+  if not exists (select 1 from public.projects where id = '41111111-1111-4111-8111-111111111111')
+     or exists (select 1 from public.account_purge_receipts) then
+    raise exception 'DB4_90_DRY_RUN_CHANGED_DATA';
+  end if;
+end
+$dry_run$;
 
 -- === 3. Уничтожение =========================================================
 
@@ -199,7 +227,7 @@ $purge$;
 set local session_replication_role = origin;
 
 -- Вторая студия: всё на месте, кроме её участия в уничтоженной студии
--- (строка studio_members дизайнера 31111111).
+-- (строка studio_members, где владелец — дизайнер 31111111).
 do $other_studio$
 declare
   v_before jsonb := (select m from db4_90_other_before);
