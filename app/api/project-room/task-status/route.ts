@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { createScopedServiceClient } from "@/lib/supabase/token-scoped";
 import { canUpdateTask } from "@/lib/project-room/access";
+import { isRoomClosed, type RoomClosureClient } from "@/lib/project-room/closed";
 import type { ParticipantRole, ProjectTask } from "@/lib/project-room/types";
 import { checkRateLimit, clientIp } from "@/lib/rate-limit";
 
@@ -16,6 +17,10 @@ export async function POST(request: Request) {
   const { data: participant } = await admin.from("project_participants").select("id, room_id, role").eq("access_token", parsed.data.token).maybeSingle();
   if (!participant) return NextResponse.json({ error: "not_found" }, { status: 404 });
   const p = participant as { id: string; room_id: string; role: ParticipantRole };
+  // DEC-047 (g): комната студии, запросившей удаление аккаунта, закрыта.
+  if (await isRoomClosed(admin as unknown as RoomClosureClient, p.room_id)) {
+    return NextResponse.json({ error: "room_closed" }, { status: 410 });
+  }
   const { data: task } = await admin.from("project_tasks").select("id, room_id, title, description, owner_role, assignee_participant_id, due_date, status, client_facing, related_scope_item, proposal_section, created_from, sort_order").eq("id", parsed.data.taskId).eq("room_id", p.room_id).maybeSingle();
   if (!task || !canUpdateTask(p.role, p.id, task as ProjectTask)) return NextResponse.json({ error: "forbidden" }, { status: 403 });
   const previous = (task as ProjectTask).status;
