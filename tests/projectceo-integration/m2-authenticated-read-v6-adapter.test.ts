@@ -114,6 +114,27 @@ describe("Cycle 6 authenticated read adapter", () => {
     ]);
   });
 
+  it("accepts a handoff without selections: a baseline may hold decisions only", async () => {
+    const value = structuredClone(envelope());
+    value.data.m2M3Handoffs[0]!.selectionRevisionIds = [];
+    const result = await new ProjectCeoAuthenticatedReadPostgresAdapter(client(value, []))
+      .getProjectWorkspaceRead({ projectId, packageId });
+    expect((result.data as unknown as Record<string, unknown>).m2M3Handoffs).toEqual([
+      expect.objectContaining({ id: "handoff-1", selectionRevisionIds: [] }),
+    ]);
+  });
+
+  it.each([
+    ["duplicate selection", ["selection-a@1", "selection-a@1"]],
+    ["non-identifier selection", [""]],
+  ])("still fails closed for a handoff with a %s", async (_name, selectionRevisionIds) => {
+    const value = structuredClone(envelope());
+    value.data.m2M3Handoffs[0]!.selectionRevisionIds = selectionRevisionIds;
+    await expect(new ProjectCeoAuthenticatedReadPostgresAdapter(client(value, []))
+      .getProjectWorkspaceRead({ projectId, packageId }))
+      .rejects.toThrow("Invalid ProjectCEO authenticated read envelope");
+  });
+
   it.each([
     ["malformed submission", { m2ClientReviewSubmissions: [{ status: "draft" }] }],
     ["unassigned review", { m2ClientReviews: [{ status: "approved", chosenVariantId: "variant-preferred" }] }],

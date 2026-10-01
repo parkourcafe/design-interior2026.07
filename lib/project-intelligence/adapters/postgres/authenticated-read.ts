@@ -696,8 +696,10 @@ function isM2M3Handoff(value: unknown): value is AuthenticatedReadM2M3Handoff {
     && isIdentifier(value.approvedCommitId)
     && isUuid(value.approvedCommitRevisionId)
     && isUuid(value.layoutRevisionId)
+    // Пустой список допустим: гейт baseline (20260928090000) принимает
+    // комнату, в baseline которой одни решения без подборов, и тогда передача
+    // честно не несёт ни одного подбора. Каждая присутствующая ссылка — строго.
     && Array.isArray(value.selectionRevisionIds)
-    && value.selectionRevisionIds.length > 0
     && value.selectionRevisionIds.every(isIdentifier)
     && new Set(value.selectionRevisionIds).size === value.selectionRevisionIds.length
     && isApprovedCommitBudget(value.budget)
