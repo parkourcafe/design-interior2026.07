@@ -11,6 +11,7 @@ import { ru } from "@/lib/i18n/ru";
 type Retention = {
   readonly status: string;
   readonly purgeAfter: string;
+  readonly purgeDeadline?: string;
   readonly legalHold: boolean;
 };
 
@@ -69,7 +70,7 @@ export default function DeleteAccount() {
       {retention ? (
         <div className="mt-2 space-y-3">
           <p className="text-sm leading-relaxed text-red-800">
-            {ru.deleteAccount.pending(formatDate(retention.purgeAfter))}
+            {ru.deleteAccount.pending(formatDate(retention.purgeDeadline ?? retention.purgeAfter))}
           </p>
           {retention.legalHold ? <p className="text-sm text-red-800">{ru.deleteAccount.legalHold}</p> : null}
         </div>

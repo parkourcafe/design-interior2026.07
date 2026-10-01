@@ -36,6 +36,7 @@ type Run = {
   filesDeleted?: number;
   lastError?: string | null;
   receiptId?: string | null;
+  stillPresent?: number;
   deadlineMet?: boolean;
   rows?: Record<string, number>;
 };
@@ -76,7 +77,11 @@ async function purge(designerId: string, operator: string) {
     { designer: designerId, operator, lease, lease_seconds: leaseSeconds },
   )) as Run & { resume?: boolean };
   if (begun.status === "already_purged") {
-    process.stdout.write("Аккаунта нет: уничтожен ранее или не существовал. Квитанция — в account_purge_receipts.\n");
+    process.stdout.write(
+      "Аккаунта с таким id в базе нет: он уже уничтожен или id указан неверно. Это НЕ подтверждение " +
+      "уничтожения. Если ранее печаталась строка «run <id>», квитанция: " +
+      "select receipt_id, purged_at, deadline_met from public.account_purge_receipts where run_id = '<id>';\n",
+    );
     return;
   }
   const runId = begun.runId!;
@@ -103,6 +108,10 @@ async function purge(designerId: string, operator: string) {
         { run: runId, lease, files: JSON.stringify(batch), lease_seconds: leaseSeconds },
       )) as Run;
       deleted = marked.filesDeleted ?? deleted;
+      // База отмечает только то, чего в хранилище действительно нет.
+      if ((marked.stillPresent ?? 0) > 0) {
+        throw new IncompletePurge(`${marked.stillPresent} файл(ов) после удаления всё ещё в хранилище (проверьте адрес NEXT_PUBLIC_SUPABASE_URL)`);
+      }
       if (Number.isFinite(stopAfter) && deleted >= stopAfter && i + batch.length < pending.length) {
         throw new IncompletePurge("учебная остановка (ACCOUNT_PURGE_STOP_AFTER_FILES)");
       }
@@ -113,6 +122,9 @@ async function purge(designerId: string, operator: string) {
       inReplica("select public.finish_account_purge(:'run'::uuid, :'lease')::text"),
       { run: runId, lease },
     )) as Run;
+    if (finished.status === "files_pending") {
+      throw new IncompletePurge("в хранилище появились или остались файлы — повторите `purge`, они будут удалены");
+    }
     if (finished.status !== "completed") {
       throw new IncompletePurge(`база отказала: ${finished.lastError ?? finished.status}`);
     }

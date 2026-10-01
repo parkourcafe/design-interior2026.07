@@ -49,7 +49,12 @@ begin
     'public.begin_account_purge(uuid,text,text,integer)',
     'public.purge_run_files(uuid,text)',
     'public.mark_purge_files_deleted(uuid,text,jsonb,integer)',
-    'public.finish_account_purge(uuid,text)'
+    'public.finish_account_purge(uuid,text)',
+    'public.release_account_purge_lease(uuid,text)',
+    'public.purge_designer_account(uuid,text,boolean)',
+    'public._account_purge_sync_manifest(uuid,uuid)',
+    'public._account_purge_lock_out(uuid)',
+    'public.account_purge_storage_objects(uuid)'
   ] loop
     if pg_catalog.has_function_privilege('service_role', v_fn, 'EXECUTE')
        or pg_catalog.has_function_privilege('authenticated', v_fn, 'EXECUTE')
@@ -121,6 +126,12 @@ begin
       where designer_id = '33333333-3333-4333-8333-333333333333' and status <> 'cancelled') <> 'purging' then
     raise exception 'DB4_91_NOT_PURGING';
   end if;
+  -- Уничтожение базы в обход finish этого run (20260928161000).
+  v_error := pg_temp.error_of($sql$ select public.purge_designer_account(
+    '33333333-3333-4333-8333-333333333333', 'db4-operator', false) $sql$);
+  if v_error is distinct from 'ACCOUNT_PURGE_NOT_STARTED' then
+    raise exception 'DB4_91_PURGE_BYPASSING_FINISH:%', v_error;
+  end if;
   -- Второй исполнитель при живой аренде.
   v_error := pg_temp.error_of($sql$ select public.begin_account_purge(
     '33333333-3333-4333-8333-333333333333', 'db4-operator', 'lease-b') $sql$);
@@ -167,10 +178,9 @@ begin
   -- Файл в манифесте (в харнессе нет storage — строка вставляется вручную).
   insert into public.account_purge_files (run_id, bucket, name)
   values (v_run, 'client-uploads', '42222222-2222-4222-8222-222222222222/db4-91.png');
-  v_error := pg_temp.error_of(pg_catalog.format(
-    'select public.finish_account_purge(%L, %L)', v_run, 'lease-a'));
-  if v_error is distinct from 'ACCOUNT_PURGE_FILES_PENDING' then
-    raise exception 'DB4_91_FINISH_WITH_FILES:%', v_error;
+  if (public.finish_account_purge(v_run, 'lease-a')->>'filesPending')::int <> 1
+     or not exists (select 1 from public.designers where id = '33333333-3333-4333-8333-333333333333') then
+    raise exception 'DB4_91_FINISH_WITH_FILES';
   end if;
   v_error := pg_temp.error_of(pg_catalog.format(
     'select public.purge_run_files(%L, %L)', v_run, 'lease-b'));
@@ -236,6 +246,73 @@ end
 $blocked_then_done$;
 
 set local session_replication_role = origin;
+
+-- === 4. Хранилище: неудалённый файл, поздняя загрузка; просроченный дедлайн ===
+-- В харнессе нет storage — заглушка storage.objects в этой транзакции.
+
+create table storage.objects (bucket_id text not null, name text not null, owner_id text);
+insert into storage.objects values
+  ('client-uploads', '41111111-1111-4111-8111-111111111111/plan.png', null);
+
+set local session_replication_role = replica;
+
+do $storage_sync$
+declare
+  v_run jsonb;
+  v_id uuid;
+  v_marked jsonb;
+  v_result jsonb;
+  v_error text;
+  v_file jsonb := '[{"bucket": "client-uploads", "name": "41111111-1111-4111-8111-111111111111/plan.png"}]';
+begin
+  -- Заявка 31111111 из раздела 1 просрочена (31 день).
+  v_run := public.begin_account_purge('31111111-1111-4111-8111-111111111111', 'db4-operator', 'lease-s');
+  v_id := (v_run->>'runId')::uuid;
+  if (v_run->>'filesTotal')::int <> 1 then
+    raise exception 'DB4_91_MANIFEST:%', v_run;
+  end if;
+  -- «Удалено» по словам исполнителя, но файл на месте — не отмечается.
+  v_marked := public.mark_purge_files_deleted(v_id, 'lease-s', v_file);
+  if (v_marked->>'stillPresent')::int <> 1 or (v_marked->>'filesDeleted')::int <> 0 then
+    raise exception 'DB4_91_MARKED_PRESENT_FILE:%', v_marked;
+  end if;
+  delete from storage.objects where name like '41111111-%';
+  v_marked := public.mark_purge_files_deleted(v_id, 'lease-s', v_file);
+  if (v_marked->>'filesDeleted')::int <> 1 then
+    raise exception 'DB4_91_MARK_AFTER_DELETE:%', v_marked;
+  end if;
+  -- Поздняя загрузка после точки невозврата: finish возвращает её в список.
+  insert into storage.objects values
+    ('client-uploads', 'designer-plans/41111111-1111-4111-8111-111111111111/late.png', null);
+  v_result := public.finish_account_purge(v_id, 'lease-s');
+  if (v_result->>'filesPending')::int <> 1 or v_result->>'status' <> 'files_pending' then
+    raise exception 'DB4_91_LATE_FILE_NOT_CAUGHT:%', v_result;
+  end if;
+  if jsonb_array_length(public.purge_run_files(v_id, 'lease-s')) <> 1 then
+    raise exception 'DB4_91_LATE_FILE_NOT_LISTED';
+  end if;
+  delete from storage.objects where name like 'designer-plans/41111111-%';
+  perform public.mark_purge_files_deleted(v_id, 'lease-s',
+    '[{"bucket": "client-uploads", "name": "designer-plans/41111111-1111-4111-8111-111111111111/late.png"}]');
+  v_result := public.finish_account_purge(v_id, 'lease-s');
+  if v_result->>'status' <> 'completed' or (v_result->>'deadlineMet')::boolean
+     or (v_result->>'filesDeleted')::int <> 2 then
+    raise exception 'DB4_91_STORAGE_COMPLETION:%', v_result;
+  end if;
+end
+$storage_sync$;
+
+set local session_replication_role = origin;
+
+-- Старая 90-дневная заявка: дедлайн всё равно 30 дней.
+do $legacy_deadline$
+begin
+  if public._account_purge_deadline(statement_timestamp() - interval '40 days',
+                                    statement_timestamp() + interval '50 days') >= statement_timestamp() then
+    raise exception 'DB4_91_LEGACY_DEADLINE';
+  end if;
+end
+$legacy_deadline$;
 
 rollback;
 

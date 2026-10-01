@@ -1,6 +1,7 @@
-// Оператор: заявки на удаление, у которых нарушен дедлайн уничтожения (DEC-047:
-// 30 дней от запроса; очередь целиком — `account-purge.ts list`). Ничего не
-// удаляет (уничтожение — scripts/account-purge.ts). Запуск:
+// Оператор: заявки на удаление, у которых нарушен дедлайн и уничтожение ещё не
+// начато (DEC-047: 30 дней от запроса). Полная очередь, включая начатые и
+// остановленные уничтожения, — `account-purge.ts list`. Ничего не удаляет.
+// Запуск:
 //   npx tsx scripts/account-retention-expiry.ts sweep
 //   npx tsx scripts/account-retention-expiry.ts list
 //   npx tsx scripts/account-retention-expiry.ts restore <designer-uuid> "<причина>" "<оператор>"

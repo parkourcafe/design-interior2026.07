@@ -15,10 +15,12 @@ export default async function AccountClosedPage() {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) redirect("/login");
   const { data } = await supabase.rpc("get_account_retention_status");
-  const retention = data as { status?: string; purgeAfter?: string; closed?: boolean } | null;
+  const retention = data as { status?: string; purgeAfter?: string; purgeDeadline?: string; closed?: boolean } | null;
   const closed = retention?.closed === true || retention?.status === "expired";
-  if (!closed || !retention?.purgeAfter) redirect("/dashboard");
-  const date = new Date(retention.purgeAfter).toLocaleDateString("ru-RU", {
+  // Дедлайн уничтожения (не позднее 30 дней от запроса).
+  const deadline = retention?.purgeDeadline ?? retention?.purgeAfter;
+  if (!closed || !deadline) redirect("/dashboard");
+  const date = new Date(deadline).toLocaleDateString("ru-RU", {
     day: "numeric", month: "long", year: "numeric",
   });
 
