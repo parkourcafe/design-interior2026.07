@@ -57,7 +57,7 @@ export interface M3SurfaceRow {
 const PUBLISH_BASELINE_ATOMIC: M3PublicRpc = {
   schema: "projectceo_product_api",
   name: "publish_baseline_atomic",
-  signature: "projectceo_product_api.publish_baseline_atomic(uuid, text, text, bigint, text, text)",
+  signature: "projectceo_product_api.publish_baseline_atomic(uuid, text, text, jsonb, bigint, text, text)",
   sharing: "shared_schema",
   closure: "revoked_from_authenticated",
 };

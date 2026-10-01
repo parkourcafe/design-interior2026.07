@@ -2,10 +2,10 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { getProjectByIntakeToken } from "@/lib/intake";
 import { getDesignerPublic, type DesignerPublic } from "@/lib/designer";
-import { requestBaseUrl } from "@/lib/base-url";
 import { ru } from "@/lib/i18n/ru";
-import ShareBrief from "@/components/share-brief";
+import { isIntakeOpen } from "@/lib/intake-status";
 import IntakeWizard from "./wizard";
+import { consentOperatorLabel, consentStudioLabel, intakeConsentText } from "@/lib/legal/consent";
 
 export const dynamic = "force-dynamic";
 
@@ -17,22 +17,31 @@ export default async function IntakePage({ params }: { params: Promise<{ token: 
   const project = await getProjectByIntakeToken(token);
   if (!project) notFound();
 
-  const baseUrl = await requestBaseUrl();
-
   const selfServe = !project.designer_id;
   const designer: DesignerPublic | null = project.designer_id
     ? await getDesignerPublic(project.designer_id)
     : null;
-  const completed = ["brief_completed", "proposal_draft", "proposal_sent"].includes(project.status);
+  // DEC-044 (a): студия закрывает аккаунт — бриф больше не принимается.
+  if (project.archived) {
+    return (
+      <main className="mx-auto flex min-h-screen max-w-lg flex-col justify-center px-6 text-center">
+        <h1 className="text-2xl font-semibold">{ru.brief.closed.title}</h1>
+        <p className="mt-2 text-muted">{ru.brief.closed.subtitle}</p>
+      </main>
+    );
+  }
+
+  // Любой статус после заполнения брифа — экран «готово», не визард.
+  const completed = !isIntakeOpen(project.status);
 
   if (completed) {
-    // Клиентский бриф → показываем ссылку для рассылки дизайнерам.
+    // Клиентский бриф: ссылка для рассылки дизайнерам закрыта (DEC-042) до
+    // безопасного подтверждения личности — показываем только подтверждение.
     if (selfServe) {
       return (
         <main className="mx-auto flex min-h-screen max-w-lg flex-col justify-center px-6 text-center">
           <h1 className="text-2xl font-semibold">{ru.client.shareTitle}</h1>
           <p className="mt-2 text-muted">{ru.client.shareHint}</p>
-          <ShareBrief url={`${baseUrl}/b/${token}`} />
         </main>
       );
     }
@@ -50,7 +59,7 @@ export default async function IntakePage({ params }: { params: Promise<{ token: 
       selfServe={selfServe}
       customQuestions={project.custom_questions}
       designer={designer}
-      baseUrl={baseUrl}
+      consentText={intakeConsentText(consentStudioLabel(designer), consentOperatorLabel())}
     />
   );
 }

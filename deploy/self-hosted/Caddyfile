@@ -1,0 +1,74 @@
+# Шлюз: те же пути, что у облачного Supabase (/auth/v1, /rest/v1, /storage/v1),
+# поэтому приложению меняется только адрес. Сертификат HTTPS Caddy получает сам,
+# если API_SITE_ADDRESS — доменное имя (например api.remhaos.com); для этого DNS
+# должен уже указывать на сервер, а порты 80 и 443 — быть открыты.
+{
+	admin off
+}
+
+{$API_SITE_ADDRESS} {
+	encode gzip
+
+	# CORS только для адреса сайта. Сервисы сами отвечают «*», поэтому для
+	# остальных источников заголовок снимается.
+	@allowed_origin header_regexp origin Origin ^({$CORS_ALLOWED_ORIGINS})$
+	@other_origin not header_regexp Origin ^({$CORS_ALLOWED_ORIGINS})$
+	header @other_origin {
+		-Access-Control-Allow-Origin
+		-Access-Control-Allow-Credentials
+		defer
+	}
+	header @allowed_origin {
+		Access-Control-Allow-Origin {http.request.header.Origin}
+		Access-Control-Allow-Credentials true
+		Access-Control-Expose-Headers "content-range, x-supabase-api-version"
+		Vary Origin
+		defer
+	}
+
+	# route сохраняет порядок: предварительный запрос браузера обрабатывается
+	# до проксирования, для любого пути.
+	route {
+		@preflight method OPTIONS
+		handle @preflight {
+			header @allowed_origin {
+				Access-Control-Allow-Methods "GET, POST, PUT, PATCH, DELETE, OPTIONS, HEAD"
+				Access-Control-Allow-Headers {http.request.header.Access-Control-Request-Headers}
+				Access-Control-Max-Age 3600
+			}
+			respond 204
+		}
+		handle_path /auth/v1/* {
+			reverse_proxy auth:9999
+		}
+		handle_path /rest/v1/* {
+			reverse_proxy rest:3000
+		}
+		handle_path /storage/v1/* {
+			reverse_proxy storage:5000
+		}
+		handle {
+			respond "not found" 404
+		}
+	}
+}
+
+# Сайт. У Caddy нет таймаута ответа по умолчанию, поэтому долгие запросы
+# (отправка брифа, страница проекта — до минуты) не обрываются. Caddy
+# передаёт сайту настоящий адрес клиента (X-Forwarded-For, присланный
+# клиентом заголовок отбрасывается) и публичный адрес (X-Forwarded-Host/Proto).
+{$WEB_SITE_ADDRESS} {
+	encode gzip
+	reverse_proxy web:3000
+}
+
+# Второй адрес сайта (с www или без) — постоянное перенаправление на сайт.
+{$WEB_REDIRECT_ADDRESS} {
+	redir {$SITE_URL}{uri} permanent
+}
+
+# Внутренний адрес для шаблонов писем Auth. Порт 8088 наружу не публикуется.
+http://:8088 {
+	root * /srv/email-templates
+	file_server
+}

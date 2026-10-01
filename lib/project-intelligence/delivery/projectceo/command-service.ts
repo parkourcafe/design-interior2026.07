@@ -1,5 +1,6 @@
 import "server-only";
 
+import { baselineRoomHandoffRefs } from "./handoff-refs";
 import {
   FoundationPostgresAdapter,
   ProjectCeoM3HumanPostgresAdapter,
@@ -513,10 +514,12 @@ export class ProjectCeoCommandService {
         }
         if (command.kind === "create_approval_request") {
           // The browser selects only the M1 subject. The capability that can
-          // decide it is a server-owned policy, never a client-provided role.
+          // decide it is a server-owned policy, never a client-provided role;
+          // the database derives the same value itself (DEC-041 §3, migration
+          // 20260927090000) and ignores this argument for passport subjects.
           const approverCapability = command.payload.subjectKind === "client_passport"
             ? "review_selection"
-            : "review_claim";
+            : "approve_passport";
           return completed(requestId, await this.platform.createApprovalRequest({
             projectId: command.projectId,
             subjectKind: command.payload.subjectKind,
@@ -976,6 +979,22 @@ export class ProjectCeoCommandService {
         }, command.payload.snapshotToken);
         if (!confirmation.ok) return failure(requestId, "error", "stale_state");
 
+        // DEC-042 (4) и DEC-041 §4: передача M2→M3 по каждой комнате с
+        // утверждённым дизайном и хотя бы одна в каждом пакете baseline. Без
+        // свежей передачи публикация не предлагается и не исполняется.
+        // Состав baseline — активные пакеты (так же выводит его база).
+        const activePackageIds = rows(read.data.packages).flatMap((entry) => (
+          typeof entry.id === "string" && (entry.status === undefined || entry.status === "active")
+            ? [entry.id]
+            : []
+        ));
+        // DEC-041 §4: ссылки по комнатам из серверного расчёта свежести.
+        const handoffs = baselineRoomHandoffRefs(
+          activePackageIds,
+          await this.read.getM3RoomHandoffReadiness(command.projectId),
+        );
+        if (!handoffs.ok) return failure(requestId, "unavailable", "operation_unavailable");
+
         // Атомарная дверь создаёт версию графа и baseline в одной транзакции.
         // Клиент по-прежнему предъявляет только токен preview; координаты
         // версии и прежнего baseline подтверждены этим серверным чтением, а
@@ -986,6 +1005,7 @@ export class ProjectCeoCommandService {
             ? record(read.data.latestBaseline).graphVersionId as string
             : null,
           previousBaselineId: confirmation.composition.previousBaselineId,
+          handoffRefs: handoffs.refs,
           expectedStateRevision: scope.stateRevision,
           commandRef: command.commandId,
           idempotencyKey,

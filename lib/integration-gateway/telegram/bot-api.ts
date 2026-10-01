@@ -155,6 +155,62 @@ export class TelegramBotApi {
   async getMe(): Promise<TelegramCallOutcome> {
     return this.call("getMe", {});
   }
+
+  /** Путь скачивания файла (DEC-044 (b)). Сам путь нигде не сохраняется. */
+  async getFile(fileId: string): Promise<TelegramCallOutcome> {
+    return this.call("getFile", { file_id: fileId });
+  }
+
+  /**
+   * Скачать файл по пути из `getFile` с жёстким лимитом размера. URL содержит
+   * токен и не покидает этот метод; наружу — только байты или код отказа.
+   */
+  async downloadFile(filePath: string, maxBytes: number): Promise<
+    | { readonly ok: true; readonly bytes: Uint8Array }
+    | { readonly ok: false; readonly failureCode: string; readonly retryable: boolean }
+  > {
+    if (!/^[A-Za-z0-9_./-]{1,300}$/.test(filePath) || filePath.includes("..")) {
+      return { ok: false, failureCode: "file_path_invalid", retryable: false };
+    }
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), this.timeoutMs * 6);
+    try {
+      const response = await this.fetchImpl(
+        `https://api.telegram.org/file/bot${this.botToken}/${filePath}`,
+        { method: "GET", signal: controller.signal },
+      );
+      if (!response.ok || !response.body) {
+        return { ok: false, failureCode: `tg_file_${response.status}`, retryable: response.status >= 500 };
+      }
+      const declared = Number(response.headers.get("content-length") ?? "0");
+      if (declared > maxBytes) return { ok: false, failureCode: "file_too_large", retryable: false };
+      const reader = response.body.getReader();
+      const chunks: Uint8Array[] = [];
+      let total = 0;
+      for (;;) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        total += value.byteLength;
+        if (total > maxBytes) {
+          await reader.cancel();
+          return { ok: false, failureCode: "file_too_large", retryable: false };
+        }
+        chunks.push(value);
+      }
+      const bytes = new Uint8Array(total);
+      let offset = 0;
+      for (const chunk of chunks) {
+        bytes.set(chunk, offset);
+        offset += chunk.byteLength;
+      }
+      return { ok: true, bytes };
+    } catch (error) {
+      const aborted = error instanceof Error && error.name === "AbortError";
+      return { ok: false, failureCode: aborted ? "timeout" : "network", retryable: true };
+    } finally {
+      clearTimeout(timer);
+    }
+  }
 }
 
 const CHAT_MEMBER_SCHEMA = z.object({ status: z.string() });

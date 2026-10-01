@@ -199,6 +199,9 @@ function ApprovalRequest({
       </div>
       <p className="mt-2 font-mono text-[11px] text-muted">{shortId(request.id)} · {shortId(request.subjectId)}</p>
       {request.selfApproved && <p className="mt-2 text-xs text-amber-800">{copy.workspace.m1.selfApproved}</p>}
+      {request.subjectKind === "project_passport" && request.subjectRevisionCurrent === false && (
+        <p className="mt-2 text-xs text-amber-800">{copy.workspace.m1.passportRevisionStale}</p>
+      )}
       {request.decidedBy && <p className="mt-1 text-xs text-muted">{copy.workspace.m1.decidedBy(request.decidedBy)}</p>}
       {request.decisionReason && <p className="mt-1 text-xs text-muted">{request.decisionReason}</p>}
       {canSubmit && (

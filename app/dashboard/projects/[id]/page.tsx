@@ -27,6 +27,8 @@ import CustomQuestions from "./custom-questions";
 import CreateConceptPackButton from "./concept-pack/create-button";
 
 export const dynamic = "force-dynamic";
+// AI ограничен таймаутом (lib/llm/timeout.ts); функция живёт дольше него.
+export const maxDuration = 60;
 
 interface ProjectRow {
   id: string;

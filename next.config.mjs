@@ -29,6 +29,8 @@ const nextConfig = {
   // Local release checks can use `.next.nosync` to avoid iCloud conflict
   // copies while production keeps the standard `.next` default.
   distDir: process.env.NEXT_DIST_DIR || ".next",
+  // Сборка для своего сервера (Dockerfile): самодостаточный server.js.
+  output: process.env.NEXT_OUTPUT === "standalone" ? "standalone" : undefined,
   turbopack: {
     root: process.cwd(),
   },

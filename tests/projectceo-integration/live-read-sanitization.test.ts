@@ -24,6 +24,7 @@ function fakeClient(
   productOverrides: Readonly<Record<string, unknown>> = {},
   projectEntries: readonly Readonly<Record<string, unknown>>[] = defaultProjectEntries,
   platformApprovalRequests: readonly Readonly<Record<string, unknown>>[] = [],
+  roomHandoffReadiness: readonly Readonly<Record<string, unknown>>[] = [],
 ): PostgresRpcClient {
   return {
   schema: (schemaName) => ({
@@ -36,6 +37,9 @@ function fakeClient(
       }
       if (schemaName === "projectceo_platform_api" && functionName === "list_approval_requests") {
         return { data: { requests: platformApprovalRequests }, error: null };
+      }
+      if (schemaName === "projectceo_read_api" && functionName === "get_m3_room_handoff_readiness") {
+        return { data: { rooms: roomHandoffReadiness, unboundSelectionRevisionIds: [] }, error: null };
       }
       if (schemaName === "projectceo_read_api" && functionName === "get_project_workspace_read_v11") {
         return { data: {
@@ -402,7 +406,8 @@ describe("ProjectCEO live DTO sanitizer", () => {
           requestId: foreignRequest,
           subjectKind: "project_passport",
           subjectId: projectId,
-          approverCapability: "review_claim",
+          subjectRevisionCurrent: true,
+          approverCapability: "approve_passport",
           status: "draft",
           requestedByCurrentActor: false,
           requestedReason: "Чужой черновик",
@@ -415,7 +420,8 @@ describe("ProjectCEO live DTO sanitizer", () => {
           requestId: ownRequest,
           subjectKind: "project_passport",
           subjectId: projectId,
-          approverCapability: "review_claim",
+          subjectRevisionCurrent: true,
+          approverCapability: "approve_passport",
           status: "draft",
           requestedByCurrentActor: true,
           requestedReason: "Мой черновик",
@@ -438,6 +444,55 @@ describe("ProjectCEO live DTO sanitizer", () => {
     });
     expect(result.data?.m1.approvalRequests.map((request) => request.requestedByCurrentActor))
       .toEqual([false, true]);
+  });
+
+  it("skips the actor's draft for an earlier passport revision (DEC-041 §3)", async () => {
+    const ownRequest = "88888888-8888-4888-8888-888888888881";
+    const staleRequest = "88888888-8888-4888-8888-888888888882";
+    const result = await new ProjectCeoLiveReadPort(
+      fakeClient({}, defaultProjectEntries, [
+        {
+          requestId: staleRequest,
+          subjectKind: "project_passport",
+          subjectId: projectId,
+          subjectRevisionCurrent: false,
+          approverCapability: "approve_passport",
+          status: "draft",
+          requestedByCurrentActor: true,
+          requestedReason: "Черновик на прежнюю ревизию",
+          selfApproved: false,
+          decidedBy: null,
+          decisionReason: null,
+          createdAt: "2026-08-31T00:00:00Z",
+        },
+        {
+          requestId: ownRequest,
+          subjectKind: "project_passport",
+          subjectId: projectId,
+          subjectRevisionCurrent: true,
+          approverCapability: "approve_passport",
+          status: "draft",
+          requestedByCurrentActor: true,
+          requestedReason: "Мой черновик",
+          selfApproved: false,
+          decidedBy: null,
+          decisionReason: null,
+          createdAt: "2026-08-31T00:01:00Z",
+        },
+      ]),
+      {
+        userId: "66666666-6666-4666-8666-666666666666",
+        displayName: "Controlled user",
+      },
+    ).getProjectWorkspace({ projectId, requestId: "m1-draft-stale" });
+
+    expect(result.error).toBeNull();
+    expect(result.data?.operations.submit_approval_request).toEqual({
+      status: "available",
+      commandTargetId: ownRequest,
+    });
+    expect(result.data?.m1.approvalRequests.map((request) => request.requestedByCurrentActor))
+      .toEqual([true, true]);
   });
 
   // Guardrail модуля 4 (10.08.2026) закрыт по умолчанию, а проверки ниже
@@ -1041,11 +1096,27 @@ describe("ProjectCEO live DTO sanitizer", () => {
         revisionId: "decision-r1",
       }],
     }];
+    // DEC-042 (4): у пакета есть опубликованная передача M2→M3.
+    const m2M3Handoffs = [{
+      id: "handoff-1", packageId: packageId, revisionId: "73000000-0000-4000-8000-000000000013",
+      revisionNo: 1, status: "published", approvedCommitId: "commit-1",
+      approvedCommitRevisionId: "73000000-0000-4000-8000-000000000015",
+      layoutRevisionId: "73000000-0000-4000-8000-000000000014",
+      selectionRevisionIds: ["selection-a@1"],
+      budget: { asOf: "2026-08-06T09:45:00.000Z", staleAfterDays: 30, amountRub: 125000,
+        staleSelectionRevisionIds: [], missingPriceSelectionRevisionIds: [] },
+      createdAt: "2026-08-06T12:00:00.000Z",
+    }];
+    // DEC-041 §4: сервер сообщает, что комната пакета со свежей передачей.
     const result = await new ProjectCeoLiveReadPort(fakeClient({
       approvalPackages,
       packages: [{ id: packageId, kind: "work_package", name: "Architecture", status: "active" }],
       latestBaseline: null,
-    }), {
+      m2M3Handoffs,
+    }, defaultProjectEntries, [], [{
+      packageId, roomId: "living", applicable: true,
+      handoffId: "handoff-1", handoffRevisionId: "73000000-0000-4000-8000-000000000013", problem: null,
+    }]), {
       userId: "66666666-6666-4666-8666-666666666666",
       displayName: "Owner",
     }).getProjectWorkspace({ projectId, requestId: "baseline-preview" });
@@ -1059,6 +1130,41 @@ describe("ProjectCEO live DTO sanitizer", () => {
     expect(result.data?.operations.publish_baseline).toEqual({
       status: "available",
       commandTargetId: expected,
+    });
+
+    // Без передачи тот же состав не предлагается: база его отклонит.
+    const withoutHandoff = await new ProjectCeoLiveReadPort(fakeClient({
+      approvalPackages,
+      packages: [{ id: packageId, kind: "work_package", name: "Architecture", status: "active" }],
+      latestBaseline: null,
+    }), {
+      userId: "66666666-6666-4666-8666-666666666666",
+      displayName: "Owner",
+    }).getProjectWorkspace({ projectId, requestId: "baseline-preview-no-handoff" });
+    expect(withoutHandoff.data?.operations.publish_baseline).toMatchObject({ status: "unavailable" });
+
+    // DEC-041 §4: комната с утверждённым дизайном, чья передача устарела
+    // (утверждена новая selection), закрывает baseline и называет причину.
+    const staleRoom = await new ProjectCeoLiveReadPort(fakeClient({
+      approvalPackages,
+      packages: [{ id: packageId, kind: "work_package", name: "Architecture", status: "active" }],
+      latestBaseline: null,
+      m2M3Handoffs,
+    }, defaultProjectEntries, [], [
+      { packageId, roomId: "living", applicable: true, handoffId: "handoff-1",
+        handoffRevisionId: "73000000-0000-4000-8000-000000000013", problem: null },
+      { packageId, roomId: "kitchen", applicable: true, handoffId: "handoff-2",
+        handoffRevisionId: "73000000-0000-4000-8000-000000000023",
+        problem: "M2_HANDOFF_SELECTION_SUPERSEDED" },
+    ]), {
+      userId: "66666666-6666-4666-8666-666666666666",
+      displayName: "Owner",
+    }).getProjectWorkspace({ projectId, requestId: "baseline-preview-stale-room" });
+    expect(staleRoom.data?.operations.publish_baseline).toMatchObject({ status: "unavailable" });
+    expect(staleRoom.data?.baselineHandoffBlockers).toEqual({
+      missingPackageIds: [],
+      blockedRooms: [{ packageId, roomId: "kitchen", problem: "M2_HANDOFF_SELECTION_SUPERSEDED" }],
+      unboundSelectionCount: 0,
     });
   });
 

@@ -120,7 +120,7 @@ function planFileExtractionLabel(file: BriefPackPlanFile): string {
   if (extraction.status === "no_text") return ru.briefBuilder.planTextNoText;
   if (
     extraction.status === "unsupported" &&
-    ["ocr_not_configured", "zai_ocr_not_configured"].includes(extraction.message ?? "")
+    ["ocr_not_configured", "zai_ocr_not_configured", "ai_disabled"].includes(extraction.message ?? "")
   ) {
     return ru.briefBuilder.planOcrNotConfigured;
   }

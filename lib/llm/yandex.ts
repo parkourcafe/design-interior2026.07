@@ -8,6 +8,7 @@
 // Docs: https://yandex.cloud/ru/docs/foundation-models/text-generation/api-ref/TextGeneration/completion
 //       https://yandex.cloud/ru/docs/foundation-models/quickstart/yandexgpt
 
+import { llmSignal } from "./timeout";
 const YANDEX_COMPLETION_URL =
   "https://llm.api.cloud.yandex.net/foundationModels/v1/completion";
 
@@ -17,7 +18,7 @@ interface YandexResponse {
   };
 }
 
-export async function completeYandex(prompt: string): Promise<string> {
+export async function completeYandex(prompt: string, timeoutMs?: number): Promise<string> {
   const folderId = process.env.YC_FOLDER_ID;
   const apiKey = process.env.YC_API_KEY;
   const model = process.env.LLM_MODEL ?? "yandexgpt-lite";
@@ -48,6 +49,7 @@ export async function completeYandex(prompt: string): Promise<string> {
       },
       messages: [{ role: "user", text: prompt }],
     }),
+    signal: llmSignal(timeoutMs),
   });
 
   if (!res.ok) {

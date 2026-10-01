@@ -393,6 +393,35 @@ describe("Layout Studio delivery/UI slice", () => {
       // Enrollment repair narrows supplied users to package capabilities only.
       "20260922183823_projectceo_package_scoped_enrollment.sql",
       "20260922185630_projectceo_package_bound_approval_review.sql",
+      // DEC-042 / Фаза 0: граница жизненного цикла КП в базе и пакетный
+      // шаблон прав с журналом выдачи; Layout Studio не затрагивают.
+      "20260925090000_legacy_m1_proposal_lifecycle_guard.sql",
+      "20260925091000_projectceo_package_capability_template_ledger.sql",
+      // DEC-042 (4): гейт передачи M2→M3 для baseline/выпуска M3.
+      "20260925100000_projectceo_m3_handoff_gate.sql",
+      "20260927090000_projectceo_passport_approval_authority.sql",
+      "20260928090000_projectceo_m3_room_handoff_freshness.sql",
+      "20260928091000_projectceo_m3_room_handoff_readiness_read.sql",
+      "20260928095900_pi_table_owner_public_create.sql",
+      "20260928100000_account_retention_cases.sql",
+      "20260928110000_remhaos_telegram_tg2.sql",
+      "20260928120000_account_retention_expiry.sql",
+      "20260928130000_file_intake_worker_identity.sql",
+      "20260928140000_file_intake_worker_actor.sql",
+      "20260928150000_intake_consent_records.sql",
+      "20260928151000_intake_rate_limits_and_attachments.sql",
+      "20260928152000_client_uploads_path_scope.sql",
+      "20260928153000_market_routing_receipt_relogin.sql",
+      "20260928154000_pi_table_owner_public_create_revoke.sql",
+      "20260928155000_definer_functions_request_user.sql",
+      "20260928156000_proposal_public_link_expiry.sql",
+      "20260928157000_intake_consent_text.sql",
+      "20260928158000_account_closure_30_days_and_purge.sql",
+      "20260928159000_account_purge_review_fixes.sql",
+      "20260928160000_account_purge_deadline_and_runs.sql",
+      "20260928161000_account_purge_review_fixes_2.sql",
+      "20260928162000_account_purge_lockout_fixes.sql",
+      "20260928163000_account_closed_api_guard.sql",
     ];
     const actual = readdirSync(join(repoRoot, "supabase/migrations"), { withFileTypes: true })
       // Предмет проверки — миграции, а не всё содержимое папки. Рядом с ними

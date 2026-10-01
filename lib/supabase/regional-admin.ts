@@ -10,7 +10,6 @@ const publicTokenPurposes = new Set([
   "intake-upload",
   "client-bootstrap",
   "public-intake-read",
-  "public-brief",
 ] as const);
 
 export type RegionalPublicTokenPurpose = typeof publicTokenPurposes extends Set<infer Purpose>

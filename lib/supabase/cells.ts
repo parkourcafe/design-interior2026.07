@@ -17,6 +17,20 @@ export class RegionalSupabaseConfigurationError extends Error {
   }
 }
 
+// Next.js подставляет в браузерную сборку только СТАТИЧЕСКИЕ обращения
+// `process.env.NEXT_PUBLIC_…`. Динамическое `source[name]` в браузере читает
+// пустой объект, и вход дизайнера (пароль, код на почту) падал с
+// regional_cell_not_configured. Публичные значения перечислены явно; серверные
+// ключи (service role) сюда не попадают и читаются только на сервере.
+const PUBLIC_REGIONAL_ENV: Readonly<Record<string, string | undefined>> = {
+  NEXT_PUBLIC_SUPABASE_URL: process.env.NEXT_PUBLIC_SUPABASE_URL,
+  NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY,
+  NEXT_PUBLIC_SUPABASE_ANON_KEY: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
+  NEXT_PUBLIC_SUPABASE_URL_US: process.env.NEXT_PUBLIC_SUPABASE_URL_US,
+  NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY_US: process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY_US,
+  NEXT_PUBLIC_SUPABASE_ANON_KEY_US: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY_US,
+};
+
 function value(source: NodeJS.ProcessEnv, name: string): string | null {
   const candidate = source[name]?.trim();
   return candidate ? candidate : null;
@@ -24,7 +38,7 @@ function value(source: NodeJS.ProcessEnv, name: string): string | null {
 
 export function regionalSupabaseConfig(
   cellCode: DataCellId,
-  source: NodeJS.ProcessEnv = process.env,
+  source: NodeJS.ProcessEnv = { ...PUBLIC_REGIONAL_ENV, ...process.env },
 ): RegionalSupabaseConfig {
   const suffix = cellCode === "ru" ? "" : "_US";
   const url = value(source, `NEXT_PUBLIC_SUPABASE_URL${suffix}`);

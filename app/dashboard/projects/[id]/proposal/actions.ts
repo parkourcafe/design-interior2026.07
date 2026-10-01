@@ -33,6 +33,7 @@ type ApprovalRequest = {
   readonly subjectKind?: unknown;
   readonly subjectId?: unknown;
   readonly status?: unknown;
+  readonly subjectRevisionCurrent?: unknown;
 };
 
 async function hasApprovedProjectPassport(
@@ -54,25 +55,32 @@ async function hasApprovedProjectPassport(
     && (value as ApprovalRequest).subjectKind === "project_passport"
     && (value as ApprovalRequest).subjectId === projectId
     && (value as ApprovalRequest).status === "approved"
+    // DEC-041 §3: одобрение прежней ревизии паспорта не открывает отправку.
+    && (value as ApprovalRequest).subjectRevisionCurrent === true
   ));
 }
 
 export async function saveProposal(
   projectId: string,
   sections: ProposalSection[],
-): Promise<{ ok: boolean; reason?: "sent" }> {
+): Promise<{ ok: boolean; reason?: "not_draft" }> {
   const supabase = await createClient();
   try {
     const latest = await getLatestProposal(supabase, projectId);
     if (!latest) return { ok: false };
-    // Отправленное или принятое КП — то, что клиент видит по живой ссылке и
-    // на что он ответил; правка задним числом подменила бы содержание ответа.
-    if (latest.status !== "draft") return { ok: false, reason: "sent" };
-    const { error } = await supabase
+    // Отправленное или принятое КП клиент уже видит по живой ссылке: его текст
+    // неизменяем (аудит 25.09.2026, BUG-03). Та же граница стоит в базе —
+    // триггер guard_proposal_lifecycle (миграция 20260925090000).
+    if (latest.status !== "draft") return { ok: false, reason: "not_draft" };
+    const { data, error } = await supabase
       .from("proposals")
       .update({ sections })
-      .eq("id", latest.id);
+      .eq("id", latest.id)
+      .eq("status", "draft")
+      .select("id")
+      .maybeSingle();
     if (error) await recordProposalFailure(supabase, projectId, "proposal_save_failed");
+    if (!error && !data) return { ok: false, reason: "not_draft" };
     if (!error) revalidatePath(`/dashboard/projects/${projectId}/proposal`);
     return { ok: !error };
   } catch (error) {
@@ -155,14 +163,18 @@ export async function rebuildProposal(
       packageRecommendation,
     });
 
-    const { error } = await supabase
+    const { data: rebuilt, error } = await supabase
       .from("proposals")
       .update({ sections })
-      .eq("id", proposal.id);
+      .eq("id", proposal.id)
+      .eq("status", "draft")
+      .select("id")
+      .maybeSingle();
     if (error) {
       await recordProposalFailure(supabase, projectId, "proposal_rebuild_failed");
       return { ok: false };
     }
+    if (!rebuilt) return { ok: false, reason: "sent" };
 
     revalidatePath(`/dashboard/projects/${projectId}/proposal`);
     return { ok: true, sections };
@@ -174,7 +186,7 @@ export async function rebuildProposal(
 
 export async function sendProposal(projectId: string): Promise<{
   ok: boolean;
-  reason?: "approval_required";
+  reason?: "approval_required" | "not_draft";
 }> {
   const supabase = await createClient();
   try {
@@ -183,8 +195,9 @@ export async function sendProposal(projectId: string): Promise<{
 
     const latest = await getLatestProposal(supabase, projectId);
     if (!latest) return { ok: false };
-    // Повторная отправка принятого КП откатила бы статусы proposal_accepted.
-    if (latest.status === "accepted") return { ok: false };
+    // Отправляется только черновик: повторная отправка не должна откатывать
+    // принятое КП (accepted → sent) и проект (proposal_accepted → proposal_sent).
+    if (latest.status !== "draft") return { ok: false, reason: "not_draft" };
     // «Отправить клиенту» — необратимое изменение публичной поверхности КП.
     // Approval request создаётся и решается через ProjectCEO command boundary;
     // здесь проверяем только его request-bound опубликованный результат.
@@ -195,6 +208,7 @@ export async function sendProposal(projectId: string): Promise<{
       .from("proposals")
       .update({ status: "sent", sent_at: new Date().toISOString() })
       .eq("id", latest.id)
+      .eq("status", "draft")
       .select("id")
       .maybeSingle();
 
@@ -203,7 +217,10 @@ export async function sendProposal(projectId: string): Promise<{
       return { ok: false };
     }
 
-    const projectUpdate = await supabase.from("projects").update({ status: "proposal_sent" }).eq("id", projectId);
+    // Проект двигается только вперёд: статус после proposal_sent не трогаем.
+    const projectUpdate = await supabase.from("projects").update({ status: "proposal_sent" })
+      .eq("id", projectId)
+      .in("status", ["brief_completed", "proposal_draft"]);
     if (projectUpdate.error) {
       await recordProposalFailure(supabase, projectId, "proposal_send_failed");
       return { ok: false };

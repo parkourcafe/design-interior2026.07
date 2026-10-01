@@ -5,7 +5,7 @@
 select projectceo_platform.apply_legacy_adopted_hardening();
 select projectceo_platform.apply_legacy_adopted_hardening();
 
-create table public.rate_limits (
+create table if not exists public.rate_limits (
   id bigint generated always as identity primary key,
   key text not null,
   created_at timestamptz not null default statement_timestamp()

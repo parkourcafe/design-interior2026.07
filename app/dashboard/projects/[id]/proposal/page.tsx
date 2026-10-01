@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { getStudio } from "@/lib/studio";
 import { makeToken } from "@/lib/tokens";
@@ -15,6 +15,8 @@ import { RESPONSE_TYPES } from "@/lib/proposal/respond";
 import type { RiskCardRow } from "@/lib/review";
 import ProposalEditor from "./editor";
 import CreateRoomButton from "../room/create-button";
+import PassportApproval from "./passport-approval";
+import { readPassportApproval } from "@/lib/proposal/passport-approval";
 
 export const dynamic = "force-dynamic";
 
@@ -104,14 +106,36 @@ export default async function ProposalPage({ params }: { params: Promise<{ id: s
   // Обеспечить наличие черновика КП (public_token + событие proposal_created).
   const existing = await getLatestProposal(supabase, p.id);
 
+  // DEC-044 (a): аккаунт в сроке удаления — только чтение. Страница не
+  // создаёт и не пересобирает черновик; выданное КП открывается по ссылке.
+  const { data: retention } = await supabase.rpc("get_account_retention_status");
+  const retentionStatus = (retention as { status?: string } | null)?.status;
+  if (retentionStatus === "requested" || retentionStatus === "expired") {
+    const issuedToken = existing && (existing.status === "sent" || existing.status === "accepted")
+      ? existing.public_token as string
+      : null;
+    return (
+      <div className="card space-y-2">
+        <p className="text-sm text-muted">{ru.retention.readOnlyProposal}</p>
+        {issuedToken ? (
+          <a className="text-sm underline" href={`/p/${issuedToken}`}>{ru.retention.openIssuedProposal}</a>
+        ) : null}
+      </div>
+    );
+  }
+
   let sections: ProposalSection[];
   let publicToken: string;
   let sent = false;
+  let issuedMeanwhile = false;
 
-  if (existing && Array.isArray(existing.sections) && (existing.sections as ProposalSection[]).length > 0) {
-    sections = existing.sections as ProposalSection[];
+  // Выданное КП (sent/accepted) не пересобирается даже с пустыми секциями:
+  // его содержимое неизменяемо и в базе (proposals_lifecycle_guard).
+  const issued = existing?.status === "sent" || existing?.status === "accepted";
+  if (existing && (issued || (Array.isArray(existing.sections) && (existing.sections as ProposalSection[]).length > 0))) {
+    sections = Array.isArray(existing.sections) ? existing.sections as ProposalSection[] : [];
     publicToken = existing.public_token as string;
-    sent = existing.status === "sent" || existing.status === "accepted";
+    sent = issued;
     try {
       await ensureProposalCreatedState(existing.status === "accepted"
         ? "proposal_accepted"
@@ -132,9 +156,16 @@ export default async function ProposalPage({ params }: { params: Promise<{ id: s
       });
       if (existing) {
         publicToken = existing.public_token as string;
-        const updated = await supabase.from("proposals").update({ sections }).eq("id", existing.id);
+        const updated = await supabase.from("proposals").update({ sections })
+          .eq("id", existing.id)
+          .eq("status", "draft")
+          .select("id")
+          .maybeSingle();
         if (updated.error) throw new Error("proposal_update_failed");
-        await ensureProposalCreatedState("proposal_draft");
+        // КП успели отправить между чтением и записью (другая вкладка):
+        // показываем выданное состояние, а не пересобранный «черновик».
+        if (!updated.data) issuedMeanwhile = true;
+        else await ensureProposalCreatedState("proposal_draft");
       } else {
         publicToken = makeToken();
         const created = await supabase.from("proposals").insert({
@@ -152,8 +183,13 @@ export default async function ProposalPage({ params }: { params: Promise<{ id: s
       throw error;
     }
   }
+  // Перечитываем страницу вне try: redirect() бросает служебное исключение,
+  // которое не должно засчитываться как сбой создания КП.
+  if (issuedMeanwhile) redirect(`/dashboard/projects/${p.id}/proposal`);
 
   const publicUrl = `${await requestBaseUrl()}/p/${publicToken}`;
+  // Аудит 28.09, шаг 6: до отправки — блок подтверждения паспорта проекта.
+  const passportApproval = sent ? null : await readPassportApproval(supabase, p.id);
 
   // Петля обратной связи (audit S4): открывал ли клиент КП и его ответ.
   const { data: feedbackEvents } = await supabase
@@ -207,11 +243,16 @@ export default async function ProposalPage({ params }: { params: Promise<{ id: s
         )}
       </div>
 
+      {passportApproval ? <PassportApproval projectId={p.id} initial={passportApproval} /> : null}
       <ProposalEditor
+        // Смена статуса (отправка из другой вкладки) пересоздаёт редактор с
+        // текстом из базы, а не с локальными несохранёнными правками.
+        key={`${publicToken}:${sent ? "issued" : "draft"}`}
         projectId={p.id}
         initialSections={sections}
         publicUrl={publicUrl}
         alreadySent={sent}
+        linkExpiresAt={existing?.public_expires_at ?? null}
       />
       {clientResponse === "proposal_accepted" && (
         <section className="card mt-6 border-accent/30">

@@ -28,7 +28,7 @@ describe("release health route", () => {
     const body = await GET().json();
     expect(body).toMatchObject({
       status: "ok", commit: null,
-      env: { supabase: false, supabase_service_role: false,
+      env: { supabase: false, supabase_service_role: false, ai_enabled: false,
         llm_provider: "yandex", llm_configured: false },
     });
     expect(Number.isNaN(Date.parse(body.ts))).toBe(false);
@@ -41,7 +41,7 @@ describe("release health route", () => {
       for (const key of configurationKeys) vi.stubEnv(key, `synthetic-test-only-${key}`);
       const body = await GET().json();
       expect(body.env).toEqual({ supabase: true, supabase_service_role: true,
-        llm_provider: provider, llm_configured: true });
+        ai_enabled: false, llm_provider: provider, llm_configured: true });
       const serialized = JSON.stringify(body);
       for (const key of configurationKeys) {
         expect(serialized).not.toContain(`synthetic-test-only-${key}`);

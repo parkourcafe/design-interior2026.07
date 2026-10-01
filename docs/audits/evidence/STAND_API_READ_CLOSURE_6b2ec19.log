@@ -1,0 +1,38 @@
+=== Чтение через API после запроса удаления (миграция 20260928163000), 2026-10-01T14:01:30Z
+--- до запроса (токен x1 выдан до запроса)
+  public.projects:           [{"id":"29d6234e-50f3-4552-a73e-24f8acf74b4d"}] HTTP 200
+  public.designers:          [{"id":"0c46dd2d-8357-45d0-ad93-1f8231565aba"}] HTTP 200
+  projectceo_read_api (GET): {"code":"PGRST202","details":"Searched for the function projectceo_read_api.get_account_retention_status witho
+  статус заявки (rpc):       null HTTP 200
+  свой файл (Storage):       HTTP 200
+  второй дизайнер x2:        [{"id":"01ff99d6-b7a7-443f-ad54-bfa1d96cac0b"}] HTTP 200
+--- после запроса (тот же токен)
+  public.projects:           {"code":"PT403","details":null,"hint":"Удаление аккаунта запрошено: доступ к �
+  public.designers:          {"code":"PT403","details":null,"hint":"Удаление аккаунта запрошено: доступ к �
+  projectceo_read_api (GET): {"code":"PGRST202","details":"Searched for the function projectceo_read_api.get_account_retention_status witho
+  статус заявки (rpc):       {"caseId": "772e1bea-ea8a-4df6-82bd-41ec4d4ac371", "closed": true, "status": "requested", "overdue": false, "l
+  свой файл (Storage):       HTTP 400
+  второй дизайнер x2:        [{"id":"01ff99d6-b7a7-443f-ad54-bfa1d96cac0b"}] HTTP 200
+  вход закрытого дизайнера в браузере: /account-closed | Аккаунт закрытВы запросили удаление аккаунта. Кабинет и ссылки ваших клиентов на бриф, КП и комнату
+  — оператор восстановил аккаунт: cancelled
+--- после восстановления
+  public.projects:           [{"id":"29d6234e-50f3-4552-a73e-24f8acf74b4d"}] HTTP 200
+  public.designers:          [{"id":"0c46dd2d-8357-45d0-ad93-1f8231565aba"}] HTTP 200
+  projectceo_read_api (GET): {"code":"PGRST202","details":"Searched for the function projectceo_read_api.get_account_retention_status witho
+  статус заявки (rpc):       null HTTP 200
+  свой файл (Storage):       HTTP 200
+  второй дизайнер x2:        [{"id":"01ff99d6-b7a7-443f-ad54-bfa1d96cac0b"}] HTTP 200
+--- другие схемы API (x1): до запроса
+  projectceo_api.list_projects:                  {"data": [], "error": null, "requestId": "db:ecec5101-19a5-4ff9-9ad1-e7913002d2f2", "contractVersion": "projec
+  projectceo_platform_api.list_workflow_templates: {"code":"P1103","details":"{\"reason\": \"MEMBERSHIP_REQUIRED\"}","hint":null,"message":"forbidden"} HTTP 400
+--- после запроса (тот же токен)
+  projectceo_api.list_projects:                  {"code":"PT403","details":null,"hint":"Удаление аккаунта запрошено: доступ к �
+  projectceo_platform_api.list_workflow_templates: {"code":"PT403","details":null,"hint":"Удаление аккаунта запрошено: доступ к �
+  — восстановление: cancelled
+--- регресс: обычный дизайнер y1 в браузере
+  [e2e] project e5e20a85-7e1f-4b2c-9cd9-7e148babbc27
+  [client] final text: Спасибо! Заявка отправленаВаши ответ�
+  [designer] passport approved  "publicStatus": 200, 
+--- уничтожение закрытого x1 скриптом оператора
+УНИЧТОЖЕНО ПОЛНОСТЬЮ. Квитанция 6e85ebab-db5b-4c91-a9f9-da56fc6b1e79; файлов: 1; де�
+  пользователь=0

@@ -22,6 +22,8 @@ export interface PlatformApprovalRequestRecord {
   readonly requestId: string;
   readonly subjectKind: string;
   readonly subjectId: string;
+  /** Только для project_passport: одобрение относится к текущей ревизии паспорта. */
+  readonly subjectRevisionCurrent: boolean | null;
   readonly approverCapability: string;
   readonly status: string;
   readonly requestedByCurrentActor: boolean;
@@ -80,6 +82,7 @@ function approval(value: unknown): PlatformApprovalRequestRecord | null {
     requestId,
     subjectKind,
     subjectId,
+    subjectRevisionCurrent: typeof item.subjectRevisionCurrent === "boolean" ? item.subjectRevisionCurrent : null,
     approverCapability,
     status,
     requestedByCurrentActor: item.requestedByCurrentActor === true,

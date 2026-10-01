@@ -64,14 +64,13 @@ begin
     if position('MARKET_ROUTING_CELL_MISMATCH' in sqlerrm) = 0 then raise; end if;
   end;
 
-  begin
-    perform projectceo_api.accept_market_routing_receipt(
-      'ru', repeat('c', 64), 'ru', 'declared', array[]::text[]
-    );
-    raise exception 'DB4_MARKET_ROUTING_MUTATION_ALLOWED';
-  exception when raise_exception then
-    if position('MARKET_ROUTING_RECEIPT_IMMUTABLE' in sqlerrm) = 0 then raise; end if;
-  end;
+  -- 20260928153000: повторный вход выпускает новую квитанцию того же рынка —
+  -- это replay, а не отказ; первая запись не перезаписывается.
+  if (projectceo_api.accept_market_routing_receipt(
+        'ru', repeat('c', 64), null, 'conservative_default', array[]::text[]
+      ) ->> 'replay') <> 'true' then
+    raise exception 'DB4_MARKET_ROUTING_RELOGIN_REJECTED';
+  end if;
 
   begin
     perform projectceo_api.accept_market_routing_receipt(
@@ -83,6 +82,33 @@ begin
   end;
 end
 $market_routing_denials$;
+reset role;
+
+do $market_routing_first_receipt_kept$
+begin
+  if (select receipt_digest from project_intelligence.market_routing_receipts
+      where user_id = '78888888-8888-4888-8888-888888888801') <> repeat('a', 64) then
+    raise exception 'DB4_MARKET_ROUTING_RECEIPT_OVERWRITTEN';
+  end if;
+end
+$market_routing_first_receipt_kept$;
+
+-- Привязка к рынку неизменяема: запись другого рынка у того же пользователя
+-- (как если бы ячейка была иной) функция не принимает.
+update project_intelligence.market_routing_receipts
+set market = 'international', cell_code = 'us'
+where user_id = '78888888-8888-4888-8888-888888888801';
+set local role authenticated;
+do $market_routing_market_locked$
+begin
+  perform projectceo_api.accept_market_routing_receipt(
+    'ru', repeat('e', 64), 'ru', 'declared', array[]::text[]
+  );
+  raise exception 'DB4_MARKET_ROUTING_MARKET_CHANGE_ALLOWED';
+exception when raise_exception then
+  if position('MARKET_ROUTING_RECEIPT_IMMUTABLE' in sqlerrm) = 0 then raise; end if;
+end
+$market_routing_market_locked$;
 rollback;
 
 select 'DB4_MARKET_ROUTING_RECEIPTS_OK' as result;

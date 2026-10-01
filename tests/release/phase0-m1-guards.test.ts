@@ -1,0 +1,290 @@
+import { createHash } from "node:crypto";
+import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";
+import { join } from "node:path";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+
+// Фаза 0 (DEC-042, финальный аудит 25.09.2026): публичная ссылка-бриф /b/
+// закрыта, бриф не принимается повторно, выданное КП не редактируется и не
+// откатывается приложением. Та же граница КП закреплена базой — см.
+// tests/db4/79_m1_proposal_lifecycle_guard.sql.
+
+const state = vi.hoisted(() => ({
+  projectStatus: "created",
+  proposalStatus: "draft",
+  projectUpdateMatches: true,
+  approvalRevisionCurrent: true,
+  operations: [] as string[],
+  inserts: [] as Array<{ table: string; row: unknown }>,
+}));
+
+vi.mock("server-only", () => ({}));
+vi.mock("@/lib/designer", () => ({
+  getDesignerPublic: async () => ({ name: "Анна", studio_name: "Студия А", email: "a@example.test", profile: {} }),
+}));
+vi.mock("@/lib/intake", () => ({
+  getProjectByIntakeToken: async () => ({
+    id: "project", designer_id: "designer", status: state.projectStatus, cellCode: "ru",
+    custom_questions: [{ type: "text", title: "Своё" }],
+  }),
+}));
+vi.mock("@/lib/rate-limit", () => ({ checkRateLimit: async () => true, clientIp: () => "test" }));
+vi.mock("@/lib/brief/pipeline", () => ({
+  runRiskPipeline: async () => ({ passport: {}, cards: [], llmOk: true }),
+}));
+
+const fakeClient = vi.hoisted(() => () => ({
+  schema: () => ({
+    rpc: async () => ({
+      data: { requests: [{
+        subjectKind: "project_passport", subjectId: "project", status: "approved",
+        subjectRevisionCurrent: state.approvalRevisionCurrent,
+      }] },
+      error: null,
+    }),
+  }),
+  from: (table: string) => {
+    let operation = "select";
+    const filters: string[] = [];
+    const result = () => {
+      state.operations.push(`${table}:${operation}${filters.length ? `[${filters.join(",")}]` : ""}`);
+      if (table === "projects" && operation === "update") {
+        return { data: state.projectUpdateMatches ? { id: "project" } : null, error: null };
+      }
+      if (table === "proposals" && operation === "update") {
+        return { data: state.proposalStatus === "draft" ? { id: "proposal" } : null, error: null };
+      }
+      if (table === "projects") return { data: { designer_id: "designer", status: state.projectStatus }, error: null };
+      return { data: [], error: null };
+    };
+    const query = {
+      select: () => query,
+      eq: (column: string, value: unknown) => { filters.push(`${column}=${String(value)}`); return query; },
+      in: (column: string, values: unknown[]) => { filters.push(`${column} in ${values.join("|")}`); return query; },
+      order: () => query, limit: () => query, maybeSingle: () => query,
+      update: () => { operation = "update"; return query; },
+      delete: () => { operation = "delete"; return query; },
+      upsert: () => { operation = "upsert"; return query; },
+      insert: (row: unknown) => { operation = "insert"; state.inserts.push({ table, row }); return query; },
+      then: (resolve: (value: ReturnType<typeof result>) => unknown) => Promise.resolve(result()).then(resolve),
+    };
+    return query;
+  },
+}));
+vi.mock("@/lib/supabase/token-scoped", () => ({ createScopedServiceClient: fakeClient }));
+vi.mock("@/lib/supabase/regional-admin", () => ({ createRegionalPublicTokenClient: fakeClient }));
+vi.mock("next/cache", () => ({ revalidatePath: () => undefined }));
+vi.mock("@/lib/supabase/server", () => ({ createClient: async () => fakeClient() }));
+vi.mock("@/lib/studio", () => ({ getStudio: async () => ({ studioId: "designer", designer: {} }) }));
+vi.mock("@/lib/proposal/latest", () => ({
+  getLatestProposal: async () => ({ id: "proposal", status: state.proposalStatus }),
+}));
+
+import { POST as submit } from "../../app/api/intake/submit/route";
+import { POST as upload } from "../../app/api/intake/upload/route";
+import {
+  rebuildProposal,
+  saveProposal,
+  sendProposal,
+} from "../../app/dashboard/projects/[id]/proposal/actions";
+import { INTAKE_OPEN_STATUSES, isIntakeOpen } from "../../lib/intake-status";
+
+const validAnswers = {
+  pain: "Тесно в прихожей",
+  contact: { name: "Клиент", phone: "+7 900 000-00-00", consent: true },
+};
+const submitRequest = (answers: unknown = validAnswers) => new Request("http://localhost/api/intake/submit", {
+  method: "POST",
+  headers: { "Content-Type": "application/json" },
+  body: JSON.stringify({ token: "token", answers }),
+});
+
+beforeEach(() => {
+  state.projectStatus = "created";
+  state.proposalStatus = "draft";
+  state.projectUpdateMatches = true;
+  state.approvalRevisionCurrent = true;
+  state.operations = [];
+});
+
+describe("intake submit is accepted only while the brief is open (BUG-02)", () => {
+  it("keeps the open-status set explicit", () => {
+    expect(INTAKE_OPEN_STATUSES).toEqual(["created", "brief_sent", "brief_in_progress"]);
+    for (const status of ["brief_completed", "proposal_draft", "proposal_sent", "proposal_accepted", "active_project"]) {
+      expect(isIntakeOpen(status), status).toBe(false);
+    }
+  });
+
+  it.each(["brief_completed", "proposal_sent", "proposal_accepted", "active_project"])(
+    "rejects a resubmission in %s without touching answers or risk cards",
+    async (status) => {
+      state.projectStatus = status;
+      const response = await submit(submitRequest());
+      expect(response.status).toBe(409);
+      expect(await response.json()).toEqual({ error: "already_submitted" });
+      expect(state.operations).toEqual([]);
+    },
+  );
+
+  it("transitions the project conditionally and stops before rebuilding risk cards when it lost the race", async () => {
+    state.projectUpdateMatches = false;
+    const response = await submit(submitRequest());
+    expect(response.status).toBe(409);
+    const projectUpdate = state.operations.find((op) => op.startsWith("projects:update"));
+    expect(projectUpdate).toContain("status in created|brief_sent|brief_in_progress");
+    expect(state.operations.some((op) => op.startsWith("risk_cards:"))).toBe(false);
+  });
+
+  it("does not accept attachments through the intake token after submission", async () => {
+    state.projectStatus = "proposal_accepted";
+    const form = new FormData();
+    form.set("token", "token");
+    form.set("file", new File(["fixture"], "plan.pdf"));
+    const response = await upload(new Request("http://localhost/api/intake/upload", { method: "POST", body: form }));
+    expect(response.status).toBe(409);
+    expect(state.operations).toEqual([]);
+  });
+
+  it("saves raw answers before the conditional transition so a later failure cannot lose them", async () => {
+    await submit(submitRequest());
+    const answers = state.operations.findIndex((op) => op.startsWith("answers:upsert"));
+    const projectUpdate = state.operations.findIndex((op) => op.startsWith("projects:update"));
+    expect(answers).toBeGreaterThanOrEqual(0);
+    expect(projectUpdate).toBeGreaterThan(answers);
+  });
+
+  it("still completes an open brief", async () => {
+    const response = await submit(submitRequest());
+    expect(response.status).toBe(200);
+    expect(state.operations.some((op) => op.startsWith("risk_cards:delete"))).toBe(true);
+  });
+});
+
+describe("issued proposals are immutable in the application (BUG-03/BUG-04)", () => {
+  it.each(["sent", "accepted"])("refuses to save, rebuild or resend a %s proposal", async (status) => {
+    state.proposalStatus = status;
+    expect(await saveProposal("project", [])).toEqual({ ok: false, reason: "not_draft" });
+    expect(await rebuildProposal("project")).toEqual({ ok: false, reason: "sent" });
+    expect(await sendProposal("project")).toEqual({ ok: false, reason: "not_draft" });
+    expect(state.operations.some((op) => op.startsWith("proposals:update"))).toBe(false);
+    expect(state.operations.some((op) => op.startsWith("projects:update"))).toBe(false);
+  });
+
+  it("does not send when the approval belongs to an earlier passport revision (DEC-041 §3)", async () => {
+    state.approvalRevisionCurrent = false;
+    expect(await sendProposal("project")).toEqual({ ok: false, reason: "approval_required" });
+    expect(state.operations.some((op) => op.startsWith("proposals:update"))).toBe(false);
+  });
+
+  it("guards every draft write and advances the project only forward", async () => {
+    expect(await saveProposal("project", [])).toEqual({ ok: true });
+    expect(await sendProposal("project")).toEqual({ ok: true });
+    const proposalWrites = state.operations.filter((op) => op.startsWith("proposals:update"));
+    expect(proposalWrites.length).toBe(2);
+    for (const write of proposalWrites) expect(write).toContain("status=draft");
+    const projectWrite = state.operations.find((op) => op.startsWith("projects:update"));
+    expect(projectWrite).toContain("status in brief_completed|proposal_draft");
+  });
+});
+
+describe("public brief link /b/ is closed (DEC-042)", () => {
+  const root = process.cwd();
+
+  function sourceFiles(dir: string): string[] {
+    return readdirSync(dir).flatMap((name) => {
+      const path = join(dir, name);
+      if (statSync(path).isDirectory()) return sourceFiles(path);
+      return /\.(ts|tsx)$/.test(name) ? [path] : [];
+    });
+  }
+
+  it("has no /b/ route and no code that builds a /b/ link in any form", () => {
+    expect(existsSync(join(root, "app/b"))).toBe(false);
+    expect(existsSync(join(root, "components/share-brief.tsx"))).toBe(false);
+    // Единственные законные упоминания — списки «не индексировать» и
+    // «не показывать PWA-баннер»: они только закрывают путь.
+    const allowed = new Set([join(root, "app/robots.ts"), join(root, "components/pwa.tsx")]);
+    for (const file of [...sourceFiles(join(root, "app")), ...sourceFiles(join(root, "components")), ...sourceFiles(join(root, "lib"))]) {
+      if (allowed.has(file)) continue;
+      expect(readFileSync(file, "utf8"), file).not.toMatch(/["'`]\/b\//);
+    }
+  });
+
+  it("stops caching token pages in the service worker and drops the old cache", () => {
+    const worker = readFileSync(join(root, "public/sw.js"), "utf8");
+    expect(worker).not.toContain('"remhaos-v1"');
+    expect(worker).toMatch(/NO_STORE_PREFIXES = \[[^\]]*"\/b\/"[^\]]*"\/i\/"[^\]]*"\/p\/"/);
+  });
+
+  it("removes the service-role purpose that served the public brief", () => {
+    for (const file of ["lib/supabase/token-scoped.ts", "lib/supabase/regional-admin.ts"]) {
+      expect(readFileSync(join(root, file), "utf8"), file).not.toContain("\"public-brief\"");
+    }
+  });
+});
+
+// Аудит 28.09, шаг 4: согласие и ответы проверяет сервер.
+describe("intake submit validates consent and answers on the server", () => {
+  it("refuses a brief without consent and writes nothing", async () => {
+    const response = await submit(submitRequest({ pain: "x", contact: { name: "Клиент", phone: "1", consent: false } }));
+    expect(response.status).toBe(422);
+    expect(await response.json()).toEqual({ error: "consent_required" });
+    expect(state.operations).toEqual([]);
+  });
+
+  it("refuses a brief with no contact at all", async () => {
+    expect((await submit(submitRequest({ pain: "x" }))).status).toBe(422);
+    expect(state.operations).toEqual([]);
+  });
+
+  it.each([
+    ["attachments", [{ path: "other-project/secret.pdf" }]],
+    ["designer_plan_attachments", [{ path: "designer-plans/other/plan.pdf" }]],
+    ["designer_plan_assist", { text: "x" }],
+    ["not_a_question", "x"],
+  ])("rejects the service or unknown key %s without writing", async (key, value) => {
+    const response = await submit(submitRequest({ ...validAnswers, [key]: value }));
+    expect(response.status).toBe(400);
+    expect(await response.json()).toEqual({ error: "invalid_answers", field: key });
+    expect(state.operations).toEqual([]);
+  });
+
+  it("rejects values of the wrong shape", async () => {
+    const wrongChoice = await submit(submitRequest({ ...validAnswers, condition: "not-an-option" }));
+    expect(wrongChoice.status).toBe(400);
+    const wrongObject = await submit(submitRequest({ ...validAnswers, object: { type: "flat", injected: true } }));
+    expect(wrongObject.status).toBe(400);
+    expect(state.operations).toEqual([]);
+  });
+
+  it("accepts the designer's own custom questions of this project", async () => {
+    expect((await submit(submitRequest({ ...validAnswers, custom_0: "ответ" }))).status).toBe(200);
+  });
+
+  it("rejects an oversized body before parsing", async () => {
+    const response = await submit(submitRequest({ ...validAnswers, pain: "x".repeat(300 * 1024) }));
+    expect(response.status).toBe(413);
+    expect(state.operations).toEqual([]);
+  });
+
+  it("stores the consent text naming the studio, with the hash of exactly that text", async () => {
+    state.inserts.length = 0;
+    expect((await submit(submitRequest())).status).toBe(200);
+    const record = state.inserts.find((i) => i.table === "intake_consent_records")?.row as {
+      consent_text: string; consent_text_sha256: string; consent_version: string; source: string;
+    };
+    expect(record.consent_text).toContain("Даю Студия А (Анна) согласие");
+    expect(record.consent_text).toContain("сервису RemHaOS");
+    expect(record.consent_text_sha256).toBe(createHash("sha256").update(record.consent_text, "utf8").digest("hex"));
+    expect(record.consent_version).toMatch(/^consent-draft-2026-10-01$/);
+    expect(record.source).toBe("designer_intake");
+  });
+
+  it("records consent before saving the answers", async () => {
+    expect((await submit(submitRequest())).status).toBe(200);
+    const consent = state.operations.findIndex((op) => op.startsWith("intake_consent_records:insert"));
+    const answers = state.operations.findIndex((op) => op.startsWith("answers:upsert"));
+    expect(consent).toBeGreaterThanOrEqual(0);
+    expect(answers).toBeGreaterThan(consent);
+  });
+});
+

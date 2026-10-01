@@ -2,7 +2,9 @@ import type { ZodSchema } from "zod";
 import { completeYandex } from "./yandex";
 import { completeGigaChat } from "./gigachat";
 import { completeZai } from "./zai";
+import { llmCallTimeoutMs, llmTotalBudgetMs } from "./timeout";
 import { providerErrorCode, recordAiCallBestEffort, type AiCallContext } from "./recording";
+import { AI_DISABLED_ERROR, isAiEnabled } from "./ai-flag";
 
 // Провайдер спрятан за единственным методом completeJSON(prompt, schema).
 // Смена YandexGPT → GigaChat → западный провайдер (EN-экспансия) не трогает
@@ -15,7 +17,7 @@ export type LlmResult<T> =
   | { ok: false; error: string };
 
 // Низкоуровневый контракт конкретного провайдера: prompt → сырой текст ответа.
-export type RawCompletion = (prompt: string) => Promise<string>;
+export type RawCompletion = (prompt: string, timeoutMs?: number) => Promise<string>;
 
 // 'zai' — опциональный OpenAI-совместимый провайдер (Zhipu GLM). Включается
 // только через LLM_PROVIDER=zai; по умолчанию продукт остаётся на YandexGPT.
@@ -32,8 +34,10 @@ function getRawCompletion(): {
   name: ProviderName;
   model: string;
   complete: RawCompletion;
-} {
-  const provider = (process.env.LLM_PROVIDER ?? "yandex") as ProviderName;
+} | null {
+  const provider = process.env.LLM_PROVIDER ?? "yandex";
+  // Неизвестное значение — отказ, а не молчаливый уход к провайдеру по умолчанию.
+  if (provider !== "yandex" && provider !== "gigachat" && provider !== "zai") return null;
   const model = process.env.LLM_MODEL ?? DEFAULT_MODELS[provider];
   switch (provider) {
     case "gigachat":
@@ -41,7 +45,6 @@ function getRawCompletion(): {
     case "zai":
       return { name: "zai", model, complete: completeZai };
     case "yandex":
-    default:
       return { name: "yandex", model, complete: completeYandex };
   }
 }
@@ -104,12 +107,20 @@ export async function completeJSON<T>(
   schema: ZodSchema<T>,
   ctx?: AiCallContext,
 ): Promise<LlmResult<T>> {
-  const { name: provider, model, complete } = getRawCompletion();
+  // До любого сетевого вызова и учёта: выключенный AI не получает ничего.
+  if (!isAiEnabled()) return { ok: false, error: AI_DISABLED_ERROR };
+  const selected = getRawCompletion();
+  if (!selected) return { ok: false, error: "llm_provider_unknown" };
+  const { name: provider, model, complete } = selected;
+  // Общий срок на вызов и повтор: по его истечении возвращаем ошибку, и
+  // вызывающий переходит на запасной путь (в брифе — карточки по правилам).
+  const deadline = Date.now() + llmTotalBudgetMs();
+  const callTimeout = () => Math.min(llmCallTimeoutMs(), deadline - Date.now());
 
   let raw: string;
   const startedAt = Date.now();
   try {
-    raw = await complete(prompt);
+    raw = await complete(prompt, callTimeout());
   } catch (e) {
     await recordAttempt(ctx, provider, model, "error",
       providerErrorCode(e), prompt, null, startedAt);
@@ -125,10 +136,13 @@ export async function completeJSON<T>(
     `${prompt}\n\n---\nТвой предыдущий ответ не прошёл валидацию по схеме. ` +
     `Верни ТОЛЬКО валидный JSON строго по схеме, без пояснений, без markdown-обёртки.`;
 
+  // Повтор не начинается, если на него не осталось времени.
+  if (callTimeout() < 1000) return { ok: false, error: "llm_budget_exhausted" };
+
   let repairedRaw: string;
   const repairStartedAt = Date.now();
   try {
-    repairedRaw = await complete(repairPrompt);
+    repairedRaw = await complete(repairPrompt, callTimeout());
   } catch (e) {
     await recordAttempt(ctx, provider, model, "error",
       providerErrorCode(e), repairPrompt, null, repairStartedAt);

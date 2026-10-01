@@ -33,12 +33,15 @@ const OPERATION_MIGRATIONS = [
   // здесь пересоздана с новой сигнатурой, и грант живёт вместе с ними. Список,
   // не включающий эту миграцию, сверял бы матрицу с уже неверной половиной.
   "supabase/migrations/20260811070000_remhaos_channel_bridge_correction.sql",
+  // TG2 (DEC-041 §5): перенос чата, вложения, флаги моста.
+  "supabase/migrations/20260928110000_remhaos_telegram_tg2.sql",
 ] as const;
 
 const DB4_SCENARIOS = [
   "tests/db4/42_telegram_bridge_boundary.sql",
   "tests/db4/43_telegram_inbox_vertical.sql",
   "tests/db4/44_telegram_bridge_correction.sql",
+  "tests/db4/85_telegram_tg2.sql",
 ] as const;
 
 const operationSources = OPERATION_MIGRATIONS.map(read);

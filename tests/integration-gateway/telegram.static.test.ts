@@ -43,7 +43,9 @@ describe("Telegram staging boundary", () => {
     expect(ingress).not.toMatch(/from ["']@\/lib\/supabase\/admin/);
     expect(ingress).not.toMatch(/createClient|service_role|fetch\(/i);
     expect(ingress).not.toContain("JSON.stringify(parseTelegramBody");
-    expect(route).toContain("postTelegramIntegrationWebhook");
+    // DEC-044 (d): второй контур для Telegram заморожен — маршрут в него не ведёт.
+    expect(route).not.toContain("postTelegramIntegrationWebhook");
+    expect(route).not.toContain("REMHAOS_INTEGRATIONS_ENABLED");
     expect(worker).toContain("ingest_telegram_update");
     expect(worker).toContain("quarantineObjectKey");
     expect(worker).not.toMatch(/console\.(log|error|warn)/);

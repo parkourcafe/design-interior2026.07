@@ -41,6 +41,14 @@ select set_config('db4.door_latest_version_id', :'door_latest_version_id', false
 select set_config('db4.door_previous_baseline_id', :'door_previous_baseline_id', false);
 select set_config('db4.door_state_revision', :'door_state_revision', false);
 
+-- DEC-041 §4: комната db4-room получила утверждённый дизайн в DB4 31, а
+-- передачу по ней никто не публиковал — baseline без неё не выпускается.
+-- Засев передачи этой комнаты (полную дверь публикации доказывает DB4 33).
+select pi_test_fixture.seed_handoff(
+  '41111111-1111-4111-8111-111111111111', '41111111-1111-4111-8111-111111111111',
+  'handoff-db4-room', 'revision-decision-db4-r1', array['revision-selection-db4-r1'],
+  '31111111-1111-4111-8111-111111111111', 'db4-room');
+
 -- Т1. Успешная публикация: версия + baseline одной транзакцией, состав
 -- выведен сервером и самосогласован.
 begin;
@@ -50,6 +58,7 @@ select projectceo_product_api.publish_baseline_atomic(
   '41111111-1111-4111-8111-111111111111',
   :'door_latest_version_id',
   :'door_previous_baseline_id',
+  pi_test_fixture.handoff_refs('41111111-1111-4111-8111-111111111111'),
   :'door_state_revision'::bigint,
   'db4-atomic-1',
   'db4-atomic-door-1'
@@ -138,6 +147,7 @@ select projectceo_product_api.publish_baseline_atomic(
   '41111111-1111-4111-8111-111111111111',
   :'door_latest_version_id',
   :'door_previous_baseline_id',
+  pi_test_fixture.handoff_refs('41111111-1111-4111-8111-111111111111'),
   :'door_state_revision'::bigint,
   'db4-atomic-1',
   'db4-atomic-door-1'
@@ -190,6 +200,7 @@ begin
       '41111111-1111-4111-8111-111111111111',
       current_setting('db4.door_latest_version_id'),
       current_setting('db4.door_previous_baseline_id'),
+      pi_test_fixture.handoff_refs('41111111-1111-4111-8111-111111111111'),
       current_setting('db4.door_state_revision')::bigint,
       'db4-atomic-2',
       'db4-atomic-door-2'
@@ -254,6 +265,7 @@ begin
       '41111111-1111-4111-8111-111111111111',
       current_setting('db4.door_t4_fresh_latest_version'),
       current_setting('db4.door_t4_fresh_previous_baseline'),
+      pi_test_fixture.handoff_refs('41111111-1111-4111-8111-111111111111'),
       current_setting('db4.door_t4_fresh_state')::bigint,
       'db4-atomic-3',
       'db4-atomic-door-3'
@@ -341,7 +353,7 @@ begin
   begin
     perform projectceo_product_api.publish_baseline_atomic(
       '41111111-1111-4111-8111-111111111111',
-      null, null, 1, 'db4-atomic-closed', 'db4-atomic-door-closed'
+      null, null, '[]'::jsonb, 1, 'db4-atomic-closed', 'db4-atomic-door-closed'
     );
     raise exception 'DB4_ATOMIC_DOOR_REACHED_WITH_MODULE_OFF';
   exception when insufficient_privilege then null;

@@ -6,7 +6,6 @@ import { quickQuestions, deepQuestions, type Question } from "@/lib/brief/questi
 import { customQuestionToRuntimeQuestion, type CustomBriefQuestion } from "@/lib/brief/custom-questions";
 import { ru } from "@/lib/i18n/ru";
 import { supportEmail } from "@/lib/env";
-import ShareBrief from "@/components/share-brief";
 import DesignerCard from "@/components/designer-card";
 import type { DesignerPublic } from "@/lib/designer";
 
@@ -32,13 +31,14 @@ export default function IntakeWizard({
   selfServe = false,
   customQuestions = [],
   designer = null,
-  baseUrl = "",
+  consentText,
 }: {
   token: string;
   selfServe?: boolean;
   customQuestions?: CustomBriefQuestion[];
   designer?: DesignerPublic | null;
-  baseUrl?: string;
+  /** Текст согласия собирает сервер (lib/legal/consent.ts). */
+  consentText: string;
 }) {
   const [started, setStarted] = useState(false);
   const [answers, setAnswers] = useState<Answers>({});
@@ -46,6 +46,7 @@ export default function IntakeWizard({
   // 'quick' — быстрое ядро; 'deep' — клиент решил дозаполнить детали.
   const [mode, setMode] = useState<"quick" | "deep">("quick");
   const [submitting, setSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState<string | null>(null);
   const [done, setDone] = useState(false);
   // Свободные комментарии к каждому вопросу (в т.ч. надиктованные голосом).
   const [comments, setComments] = useState<Record<string, string>>({});
@@ -159,13 +160,31 @@ export default function IntakeWizard({
 
   async function finish() {
     setSubmitting(true);
+    setSubmitError(null);
     const res = await fetch("/api/intake/submit", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ token, answers: { ...answers, comments } }),
-    });
+    }).catch(() => null);
     setSubmitting(false);
-    if (res.ok) {
+    if (!res) {
+      setSubmitError(ru.brief.submitFailed);
+      return;
+    }
+    // Сервер сам проверяет согласие и ответы: сообщаем, что не так, а не молчим.
+    if (!res.ok && res.status !== 409) {
+      setSubmitError(
+        res.status === 422
+          ? ru.brief.consentRequired
+          : res.status === 429
+            ? ru.brief.tooManyAttempts
+            : ru.brief.submitFailed,
+      );
+      return;
+    }
+    // 409 — бриф уже отправлен (например, во второй вкладке): повторная
+    // отправка запрещена сервером, показываем тот же экран «готово».
+    if (res.ok || res.status === 409) {
       try {
         localStorage.removeItem(storageKey);
       } catch {
@@ -197,7 +216,6 @@ export default function IntakeWizard({
         <main className="mx-auto flex min-h-screen max-w-lg flex-col justify-center px-6 text-center">
           <h1 className="font-display text-3xl font-semibold">{ru.client.shareTitle}</h1>
           <p className="mt-2 text-muted">{ru.client.shareHint}</p>
-          <ShareBrief url={`${baseUrl}/b/${token}`} />
         </main>
       );
     }
@@ -249,6 +267,7 @@ export default function IntakeWizard({
           <button onClick={addDetails} disabled={submitting} className="btn-ghost px-6 py-3.5 text-base">
             Добавить детали <span className="ml-2">→</span>
           </button>
+          {submitError ? <p role="alert" className="text-sm text-red-700">{submitError}</p> : null}
         </div>
         <button
           onClick={() => setStep(quick.length - 1)}
@@ -292,6 +311,7 @@ export default function IntakeWizard({
             value={answers[question.id]}
             onChange={(v) => setAnswer(question.id, v)}
             token={token}
+            consentText={consentText}
             supportLine={
               designer
                 ? ru.brief.supportViaDesigner
@@ -328,6 +348,7 @@ export default function IntakeWizard({
             {submitting ? ru.brief.saving : isLast ? ru.brief.finish : ru.brief.next}
           </button>
         </div>
+        {submitError ? <p role="alert" className="mt-3 text-sm text-red-700">{submitError}</p> : null}
       </div>
     </main>
   );
@@ -339,12 +360,14 @@ function QuestionInput({
   onChange,
   token,
   supportLine,
+  consentText,
 }: {
   question: Question;
   value: unknown;
   onChange: (v: unknown) => void;
   token: string;
   supportLine?: string;
+  consentText: string;
 }) {
   switch (question.type) {
     case "object":
@@ -376,7 +399,7 @@ function QuestionInput({
     case "style":
       return <StyleInput value={value} onChange={onChange} />;
     case "contact":
-      return <ContactInput value={value} onChange={onChange} supportLine={supportLine} />;
+      return <ContactInput value={value} onChange={onChange} supportLine={supportLine} consentText={consentText} />;
     case "files":
       return <FilesInput token={token} />;
     default:
@@ -621,10 +644,12 @@ function ContactInput({
   value,
   onChange,
   supportLine,
+  consentText,
 }: {
   value: unknown;
   onChange: (v: unknown) => void;
   supportLine?: string;
+  consentText: string;
 }) {
   const c = (value ?? {}) as { name?: string; phone?: string; email?: string; consent?: boolean };
   return (
@@ -667,7 +692,7 @@ function ContactInput({
           checked={c.consent === true}
           onChange={(e) => onChange({ ...c, consent: e.target.checked })}
         />
-        <span>{ru.brief.consent}</span>
+        <span>{consentText}</span>
       </label>
       <Link className="inline-flex min-h-11 items-center underline" href="/legal/privacy" target="_blank" rel="noopener noreferrer">
         {ru.landing.legal.privacyTitle}
@@ -680,6 +705,7 @@ function ContactInput({
 
 function FilesInput({ token }: { token: string }) {
   const [uploaded, setUploaded] = useState<string[]>([]);
+  const [rejected, setRejected] = useState<string[]>([]);
   const [busy, setBusy] = useState(false);
 
   async function onFile(e: React.ChangeEvent<HTMLInputElement>) {
@@ -690,8 +716,9 @@ function FilesInput({ token }: { token: string }) {
       const form = new FormData();
       form.append("token", token);
       form.append("file", file);
-      const res = await fetch("/api/intake/upload", { method: "POST", body: form });
-      if (res.ok) setUploaded((prev) => [...prev, file.name]);
+      const res = await fetch("/api/intake/upload", { method: "POST", body: form }).catch(() => null);
+      if (res?.ok) setUploaded((prev) => [...prev, file.name]);
+      else setRejected((prev) => [...prev, file.name]);
     }
     setBusy(false);
   }
@@ -699,13 +726,16 @@ function FilesInput({ token }: { token: string }) {
   return (
     <div className="space-y-3">
       <p className="text-sm text-muted">{ru.brief.uploadHint}</p>
-      <input type="file" multiple onChange={onFile} disabled={busy} accept="image/*,.pdf" />
+      <input type="file" multiple onChange={onFile} disabled={busy} accept="image/jpeg,image/png,image/webp,application/pdf" />
       {busy && <p className="text-sm text-muted">{ru.brief.saving}</p>}
       <ul className="text-sm text-muted">
         {uploaded.map((n) => (
           <li key={n}>✓ {n}</li>
         ))}
       </ul>
+      {rejected.map((n) => (
+        <p key={n} role="alert" className="text-sm text-red-700">{ru.brief.uploadRejected(n)}</p>
+      ))}
     </div>
   );
 }

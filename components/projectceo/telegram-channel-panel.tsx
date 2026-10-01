@@ -28,6 +28,10 @@ interface ChannelState {
   readonly binding: { readonly status: BindingStatus } | null;
 }
 
+type FlagName = "bridge" | "attachments" | "notifications";
+type BridgeFlags = Readonly<Record<FlagName, boolean>>;
+const FLAG_NAMES: readonly FlagName[] = ["bridge", "attachments", "notifications"];
+
 interface IssuedLink {
   readonly url: string;
   readonly manualCommand?: string;
@@ -61,6 +65,7 @@ export function TelegramChannelPanel({ projectId }: { readonly projectId: string
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [issued, setIssued] = useState<IssuedLink | null>(null);
+  const [flags, setFlags] = useState<BridgeFlags | null>(null);
 
   const load = useCallback(async () => {
     setLoadFailed(false);
@@ -76,8 +81,12 @@ export function TelegramChannelPanel({ projectId }: { readonly projectId: string
       setLoadFailed(true);
       return;
     }
-    const payload = (await response.json()) as { readonly state: ChannelState };
+    const payload = (await response.json()) as {
+      readonly state: ChannelState;
+      readonly flags?: BridgeFlags | null;
+    };
     setState(payload.state);
+    setFlags(payload.flags ?? null);
   }, [projectId]);
 
   useEffect(() => {
@@ -185,6 +194,26 @@ export function TelegramChannelPanel({ projectId }: { readonly projectId: string
                 {strings.actions.connect}
               </button>
             </div>
+          ) : null}
+
+          {state.canManage && flags !== null ? (
+            <fieldset className="mt-4 rounded border border-neutral-200 p-3">
+              <legend className="px-1 text-sm font-medium">{strings.flags.title}</legend>
+              {FLAG_NAMES.map((flag) => (
+                <label key={flag} className="mt-1 flex items-center gap-2 text-sm">
+                  <input
+                    type="checkbox"
+                    checked={flags[flag]}
+                    disabled={pending}
+                    onChange={(event) =>
+                      void run({ action: "set_flag", projectId, flag, enabled: event.target.checked })
+                    }
+                  />
+                  {strings.flags[flag]}
+                </label>
+              ))}
+              <p className="mt-2 text-xs text-neutral-500">{strings.flags.hint}</p>
+            </fieldset>
           ) : null}
 
           {/*

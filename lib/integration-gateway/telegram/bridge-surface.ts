@@ -204,6 +204,49 @@ export const TELEGRAM_BRIDGE_SURFACE: readonly TelegramBridgeRpc[] = [
     // имеют. Новой capability мост не вводит: их и так уже двадцать одна.
     capability: "review_source",
   },
+  // TG2 (миграция 20260928110000, DEC-041 §5, DEC-043 (c), DEC-044 (b–c)).
+  {
+    schema: "remhaos_channel_api",
+    name: "migrate_channel_binding",
+    signature: "remhaos_channel_api.migrate_channel_binding(text, bigint, bigint, bigint)",
+    audience: "system",
+    capability: null,
+  },
+  {
+    schema: "remhaos_channel_api",
+    name: "record_channel_attachments",
+    signature: "remhaos_channel_api.record_channel_attachments(uuid, jsonb)",
+    audience: "system",
+    capability: null,
+  },
+  {
+    schema: "remhaos_channel_api",
+    name: "claim_channel_attachments",
+    signature: "remhaos_channel_api.claim_channel_attachments(integer, integer)",
+    audience: "system",
+    capability: null,
+  },
+  {
+    schema: "remhaos_channel_api",
+    name: "complete_channel_attachment",
+    signature: "remhaos_channel_api.complete_channel_attachment(uuid, uuid, text, uuid, text, text, text)",
+    audience: "system",
+    capability: null,
+  },
+  {
+    schema: "remhaos_channel_api",
+    name: "set_bridge_flag",
+    signature: "remhaos_channel_api.set_bridge_flag(uuid, text, boolean, text)",
+    audience: "human",
+    capability: "manage_project_integrations",
+  },
+  {
+    schema: "remhaos_channel_api",
+    name: "list_bridge_flags",
+    signature: "remhaos_channel_api.list_bridge_flags(uuid)",
+    audience: "human",
+    capability: "manage_project_integrations",
+  },
 ];
 
 /** Приватная схема моста. Data API её не видит и видеть не должен. */

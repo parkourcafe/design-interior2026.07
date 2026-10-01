@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { getStudio } from "@/lib/studio";
+import { createClient } from "@/lib/supabase/server";
 import { ru } from "@/lib/i18n/ru";
 import SignOutButton from "./sign-out-button";
 
@@ -20,6 +21,27 @@ export default async function DashboardLayout({ children }: { children: React.Re
     const studio = await getStudio();
     if (!studio) redirect("/login");
   }
+
+  // DEC-047: запрос удаления сразу закрывает кабинет — экран «Аккаунт закрыт»
+  // с контактом поддержки (/account-closed; proxy.ts закрывает и переходы).
+  let retentionUntil: string | null = null;
+  let closed = false;
+  try {
+    const supabase = await createClient();
+    const { data } = await supabase.rpc("get_account_retention_status");
+    const retention = data as { status?: string; purgeAfter?: string; closed?: boolean } | null;
+    const date = retention?.purgeAfter
+      ? new Date(retention.purgeAfter).toLocaleDateString("ru-RU", {
+          day: "numeric", month: "long", year: "numeric",
+        })
+      : null;
+    if (retention?.closed === true || retention?.status === "expired") closed = true;
+    else if (retention?.status === "requested" && date) retentionUntil = date;
+  } catch {
+    retentionUntil = null;
+  }
+
+  if (closed) redirect("/account-closed");
 
   return (
     <div className="min-h-screen">
@@ -43,6 +65,11 @@ export default async function DashboardLayout({ children }: { children: React.Re
           </nav>
         </div>
       </header>
+      {retentionUntil ? (
+        <div role="status" className="border-b border-red-200 bg-red-50">
+          <p className="mx-auto max-w-5xl px-6 py-2 text-sm text-red-800">{ru.retention.banner(retentionUntil)}</p>
+        </div>
+      ) : null}
       <main className="mx-auto max-w-5xl px-6 py-8">{children}</main>
     </div>
   );

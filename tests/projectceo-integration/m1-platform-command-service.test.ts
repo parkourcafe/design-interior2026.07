@@ -122,7 +122,7 @@ describe("M1 platform command boundary", () => {
   });
 
   it.each([
-    ["project_passport", "review_claim"],
+    ["project_passport", "approve_passport"],
     ["client_passport", "review_selection"],
   ] as const)("derives %s approver capability server-side", async (subjectKind, expectedCapability) => {
     const calls: Call[] = [];

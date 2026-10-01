@@ -191,6 +191,8 @@ export interface M1ApprovalRequestView {
   readonly id: string;
   readonly subjectKind: "project_passport" | "client_passport";
   readonly subjectId: string;
+  /** DEC-041 §3: false — паспорт изменился после заявки, одобрение не действует. */
+  readonly subjectRevisionCurrent: boolean | null;
   readonly approverCapability: string;
   readonly status: "draft" | "submitted" | "approved" | "rejected";
   readonly requestedByCurrentActor: boolean;
@@ -609,8 +611,22 @@ export interface DocumentationView {
   readonly completeness: readonly DocumentationCompletenessView[];
 }
 
+/** DEC-041 §4: что мешает опубликовать baseline M3 со стороны передач M2→M3. */
+export interface BaselineHandoffBlockersView {
+  readonly missingPackageIds: readonly string[];
+  readonly blockedRooms: readonly {
+    readonly packageId: string;
+    readonly roomId: string;
+    readonly problem: string;
+  }[];
+  /** Утверждённые материалы/спецификации, не вошедшие ни в одну свежую передачу. */
+  readonly unboundSelectionCount: number;
+}
+
 export interface ProjectWorkspaceView {
   readonly project: ProjectSummary;
+  /** null — передачи по комнатам готовы или чтение недоступно этому участнику. */
+  readonly baselineHandoffBlockers?: BaselineHandoffBlockersView | null;
   readonly actor: ProjectCeoActor;
   readonly m1: M1WorkspaceView;
   readonly packages: readonly ProjectPackageView[];

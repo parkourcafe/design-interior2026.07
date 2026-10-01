@@ -30,6 +30,10 @@ const RPC_STATE = {
   // Чат занят ожидающей связью ДРУГОГО экземпляра бота: не «свободно» и не
   // «доделай сам».
   chatHeldByOtherBot: false,
+  // TG2: результат переноса чата и записанные вложения.
+  migrateResult: { migrated: true, duplicate: false } as unknown,
+  migrations: [] as { oldChatId: number; newChatId: number; updateId: number }[],
+  attachments: [] as { eventId: string; attachments: unknown[] }[],
 };
 
 const BOT_STATE = {
@@ -80,6 +84,20 @@ vi.mock("@/lib/integration-gateway/telegram/channel-port", async () => {
     }
     async consumeIdentityLinkIntent() {
       RPC_STATE.calls.push("consume");
+    }
+    async migrateChannelBinding(
+      input: { oldChatId: number; newChatId: number; updateId: number },
+    ) {
+      RPC_STATE.calls.push("migrate");
+      RPC_STATE.migrations.push({
+        oldChatId: input.oldChatId, newChatId: input.newChatId, updateId: input.updateId,
+      });
+      return RPC_STATE.migrateResult;
+    }
+    async recordChannelAttachments(input: { eventId: string; attachments: unknown[] }) {
+      RPC_STATE.calls.push("attachments");
+      RPC_STATE.attachments.push(input);
+      return { recorded: input.attachments.length };
     }
   }
   return { ...actual, TelegramSystemPort: FakeSystemPort };
@@ -149,6 +167,9 @@ beforeEach(() => {
   RPC_STATE.ingestResult = { stored: true, duplicate: false };
   RPC_STATE.calls = [];
   RPC_STATE.terminated = [];
+  RPC_STATE.migrateResult = { migrated: true, duplicate: false };
+  RPC_STATE.migrations = [];
+  RPC_STATE.attachments = [];
   BOT_STATE.send = { ok: true, result: { message_id: 5 } };
   BOT_STATE.initiatorAdmin = { ok: true, result: { status: "administrator" } };
   BOT_STATE.botAdmin = { ok: true, result: { status: "administrator" } };
@@ -342,6 +363,99 @@ describe("Telegram webhook — the boundary itself", () => {
   it("ingests only once no binding is waiting for its notice", async () => {
     RPC_STATE.pending = null;
     const response = await POST(webhookRequest(groupMessage("рабочее сообщение", 31)));
+    expect(response.status).toBe(200);
+    expect(RPC_STATE.calls).toEqual(["find", "ingest"]);
+  });
+});
+
+describe("Telegram webhook — TG2 (DEC-043 (c), DEC-044 (b), (d))", () => {
+  it("moves the binding on migrate_to_chat_id and never ingests the service message", async () => {
+    const response = await POST(webhookRequest({
+      update_id: 41,
+      message: {
+        message_id: 1,
+        date: 1_760_000_000,
+        chat: { id: -500, type: "group" },
+        from: { id: 777001 },
+        migrate_to_chat_id: -1001234,
+      },
+    }));
+    expect(response.status).toBe(200);
+    expect(await response.json()).toMatchObject({ ok: true });
+    expect(RPC_STATE.calls).toEqual(["migrate"]);
+    expect(RPC_STATE.migrations).toEqual([{ oldChatId: -500, newChatId: -1001234, updateId: 41 }]);
+  });
+
+  it("reads the pair from the new chat's migrate_from_chat_id the same way", async () => {
+    RPC_STATE.migrateResult = { migrated: true, duplicate: true, bindingId: "b1" };
+    const response = await POST(webhookRequest({
+      update_id: 42,
+      message: {
+        message_id: 1,
+        date: 1_760_000_000,
+        chat: { id: -1001234, type: "supergroup" },
+        migrate_from_chat_id: -500,
+      },
+    }));
+    expect(response.status).toBe(200);
+    expect(RPC_STATE.migrations).toEqual([{ oldChatId: -500, newChatId: -1001234, updateId: 42 }]);
+    expect(RPC_STATE.calls).not.toContain("ingest");
+  });
+
+  it("acknowledges an unbound migration without storing anything", async () => {
+    RPC_STATE.migrateResult = { migrated: false, reason: "chat_not_bound" };
+    const response = await POST(webhookRequest({
+      update_id: 43,
+      message: {
+        message_id: 1, date: 1_760_000_000, chat: { id: -501, type: "group" }, migrate_to_chat_id: -1009,
+      },
+    }));
+    expect(response.status).toBe(200);
+    expect(RPC_STATE.calls).toEqual(["migrate"]);
+  });
+
+  it("records attachment metadata after the event is stored, never the bytes", async () => {
+    RPC_STATE.ingestResult = { stored: true, duplicate: false, eventId: "event-1" };
+    const response = await POST(webhookRequest({
+      update_id: 44,
+      message: {
+        message_id: 11,
+        date: 1_760_000_000,
+        chat: { id: -100500, type: "supergroup" },
+        from: { id: 777001 },
+        document: { file_id: "FILE-ID", file_unique_id: "UNIQ", file_size: 1200, mime_type: "application/pdf" },
+      },
+    }));
+    expect(response.status).toBe(200);
+    expect(RPC_STATE.calls).toEqual(["find", "ingest", "attachments"]);
+    expect(RPC_STATE.attachments).toEqual([{
+      eventId: "event-1",
+      attachments: [{
+        kind: "document", fileId: "FILE-ID", fileUniqueId: "UNIQ",
+        claimedSizeBytes: 1200, claimedMediaType: "application/pdf",
+      }],
+    }]);
+  });
+
+  it("records no attachments when the project bridge refused the event", async () => {
+    RPC_STATE.ingestResult = { stored: false, reason: "bridge_disabled_for_project" };
+    await POST(webhookRequest({
+      update_id: 45,
+      message: {
+        message_id: 12,
+        date: 1_760_000_000,
+        chat: { id: -100500, type: "supergroup" },
+        document: { file_id: "F", file_unique_id: "U" },
+      },
+    }));
+    expect(RPC_STATE.calls).not.toContain("attachments");
+  });
+
+  it("keeps Telegram in the bridge even when the integrations switch is on", async () => {
+    // DEC-044 (d): второй контур заморожен — общий переключатель интеграций
+    // больше не уводит Telegram из моста.
+    vi.stubEnv("REMHAOS_INTEGRATIONS_ENABLED", "true");
+    const response = await POST(webhookRequest(groupMessage("рабочее сообщение", 46)));
     expect(response.status).toBe(200);
     expect(RPC_STATE.calls).toEqual(["find", "ingest"]);
   });

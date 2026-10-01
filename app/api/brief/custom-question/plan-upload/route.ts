@@ -7,6 +7,8 @@ import { createClient } from "@/lib/supabase/server";
 import { getStudio } from "@/lib/studio";
 
 export const dynamic = "force-dynamic";
+// AI ограничен таймаутом (lib/llm/timeout.ts); функция живёт дольше него.
+export const maxDuration = 60;
 
 const MAX_FILE_BYTES = 15 * 1024 * 1024;
 const ProjectId = z.string().uuid();
@@ -41,12 +43,24 @@ export async function POST(request: Request) {
   const supabase = await createClient();
   const { data: project } = await supabase
     .from("projects")
-    .select("id")
+    .select("id, designer_id")
     .eq("id", projectId.data)
     .maybeSingle();
   if (!project) return NextResponse.json({ error: "not_found" }, { status: 404 });
 
   const admin = createScopedServiceClient("authenticated-plan-upload");
+  // DEC-047: закрытый аккаунт (запрошено удаление) файлов не загружает — иначе
+  // файл появился бы после фиксации списка файлов на уничтожение. Не удалось
+  // проверить — отказ.
+  const designerId = (project as { designer_id?: string | null }).designer_id;
+  if (designerId) {
+    const { data: closed, error: retentionError } = await admin.rpc("account_retention_active", {
+      p_designer_id: designerId,
+    });
+    if (retentionError || closed === true) {
+      return NextResponse.json({ error: "account_closed" }, { status: 409 });
+    }
+  }
   const path = `designer-plans/${projectId.data}/${Date.now()}-${safeFileName(file.name)}`;
   const { error: uploadError } = await admin.storage
     .from("client-uploads")
@@ -85,7 +99,11 @@ export async function POST(request: Request) {
       { project_id: projectId.data, question_id: "designer_plan_attachments", value: next },
       { onConflict: "project_id,question_id" },
     );
-  if (metadataError) return NextResponse.json({ error: metadataError.message }, { status: 500 });
+  if (metadataError) {
+    // Без записи в ответах файл никому не виден — не оставляем его в хранилище.
+    await admin.storage.from("client-uploads").remove([path]).catch(() => undefined);
+    return NextResponse.json({ error: metadataError.message }, { status: 500 });
+  }
 
   return NextResponse.json({ ok: true, file: meta });
 }

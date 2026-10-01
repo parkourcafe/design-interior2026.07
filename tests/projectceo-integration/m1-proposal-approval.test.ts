@@ -16,11 +16,15 @@ function setup(approvalRequests: unknown) {
   const proposalSelect = vi.fn().mockReturnValue({
     maybeSingle: vi.fn().mockResolvedValue({ data: { id: "proposal-1" }, error: null }),
   });
+  // Отправка пишет только черновик: второй фильтр .eq("status", "draft").
+  const proposalStatusFilter = vi.fn().mockReturnValue({ select: proposalSelect });
   const proposalUpdate = vi.fn().mockReturnValue({
-    eq: vi.fn().mockReturnValue({ select: proposalSelect }),
+    eq: vi.fn().mockReturnValue({ eq: proposalStatusFilter }),
   });
+  // Проект двигается только вперёд: .in("status", [...]) после .eq("id").
+  const projectStatusFilter = vi.fn().mockResolvedValue({ error: null });
   const projectUpdate = vi.fn().mockReturnValue({
-    eq: vi.fn().mockResolvedValue({ error: null }),
+    eq: vi.fn().mockReturnValue({ in: projectStatusFilter }),
   });
   const insert = vi.fn().mockResolvedValue({ error: null });
   const rpc = vi.fn().mockResolvedValue({ data: { requests: approvalRequests }, error: null });
@@ -35,7 +39,9 @@ function setup(approvalRequests: unknown) {
   vi.mocked(createClient).mockResolvedValue(client as never);
   vi.mocked(getStudio).mockResolvedValue({ studioId: "studio-1" } as never);
   vi.mocked(getLatestProposal).mockResolvedValue({ id: "proposal-1", status: "draft" } as never);
-  return { client, proposalUpdate, projectUpdate, insert, rpc };
+  return {
+    client, proposalUpdate, projectUpdate, insert, rpc, proposalStatusFilter, projectStatusFilter,
+  };
 }
 
 describe("M1 proposal approval gate", () => {
@@ -60,14 +66,35 @@ describe("M1 proposal approval gate", () => {
     expect(insert).not.toHaveBeenCalled();
   });
 
-  it("sends only when the request-bound project passport approval is approved", async () => {
-    const { client, proposalUpdate, projectUpdate, insert } = setup([{
+  it("fails closed when the approval belongs to an earlier passport revision (DEC-041 §3)", async () => {
+    const { client, proposalUpdate } = setup([{
       subjectKind: "project_passport",
       subjectId: projectId,
       status: "approved",
+      subjectRevisionCurrent: false,
+    }]);
+
+    await expect(sendProposal(projectId)).resolves.toEqual({
+      ok: false,
+      reason: "approval_required",
+    });
+    expect(client.from).not.toHaveBeenCalled();
+    expect(proposalUpdate).not.toHaveBeenCalled();
+  });
+
+  it("sends only when the request-bound project passport approval is approved", async () => {
+    const {
+      client, proposalUpdate, projectUpdate, insert, proposalStatusFilter, projectStatusFilter,
+    } = setup([{
+      subjectKind: "project_passport",
+      subjectId: projectId,
+      status: "approved",
+      subjectRevisionCurrent: true,
     }]);
 
     await expect(sendProposal(projectId)).resolves.toEqual({ ok: true });
+    expect(proposalStatusFilter).toHaveBeenCalledWith("status", "draft");
+    expect(projectStatusFilter).toHaveBeenCalledWith("status", ["brief_completed", "proposal_draft"]);
     expect(proposalUpdate).toHaveBeenCalledOnce();
     expect(projectUpdate).toHaveBeenCalledOnce();
     expect(insert).toHaveBeenCalledOnce();

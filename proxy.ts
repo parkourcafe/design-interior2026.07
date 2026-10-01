@@ -1,5 +1,6 @@
 import { createServerClient, type CookieOptions } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
+import { dashboardSessionCookieName } from "@/lib/supabase/session-cookie";
 
 type CookieToSet = { name: string; value: string; options?: CookieOptions };
 
@@ -7,12 +8,14 @@ type CookieToSet = { name: string; value: string; options?: CookieOptions };
 // защищает /dashboard: без сессии — редирект на /login.
 export async function proxy(request: NextRequest) {
   let response = NextResponse.next({ request });
+  const cookieName = dashboardSessionCookieName(request.cookies.getAll().map((cookie) => cookie.name));
 
   const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     (process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY ||
       process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY)!,
     {
+      ...(cookieName ? { cookieOptions: { name: cookieName } } : {}),
       cookies: {
         getAll() {
           return request.cookies.getAll();
@@ -41,6 +44,18 @@ export async function proxy(request: NextRequest) {
     const url = request.nextUrl.clone();
     url.pathname = "/login";
     return NextResponse.redirect(url);
+  }
+
+  // DEC-047: после запроса удаления кабинет закрыт на каждом запросе,
+  // включая клиентские переходы, а не только при полной загрузке страницы.
+  if (isAuthenticated && request.nextUrl.pathname.startsWith("/dashboard")) {
+    const { data: retention } = await supabase.rpc("get_account_retention_status");
+    const state = retention as { status?: string; closed?: boolean } | null;
+    if (state?.closed === true || state?.status === "expired") {
+      const url = request.nextUrl.clone();
+      url.pathname = "/account-closed";
+      return NextResponse.redirect(url);
+    }
   }
 
   return response;

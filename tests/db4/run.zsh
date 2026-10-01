@@ -49,6 +49,9 @@ for migration in "${repo_root}"/supabase/migrations/*.sql(N); do
   print -r -- "Applying ${migration:t}"
   run_file "${migration}"
 done
+# DEC-042 (4): засев опубликованных передач M2→M3 для позитивных цепочек M3.
+run_file "${repo_root}/tests/fixtures/sql/m3_handoff_fixture.sql"
+run_file "${repo_root}/tests/fixtures/sql/m3_handoff_refs_fixture.sql"
 
 for sql in \
   "${repo_root}/tests/db3/20_foundation_operations.sql" \
@@ -82,10 +85,12 @@ for sql in \
   "${repo_root}/tests/db4/39_publish_version_door.sql" \
   "${repo_root}/tests/db4/40_baseline_refs_read.sql" \
   "${repo_root}/tests/db4/41_release_artifact_backlog.sql" \
+  "${repo_root}/tests/fixtures/sql/telegram_bridge_flags_fixture.sql" \
   "${repo_root}/tests/db4/42_telegram_bridge_boundary.sql" \
   "${repo_root}/tests/db4/43_telegram_inbox_vertical.sql" \
   "${repo_root}/tests/db4/44_telegram_bridge_correction.sql" \
   "${repo_root}/tests/db4/47_telegram_pending_ambiguity.sql" \
+  "${repo_root}/tests/db4/85_telegram_tg2.sql" \
   "${repo_root}/tests/db4/49_platform_facts_operations.sql" \
   "${repo_root}/tests/db4/50_platform_ai_calls_operations.sql" \
   "${repo_root}/tests/db4/51_platform_approval_requests_operations.sql" \
@@ -94,6 +99,8 @@ for sql in \
   "${repo_root}/tests/db4/49_platform_module_switch.sql" \
   "${repo_root}/tests/db4/50_released_archive_read.sql" \
   "${repo_root}/tests/db4/51_publish_baseline_door.sql" \
+  "${repo_root}/tests/db4/81_m3_handoff_gate.sql" \
+  "${repo_root}/tests/db4/83_m3_room_handoff_freshness.sql" \
   "${repo_root}/tests/db4/52_source_ingest_worker.sql" \
   "${repo_root}/tests/db4/53_m3_read_gate.sql" \
   "${repo_root}/tests/db4/54_workspace_read_superseded_approvals.sql" \
@@ -102,7 +109,18 @@ for sql in \
   "${repo_root}/tests/db4/59_m1_legacy_read_rpc.sql" \
   "${repo_root}/tests/db4/61_market_routing_receipts.sql" \
   "${repo_root}/tests/db4/77_authenticated_package_scoped_enrollment.sql" \
-  "${repo_root}/tests/db4/78_package_bound_approval_review.sql"; do
+  "${repo_root}/tests/db4/78_package_bound_approval_review.sql" \
+  "${repo_root}/tests/db4/79_m1_proposal_lifecycle_guard.sql" \
+  "${repo_root}/tests/db4/80_package_capability_template_ledger.sql" \
+  "${repo_root}/tests/db4/82_passport_approval_authority.sql" \
+  "${repo_root}/tests/db4/84_account_retention.sql" \
+  "${repo_root}/tests/db4/86_account_retention_expiry.sql" \
+  "${repo_root}/tests/db4/87_intake_limits_and_consent.sql" \
+  "${repo_root}/tests/db4/88_real_supabase_bootstrap_rights.sql" \
+  "${repo_root}/tests/db4/89_proposal_link_expiry_and_consent_text.sql" \
+  "${repo_root}/tests/db4/90_account_purge.sql" \
+  "${repo_root}/tests/db4/91_account_purge_runs.sql" \
+  "${repo_root}/tests/db4/92_account_closed_api_guard.sql"; do
   print -r -- "Running ${sql:t}"
   run_file "${sql}"
 done

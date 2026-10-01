@@ -9,6 +9,9 @@ export async function POST(request: Request) {
   const { token } = (await request.json().catch(() => ({}))) as { token?: string };
   const project = await getProjectByIntakeToken(token ?? "");
   if (!project) return NextResponse.json({ error: "not_found" }, { status: 404 });
+  // DEC-044 (a): студия закрывает аккаунт — бриф только для чтения. Отказ до
+  // любой записи (в том числе до загрузки файла в хранилище).
+  if (project.archived) return NextResponse.json({ error: "brief_closed" }, { status: 409 });
 
   const admin = createRegionalPublicTokenClient(project.cellCode, "intake-start");
 

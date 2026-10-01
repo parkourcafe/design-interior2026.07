@@ -8,7 +8,10 @@ const state = vi.hoisted(() => ({
 // Next, не Node), поэтому заглушка обязательна — ровно так же, как в
 // command-service.test.ts и остальных тестах, тянущих серверные модули.
 vi.mock("server-only", () => ({}));
-vi.mock("@/lib/intake", () => ({ getProjectByIntakeToken: async () => state.known ? { id: "project", designer_id: "designer", status: state.projectStatus, cellCode: "ru" } : null }));
+vi.mock("@/lib/designer", () => ({
+  getDesignerPublic: async () => ({ name: "Анна", studio_name: "Студия А", email: "a@example.test", profile: {} }),
+}));
+vi.mock("@/lib/intake", () => ({ getProjectByIntakeToken: async () => state.known ? { id: "project", designer_id: "designer", status: state.projectStatus, cellCode: "ru", custom_questions: [] } : null }));
 vi.mock("@/lib/rate-limit", () => ({ checkRateLimit: async () => true, clientIp: () => "test" }));
 vi.mock("@/lib/brief/pipeline", () => ({ runRiskPipeline: async () => {
   if (state.failure === "pipeline") throw new Error("private submitted content");
@@ -17,7 +20,9 @@ vi.mock("@/lib/brief/pipeline", () => ({ runRiskPipeline: async () => {
 // Один и тот же поддельный клиент нужен двум модулям: intake-роуты ходят через
 // региональный клиент (WP-42B), а proposal/respond остался на token-scoped.
 const fakeClient = vi.hoisted(() => () => ({
-  schema: () => ({ rpc: async () => ({ data: { requests: [{ subjectKind: "project_passport", subjectId: "project", status: "approved" }] }, error: null }) }),
+  schema: () => ({ rpc: async () => ({ data: { requests: [{ subjectKind: "project_passport", subjectId: "project", status: "approved", subjectRevisionCurrent: true }] }, error: null }) }),
+  // DEC-044 (a): дизайнер не в сроке удаления — КП отвечает как обычно.
+  rpc: async () => ({ data: false, error: null }),
   storage: { from: () => ({ upload: async () => ({ error: { message: "private filename" } }) }) },
   from: (table: string) => {
     let operation = "select";
@@ -39,7 +44,7 @@ import { POST as start } from "../../app/api/intake/start/route";
 import { POST as submit } from "../../app/api/intake/submit/route";
 import { POST as upload } from "../../app/api/intake/upload/route";
 import { POST as respond } from "../../app/api/proposal/respond/route";
-const request = () => new Request("http://localhost/api", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ token: "secret-token", action: "accept", answers: { private: "private content" } }) });
+const request = () => new Request("http://localhost/api", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ token: "secret-token", action: "accept", answers: { pain: "private content", contact: { name: "Клиент", email: "c@example.test", consent: true } } }) });
 beforeEach(() => { state.failure = ""; state.rows = []; state.known = true; state.llmOk = true; state.projectStatus = "created"; state.existingResponse = null; });
 describe("launch failure events", () => {
   it.each([["projects:update", start, "intake_start_failed"], ["answers:upsert", submit, "intake_submit_failed"], ["pipeline", submit, "intake_submit_failed"], ["events:select", respond, "proposal_respond_failed"]] as const)("records a scoped sanitized failure for %s", async (failure, route, type) => {
@@ -58,7 +63,8 @@ describe("launch failure events", () => {
   it("records AI fallback separately from successful completion", async () => {
     state.llmOk = false;
     expect((await submit(request())).status).toBe(200);
-    expect(state.rows.map((row) => row.type)).toEqual(["brief_completed", "intake_ai_fallback"]);
+    // Первая запись — согласие на обработку ПДн (без поля type), затем события.
+    expect(state.rows.map((row) => row.type).filter(Boolean)).toEqual(["brief_completed", "intake_ai_fallback"]);
   });
   it("repairs a missing brief_started event after a partial status commit", async () => {
     state.projectStatus = "brief_in_progress";
@@ -75,7 +81,7 @@ describe("launch failure events", () => {
     expect((await respond(request())).status).toBe(200);
   });
   it("logs failed upload without exposing the filename", async () => {
-    const form = new FormData(); form.set("token", "secret-token"); form.set("file", new File(["fixture"], "private.txt"));
+    const form = new FormData(); form.set("token", "secret-token"); form.set("file", new File(["%PDF-1.7 fixture"], "private.pdf"));
     const response = await upload(new Request("http://localhost/api", { method: "POST", body: form }));
     expect(response.status).toBe(500);
     expect(state.rows).toEqual([{ designer_id: "designer", project_id: "project", type: "intake_upload_failed" }]);

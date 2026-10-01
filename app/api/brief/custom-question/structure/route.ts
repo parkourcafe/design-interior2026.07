@@ -12,6 +12,8 @@ import { completeJSON } from "@/lib/llm/provider";
 import { getStudio } from "@/lib/studio";
 
 export const dynamic = "force-dynamic";
+// AI ограничен таймаутом (lib/llm/timeout.ts); функция живёт дольше него.
+export const maxDuration = 60;
 
 const Body = z.object({
   phrase: z.string().trim().min(5).max(500),

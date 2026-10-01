@@ -16,6 +16,8 @@ import { createClient } from "@/lib/supabase/server";
 import { getStudio } from "@/lib/studio";
 
 export const dynamic = "force-dynamic";
+// AI ограничен таймаутом (lib/llm/timeout.ts); функция живёт дольше него.
+export const maxDuration = 60;
 
 const optionalText = (max: number) =>
   z.preprocess(
