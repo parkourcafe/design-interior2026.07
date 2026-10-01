@@ -414,6 +414,8 @@ describe("Layout Studio delivery/UI slice", () => {
       "20260928153000_market_routing_receipt_relogin.sql",
       "20260928154000_pi_table_owner_public_create_revoke.sql",
       "20260928155000_definer_functions_request_user.sql",
+      "20260928156000_proposal_public_link_expiry.sql",
+      "20260928157000_intake_consent_text.sql",
     ];
     const actual = readdirSync(join(repoRoot, "supabase/migrations"), { withFileTypes: true })
       // Предмет проверки — миграции, а не всё содержимое папки. Рядом с ними

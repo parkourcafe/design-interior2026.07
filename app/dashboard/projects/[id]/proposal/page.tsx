@@ -252,6 +252,7 @@ export default async function ProposalPage({ params }: { params: Promise<{ id: s
         initialSections={sections}
         publicUrl={publicUrl}
         alreadySent={sent}
+        linkExpiresAt={existing?.public_expires_at ?? null}
       />
       {clientResponse === "proposal_accepted" && (
         <section className="card mt-6 border-accent/30">

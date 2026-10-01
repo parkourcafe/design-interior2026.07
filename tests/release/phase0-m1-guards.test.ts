@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";
 import { join } from "node:path";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -13,9 +14,13 @@ const state = vi.hoisted(() => ({
   projectUpdateMatches: true,
   approvalRevisionCurrent: true,
   operations: [] as string[],
+  inserts: [] as Array<{ table: string; row: unknown }>,
 }));
 
 vi.mock("server-only", () => ({}));
+vi.mock("@/lib/designer", () => ({
+  getDesignerPublic: async () => ({ name: "Анна", studio_name: "Студия А", email: "a@example.test", profile: {} }),
+}));
 vi.mock("@/lib/intake", () => ({
   getProjectByIntakeToken: async () => ({
     id: "project", designer_id: "designer", status: state.projectStatus, cellCode: "ru",
@@ -59,7 +64,7 @@ const fakeClient = vi.hoisted(() => () => ({
       update: () => { operation = "update"; return query; },
       delete: () => { operation = "delete"; return query; },
       upsert: () => { operation = "upsert"; return query; },
-      insert: () => { operation = "insert"; return query; },
+      insert: (row: unknown) => { operation = "insert"; state.inserts.push({ table, row }); return query; },
       then: (resolve: (value: ReturnType<typeof result>) => unknown) => Promise.resolve(result()).then(resolve),
     };
     return query;
@@ -259,6 +264,19 @@ describe("intake submit validates consent and answers on the server", () => {
     const response = await submit(submitRequest({ ...validAnswers, pain: "x".repeat(300 * 1024) }));
     expect(response.status).toBe(413);
     expect(state.operations).toEqual([]);
+  });
+
+  it("stores the consent text naming the studio, with the hash of exactly that text", async () => {
+    state.inserts.length = 0;
+    expect((await submit(submitRequest())).status).toBe(200);
+    const record = state.inserts.find((i) => i.table === "intake_consent_records")?.row as {
+      consent_text: string; consent_text_sha256: string; consent_version: string; source: string;
+    };
+    expect(record.consent_text).toContain("Даю Студия А (Анна) согласие");
+    expect(record.consent_text).toContain("сервису RemHaOS");
+    expect(record.consent_text_sha256).toBe(createHash("sha256").update(record.consent_text, "utf8").digest("hex"));
+    expect(record.consent_version).toMatch(/^consent-draft-2026-10-01$/);
+    expect(record.source).toBe("designer_intake");
   });
 
   it("records consent before saving the answers", async () => {

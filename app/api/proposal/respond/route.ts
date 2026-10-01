@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { createScopedServiceClient } from "@/lib/supabase/token-scoped";
+import { isPublicLinkActive } from "@/lib/proposal/public-link";
 import { checkRateLimit, clientIp } from "@/lib/rate-limit";
 import { canAdvanceProposalProjectStatus } from "@/lib/proposal/status";
 
@@ -24,13 +25,17 @@ export async function POST(request: Request) {
   const admin = createScopedServiceClient("proposal-response");
   const { data: proposal } = await admin
     .from("proposals")
-    .select("id, project_id, status")
+    .select("id, project_id, status, public_expires_at")
     .eq("public_token", body.token)
     .maybeSingle();
 
   // Отвечать можно только на отправленное КП; черновики не раскрываем.
   if (!proposal || !["sent", "accepted"].includes((proposal as { status?: string }).status ?? "")) {
     return NextResponse.json({ error: "not_found" }, { status: 404 });
+  }
+  // Истёкшая или отозванная ссылка не принимает ответ (20260928156000).
+  if (!isPublicLinkActive((proposal as { public_expires_at?: string | null }).public_expires_at)) {
+    return NextResponse.json({ error: "link_expired" }, { status: 410 });
   }
   const projectId = (proposal as { project_id: string }).project_id;
   const { data: project, error: projectError } = await admin.from("projects").select("designer_id, status").eq("id", projectId).maybeSingle();

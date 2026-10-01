@@ -31,11 +31,14 @@ export default function IntakeWizard({
   selfServe = false,
   customQuestions = [],
   designer = null,
+  consentText,
 }: {
   token: string;
   selfServe?: boolean;
   customQuestions?: CustomBriefQuestion[];
   designer?: DesignerPublic | null;
+  /** Текст согласия собирает сервер (lib/legal/consent.ts). */
+  consentText: string;
 }) {
   const [started, setStarted] = useState(false);
   const [answers, setAnswers] = useState<Answers>({});
@@ -308,6 +311,7 @@ export default function IntakeWizard({
             value={answers[question.id]}
             onChange={(v) => setAnswer(question.id, v)}
             token={token}
+            consentText={consentText}
             supportLine={
               designer
                 ? ru.brief.supportViaDesigner
@@ -356,12 +360,14 @@ function QuestionInput({
   onChange,
   token,
   supportLine,
+  consentText,
 }: {
   question: Question;
   value: unknown;
   onChange: (v: unknown) => void;
   token: string;
   supportLine?: string;
+  consentText: string;
 }) {
   switch (question.type) {
     case "object":
@@ -393,7 +399,7 @@ function QuestionInput({
     case "style":
       return <StyleInput value={value} onChange={onChange} />;
     case "contact":
-      return <ContactInput value={value} onChange={onChange} supportLine={supportLine} />;
+      return <ContactInput value={value} onChange={onChange} supportLine={supportLine} consentText={consentText} />;
     case "files":
       return <FilesInput token={token} />;
     default:
@@ -638,10 +644,12 @@ function ContactInput({
   value,
   onChange,
   supportLine,
+  consentText,
 }: {
   value: unknown;
   onChange: (v: unknown) => void;
   supportLine?: string;
+  consentText: string;
 }) {
   const c = (value ?? {}) as { name?: string; phone?: string; email?: string; consent?: boolean };
   return (
@@ -684,7 +692,7 @@ function ContactInput({
           checked={c.consent === true}
           onChange={(e) => onChange({ ...c, consent: e.target.checked })}
         />
-        <span>{ru.brief.consent}</span>
+        <span>{consentText}</span>
       </label>
       <Link className="inline-flex min-h-11 items-center underline" href="/legal/privacy" target="_blank" rel="noopener noreferrer">
         {ru.landing.legal.privacyTitle}

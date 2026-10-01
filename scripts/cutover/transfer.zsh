@@ -10,9 +10,11 @@
 #                                   а также факторы MFA и одноразовые коды
 #                                   (в рабочей базе MFA не включён);
 #   designers, projects, answers, risk_cards, proposals, events.
-# Ссылки на бриф: intake_expires_at в старой схеме нет, в новой NULL = «без
-# срока», поэтому все старые ссылки /i/… остаются рабочими — осознанно, чтобы
-# клиенты, заполняющие бриф, не потеряли доступ.
+# Ссылки на бриф: intake_expires_at в старой схеме нет; переносимым проектам
+# ставится срок 30 дней от переноса (как у новой ссылки), а не «бессрочно»:
+# клиентская ссылка должна иметь ограниченный срок (оценка ПДн 01.10.2026).
+# Ссылки на КП получают срок 90 дней от даты отправки триггером базы
+# (20260928156000) при вставке.
 #
 # Что НЕ переносится (остаётся в старой базе как архив): таблицы прежнего
 # M1-runtime (ai_calls, approval_requests, audit_events, project_facts,
@@ -138,6 +140,9 @@ done
 # llm_ok: старая база его не хранит; признак — есть ли у проекта карточка
 # риска от AI (source = 'llm').
 cat >> "$load_sql" <<'SQL'
+update public.projects
+set intake_expires_at = pg_catalog.statement_timestamp() + interval '30 days'
+where intake_expires_at is null;
 update public.projects p
 set passport_revision_llm_ok = exists (
   select 1 from public.risk_cards r where r.project_id = p.id and r.source = 'llm'

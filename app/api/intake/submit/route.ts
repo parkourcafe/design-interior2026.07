@@ -5,7 +5,14 @@ import { INTAKE_OPEN_STATUSES, isIntakeOpen } from "@/lib/intake-status";
 import { runRiskPipeline } from "@/lib/brief/pipeline";
 import { checkRateLimit, clientIp } from "@/lib/rate-limit";
 import { MAX_SUBMIT_BODY_BYTES, validateSubmittedAnswers } from "@/lib/brief/answer-schema";
-import { INTAKE_CONSENT_TEXT_SHA256, INTAKE_CONSENT_VERSION } from "@/lib/legal/consent";
+import {
+  INTAKE_CONSENT_VERSION,
+  consentOperatorLabel,
+  consentStudioLabel,
+  consentTextSha256,
+  intakeConsentText,
+} from "@/lib/legal/consent";
+import { getDesignerPublic } from "@/lib/designer";
 import type { RiskCard } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
@@ -64,12 +71,18 @@ export async function POST(request: Request) {
   const admin = createRegionalPublicTokenClient(project.cellCode, "intake-submit");
 
   try {
-    // 0. Зафиксировать согласие: время ставит база, версия и хеш текста —
-    // lib/legal/consent.ts. Без записи согласия ответы не сохраняются.
+    // 0. Зафиксировать согласие: время ставит база; текст (со студией и
+    // сервисом) сервер собирает сам, тем же кодом, что и для страницы брифа, и
+    // пишет вместе с хешем и версией. Без записи согласия ответы не сохраняются.
+    const designer = project.designer_id ? await getDesignerPublic(project.designer_id) : null;
+    // Не записывать согласие с неверной стороной: проект студии без профиля.
+    if (project.designer_id && !designer) throw new Error("consent_failed");
+    const consentText = intakeConsentText(consentStudioLabel(designer), consentOperatorLabel());
     const consent = await admin.from("intake_consent_records").insert({
       project_id: project.id,
       consent_version: INTAKE_CONSENT_VERSION,
-      consent_text_sha256: INTAKE_CONSENT_TEXT_SHA256,
+      consent_text_sha256: consentTextSha256(consentText),
+      consent_text: consentText,
       source: project.designer_id ? "designer_intake" : "self_serve_intake",
     });
     if (consent.error) throw new Error("consent_failed");

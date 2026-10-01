@@ -5,6 +5,7 @@ import { getDesignerPublic, type DesignerPublic } from "@/lib/designer";
 import { ru } from "@/lib/i18n/ru";
 import { isIntakeOpen } from "@/lib/intake-status";
 import IntakeWizard from "./wizard";
+import { consentOperatorLabel, consentStudioLabel, intakeConsentText } from "@/lib/legal/consent";
 
 export const dynamic = "force-dynamic";
 
@@ -58,6 +59,7 @@ export default async function IntakePage({ params }: { params: Promise<{ token: 
       selfServe={selfServe}
       customQuestions={project.custom_questions}
       designer={designer}
+      consentText={intakeConsentText(consentStudioLabel(designer), consentOperatorLabel())}
     />
   );
 }

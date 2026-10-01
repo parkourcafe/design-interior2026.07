@@ -11,6 +11,8 @@ export interface ProposalRow {
   sections: unknown;
   status: string;
   public_token: string;
+  /** Срок клиентской ссылки (20260928156000); null — черновик. */
+  public_expires_at: string | null;
 }
 
 /** Последняя версия КП проекта (по номеру версии). */
@@ -20,7 +22,7 @@ export async function getLatestProposal(
 ): Promise<ProposalRow | null> {
   const { data } = await supabase
     .from("proposals")
-    .select("id, version, sections, status, public_token")
+    .select("id, version, sections, status, public_token, public_expires_at")
     .eq("project_id", projectId)
     .order("version", { ascending: false })
     .limit(1)

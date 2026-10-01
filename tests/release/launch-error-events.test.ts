@@ -8,6 +8,9 @@ const state = vi.hoisted(() => ({
 // Next, не Node), поэтому заглушка обязательна — ровно так же, как в
 // command-service.test.ts и остальных тестах, тянущих серверные модули.
 vi.mock("server-only", () => ({}));
+vi.mock("@/lib/designer", () => ({
+  getDesignerPublic: async () => ({ name: "Анна", studio_name: "Студия А", email: "a@example.test", profile: {} }),
+}));
 vi.mock("@/lib/intake", () => ({ getProjectByIntakeToken: async () => state.known ? { id: "project", designer_id: "designer", status: state.projectStatus, cellCode: "ru", custom_questions: [] } : null }));
 vi.mock("@/lib/rate-limit", () => ({ checkRateLimit: async () => true, clientIp: () => "test" }));
 vi.mock("@/lib/brief/pipeline", () => ({ runRiskPipeline: async () => {
