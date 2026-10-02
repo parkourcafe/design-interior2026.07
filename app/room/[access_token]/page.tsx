@@ -109,6 +109,7 @@ function KitSection({ kit, token }: { kit: LoadedKit; token: string }) {
               <span>
                 <span className="text-xs uppercase text-muted">{h.fileKind[entry.kind] ?? entry.kind}</span>{" "}
                 {entry.name}
+                {entry.variant === "safe_copy" && entry.sourceName ? <span className="text-xs text-muted"> ({h.safeCopyOf(entry.sourceName)})</span> : null}
                 <span className="block font-mono text-xs text-muted">sha256 {entry.sha256} · {entry.size} B</span>
               </span>
               {entry.path && kit.links[entry.path] ? (

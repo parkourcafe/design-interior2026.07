@@ -14,8 +14,6 @@ import { derivePackageRecommendation } from "@/lib/proposal/package";
 import { ACTION_EVENT, readProposalResponse } from "@/lib/proposal/respond";
 import type { RiskCardRow } from "@/lib/review";
 import ProposalEditor from "./editor";
-import HandoverButton from "../room/handover-button";
-import { kitFileSources } from "@/lib/project-room/handover";
 import CreateRevisionButton from "./revision-button";
 import PassportApproval from "./passport-approval";
 import { readPassportApproval } from "@/lib/proposal/passport-approval";
@@ -234,6 +232,11 @@ export default async function ProposalPage({ params }: { params: Promise<{ id: s
       .maybeSingle()
     : { data: null };
   const existingKit = kitRow as { id: string; created_at: string } | null;
+  const { data: handoverDraft } = await supabase
+    .from("project_handover_drafts")
+    .select("id")
+    .eq("project_id", p.id)
+    .maybeSingle();
 
   return (
     <div>
@@ -332,11 +335,9 @@ export default async function ProposalPage({ params }: { params: Promise<{ id: s
               {existingRoom ? (
                 <Link href={`/dashboard/projects/${p.id}/room`} className="btn-ghost mb-3 inline-block">{ru.projectRoom.open}</Link>
               ) : null}
-              <HandoverButton
-                projectId={p.id}
-                proposalVersion={lastIssued?.version ?? 1}
-                files={kitFileSources(answers, p.id).map((file) => ({ kind: file.kind, name: file.name, size: file.size }))}
-              />
+              <Link href={`/dashboard/projects/${p.id}/handover`} className="btn-primary inline-block">
+                {handoverDraft ? ru.handover.continuePrepare : ru.handover.prepare}
+              </Link>
             </>
           )}
         </section>

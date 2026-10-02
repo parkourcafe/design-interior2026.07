@@ -53,6 +53,20 @@ values
   ('94d00000-0000-4000-8000-000000000001', '94c00000-0000-4000-8000-000000000001', 'executor', 'Исполнитель', 'db4-94-executor-token'),
   ('94d00000-0000-4000-8000-000000000002', '94c00000-0000-4000-8000-000000000001', 'client', 'Клиент', 'db4-94-client-token');
 
+-- С 20261002100000 комплект создаётся только по подтверждённой сверке
+-- (черновик комплекта). Сама сверка проверяется в DB4-95; здесь — готовая.
+update public.projects set passport = '{"object":{"replanning":"no"}}'::jsonb
+where id = '42222222-2222-4222-8222-222222222222';
+insert into public.project_handover_drafts (id, project_id, proposal_id, proposal_version, contractor_sections, created_by)
+values ('94f00000-0000-4000-8000-000000000001', '42222222-2222-4222-8222-222222222222', '94a00000-0000-4000-8000-000000000001', 31,
+        '[{"id":"task","title":"Задача","body":"квартира"}]', '33333333-3333-4333-8333-333333333333');
+update public.project_handover_drafts
+set confirmed_at = statement_timestamp(), confirmed_by = '33333333-3333-4333-8333-333333333333',
+    confirmed_sections = contractor_sections, confirmed_files = files, confirmed_acknowledged = acknowledged,
+    confirmed_passport = (select passport from public.projects where id = '42222222-2222-4222-8222-222222222222'),
+    confirmed_passport_summary = '{"object":{}}'
+where id = '94f00000-0000-4000-8000-000000000001';
+
 -- === 1. Дизайнер студии создаёт комплект ====================================
 set local role authenticated;
 set local request.jwt.claim.sub = '33333333-3333-4333-8333-333333333333';
@@ -60,46 +74,46 @@ set local request.jwt.claims = '{"sub":"33333333-3333-4333-8333-333333333333","r
 
 select pg_temp.expect_error(
   $sql$ insert into public.project_handover_kits (room_id, project_id, proposal_id, proposal_version,
-          proposal_sections, passport_summary, manifest, created_by)
+          proposal_sections, passport_summary, manifest, created_by, draft_id)
         values ('94c00000-0000-4000-8000-000000000001', '42222222-2222-4222-8222-222222222222',
           '94b00000-0000-4000-8000-000000000001', 32, '[]', '{}', '[{"kind":"proposal"}]',
-          '33333333-3333-4333-8333-333333333333') $sql$,
+          '33333333-3333-4333-8333-333333333333', '94f00000-0000-4000-8000-000000000001') $sql$,
   '42501', 'HANDOVER_KIT_PROPOSAL_NOT_ACCEPTED', 'not_accepted');
 select pg_temp.expect_error(
   $sql$ insert into public.project_handover_kits (room_id, project_id, proposal_id, proposal_version,
-          proposal_sections, passport_summary, manifest, created_by)
+          proposal_sections, passport_summary, manifest, created_by, draft_id)
         values ('94c00000-0000-4000-8000-000000000001', '42222222-2222-4222-8222-222222222222',
           '94a00000-0000-4000-8000-000000000001', 99, '[]', '{}', '[{"kind":"proposal"}]',
-          '33333333-3333-4333-8333-333333333333') $sql$,
+          '33333333-3333-4333-8333-333333333333', '94f00000-0000-4000-8000-000000000001') $sql$,
   '42501', 'HANDOVER_KIT_SUBJECT_MISMATCH', 'wrong_version');
 select pg_temp.expect_error(
   $sql$ insert into public.project_handover_kits (room_id, project_id, proposal_id, proposal_version,
-          proposal_sections, passport_summary, manifest, created_by)
+          proposal_sections, passport_summary, manifest, created_by, draft_id)
         values ('94c00000-0000-4000-8000-000000000001', '42222222-2222-4222-8222-222222222222',
           '94a00000-0000-4000-8000-000000000001', 31, '[]', '{}', '[{"kind":"proposal"}]',
-          '31111111-1111-4111-8111-111111111111') $sql$,
+          '31111111-1111-4111-8111-111111111111', '94f00000-0000-4000-8000-000000000001') $sql$,
   '42501', null, 'created_by_spoofed');
 select pg_temp.expect_error(
   $sql$ insert into public.project_handover_kits (room_id, project_id, proposal_id, proposal_version,
-          proposal_sections, passport_summary, manifest, created_by)
+          proposal_sections, passport_summary, manifest, created_by, draft_id)
         values ('94c00000-0000-4000-8000-000000000001', '42222222-2222-4222-8222-222222222222',
-          '94a00000-0000-4000-8000-000000000001', 31, '[]', '{}', '[]',
-          '33333333-3333-4333-8333-333333333333') $sql$,
-  '23514', null, 'empty_manifest');
+          '94a00000-0000-4000-8000-000000000001', 31, '[{"id":"task","title":"Задача","body":"квартира"}]', '{"object":{}}', '[]',
+          '33333333-3333-4333-8333-333333333333', '94f00000-0000-4000-8000-000000000001') $sql$,
+  '42501', 'HANDOVER_KIT_FILES_MISMATCH', 'empty_manifest');
 
 insert into public.project_handover_kits (id, room_id, project_id, proposal_id, proposal_version,
-  proposal_sections, passport_summary, manifest, created_by)
+  proposal_sections, passport_summary, manifest, created_by, draft_id)
 values ('94e00000-0000-4000-8000-000000000001', '94c00000-0000-4000-8000-000000000001',
   '42222222-2222-4222-8222-222222222222', '94a00000-0000-4000-8000-000000000001', 31,
   '[{"id":"task","title":"Задача","body":"квартира"}]', '{"object":{}}',
-  '[{"kind":"proposal","name":"КП","sha256":"00","size":1}]', '33333333-3333-4333-8333-333333333333');
+  '[{"kind":"proposal","name":"КП","sha256":"00","size":1},{"kind":"passport_summary","name":"Сводка","sha256":"01","size":1}]', '33333333-3333-4333-8333-333333333333', '94f00000-0000-4000-8000-000000000001');
 
 select pg_temp.expect_error(
   $sql$ insert into public.project_handover_kits (room_id, project_id, proposal_id, proposal_version,
-          proposal_sections, passport_summary, manifest, created_by)
+          proposal_sections, passport_summary, manifest, created_by, draft_id)
         values ('94c00000-0000-4000-8000-000000000001', '42222222-2222-4222-8222-222222222222',
-          '94a00000-0000-4000-8000-000000000001', 31, '[]', '{}', '[{"kind":"proposal"}]',
-          '33333333-3333-4333-8333-333333333333') $sql$,
+          '94a00000-0000-4000-8000-000000000001', 31, '[{"id":"task","title":"Задача","body":"квартира"}]', '{"object":{}}', '[{"kind":"proposal","name":"КП","sha256":"00","size":1},{"kind":"passport_summary","name":"Сводка","sha256":"01","size":1}]',
+          '33333333-3333-4333-8333-333333333333', '94f00000-0000-4000-8000-000000000001') $sql$,
   '23505', null, 'second_kit');
 select pg_temp.expect_error(
   $sql$ update public.project_handover_kits set manifest = '[{"kind":"x"}]'
@@ -117,10 +131,10 @@ select pg_temp.expect_error(
 -- Комнату чужого проекта дизайнер комплектом не наполнит.
 select pg_temp.expect_error(
   $sql$ insert into public.project_handover_kits (room_id, project_id, proposal_id, proposal_version,
-          proposal_sections, passport_summary, manifest, created_by)
+          proposal_sections, passport_summary, manifest, created_by, draft_id)
         values ('94c00000-0000-4000-8000-000000000002', '42222222-2222-4222-8222-222222222222',
           '94a00000-0000-4000-8000-000000000001', 31, '[]', '{}', '[{"kind":"proposal"}]',
-          '33333333-3333-4333-8333-333333333333') $sql$,
+          '33333333-3333-4333-8333-333333333333', '94f00000-0000-4000-8000-000000000001') $sql$,
   '42501', 'HANDOVER_KIT_SUBJECT_MISMATCH', 'foreign_room');
 
 reset role;

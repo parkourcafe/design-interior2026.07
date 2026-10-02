@@ -122,7 +122,8 @@ for sql in \
   "${repo_root}/tests/db4/91_account_purge_runs.sql" \
   "${repo_root}/tests/db4/92_account_closed_api_guard.sql" \
   "${repo_root}/tests/db4/93_proposal_response_versions.sql" \
-  "${repo_root}/tests/db4/94_project_handover_kits.sql"; do
+  "${repo_root}/tests/db4/94_project_handover_kits.sql" \
+  "${repo_root}/tests/db4/95_handover_preparation.sql"; do
   print -r -- "Running ${sql:t}"
   run_file "${sql}"
 done
