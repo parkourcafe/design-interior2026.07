@@ -13,6 +13,7 @@ const purposes = new Set([
   "participant-room",
   "authenticated-plan-upload",
   "participant-task-status",
+  "participant-kit-receipt",
   "system-rate-limit",
   "system-ai-recording",
   "system-telegram-webhook",

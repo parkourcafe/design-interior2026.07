@@ -6,6 +6,15 @@ import { getStudio } from "@/lib/studio";
 import { makeToken } from "@/lib/tokens";
 import { buildInitialTasks } from "@/lib/project-room/build";
 import type { Passport, PricingConfig, ProposalSection } from "@/lib/types";
+import { ru } from "@/lib/i18n/ru";
+import {
+  KIT_BUCKET,
+  fileEntry,
+  finalFiles,
+  snapshotEntry,
+  type ManifestEntry,
+} from "@/lib/project-room/handover";
+import { loadHandoverState } from "@/lib/project-room/handover-state";
 import type { TaskStatus } from "@/lib/project-room/types";
 
 export async function createProjectRoom(projectId: string): Promise<{ ok: boolean; roomId?: string; reason?: string }> {
@@ -75,6 +84,85 @@ export async function updateDesignerTask(projectId: string, taskId: string, stat
   const { error } = await supabase.from("project_tasks").update({ status, updated_at: new Date().toISOString() }).eq("id", taskId);
   if (error) return { ok: false };
   await supabase.from("project_task_events").insert({ room_id: (task as { room_id: string }).room_id, task_id: taskId, actor_role: "designer", event_type: "task_status_changed", from_status: previous, to_status: status });
+  revalidatePath(`/dashboard/projects/${projectId}/room`);
+  return { ok: true };
+}
+
+/**
+ * «Передать исполнителю» (вариант B, решение владельца 01.10.2026; сверка —
+ * решение 02.10.2026, B-1/B-2): комната проекта и комплект подрядчика из
+ * подтверждённой дизайнером сверки. В комплект уходит ровно подтверждённое:
+ * текст КП для исполнителя, сводка паспорта и выбранные файлы (оригинал или
+ * безопасная копия). Устаревшая сверка (паспорт или содержимое изменились
+ * после подтверждения) не даёт создать комплект — это проверяет и база.
+ * Файлы читаются сессией дизайнера (RLS client-uploads). Любой недоступный
+ * файл — отказ целиком. Повторный вызов не создаёт второй комплект.
+ */
+export async function handOverToWork(projectId: string): Promise<{
+  ok: boolean;
+  reason?: "unauthorized" | "proposal_not_accepted" | "not_reconciled" | "reconciliation_stale" | "file_unavailable" | "room_failed" | "kit_create_failed";
+}> {
+  const supabase = await createClient();
+  const studio = await getStudio();
+  if (!studio) return { ok: false, reason: "unauthorized" };
+
+  const loaded = await loadHandoverState(supabase, projectId);
+  if (!loaded.ok) return { ok: false, reason: loaded.reason === "proposal_not_accepted" ? "proposal_not_accepted" : "not_reconciled" };
+  const { state } = loaded;
+  if (state.kit) return { ok: true };
+  if (state.reconciliation.state === "none") return { ok: false, reason: "not_reconciled" };
+  if (state.reconciliation.state === "stale") return { ok: false, reason: "reconciliation_stale" };
+  const draft = state.draft;
+  const sections = draft.confirmed_sections ?? [];
+  const summary = draft.confirmed_passport_summary;
+  if (!summary) return { ok: false, reason: "not_reconciled" };
+
+  const manifest: ManifestEntry[] = [
+    snapshotEntry("proposal", ru.handover.proposalEntry(draft.proposal_version), sections, draft.proposal_version),
+    snapshotEntry("passport_summary", ru.handover.passportEntry, summary),
+  ];
+  // Сначала — все файлы; комната создаётся только когда комплект собирается целиком.
+  for (const file of finalFiles(draft.confirmed_files ?? [])) {
+    const { data: blob, error } = await supabase.storage.from(KIT_BUCKET).download(file.path);
+    if (error || !blob) return { ok: false, reason: "file_unavailable" };
+    manifest.push(fileEntry(file, new Uint8Array(await blob.arrayBuffer())));
+  }
+
+  const room = await createProjectRoom(projectId);
+  if (!room.ok || !room.roomId) {
+    return { ok: false, reason: room.reason === "proposal_not_accepted" ? "proposal_not_accepted" : "room_failed" };
+  }
+  const { data: existingKit } = await supabase.from("project_handover_kits").select("id").eq("room_id", room.roomId).maybeSingle();
+  if (existingKit) return { ok: true };
+
+  const { data: kit, error: kitError } = await supabase.from("project_handover_kits").insert({
+    room_id: room.roomId,
+    project_id: projectId,
+    proposal_id: draft.proposal_id,
+    proposal_version: draft.proposal_version,
+    proposal_sections: sections,
+    passport_summary: summary,
+    manifest,
+    draft_id: draft.id,
+    created_by: studio.userId,
+  }).select("id").maybeSingle();
+  if (kitError) {
+    const code = (kitError as { code?: string }).code;
+    const message = (kitError as { message?: string }).message ?? "";
+    // 23505 — комплект уже создан в другой вкладке: результат тот же.
+    if (code === "23505") return { ok: true };
+    if (message.includes("HANDOVER_KIT_RECONCILIATION_STALE")) return { ok: false, reason: "reconciliation_stale" };
+    return { ok: false, reason: "kit_create_failed" };
+  }
+  if (kit) {
+    await supabase.from("project_task_events").insert({
+      room_id: room.roomId, actor_role: "designer", event_type: "handover_kit_created",
+      details: { proposal_version: draft.proposal_version, files: manifest.length - 2 },
+    });
+    await supabase.from("events").insert({ designer_id: studio.studioId, project_id: projectId, type: "handover_kit_created" });
+  }
+  revalidatePath(`/dashboard/projects/${projectId}/proposal`);
+  revalidatePath(`/dashboard/projects/${projectId}/handover`);
   revalidatePath(`/dashboard/projects/${projectId}/room`);
   return { ok: true };
 }

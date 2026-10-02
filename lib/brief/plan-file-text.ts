@@ -100,9 +100,13 @@ function literalBytes(raw: string): Buffer {
       case "t":
         bytes.push(0x09);
         break;
+      // \b и \f — это байты 0x08/0x0C (в подмножествах шрифтов — коды букв),
+      // а не пробел (E2E-20261001-1531, D4).
       case "b":
+        bytes.push(0x08);
+        break;
       case "f":
-        bytes.push(0x20);
+        bytes.push(0x0c);
         break;
       case "\n":
       case "\r":
@@ -133,9 +137,21 @@ function literalPattern(): RegExp {
   return /\(((?:\\.|[^\\()])*)\)/g;
 }
 
+/**
+ * Значение в ToUnicode CMap — всегда UTF-16BE (PDF 32000-1, 9.10.3), а не UTF-8:
+ * «<0445>» — это «х», а не "\x04E". Раньше одиночные записи bfchar кириллицы
+ * превращались в управляющий символ + латинскую букву (E2E-20261001-1531, D4).
+ */
+function decodeCmapUnicode(raw: string): string {
+  const bytes = Buffer.from(hexKey(raw), "hex");
+  if (bytes.length < 2) return bytes.toString("latin1");
+  const start = bytes[0] === 0xfe && bytes[1] === 0xff ? 2 : 0;
+  return decodeUtf16Be(bytes.subarray(start));
+}
+
 function incrementHexUnicode(hex: string, offset: number): string {
   const bytes = Buffer.from(hexKey(hex), "hex");
-  if (bytes.length < 2) return decodeHexString(hex);
+  if (bytes.length < 2) return decodeCmapUnicode(hex);
   const codeUnits: number[] = [];
   for (let i = 0; i + 1 < bytes.length; i += 2) {
     codeUnits.push((bytes[i]! << 8) | bytes[i + 1]!);
@@ -154,7 +170,7 @@ function parseToUnicodeMaps(streams: Buffer[]): ToUnicodeMap[] {
 
     for (const block of content.matchAll(/beginbfchar([\s\S]*?)endbfchar/g)) {
       for (const entry of (block[1] ?? "").matchAll(/<([0-9a-fA-F\s]+)>\s*<([0-9a-fA-F\s]+)>/g)) {
-        if (entry[1] && entry[2]) map.set(hexKey(entry[1]), decodeHexString(entry[2]));
+        if (entry[1] && entry[2]) map.set(hexKey(entry[1]), decodeCmapUnicode(entry[2]));
       }
     }
 
@@ -173,7 +189,7 @@ function parseToUnicodeMaps(streams: Buffer[]): ToUnicodeMap[] {
         } else if (entry[5]) {
           const values = Array.from(entry[5].matchAll(/<([0-9a-fA-F\s]+)>/g)).map((match) => match[1]).filter(Boolean);
           values.forEach((value, index) => {
-            map.set((start + index).toString(16).toUpperCase().padStart(width, "0"), decodeHexString(value!));
+            map.set((start + index).toString(16).toUpperCase().padStart(width, "0"), decodeCmapUnicode(value!));
           });
         }
       }
@@ -196,33 +212,47 @@ function scoreDecodedText(value: string): number {
   return (letters * 2 + numbers + spaces * 0.2) / clean.length - fragmentationPenalty;
 }
 
-function decodeBytesWithMap(bytes: Buffer, map: ToUnicodeMap): string {
+function decodeBytesWithMap(bytes: Buffer, map: ToUnicodeMap): { text: string; misses: number } {
   const widths = Array.from(new Set(Array.from(map.keys()).map((key) => key.length / 2))).sort((a, b) => b - a);
+  const width = widths[0] ?? 1;
   let result = "";
+  let misses = 0;
   for (let i = 0; i < bytes.length;) {
     let matched = false;
-    for (const width of widths) {
-      if (i + width > bytes.length) continue;
-      const key = bytes.subarray(i, i + width).toString("hex").toUpperCase();
+    for (const candidate of widths) {
+      if (i + candidate > bytes.length) continue;
+      const key = bytes.subarray(i, i + candidate).toString("hex").toUpperCase();
       const value = map.get(key);
       if (value) {
         result += value;
-        i += width;
+        i += candidate;
         matched = true;
         break;
       }
     }
     if (!matched) {
-      result += String.fromCharCode(bytes[i]!);
-      i += 1;
+      // Код не из этой карты: пропускаем его целиком, не разбивая на байты, —
+      // иначе остаток кода сдвигает разбор следующих символов.
+      misses += 1;
+      result += " ";
+      i += Math.min(width, bytes.length - i);
     }
   }
-  return result;
+  return { text: result, misses };
 }
 
 function decodePdfBytes(bytes: Buffer, maps: ToUnicodeMap[], fallback: string): string {
-  const candidates = [fallback, ...maps.map((map) => decodeBytesWithMap(bytes, map))];
-  return candidates.sort((a, b) => scoreDecodedText(b) - scoreDecodedText(a))[0] ?? fallback;
+  if (!maps.length) return fallback;
+  // Полнота важнее «читаемости»: карта шрифта строки распознаёт все её коды
+  // (E2E-20261001-1531, D4). При равной полноте — более читаемый вариант.
+  const decoded = maps.map((map) => decodeBytesWithMap(bytes, map));
+  const fewest = Math.min(...decoded.map((item) => item.misses));
+  const best = decoded
+    .filter((item) => item.misses === fewest)
+    .map((item) => item.text)
+    .sort((a, b) => scoreDecodedText(b) - scoreDecodedText(a))[0]!;
+  if (fewest === 0) return best;
+  return [fallback, best].sort((a, b) => scoreDecodedText(b) - scoreDecodedText(a))[0] ?? fallback;
 }
 
 function extractPdfTextOperators(content: string, maps: ToUnicodeMap[]): string[] {

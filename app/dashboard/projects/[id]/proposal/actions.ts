@@ -14,6 +14,8 @@ import { calcPrice, type PriceResult } from "@/lib/pricing/calc";
 import { buildProposalSections } from "@/lib/proposal/build";
 import { derivePackageRecommendation } from "@/lib/proposal/package";
 import { getLatestProposal } from "@/lib/proposal/latest";
+import { ACTION_EVENT, readProposalResponse } from "@/lib/proposal/respond";
+import { makeToken } from "@/lib/tokens";
 import type { RiskCardRow } from "@/lib/review";
 
 // Derive the event owner through the existing request-bound project read.
@@ -180,6 +182,58 @@ export async function rebuildProposal(
     return { ok: true, sections };
   } catch (error) {
     await recordProposalFailure(supabase, projectId, "proposal_rebuild_failed");
+    throw error;
+  }
+}
+
+/**
+ * Новая версия КП после ответа клиента «обсудить» или «запросить правки».
+ * Выданная версия не меняется (guard_proposal_lifecycle): создаётся черновик
+ * версии N+1 с текстом последней версии и новой ссылкой; клиенту он станет
+ * виден только после «Отправить клиенту».
+ */
+export async function createProposalRevision(projectId: string): Promise<{
+  ok: boolean;
+  reason?: "not_issued" | "no_client_response" | "accepted";
+}> {
+  const supabase = await createClient();
+  try {
+    const studio = await getStudio();
+    if (!studio) return { ok: false };
+    const latest = await getLatestProposal(supabase, projectId);
+    if (!latest) return { ok: false };
+    if (latest.status === "accepted") return { ok: false, reason: "accepted" };
+    if (latest.status !== "sent") return { ok: false, reason: "not_issued" };
+    const { data: issued } = await supabase
+      .from("proposals")
+      .select("sent_at")
+      .eq("id", latest.id)
+      .maybeSingle();
+    const response = await readProposalResponse(supabase, {
+      id: latest.id,
+      project_id: projectId,
+      version: latest.version,
+      sent_at: (issued as { sent_at?: string | null } | null)?.sent_at ?? null,
+    });
+    if (response.eventType !== ACTION_EVENT.changes && response.eventType !== ACTION_EVENT.discuss) {
+      return { ok: false, reason: "no_client_response" };
+    }
+    const created = await supabase.from("proposals").insert({
+      project_id: projectId,
+      version: latest.version + 1,
+      sections: latest.sections,
+      status: "draft",
+      public_token: makeToken(),
+    });
+    // 23505 — версию N+1 уже создали в другой вкладке: результат тот же.
+    if (created.error && (created.error as { code?: string }).code !== "23505") {
+      await recordProposalFailure(supabase, projectId, "proposal_save_failed");
+      return { ok: false };
+    }
+    revalidatePath(`/dashboard/projects/${projectId}/proposal`);
+    return { ok: true };
+  } catch (error) {
+    await recordProposalFailure(supabase, projectId, "proposal_save_failed");
     throw error;
   }
 }

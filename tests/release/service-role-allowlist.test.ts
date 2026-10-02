@@ -18,6 +18,7 @@ const callers: Readonly<Record<string, string>> = {
   "app/room/[access_token]/page.tsx": "participant-room",
   "app/api/brief/custom-question/plan-upload/route.ts": "authenticated-plan-upload",
   "app/api/project-room/task-status/route.ts": "participant-task-status",
+  "app/api/project-room/kit-receipt/route.ts": "participant-kit-receipt",
   "lib/rate-limit.ts": "system-rate-limit",
   "lib/llm/recording.ts": "system-ai-recording",
   "app/api/integrations/telegram/webhook/route.ts": "system-telegram-webhook",

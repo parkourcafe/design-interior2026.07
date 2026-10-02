@@ -49,9 +49,10 @@ function fakeClient() {
       let patch: Row = {};
       let limit = Infinity;
       let single = false;
+      let insertError: { code: string; message: string } | null = null;
       const rows = () => (db.tables[table] ??= []);
       const run = () => {
-        if (op === "insert") return { data: null, error: null };
+        if (op === "insert") return { data: null, error: insertError };
         const hit = rows().filter((row) => filters.every((f) => f(row)));
         if (op === "update") {
           for (const row of hit) Object.assign(row, patch);
@@ -68,7 +69,18 @@ function fakeClient() {
         limit: (n: number) => { limit = n; return q; },
         maybeSingle: () => { single = true; return q; },
         update: (p: Row) => { op = "update"; patch = p; return q; },
-        insert: (p: Row) => { op = "insert"; rows().push({ ...p }); return q; },
+        insert: (p: Row) => {
+          op = "insert";
+          // Уникальность как в базе: proposal_responses (proposal_id) и proposals (project_id, version).
+          const clash = table === "proposal_responses"
+            ? rows().some((r) => r.proposal_id === p.proposal_id)
+            : table === "proposals"
+              ? rows().some((r) => r.project_id === p.project_id && r.version === p.version)
+              : false;
+          if (clash) insertError = { code: "23505", message: "duplicate" };
+          else rows().push({ ...p, created_at: p.created_at ?? new Date().toISOString() });
+          return q;
+        },
         then: (resolve: (v: ReturnType<typeof run>) => unknown) => Promise.resolve(run()).then(resolve),
       };
       return q;
@@ -83,15 +95,17 @@ vi.mock("@/lib/supabase/token-scoped", () => ({ createScopedServiceClient: () =>
 vi.mock("@/lib/supabase/server", () => ({ createClient: async () => fakeClient() }));
 vi.mock("@/lib/studio", () => ({ getStudio: async () => ({ studioId: "designer-1", designer: {} }) }));
 vi.mock("@/lib/proposal/latest", () => ({
-  getLatestProposal: async () => db.tables.proposals?.[0] ?? null,
+  // Последняя версия — по номеру, как в lib/proposal/latest.ts.
+  getLatestProposal: async () => [...(db.tables.proposals ?? [])]
+    .sort((a, b) => Number(b.version) - Number(a.version))[0] ?? null,
 }));
 
 import { runRiskPipeline } from "@/lib/brief/pipeline";
 import { calcPrice } from "@/lib/pricing/calc";
 import { derivePackageRecommendation } from "@/lib/proposal/package";
-import { buildProposalSections } from "@/lib/proposal/build";
+import { buildProposalSections, proposalHintsFromRisks } from "@/lib/proposal/build";
 import { POST as respond } from "@/app/api/proposal/respond/route";
-import { rebuildProposal, saveProposal, sendProposal } from "@/app/dashboard/projects/[id]/proposal/actions";
+import { createProposalRevision, rebuildProposal, saveProposal, sendProposal } from "@/app/dashboard/projects/[id]/proposal/actions";
 
 const answers: AnswersMap = {
   object: { type: "flat", area_m2: 62, city: "Синтетический город" },
@@ -150,11 +164,11 @@ function seed(status: "draft" | "sent" | "accepted", sections: ProposalSection[]
   };
 }
 
-const post = (action: string, token = "tok-1") =>
+const post = (action: string, token = "tok-1", comment?: string) =>
   respond(new Request("http://localhost/api/proposal/respond", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ token, action }),
+    body: JSON.stringify({ token, action, ...(comment === undefined ? {} : { comment }) }),
   }));
 
 beforeEach(() => { llm.mode = "ok"; db.tables = {}; });
@@ -171,8 +185,9 @@ describe("M1 chain: brief → passport → risks → price → proposal", () => 
     expect(price.range[0]).toBeLessThan(price.range[1]);
     const priceSection = sections.find((s) => s.id === "price");
     expect(priceSection?.body).toContain(price.range[0].toLocaleString("ru-RU"));
-    expect(sections.find((s) => s.id === "included")?.body)
-      .toContain("Обмерный план и обследование — отдельной строкой");
+    // Следствие принятого риска — подсказка дизайнеру, не текст клиенту (E2E D7).
+    expect(JSON.stringify(sections)).not.toContain("Обмерный план и обследование — отдельной строкой");
+    expect(proposalHintsFromRisks(cards)).toContain("Обмерный план и обследование — отдельной строкой");
   });
 
   it("degrades to rule-only risks when the LLM is unavailable, and still prices the proposal", async () => {
@@ -206,16 +221,90 @@ describe("M1 chain: client response on the public proposal", () => {
     expect(row("proposals").status).toBe("accepted");
     expect(row("projects").status).toBe("proposal_accepted");
 
+    // Другой ответ на ту же версию не маскируется под успех (E2E-20261001-1531, D1).
     const second = await post("changes");
-    expect(await second.json()).toEqual({ ok: true, response: "proposal_accepted" });
+    expect(second.status).toBe(409);
+    expect(await second.json()).toEqual({ error: "already_responded", response: "proposal_accepted" });
+    // Повтор того же ответа идемпотентен.
+    expect(await (await post("accept")).json()).toEqual({ ok: true, response: "proposal_accepted" });
     expect((db.tables.events ?? []).filter((e) => String(e.type).startsWith("proposal_"))).toHaveLength(1);
+    expect(db.tables.proposal_responses).toHaveLength(1);
   });
 
   it("a change request keeps the proposal sent and the project unaccepted", async () => {
     seed("sent", []);
-    expect(await (await post("changes")).json()).toEqual({ ok: true, response: "proposal_changes_requested" });
+    expect(await (await post("changes", "tok-1", "  Хочу кухню у окна  ")).json())
+      .toEqual({ ok: true, response: "proposal_changes_requested" });
     expect(row("proposals").status).toBe("sent");
     expect(row("projects").status).toBe("proposal_sent");
+    // Ответ привязан к версии и несёт замечание клиента.
+    expect(db.tables.proposal_responses).toEqual([expect.objectContaining({
+      proposal_id: "proposal-1", proposal_version: 1, action: "changes", comment: "Хочу кухню у окна",
+    })]);
+  });
+
+  it("rejects an over-long remark and never stores a remark with acceptance", async () => {
+    seed("sent", []);
+    expect((await post("changes", "tok-1", "x".repeat(2001))).status).toBe(400);
+    expect(db.tables.proposal_responses ?? []).toEqual([]);
+    await post("accept", "tok-1", "это не сохраняется");
+    expect(db.tables.proposal_responses).toEqual([expect.objectContaining({ action: "accept", comment: null })]);
+  });
+});
+
+describe("M1 chain: change request → version 2 → acceptance (E2E-20261001-1531, D1)", () => {
+  it("lets the designer issue version 2 after a change request and the client accept it", async () => {
+    const original = [{ id: "price", title: "Стоимость", body: "от 100 000 до 120 000 ₽" }];
+    seed("sent", original);
+    // Без ответа клиента новую версию не создать.
+    expect(await createProposalRevision("project-1")).toEqual({ ok: false, reason: "no_client_response" });
+
+    await post("changes", "tok-1", "Нужна гардеробная");
+    expect(await createProposalRevision("project-1")).toEqual({ ok: true });
+    const v2 = db.tables.proposals!.find((p) => p.version === 2)!;
+    expect(v2).toMatchObject({ status: "draft", project_id: "project-1", sections: original });
+    expect(v2.public_token).not.toBe("tok-1");
+    // v1 не тронута; повторный клик не плодит версии.
+    expect(db.tables.proposals!.find((p) => p.version === 1)).toMatchObject({ status: "sent", sections: original });
+    await createProposalRevision("project-1");
+    expect(db.tables.proposals!.filter((p) => p.version === 2)).toHaveLength(1);
+
+    const edited = [{ id: "price", title: "Стоимость", body: "от 110 000 до 130 000 ₽" }];
+    expect(await saveProposal("project-1", edited)).toEqual({ ok: true });
+    expect(await sendProposal("project-1")).toEqual({ ok: true });
+    expect(v2.status).toBe("sent");
+
+    // Старая ссылка больше не принимает ответ — явно, а не «успехом».
+    const stale = await post("accept", "tok-1");
+    expect(stale.status).toBe(409);
+    expect(await stale.json()).toEqual({ error: "superseded" });
+
+    // Клиент принимает версию 2 по её ссылке.
+    expect(await (await post("accept", String(v2.public_token))).json())
+      .toEqual({ ok: true, response: "proposal_accepted" });
+    expect(v2.status).toBe("accepted");
+    expect(row("projects").status).toBe("proposal_accepted");
+    expect(db.tables.proposal_responses).toEqual([
+      expect.objectContaining({ proposal_version: 1, action: "changes", comment: "Нужна гардеробная" }),
+      expect.objectContaining({ proposal_version: 2, action: "accept", comment: null }),
+    ]);
+    // После принятия новая версия не создаётся.
+    expect(await createProposalRevision("project-1")).toEqual({ ok: false, reason: "accepted" });
+  });
+
+  it("legacy projects answered before the migration keep their first event for the issued version only", async () => {
+    seed("sent", []);
+    db.tables.proposals![0]!.sent_at = "2026-09-01T10:00:00.000Z";
+    db.tables.events = [{ project_id: "project-1", type: "proposal_changes_requested", created_at: "2026-09-02T10:00:00.000Z" }];
+    // Старое правило для старой версии: ответ уже есть.
+    expect((await post("accept")).status).toBe(409);
+    // Новая версия, отправленная после старого события, этим событием не закрыта.
+    expect(await createProposalRevision("project-1")).toEqual({ ok: true });
+    const v2 = db.tables.proposals!.find((p) => p.version === 2)!;
+    expect(await sendProposal("project-1")).toEqual({ ok: true });
+    v2.sent_at = "2026-10-01T10:00:00.000Z";
+    expect(await (await post("accept", String(v2.public_token))).json())
+      .toEqual({ ok: true, response: "proposal_accepted" });
   });
 });
 
