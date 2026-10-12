@@ -264,9 +264,9 @@ export type PublicDictionary = (typeof publicDictionaries)["ru"];
 function detectLocale(): PublicLocale {
   const stored = window.localStorage.getItem(STORAGE_KEY);
   if (stored && PUBLIC_LOCALES.includes(stored as PublicLocale)) return stored as PublicLocale;
-  const language = navigator.language.toLowerCase();
-  const primary = language.split("-")[0] as PublicLocale;
-  if (PUBLIC_LOCALES.includes(primary)) return primary;
+  // Russia-first (12.10.2026): язык браузера не учитываем — лендинг переведён
+  // лишь частично (nav/hero/footer), и автоподстановка EN давала смешанную
+  // страницу. Явный выбор пользователя из localStorage по-прежнему уважаем.
   return "ru";
 }
 

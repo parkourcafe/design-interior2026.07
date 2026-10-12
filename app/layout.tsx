@@ -8,6 +8,7 @@ import "./globals.css";
 import { ru } from "@/lib/i18n/ru";
 import { appUrl } from "@/lib/env";
 import Pwa from "@/components/pwa";
+import YandexMetrika from "@/components/yandex-metrika";
 import { OG_IMAGE, SITE_TITLE, organizationJsonLd } from "@/lib/seo/site";
 
 export const metadata: Metadata = {
@@ -68,6 +69,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         />
         {children}
         <Pwa />
+        <YandexMetrika />
       </body>
     </html>
   );
