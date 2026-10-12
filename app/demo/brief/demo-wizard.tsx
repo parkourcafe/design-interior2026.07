@@ -168,12 +168,15 @@ export default function DemoWizard() {
           <div className="animate-rise">
             <p className="mb-3 text-[11px] uppercase tracking-[0.2em] text-muted">{d.badge}</p>
             <h2 className="font-display text-[clamp(24px,3.6vw,32px)] font-semibold leading-[1.12]">
-              {b.done.title}
+              {d.briefDoneTitle}
             </h2>
-            <p className="mt-3 text-[14.5px] leading-relaxed text-muted">{b.done.subtitle}</p>
-            <div className="mt-5 rounded-lg border border-line bg-white px-4 py-3.5 text-[13px] leading-relaxed text-muted">
-              {d.briefDone} {b.privacy}
-            </div>
+            <p className="mt-3 text-[14.5px] leading-relaxed text-muted">{d.briefDoneSub}</p>
+            <figure className="mt-5 rounded-lg border border-line bg-white px-4 py-3.5 text-[13px] leading-relaxed text-muted">
+              <figcaption className="mb-1 text-[11px] uppercase tracking-[0.14em]">{d.briefDone}</figcaption>
+              <blockquote className="italic">
+                «{b.done.title}. {b.done.subtitle}» {b.privacy}
+              </blockquote>
+            </figure>
             <div className="mt-7 flex flex-wrap items-center gap-3">
               <StartClientBrief label={d.briefRealCta} variant="cli" />
               <button

@@ -68,7 +68,7 @@ export async function rerunRisks(projectId: string): Promise<{ ok: boolean; llmO
 
   const { data: project } = await supabase
     .from("projects")
-    .select("id")
+    .select("id, custom_questions")
     .eq("id", projectId)
     .maybeSingle();
   if (!project) return { ok: false, llmOk: false };
@@ -83,7 +83,9 @@ export async function rerunRisks(projectId: string): Promise<{ ok: boolean; llmO
     answers[(row as { question_id: string }).question_id] = (row as { value: unknown }).value as never;
   }
 
-  const { passport, cards, llmOk } = await runRiskPipeline(answers);
+  const { passport, cards, llmOk } = await runRiskPipeline(answers, {
+    customQuestions: normalizeCustomQuestions((project as { custom_questions?: unknown }).custom_questions),
+  });
 
   await supabase.from("projects").update({ passport }).eq("id", projectId);
   await supabase.from("risk_cards").delete().eq("project_id", projectId);

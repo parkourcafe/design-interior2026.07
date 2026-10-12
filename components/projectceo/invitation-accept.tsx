@@ -7,7 +7,7 @@ import { ru } from "@/lib/i18n/ru";
 import { PROJECTCEO_INVITATION_ACCEPT_CONTRACT_VERSION } from "@/lib/project-intelligence/delivery/projectceo/command-contract";
 import { projectCeoInvitationLoginHref } from "@/lib/project-intelligence/delivery/projectceo/invitation-login";
 
-type InvitationState = "idle" | "pending" | "completed" | "unauthenticated" | "error";
+type InvitationState = "idle" | "pending" | "completed" | "unauthenticated" | "identity" | "error";
 
 export function ProjectCeoInvitationAccept({ token }: { readonly token: string }) {
   const router = useRouter();
@@ -35,6 +35,10 @@ export function ProjectCeoInvitationAccept({ token }: { readonly token: string }
       };
       if (response.status === 401 || payload.error?.code === "unauthenticated") {
         setState("unauthenticated");
+        return;
+      }
+      if (payload.error?.code === "identity_unverified") {
+        setState("identity");
         return;
       }
       if (!response.ok || payload.status !== "completed") {
@@ -82,6 +86,14 @@ export function ProjectCeoInvitationAccept({ token }: { readonly token: string }
             <p>{copy.signInRequired}</p>
             <Link href={projectCeoInvitationLoginHref(token)} className="mt-2 inline-flex font-medium text-accent hover:underline">
               {copy.signIn}
+            </Link>
+          </div>
+        )}
+        {state === "identity" && (
+          <div role="status" className="mt-4 rounded-xl border border-orange-200 bg-orange-50 p-4 text-sm" data-testid="invitation-identity-unverified">
+            <p>{copy.identityUnverified}</p>
+            <Link href={projectCeoInvitationLoginHref(token)} className="mt-2 inline-flex font-medium text-accent hover:underline">
+              {copy.signInWithCode}
             </Link>
           </div>
         )}

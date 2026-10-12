@@ -11,6 +11,8 @@ export interface M1LegacyPassportRevision {
   readonly passport: Readonly<Record<string, unknown>>;
   readonly llmOk: boolean;
   readonly createdAt: string;
+  /** Сервер выдал уточнения клиента этому читателю (миграция 20261011100000). */
+  readonly clarificationsVisible?: boolean;
 }
 
 export interface M1LegacyContractDocument {
@@ -71,6 +73,8 @@ function parsePassport(value: unknown): M1LegacyPassportRevision | null {
     passport: value.passport,
     llmOk: value.llmOk,
     createdAt: value.createdAt,
+    // До миграции 20261011100000 флага нет; тогда и уточнений в ответе нет.
+    clarificationsVisible: value.clarificationsVisible === true,
   };
 }
 

@@ -767,6 +767,19 @@ function historyViews(value: unknown): readonly AuditEventView[] {
   }));
 }
 
+// Уточнения клиента (FIX-03; решение владельца 08.10.2026, доработка 11.10):
+// кому их отдавать, решает база при каждом чтении (миграция 20261011100000,
+// полномочие DEC-041 §3). Приложение ничего не вычисляет: без серверного
+// флага уточнения в данные компонента не попадают, даже если бы пришли.
+function serverAuthorizedClarifications(
+  revision: M1WorkspaceView["contractedPassport"] | null | undefined,
+): M1WorkspaceView["contractedPassport"] | null {
+  if (!revision) return null;
+  if (revision.clarificationsVisible === true) return revision;
+  const { clarifications: _clarifications, ...passport } = revision.passport;
+  return { ...revision, passport, clarificationsVisible: false };
+}
+
 function m1Views(input: {
   readonly facts: readonly {
     readonly factId: string;
@@ -839,7 +852,7 @@ function m1Views(input: {
   return {
     facts,
     approvalRequests,
-    contractedPassport: input.legacyRead?.data.passportRevision ?? null,
+    contractedPassport: serverAuthorizedClarifications(input.legacyRead?.data.passportRevision ?? null),
     contractDocument: input.legacyRead?.data.contractDocument ?? null,
     stateRevision: input.legacyRead?.stateRevision ?? null,
   };

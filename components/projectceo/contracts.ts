@@ -209,6 +209,12 @@ export interface M1ContractedPassportView {
   readonly passport: Readonly<Record<string, unknown>>;
   readonly llmOk: boolean;
   readonly createdAt: string;
+  /**
+   * Уточнения клиента выданы сервером этому читателю (владелец/дизайнер или
+   * архитектор с действующим правом approve_passport, DEC-041 §3). Решение
+   * принимает база при каждом чтении; клиент его не вычисляет.
+   */
+  readonly clarificationsVisible?: boolean;
 }
 
 export interface M1ContractDocumentView {

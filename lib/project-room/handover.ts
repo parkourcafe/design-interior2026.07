@@ -94,23 +94,71 @@ export function normalizeContractorSections(sections: readonly ProposalSection[]
     .filter((section) => section.body.length > 0);
 }
 
-/** Паспорт для подрядчика: без контактов, источника, бюджета, планов и болей семьи. */
+// Явный список того, что уходит исполнителю (ТЗ 08.10, FIX-03; решение
+// владельца 08.10.2026: «по явному списку разрешённых полей, включая вложенные
+// структуры»). Поле, которого здесь нет, — в том числе новое поле паспорта —
+// исполнителю не уходит, пока его не внесут сюда отдельным решением.
+// Не уходят: контакты, источник, видение, горизонт владения, бюджет (кроме
+// уровня), боли и состав семьи (кроме детей/животных), уточнения клиента.
+const CONTRACTOR_FIELDS = {
+  object: ["type", "area_m2", "city", "district", "floor", "building", "condition", "replanning", "neighbors_renovation"],
+  lifestyle: ["morning_load", "bathrooms", "cooking", "storage_pressure", "furniture_keep", "requirements"],
+  timeline: ["target", "urgency", "hard_deadline"],
+  style: ["refs", "anti", "notes", "directions", "palette"],
+  rooms: ["bedrooms", "living", "hallway", "balcony", "view", "doors", "zones"],
+  kitchen: ["layout", "bar", "dining"],
+  bath: ["count", "sinks", "shower"],
+} as const;
+
+type Plain = Record<string, unknown>;
+
+function plain(value: unknown): Plain | undefined {
+  return value && typeof value === "object" && !Array.isArray(value) ? (value as Plain) : undefined;
+}
+
+/**
+ * Копия только разрешённых ключей. Значение — скаляр (в том числе null) или
+ * массив скаляров; вложенный объект под разрешённым ключом не копируется.
+ */
+function pick(value: unknown, keys: readonly string[]): Plain | undefined {
+  const source = plain(value);
+  if (!source) return undefined;
+  const out: Plain = {};
+  for (const key of keys) {
+    const v = source[key];
+    if (Array.isArray(v)) out[key] = v.filter((x) => typeof x === "string" || typeof x === "number");
+    else if (v === null || typeof v === "string" || typeof v === "number" || typeof v === "boolean") out[key] = v;
+  }
+  return out;
+}
+
+/** Паспорт для подрядчика: только поля из CONTRACTOR_FIELDS. */
 export function contractorPassport(passport: Passport): Passport {
+  const p = passport as unknown as Plain;
+  const object = pick(p.object, CONTRACTOR_FIELDS.object) ?? {};
+  const roomsSource = plain(p.rooms);
+  let rooms: Plain | undefined;
+  if (roomsSource) {
+    const base = pick(roomsSource, CONTRACTOR_FIELDS.rooms) ?? {};
+    const kitchen = pick(roomsSource.kitchen, CONTRACTOR_FIELDS.kitchen);
+    const bath = pick(roomsSource.bath, CONTRACTOR_FIELDS.bath);
+    rooms = { ...(kitchen ? { kitchen } : {}), ...(bath ? { bath } : {}), ...base };
+  }
+  const household = plain(p.household) ?? {};
+  const budget = plain(p.budget) ?? {};
+  const scope = plain(p.scope) ?? {};
   return {
-    ...passport,
-    contact: undefined,
-    source: undefined,
-    vision: undefined,
+    object,
     asset_horizon: "unknown",
-    budget: { range: "undisclosed", risk_level: passport.budget.risk_level },
+    household: { now: "", in_5y: "", kids: household.kids === true, pets: household.pets === true },
+    lifestyle: pick(p.lifestyle, CONTRACTOR_FIELDS.lifestyle) ?? {},
+    budget: { range: "undisclosed", risk_level: budget.risk_level },
+    timeline: pick(p.timeline, CONTRACTOR_FIELDS.timeline) ?? {},
+    style: pick(p.style, CONTRACTOR_FIELDS.style) ?? { refs: [], anti: [], notes: "" },
+    ...(rooms ? { rooms } : {}),
     pain_points: "",
-    household: {
-      now: "",
-      in_5y: "",
-      kids: passport.household.kids,
-      pets: passport.household.pets,
-    },
-  };
+    scope: { package: typeof scope.package === "string" ? scope.package : null },
+  } as unknown as Passport;
 }
 
 function fileList(value: unknown, kind: KitFileKind): KitFileSource[] {

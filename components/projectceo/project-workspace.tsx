@@ -121,7 +121,9 @@ function Header({
                         : projectCeoRu.common.dash,
                     )}
               </Badge>
-              <Badge tone="success">{projectCeoRu.workspace.header.baselineVersion(view.baseline.versionNo)}</Badge>
+              {view.baseline.id === null
+                ? <Badge tone="warning">{projectCeoRu.workspace.baseline.emptyTitle}</Badge>
+                : <Badge tone="success">{projectCeoRu.workspace.header.baselineVersion(view.baseline.versionNo)}</Badge>}
               <Badge tone="warning">{projectCeoRu.workspace.header.changeCount(view.project.openChangeCount)}</Badge>
             </div>
             <h1 className="mt-4 font-display text-4xl font-semibold leading-none sm:text-5xl">
@@ -320,7 +322,7 @@ function OverviewView({
               <h2 className="mt-1 font-display text-2xl font-semibold">{projectCeoRu.workspace.overview.baselineRelease}</h2>
             </div>
             <Badge tone={view.baseline.status === "published" ? "success" : "warning"}>
-              {view.baseline.status}
+              {view.baseline.id === null ? projectCeoRu.workspace.baseline.emptyTitle : projectCeoRu.workspace.baseline.statusValue[view.baseline.status]}
             </Badge>
           </div>
           <dl className="mt-4 grid grid-cols-2 gap-3 text-sm">
@@ -1095,29 +1097,42 @@ function BaselineView({
 }) {
   const published = view.baseline.status === "published";
   const mayPublish = can(role, "publish_baseline");
+  const copy = projectCeoRu.workspace.baseline;
+
+  if (view.baseline.id === null) {
+    return (
+      <section className="rounded-2xl border border-line bg-white p-5 shadow-sm" data-testid="baseline-empty">
+        <p className="text-xs font-semibold uppercase tracking-[0.14em] text-muted">{copy.readiness}</p>
+        <h2 className="mt-1 font-display text-2xl font-semibold">{copy.emptyTitle}</h2>
+        <p className="mt-2 text-sm text-muted">{copy.emptyText}</p>
+      </section>
+    );
+  }
 
   return (
     <div className="grid gap-4 lg:grid-cols-[1fr_20rem]">
       <section className="rounded-2xl border border-line bg-white p-5 shadow-sm">
         <div className="flex items-start justify-between gap-3">
           <div>
-            <p className="text-xs font-semibold uppercase tracking-[0.14em] text-muted">{projectCeoRu.workspace.baseline.readiness}</p>
+            <p className="text-xs font-semibold uppercase tracking-[0.14em] text-muted">{copy.readiness}</p>
             <h2 className="mt-1 font-display text-2xl font-semibold">ProjectBaseline V{view.baseline.versionNo}</h2>
           </div>
           <Badge tone={published ? "success" : view.baseline.blockerCount ? "danger" : "warning"}>
-            {published ? "published" : view.baseline.blockerCount ? "blocked" : "ready"}
+            {copy.statusValue[view.baseline.status]}
           </Badge>
         </div>
         <div className="mt-5 grid grid-cols-2 gap-3 sm:grid-cols-4">
-          <Metric label={projectCeoRu.workspace.baseline.sources} value={view.project.sourceStats.materializedRecords} />
-          <Metric label={projectCeoRu.workspace.baseline.quarantine} value={view.project.sourceStats.quarantinedGroups} />
-          <Metric label={projectCeoRu.workspace.baseline.blockers} value={view.baseline.blockerCount} />
-          <Metric label={projectCeoRu.workspace.baseline.approval} value={projectCeoRu.workspace.baseline.human} />
+          <Metric label={copy.sources} value={view.project.sourceStats.materializedRecords} />
+          <Metric label={copy.quarantine} value={view.project.sourceStats.quarantinedGroups} />
+          <Metric label={copy.blockers} value={view.baseline.blockerCount} />
+          <Metric label={copy.approval} value={copy.human} />
         </div>
         <div className="mt-5 rounded-xl bg-paper p-4">
-          <p className="text-xs text-muted">{projectCeoRu.workspace.baseline.immutableHash}</p>
-          <p className="mt-2 break-all font-mono text-xs">{view.baseline.semanticHash}</p>
-          <p className="mt-2 text-xs text-muted">{projectCeoRu.workspace.baseline.published} {formatDate(view.baseline.publishedAt)}</p>
+          <p className="text-xs text-muted">{copy.immutableHash}</p>
+          <p className="mt-2 break-all font-mono text-xs">{view.baseline.semanticHash ?? projectCeoRu.common.dash}</p>
+          <p className="mt-2 text-xs text-muted">
+            {copy.published} {view.baseline.publishedAt ? formatDate(view.baseline.publishedAt) : copy.notPublishedYet}
+          </p>
         </div>
         {!published && (
           <button type="button" disabled className="btn-primary mt-5">
@@ -1129,24 +1144,20 @@ function BaselineView({
         )}
       </section>
 
-      <aside className="rounded-2xl border border-line bg-white p-5 shadow-sm">
-        <p className="text-xs font-semibold uppercase tracking-[0.14em] text-muted">{projectCeoRu.workspace.baseline.diff}</p>
-        <h3 className="mt-1 font-display text-2xl font-semibold">{projectCeoRu.workspace.baseline.changedRevision}</h3>
-        <div className="mt-4 space-y-3 text-sm">
+      <aside className="rounded-2xl border border-line bg-white p-5 shadow-sm" data-testid="baseline-facts">
+        <p className="text-xs font-semibold uppercase tracking-[0.14em] text-muted">{copy.versionTitle}</p>
+        <h3 className="mt-1 font-display text-2xl font-semibold">V{view.baseline.versionNo}</h3>
+        <dl className="mt-4 space-y-3 text-sm">
           <div className="rounded-xl bg-paper p-3">
-            <p className="text-xs text-muted">{projectCeoRu.workspace.baseline.selection}</p>
-            <p className="mt-1 font-medium">{projectCeoRu.workspace.baseline.floorFinish}</p>
-            <p className="mt-1 text-xs text-muted">{projectCeoRu.workspace.baseline.revisionDelta}</p>
+            <dt className="text-xs text-muted">{copy.status}</dt>
+            <dd className="mt-1 font-medium">{copy.statusValue[view.baseline.status]}</dd>
           </div>
           <div className="rounded-xl bg-paper p-3">
-            <p className="text-xs text-muted">{projectCeoRu.workspace.baseline.impactRoots}</p>
-            <p className="mt-1 font-medium">{projectCeoRu.workspace.baseline.serverDerivedOne}</p>
+            <dt className="text-xs text-muted">{copy.published}</dt>
+            <dd className="mt-1 font-medium">{view.baseline.publishedAt ? formatDate(view.baseline.publishedAt) : copy.notPublishedYet}</dd>
           </div>
-          <div className="rounded-xl bg-paper p-3">
-            <p className="text-xs text-muted">{projectCeoRu.workspace.baseline.immutableV1}</p>
-            <p className="mt-1 font-medium text-emerald-700">{projectCeoRu.workspace.baseline.checked}</p>
-          </div>
-        </div>
+        </dl>
+        <p className="mt-4 text-xs text-muted">{copy.diffUnavailable}</p>
       </aside>
     </div>
   );

@@ -36,7 +36,8 @@ export default function RespondDemo() {
         </div>
       ) : (
         <div className="animate-rise rounded-lg border border-line bg-white px-4 py-3.5 text-[14px] leading-relaxed text-ink/85">
-          {msg}
+          <span className="text-muted">{r.demoPreview}</span> <span className="italic">«{msg}»</span>{" "}
+          <span className="font-medium">{r.demoNothingSent}</span>
           <button onClick={() => setChoice(null)} className="ml-2 text-clientaccent underline underline-offset-2">
             ←
           </button>

@@ -1,5 +1,6 @@
 import type {
   Passport,
+  PassportClarification,
   AssetHorizon,
   ObjectType,
   Load,
@@ -7,6 +8,8 @@ import type {
   MoneyRange,
 } from "@/lib/types";
 import { deriveInitialScopePackage } from "@/lib/proposal/package";
+import { QUESTIONS } from "@/lib/brief/questions";
+import type { CustomBriefQuestion } from "@/lib/brief/custom-questions";
 
 // buildPassport(answers) — детерминированное отображение сырых ответов в
 // машиночитаемый shadow-паспорт. Никаких сетевых вызовов, никакого LLM.
@@ -122,7 +125,44 @@ function normalizeBudgetRange(raw: unknown): MoneyRange | "undisclosed" {
   return "undisclosed";
 }
 
-export function buildPassport(answers: Answers): Passport {
+const CUSTOM_ID = /^custom_(\d{1,3})$/;
+const CLARIFICATION_MAX = 2000;
+
+export interface PassportContext {
+  /** Свои вопросы дизайнера этого проекта — для текста вопроса custom_N. */
+  readonly customQuestions?: readonly CustomBriefQuestion[] | null;
+}
+
+// Комментарии клиента (answers.comments: { question_id: текст }) — уточнения
+// паспорта по question_id, в порядке вопросов брифа, затем своих вопросов.
+function clarifications(answers: Answers, context: PassportContext): PassportClarification[] | undefined {
+  const raw = obj(answers, "comments");
+  const titles = new Map<string, string>(QUESTIONS.map((q) => [q.id, q.title]));
+  (context.customQuestions ?? []).forEach((q, index) => {
+    if (q && typeof q.title === "string") titles.set(`custom_${index}`, q.title);
+  });
+  const order = (id: string): number => {
+    const builtIn = QUESTIONS.findIndex((q) => q.id === id);
+    if (builtIn >= 0) return builtIn;
+    const custom = CUSTOM_ID.exec(id);
+    return custom ? QUESTIONS.length + Number(custom[1]) : Number.MAX_SAFE_INTEGER;
+  };
+  const out: PassportClarification[] = [];
+  for (const [questionId, value] of Object.entries(raw)) {
+    if (typeof value !== "string" || !value.trim()) continue;
+    out.push({ question_id: questionId, question: titles.get(questionId) ?? null, text: value.trim().slice(0, CLARIFICATION_MAX) });
+  }
+  out.sort((a, b) => order(a.question_id) - order(b.question_id) || (a.question_id < b.question_id ? -1 : 1));
+  return out.length ? out : undefined;
+}
+
+/** Паспорт для движка рисков: уточнения клиента в него не входят. */
+export function passportForRiskEngine(passport: Passport): Passport {
+  const { clarifications: _clarifications, ...rest } = passport;
+  return rest;
+}
+
+export function buildPassport(answers: Answers, context: PassportContext = {}): Passport {
   const objectAns = obj(answers, "object");
   const area =
     typeof objectAns.area_m2 === "number" && objectAns.area_m2 > 0 ? objectAns.area_m2 : null;
@@ -270,5 +310,7 @@ export function buildPassport(answers: Answers): Passport {
     scope: { package: null },
   };
   passport.scope.package = deriveInitialScopePackage(passport, answers);
+  const notes = clarifications(answers, context);
+  if (notes) passport.clarifications = notes;
   return passport;
 }

@@ -14,6 +14,21 @@ function text(value: unknown): string | null {
   return typeof value === "string" && value.trim().length > 0 ? value : null;
 }
 
+interface ClarificationRow { readonly questionId: string; readonly question: string | null; readonly text: string }
+// Список уточнений из паспорта, как его выдал сервер; чужие формы отбрасываются.
+function clarifications(value: unknown): readonly ClarificationRow[] {
+  if (!Array.isArray(value)) return [];
+  const rows: ClarificationRow[] = [];
+  for (const item of value) {
+    const row = record(item);
+    const questionId = text(row.question_id);
+    const body = text(row.text);
+    if (!questionId || !body) continue;
+    rows.push({ questionId, question: text(row.question), text: body });
+  }
+  return rows;
+}
+
 function date(value: string): string {
   return new Intl.DateTimeFormat(ru.projectCeo.common.locale, {
     day: "2-digit",
@@ -31,6 +46,7 @@ export function M1PassportPanel({
 }) {
   const passport = m1.contractedPassport;
   const object = record(passport?.passport.object);
+  const notes = passport?.clarificationsVisible === true ? clarifications(passport.passport.clarifications) : [];
   const objectType = text(object.type);
   const city = text(object.city);
   const area = typeof object.area_m2 === "number" && Number.isFinite(object.area_m2)
@@ -61,6 +77,20 @@ export function M1PassportPanel({
               {area && <div><dt className="text-xs text-muted">{copy.area}</dt><dd className="mt-1 font-medium">{area}</dd></div>}
               {city && <div><dt className="text-xs text-muted">{copy.city}</dt><dd className="mt-1 font-medium">{city}</dd></div>}
             </dl>
+          )}
+          {notes.length > 0 && (
+            <div className="border-t border-line pt-3" data-testid="m1-clarifications">
+              <p className="text-sm font-medium">{copy.clarificationsTitle}</p>
+              <p className="mt-1 text-xs text-muted">{copy.clarificationsHint}</p>
+              <ul className="mt-2 space-y-1 text-sm">
+                {notes.map((note) => (
+                  <li key={note.questionId} data-question-id={note.questionId}>
+                    <span className="text-muted">{note.question ?? copy.clarificationRemovedQuestion}:</span>{" "}
+                    <span className="whitespace-pre-line">{note.text}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
           )}
         </div>
       ) : (

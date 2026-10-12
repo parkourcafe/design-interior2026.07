@@ -190,7 +190,7 @@ export default function PassportView({
   audience = "designer",
 }: {
   passport: Passport;
-  /** Комплект исполнителя: без контактов, источника, бюджета, горизонта и болей семьи. */
+  /** Комплект исполнителя: без контактов, источника, бюджета, горизонта, болей семьи и уточнений клиента. */
   audience?: "designer" | "contractor";
 }) {
   const o = passport.object;
@@ -349,6 +349,19 @@ export default function PassportView({
           pv.notFilled}
       </Row>
       {!contractor && <Row label={pv.pain}>{passport.pain_points || pv.notFilled}</Row>}
+      {!contractor && passport.clarifications && passport.clarifications.length > 0 && (
+        <Row label={pv.clarifications}>
+          <p className="mb-1 text-xs text-muted">{pv.clarificationsHint}</p>
+          <ul className="space-y-1" data-testid="passport-clarifications">
+            {passport.clarifications.map((c) => (
+              <li key={c.question_id} data-question-id={c.question_id}>
+                <span className="text-muted">{c.question ?? pv.clarificationRemovedQuestion}:</span>{" "}
+                <span className="whitespace-pre-line">{c.text}</span>
+              </li>
+            ))}
+          </ul>
+        </Row>
+      )}
     </div>
   );
 }

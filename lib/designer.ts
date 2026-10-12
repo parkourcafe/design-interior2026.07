@@ -44,7 +44,7 @@ export async function getOrCreateDesigner(): Promise<DesignerRow | null> {
 export interface DesignerPublic {
   name: string;
   studio_name: string;
-  email: string; // запасной идентификатор, если имя/студия не заполнены
+  email: string; // контакт для связи; заголовком карточки не становится (FIX-04 P2)
   profile: DesignerProfile;
 }
 

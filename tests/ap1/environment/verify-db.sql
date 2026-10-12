@@ -11,6 +11,7 @@ declare
   v_bucket_public boolean;
   v_managed_auth_functions text[];
   v_claim_reader_defects text[];
+  v_door_timeout_defects text[];
   -- Ожидаемый мажор задаётся вызывающим, по умолчанию 17 — версия hosted
   -- Supabase. Локальный прогон bootstrap-disposable ставит 16 через
   -- `set ap1.expected_postgres_major`, поведение по умолчанию не меняется.
@@ -188,6 +189,31 @@ begin
     raise exception 'AP1_REQUEST_CLAIM_READERS_INVALID %', v_claim_reader_defects;
   end if;
 
+  -- Function-level `statement_timeout = '30s'` дверей публикации
+  -- (`20260813040000` для publish_version, `20261011110000` для
+  -- publish_baseline_atomic). Без него дверь живёт на ролевых 8 секундах
+  -- `authenticated`, и публикация на графе матрицы AP5 (5 000 листьев)
+  -- обрывается 57014. Проверяется здесь — на реальном стеке, до первого шага.
+  select array_agg(
+           d.name || ':' || coalesce(array_to_string(p.proconfig, ','), '(missing)')
+           order by d.name
+         )
+  into v_door_timeout_defects
+  from (values
+    ('projectceo_api.publish_version(uuid, text, bigint, text, jsonb, text)'),
+    ('projectceo_product_api.publish_baseline_atomic(uuid, text, text, jsonb, bigint, text, text)')
+  ) d(name)
+  left join pg_catalog.pg_proc p on p.oid = pg_catalog.to_regprocedure(d.name)
+  where p.oid is null
+     or not ('statement_timeout=30s' = any(coalesce(p.proconfig, '{}'::text[])))
+     or not exists (
+       select 1 from unnest(coalesce(p.proconfig, '{}'::text[])) e
+       where e ~ '^search_path=("")?$'
+     );
+  if v_door_timeout_defects is not null then
+    raise exception 'AP1_PUBLICATION_DOOR_TIMEOUT_NOT_PINNED %', v_door_timeout_defects;
+  end if;
+
   select b.public
   into strict v_bucket_public
   from storage.buckets b
@@ -199,7 +225,7 @@ end
 $verify$;
 
 select format(
-  'AP1_DB_OK postgres=%s migrations=%s private_persistence_runtime_grants=0 executor_roles_guarded=true storage_bucket_private=true managed_auth_references=0 request_claim_readers=ok',
+  'AP1_DB_OK postgres=%s migrations=%s private_persistence_runtime_grants=0 executor_roles_guarded=true storage_bucket_private=true managed_auth_references=0 request_claim_readers=ok publication_door_timeouts=ok',
   current_setting('server_version'),
   (select count(*) from supabase_migrations.schema_migrations)
 );

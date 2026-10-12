@@ -22,7 +22,7 @@ export default function StartClientBrief({
     setError(null);
     try {
       if (!market) {
-        setError(ru.auth.marketSelectionError);
+        setError(ru.auth.marketRequired);
         setPending(false);
         return;
       }
@@ -42,9 +42,9 @@ export default function StartClientBrief({
         router.push(`/i/${json.token}`);
         return; // не снимаем pending — идёт переход
       }
-      setError(json.error ?? "Не удалось начать бриф. Попробуйте ещё раз.");
+      setError(json.error ?? ru.client.startFailed);
     } catch {
-      setError("Нет связи с сервером. Проверьте интернет и попробуйте ещё раз.");
+      setError(ru.client.offline);
     }
     setPending(false);
   }

@@ -291,7 +291,9 @@ async function ReviewBoard({
         </section>
       )}
 
-      {comments.length > 0 && (
+      {/* Паспорта с уточнениями (FIX-03) показывают комментарии внутри ревизии;
+          отдельный список — только для паспортов, собранных до этого. */}
+      {comments.length > 0 && !passport.clarifications?.length && (
         <section>
           <h2 className="mb-3 font-display text-2xl font-semibold">Комментарии клиента</h2>
           <div className="card space-y-3">

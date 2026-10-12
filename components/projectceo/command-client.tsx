@@ -37,7 +37,7 @@ export function ProjectCeoCommandButton({
   readonly confirmation?: string;
 }) {
   const router = useRouter();
-  const [state, setState] = useState<"idle" | "pending" | "error">("idle");
+  const [state, setState] = useState<"idle" | "pending" | "error" | "identity">("idle");
   const fingerprint = JSON.stringify(command);
   const commandIdentity = useRef({ fingerprint, commandId: crypto.randomUUID() });
   useEffect(() => {
@@ -54,7 +54,7 @@ export function ProjectCeoCommandButton({
         commandIdentity.current.commandId,
       );
       if (response.status !== "completed") {
-        setState("error");
+        setState(response.error.code === "identity_unverified" ? "identity" : "error");
         return;
       }
       commandIdentity.current = { fingerprint, commandId: crypto.randomUUID() };
@@ -78,6 +78,11 @@ export function ProjectCeoCommandButton({
       {state === "error" && (
         <span role="status" className="text-[11px] text-red-700">
           {ru.projectCeo.common.commandUnavailable}
+        </span>
+      )}
+      {state === "identity" && (
+        <span role="status" className="text-[11px] text-red-700">
+          {ru.projectCeo.common.commandIdentityUnverified}
         </span>
       )}
     </span>

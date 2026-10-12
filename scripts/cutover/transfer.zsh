@@ -43,6 +43,24 @@ set -euo pipefail
 : "${SOURCE_DB_URL:?SOURCE_DB_URL не задан}"
 : "${TARGET_DB_URL:?TARGET_DB_URL не задан}"
 
+# Token-поля auth.users, которые GoTrue целевой версии (v2.192.0, проверено
+# на стенде 11.10.2026: у всех созданных им пользователей — пустая строка, NULL
+# нет) читает как string и падает с 500 «converting NULL to string» при NULL.
+# В старой базе и при отсутствии столбца в источнике сюда приходит NULL.
+# Решение владельца 11.10.2026, п. 4: NULL → '' только для этого списка,
+# непустые значения сохраняются, источник не меняется; несовпадение схемы
+# приёмника по этим столбцам останавливает перенос.
+TOKEN_FIELDS=(
+  confirmation_token
+  recovery_token
+  email_change
+  email_change_token_new
+  email_change_token_current
+  phone_change
+  phone_change_token
+  reauthentication_token
+)
+
 TABLES=(
   auth.users
   auth.identities
@@ -69,6 +87,21 @@ ready=$(tgt -c "select (to_regclass('public.intake_consent_records') is not null
 filled=$(tgt -c "select (select count(*) from auth.users) + (select count(*) from public.designers)
   + (select count(*) from public.projects)")
 [[ "$filled" == "0" ]] || { print -r -- "ОТКАЗ: приёмник не пуст ($filled строк) — перенос только в пустую базу"; exit 1; }
+
+print -r -- "== Проверка схемы приёмника: token-поля auth.users"
+# Каждое поле списка должно существовать в приёмнике как символьный столбец,
+# допускающий NULL (иначе смысл нормализации другой). Любое отклонение —
+# неизвестное несовпадение схемы: перенос останавливается до выгрузки.
+for field in $TOKEN_FIELDS; do
+  shape=$(tgt -c "select data_type || '/' || is_nullable from information_schema.columns
+    where table_schema = 'auth' and table_name = 'users' and column_name = '$field'")
+  case "$shape" in
+    "character varying/YES"|"text/YES") ;;
+    "") print -r -- "ОТКАЗ: в auth.users приёмника нет столбца $field — схема GoTrue не совпадает с ожидаемой"; exit 1 ;;
+    *)  print -r -- "ОТКАЗ: столбец auth.users.$field приёмника имеет вид $shape, ожидалось character/YES"; exit 1 ;;
+  esac
+done
+print -r -- "  token-поля приёмника: ${#TOKEN_FIELDS} столбцов, схема совпадает"
 
 print -r -- "== Предварительная проверка: ограничения приёмника на данных источника"
 # Одна плохая строка сорвала бы всю транзакцию записи уже после выгрузки.
@@ -150,8 +183,33 @@ set passport_revision_llm_ok = exists (
 where p.passport is not null;
 SQL
 
+# Нормализация token-полей — в той же транзакции, что и запись: только NULL → '',
+# по явному списку, с подсчётом по каждому полю (RAISE NOTICE → журнал переноса).
+token_list=$(print -r -- "${(j:,:)TOKEN_FIELDS}" | sed "s/[^,]*/'&'/g")
+cat >> "$load_sql" <<SQL
+do \$normalize\$
+declare
+  f text;
+  n bigint;
+begin
+  foreach f in array array[$token_list] loop
+    if not exists (select 1 from information_schema.columns
+                   where table_schema = 'auth' and table_name = 'users' and column_name = f) then
+      raise exception 'TOKEN_FIELD_MISSING %', f;
+    end if;
+    execute format('update auth.users set %I = '''' where %I is null', f, f);
+    get diagnostics n = row_count;
+    raise notice 'TOKEN_NORMALIZED field=% rows=%', f, n;
+  end loop;
+end
+\$normalize\$;
+SQL
+
 print -r -- "== Запись в приёмник (одна транзакция)"
-psql "$TARGET_DB_URL" -X -v ON_ERROR_STOP=1 -q --single-transaction -f "$load_sql"
+psql "$TARGET_DB_URL" -X -v ON_ERROR_STOP=1 -q --single-transaction -f "$load_sql" 2>&1 | tee "$WORK/load.log"
+[[ ${pipestatus[1]} -eq 0 ]] || { print -r -- "ОТКАЗ: запись не выполнена, транзакция откачена"; exit 1; }
+print -r -- "  нормализация token-полей (NULL → пустая строка, непустые значения не тронуты):"
+grep -o 'TOKEN_NORMALIZED field=[a-z_]* rows=[0-9]*' "$WORK/load.log" | sed 's/TOKEN_NORMALIZED /    /'
 
 print -r -- "== Сверка"
 fail=0
@@ -172,5 +230,11 @@ if [[ "$with_passport" == "$revisions" ]]; then
 else
   print -r -- "  FAIL ревизии паспорта: $revisions из $with_passport"; fail=1
 fi
+# Ни одного NULL в token-полях после переноса — иначе вход в GoTrue падает с 500.
+for field in $TOKEN_FIELDS; do
+  nulls=$(tgt -c "select count(*) from auth.users where $field is null")
+  if [[ "$nulls" != "0" ]]; then print -r -- "  FAIL auth.users.$field: $nulls NULL после нормализации"; fail=1; fi
+done
+(( fail == 0 )) && print -r -- "  OK   token-поля: NULL нет"
 (( fail == 0 )) || { print -r -- "СВЕРКА НЕ ПРОШЛА"; exit 1; }
 print -r -- "TRANSFER_OK"

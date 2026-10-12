@@ -104,7 +104,7 @@ export async function POST(request: Request) {
     }
 
     // 2. Полный проход: паспорт + карточки (деградация внутри пайплайна).
-    const { passport, cards, llmOk } = await runRiskPipeline(answers);
+    const { passport, cards, llmOk } = await runRiskPipeline(answers, { customQuestions: project.custom_questions });
 
     // 3. Записать паспорт и статус (условно). Имя клиента — из контакта
     // (чтобы дизайнер понимал, чья это заявка среди множества).

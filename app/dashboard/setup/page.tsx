@@ -23,6 +23,7 @@ export default async function SetupPage() {
         <h2 className="mb-2 font-display text-xl font-semibold">{ru.profilePreview.title}</h2>
         <p className="mb-3 text-sm text-muted">{ru.profilePreview.hint}</p>
         <DesignerCard
+          preview
           designer={{
             name: designer.name ?? "",
             studio_name: designer.studio_name ?? "",

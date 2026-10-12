@@ -90,6 +90,19 @@ export interface Passport {
   contact?: { name: string; phone: string; email: string };
   pain_points: string;
   scope: { package: ScopePackage };
+  /**
+   * Уточнения клиента к вопросам брифа (ТЗ 08.10, FIX-03): комментарий клиента,
+   * привязанный к question_id. Входит в ревизию паспорта, но не в движок
+   * рисков и не в сводку исполнителя. Нет комментариев — поля нет.
+   */
+  clarifications?: PassportClarification[];
+}
+
+export interface PassportClarification {
+  question_id: string;
+  /** Текст вопроса на момент ревизии; null — вопроса уже нет в брифе. */
+  question: string | null;
+  text: string;
 }
 
 // ── Risk card ────────────────────────────────────────────

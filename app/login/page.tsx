@@ -36,14 +36,25 @@ export default function LoginPage() {
   const [tab, setTab] = useState<Tab>("password");
   const [email, setEmail] = useState("");
   const [callbackError, setCallbackError] = useState<string | null>(null);
-  const [showGoogle, setShowGoogle] = useState(false);
+  const [notNativeIos, setNotNativeIos] = useState(false);
+  const [googleConfigured, setGoogleConfigured] = useState(false);
+  const showGoogle = notNativeIos && googleConfigured;
 
   // Показываем реальную причину, если /auth/callback вернул сюда с ?error=...
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const err = params.get("error_description") || params.get("error");
     if (err) {
-      setCallbackError(err === "no_auth_params" ? ru.auth.noAuthParams : err.replaceAll("+", " "));
+      // Просроченная/использованная ссылка приходит либо кодом из фрагмента
+      // (otp_expired, components/auth-hash-error.tsx), либо текстом Auth из
+      // /auth/callback; остальные отказы (например, access_denied) — общая ошибка.
+      const linkExpired = err === "otp_expired" || /link is invalid or has expired|token has expired or is invalid/i.test(err);
+      setCallbackError(
+        err === "no_auth_params" ? ru.auth.noAuthParams
+          : linkExpired ? ru.auth.linkExpired
+            : err === "access_denied" ? ru.auth.genericError
+              : err.replaceAll("+", " "),
+      );
     }
   }, []);
 
@@ -58,10 +69,10 @@ export default function LoginPage() {
       .then(({ Capacitor }) => {
         if (!active) return;
         const isNativeIos = Capacitor.isNativePlatform() && Capacitor.getPlatform() === "ios";
-        setShowGoogle(!isNativeIos);
+        setNotNativeIos(!isNativeIos);
       })
       .catch(() => {
-        if (active) setShowGoogle(true);
+        if (active) setNotNativeIos(true);
       });
 
     return () => {
@@ -84,9 +95,23 @@ export default function LoginPage() {
 
   const [market, setMarket] = useState<"ru" | "international" | "">("");
 
+  // Google — только если провайдер включён в Auth выбранного контура (FIX-04).
+  useEffect(() => {
+    let active = true;
+    setGoogleConfigured(false);
+    if (!market) return;
+    void import("@/lib/supabase/auth-providers")
+      .then(({ googleSignInEnabled }) => googleSignInEnabled(market === "ru" ? "ru" : "us"))
+      .then((enabled) => { if (active) setGoogleConfigured(enabled); })
+      .catch(() => { if (active) setGoogleConfigured(false); });
+    return () => {
+      active = false;
+    };
+  }, [market]);
+
   async function selectMarket(): Promise<"ru" | "international" | null> {
     if (!market) {
-      setCallbackError(ru.auth.marketSelectionError);
+      setCallbackError(ru.auth.marketRequired);
       return null;
     }
     const response = await fetch("/api/market/select", {
@@ -144,7 +169,7 @@ export default function LoginPage() {
         const selectedMarket = await selectMarket();
         if (!selectedMarket) {
           setPwBusy(false);
-          return setPwError(ru.auth.marketSelectionError);
+          return setPwError(market ? ru.auth.marketSelectionError : ru.auth.marketRequired);
         }
         const registerResponse = await fetch("/api/auth/register", {
           method: "POST",
@@ -170,7 +195,7 @@ export default function LoginPage() {
       const selectedMarket = await selectMarket();
       if (!selectedMarket) {
         setPwBusy(false);
-        return setPwError(ru.auth.marketSelectionError);
+        return setPwError(market ? ru.auth.marketSelectionError : ru.auth.marketRequired);
       }
       const supabase = await supabaseClient(selectedMarket);
       const { error } = await supabase.auth.signInWithPassword({ email, password });
@@ -224,7 +249,7 @@ export default function LoginPage() {
       const selectedMarket = await selectMarket();
       if (!selectedMarket) {
         setOtp("error");
-        setOtpDetail(ru.auth.marketSelectionError);
+        setOtpDetail(market ? ru.auth.marketSelectionError : ru.auth.marketRequired);
         return;
       }
       const supabase = await supabaseClient(selectedMarket);
@@ -248,7 +273,7 @@ export default function LoginPage() {
       const selectedMarket = await selectMarket();
       if (!selectedMarket) {
         setVerifying(false);
-        return setCodeError(ru.auth.marketSelectionError);
+        return setCodeError(market ? ru.auth.marketSelectionError : ru.auth.marketRequired);
       }
       const supabase = await supabaseClient(selectedMarket);
       const { error } = await supabase.auth.verifyOtp({ email, token: code.trim(), type: "email" });

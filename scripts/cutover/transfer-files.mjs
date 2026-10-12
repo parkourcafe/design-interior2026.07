@@ -6,13 +6,21 @@
 //
 // Пути сохраняются как есть: answers.attachments в перенесённых проектах
 // ссылаются на те же ключи. Уже существующий в приёмнике файл не
-// перезаписывается (повторный запуск безопасен). Сверка — по размеру.
+// перезаписывается (повторный запуск безопасен).
+//
+// Сверка — по содержимому (ТЗ 08.10, FIX-02): SHA-256 байтов, скачанных из
+// источника, и байтов, скачанных из приёмника. Размер и ETag хранилища
+// доказательством не считаются. Файл в приёмнике с другим содержимым — отказ
+// с перечнем путей; скрипт его не перезаписывает (решает оператор). Итог
+// FILES_TRANSFER_OK печатается только после повторной сверки всего набора.
 //
 // Запуск (ключи service role не печатаются):
 //   SOURCE_SUPABASE_URL=… SOURCE_SERVICE_ROLE_KEY=… \
 //   TARGET_SUPABASE_URL=… TARGET_SERVICE_ROLE_KEY=… \
 //   EXPECTED_FILE_COUNT=<число из вывода transfer.zsh> \
 //     node scripts/cutover/transfer-files.mjs
+
+import { createHash } from "node:crypto";
 
 const BUCKET = "client-uploads";
 
@@ -60,34 +68,63 @@ if (expected !== undefined && expected !== "" && Number(expected) !== sourceFile
   console.error(`список Storage API (${sourceFiles.length}) не совпадает с базой (${expected})`);
   process.exit(1);
 }
-const targetSizes = new Map((await list(target, "")).map((file) => [file.path, file.size]));
+const targetPaths = new Set((await list(target, "")).map((file) => file.path));
 console.log(`== файлов в источнике: ${sourceFiles.length}`);
 
+async function fetchBytes(side, path, label) {
+  const response = await fetch(objectUrl(side, path), { headers: headers(side) });
+  if (!response.ok) throw new Error(`${label} ${path}: HTTP ${response.status}`);
+  return new Uint8Array(await response.arrayBuffer());
+}
+const sha256 = (bytes) => createHash("sha256").update(bytes).digest("hex");
+
+const expectedHash = new Map();
+const conflicts = [];
 let copied = 0;
-let skipped = 0;
+let verifiedExisting = 0;
 for (const file of sourceFiles) {
-  if (targetSizes.has(file.path)) {
-    if (targetSizes.get(file.path) !== file.size) throw new Error(`размер отличается: ${file.path}`);
-    skipped += 1;
-    continue;
+  const bytes = await fetchBytes(source, file.path, "download");
+  const hash = sha256(bytes);
+  expectedHash.set(file.path, hash);
+  if (!targetPaths.has(file.path)) {
+    const upload = await fetch(objectUrl(target, file.path), {
+      method: "POST",
+      headers: headers(target, { "Content-Type": file.type || "application/octet-stream", "x-upsert": "false" }),
+      body: bytes,
+    });
+    // «Уже существует» (409, или 400 с statusCode "409"/Duplicate в теле — так
+    // отвечают версии Storage API): файл появился между списком и загрузкой —
+    // сверяем ниже, как существующий. Любой другой отказ — ошибка загрузки.
+    if (upload.ok) copied += 1;
+    else {
+      const reason = await upload.text().catch(() => "");
+      const duplicate = upload.status === 409
+        || (upload.status === 400 && /"statusCode"\s*:\s*"409"|Duplicate|already exists/i.test(reason));
+      if (!duplicate) throw new Error(`upload ${file.path}: HTTP ${upload.status} ${reason.slice(0, 200)}`);
+    }
   }
-  const download = await fetch(objectUrl(source, file.path), { headers: headers(source) });
-  if (!download.ok) throw new Error(`download ${file.path}: HTTP ${download.status}`);
-  const bytes = new Uint8Array(await download.arrayBuffer());
-  const upload = await fetch(objectUrl(target, file.path), {
-    method: "POST",
-    headers: headers(target, { "Content-Type": file.type || "application/octet-stream", "x-upsert": "false" }),
-    body: bytes,
-  });
-  if (!upload.ok) throw new Error(`upload ${file.path}: HTTP ${upload.status}`);
-  copied += 1;
+  const stored = sha256(await fetchBytes(target, file.path, "verify"));
+  if (stored !== hash) conflicts.push({ path: file.path, source: hash, target: stored });
+  else if (targetPaths.has(file.path)) verifiedExisting += 1;
 }
 
-const after = new Map((await list(target, "")).map((file) => [file.path, file.size]));
-const missing = sourceFiles.filter((file) => after.get(file.path) !== file.size);
-console.log(`  скопировано: ${copied}, уже были: ${skipped}, расхождений: ${missing.length}`);
-if (missing.length > 0) {
-  for (const file of missing) console.log(`  FAIL ${file.path}`);
-  process.exit(1);
+// Повторная сверка всего набора перед итогом: каждый файл источника есть в
+// приёмнике с тем же SHA-256.
+const finalMismatch = [];
+for (const file of sourceFiles) {
+  if (conflicts.some((c) => c.path === file.path)) continue;
+  const stored = sha256(await fetchBytes(target, file.path, "final-verify"));
+  if (stored !== expectedHash.get(file.path)) finalMismatch.push(file.path);
 }
+console.log(`  скопировано: ${copied}, уже были (содержимое совпало): ${verifiedExisting}, конфликтов: ${conflicts.length + finalMismatch.length}`);
+if (conflicts.length > 0 || finalMismatch.length > 0) {
+  for (const c of conflicts) {
+    console.log(`  CONFLICT ${c.path} источник sha256=${c.source.slice(0, 16)}… приёмник sha256=${c.target.slice(0, 16)}…`);
+  }
+  for (const path of finalMismatch) console.log(`  FAIL ${path} (не совпало при итоговой сверке)`);
+  console.log("FILES_TRANSFER_FAILED: файлы в приёмнике отличаются от источника и не перезаписаны.");
+  console.log("Проверьте их вручную; после удаления ошибочных копий в приёмнике запуск можно повторить.");
+  process.exit(2);
+}
+console.log(`  сверено по SHA-256: ${sourceFiles.length} из ${sourceFiles.length}`);
 console.log("FILES_TRANSFER_OK");

@@ -2,6 +2,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { ru } from "@/lib/i18n/ru";
 import LandingNav from "@/components/landing/nav";
+import AuthHashError from "@/components/auth-hash-error";
 import LandingFooter from "@/components/landing/footer";
 import Hero from "@/components/landing/hero";
 import FogScene from "@/components/landing/fog-scene";
@@ -79,6 +80,7 @@ function Section({ id, children, className = "" }: { id?: string; children: Reac
 export default function Home() {
   return (
     <div className="landing min-h-screen">
+      <AuthHashError />
       <LandingNav />
       <main>
         <Hero />
