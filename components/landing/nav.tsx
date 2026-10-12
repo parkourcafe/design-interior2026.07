@@ -7,7 +7,6 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { ReadingProgress } from "./cinema";
 import CursorGlow from "./cursor-glow";
-import LanguageSwitcher from "./language-switcher";
 import { usePublicLocale } from "@/lib/i18n/public";
 
 export default function LandingNav() {
@@ -68,9 +67,6 @@ export default function LandingNav() {
           </nav>
 
           <div className="flex items-center gap-3">
-            <div className="hidden sm:block">
-              <LanguageSwitcher />
-            </div>
             <Link href="/login" className="hidden text-[13.5px] text-ivorymuted hover:text-ivory sm:inline">
               {n.login}
             </Link>
@@ -113,9 +109,6 @@ export default function LandingNav() {
             ))}
           </nav>
           <div className="mt-auto flex flex-col gap-3 pt-8">
-            <div className="mb-2">
-              <LanguageSwitcher />
-            </div>
             <Link href="/login" onClick={() => setOpen(false)} className="btn-bronze w-full">
               {n.createProject}
             </Link>
